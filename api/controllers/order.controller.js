@@ -6229,7 +6229,7 @@ export const getCashierOrderHistory = async (req, res) => {
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       // .populate('voucher')
-      .sort({ createdAt: -1 }); // Mengisi detail voucher (opsional)
+      .sort({ updatedAt: -1 }); // Mengisi detail voucher (opsional)
     console.log(orders.length);
     if (!orders || orders.length === 0) {
       return res.status(200).json({ message: 'No order history found for this cashier.', orders });
@@ -7450,4 +7450,33 @@ export async function patchEditOrder(req, res) {
     console.error('patchEditOrder error:', err);
     return res.status(500).json({ message: err.message || 'internal error' });
   }
+}
+
+// POST /payments/:id/refund-settle
+export async function markRefundPaid({ paymentId, method, reference, session, cashierId }) {
+  const p = await Payment.findById(paymentId).session(session);
+  if (!p) throw new Error("Payment not found");
+  if (!(p.status === "refund" && p.direction === "refund")) {
+    throw new Error("Payment is not a refund liability");
+  }
+
+  p.status = "settlement";        // <-- sekarang dianggap sudah diserahkan ke customer
+  p.method = method || p.method;  // opsional update cara bayar refund
+  p.refundReference = reference;  // opsional catat referensi (no transfer, dsb.)
+  p.refundPaidAt = new Date();    // opsional timestamp
+  p.refundPaidBy = cashierId || p.refundPaidBy; // opsional
+
+  await p.save({ session });
+
+  await PaymentAdjustment.create([{
+    orderId: p.order_id,
+    paymentId: p._id,
+    revisionId: null,
+    kind: "refund_paid",
+    direction: "refund",
+    amount: p.amount,
+    note: `refund paid ${method || ""} ${reference || ""}`.trim(),
+  }], { session });
+
+  return p;
 }

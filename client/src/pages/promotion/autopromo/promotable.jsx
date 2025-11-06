@@ -1,9 +1,9 @@
 import axios from "axios";
 import React, { useState } from "react";
 import { FaPencilAlt, FaTrash } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
 import ConfirmationModal from "./confirmmodal";
 import ConfirmationModalActive from "../confirmationModalActive";
+import UpdateAutoPromo from "./update";
 
 const PromoTable = ({ filteredPromos, refreshPromos }) => {
     const [selectedPromos, setSelectedPromos] = useState([]);
@@ -13,6 +13,8 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [openDropdown, setOpenDropdown] = useState(null);
+    const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+    const [selectedPromo, setSelectedPromo] = useState(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const promosPerPage = 50;
@@ -20,7 +22,7 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
     const formatTanggal = (dateString) => {
         const date = new Date(dateString);
         const day = String(date.getDate()).padStart(2, "0");
-        const month = String(date.getMonth() + 1).padStart(2, "0"); // bulan dimulai dari 0
+        const month = String(date.getMonth() + 1).padStart(2, "0");
         const year = date.getFullYear();
         return `${day}-${month}-${year}`;
     };
@@ -36,7 +38,7 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
     const handleToggleActive = async (id, newStatus) => {
         try {
             await axios.put(`/api/promotion/autopromos/${id}`, { isActive: newStatus });
-            refreshPromos(); // refresh data setelah update
+            refreshPromos();
         } catch (error) {
             console.error("Gagal update status voucher", error);
         }
@@ -93,6 +95,7 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
                             <th className="px-6 py-3 text-left font-semibold w-3/12">Nama Promo</th>
                             <th className="px-6 py-3 text-left font-semibold w-3/12">Tanggal Berlaku</th>
                             <th className="px-6 py-3 text-left font-semibold w-2/12">Status</th>
+                            <th className="px-6 py-3 text-left font-semibold w-2/12">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -116,37 +119,44 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
                                                 setIsConfirmOpen(true);
                                             }}
                                             className={`px-2 py-1 text-xs rounded-full cursor-pointer ${promo.isActive
-                                                ? "bg-green-100 text-green-700 hover:bg-green-200"
-                                                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                                    ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                                    : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                                                 }`}
                                         >
                                             {promo.isActive ? "Aktif" : "Tidak Aktif"}
                                         </span>
                                     </td>
-                                    {/* <div className="relative inline-block">
-                                        <Link
-                                            to={`/admin/promo-otomatis-update/${promo._id}`}
-                                            className="flex items-center gap-3 px-4 py-2 hover:bg-gray-100"
-                                        >
-                                            <FaPencilAlt />
-                                            <span>Edit</span>
-                                        </Link>
-                                        <button
-                                            onClick={() => {
-                                                setItemToDelete(promo._id);
-                                                setIsModalOpen(true);
-                                            }}
-                                            className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-100"
-                                        >
-                                            <FaTrash />
-                                            <span>Hapus</span>
-                                        </button>
-                                    </div> */}
+
+                                    {/* Aksi */}
+                                    <td className="px-6 py-3">
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedPromo(promo);
+                                                    setIsUpdateModalOpen(true);
+                                                }}
+                                                className="flex items-center gap-2 px-3 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                            >
+                                                <FaPencilAlt size={14} />
+                                                <span>Edit</span>
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setItemToDelete(promo._id);
+                                                    setIsModalOpen(true);
+                                                }}
+                                                className="flex items-center gap-2 px-3 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                            >
+                                                <FaTrash size={14} />
+                                                <span>Hapus</span>
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={3} className="text-center py-8 text-gray-500 text-sm">
+                                <td colSpan={4} className="text-center py-8 text-gray-500 text-sm">
                                     Tidak ada promo ditemukan
                                 </td>
                             </tr>
@@ -204,8 +214,18 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
                     setNewStatus(null);
                 }}
             />
-        </div>
 
+            {/* Modal Update */}
+            <UpdateAutoPromo
+                isOpen={isUpdateModalOpen}
+                onClose={() => setIsUpdateModalOpen(false)}
+                onSuccess={() => {
+                    refreshPromos();
+                    setIsUpdateModalOpen(false);
+                }}
+                promoData={selectedPromo}
+            />
+        </div>
     );
 };
 

@@ -9,7 +9,7 @@ import { fingerprintController } from '../controllers/hr/fingerprint.controller.
 const router = express.Router();
 
 // Middleware for admin and superadmin only
-const adminAccess = verifyToken(['admin', 'superadmin']);
+const adminAccess = verifyToken(['admin', 'superadmin', 'hr']);
 
 // HR Routes
 // Create new employee

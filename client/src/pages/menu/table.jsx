@@ -288,19 +288,23 @@ export default function MenuTable({
 
                                                 {/* Edit */}
 
-                                                {location.pathname === '/admin/menu' ? (<Link
-                                                    to={`/admin/menu-update/${item.id}`}
-                                                    className="p-2 rounded-md hover:bg-gray-100 text-green-900"
-                                                    title="Edit"
-                                                >
-                                                    <FaPencilAlt size={16} />
-                                                </Link>) : (<Link
-                                                    to={`/admin/event/edit-event/${item.id}`}
-                                                    className="p-2 rounded-md hover:bg-gray-100 text-green-900"
-                                                    title="Edit"
-                                                >
-                                                    <FaPencilAlt size={16} />
-                                                </Link>)}
+                                                {location.pathname === '/admin/menu' ? (
+                                                    <Link
+                                                        to={`/admin/menu-update/${item.id}`}
+                                                        className="p-2 rounded-md hover:bg-gray-100 text-green-900"
+                                                        title="Edit"
+                                                    >
+                                                        <FaPencilAlt size={16} />
+                                                    </Link>
+                                                ) : (
+                                                    <Link
+                                                        to={`/admin/ticket/edit-ticket/${item.id}`}
+                                                        className="p-2 rounded-md hover:bg-gray-100 text-green-900"
+                                                        title="Edit"
+                                                    >
+                                                        <FaPencilAlt size={16} />
+                                                    </Link>
+                                                )}
 
                                             </div>
                                         </td>

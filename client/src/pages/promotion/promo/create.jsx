@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { FaCut, FaChevronRight } from "react-icons/fa";
+import { FaCut, FaChevronRight, FaPercentage, FaMoneyBillWave, FaCalendarAlt, FaStore, FaUsers, FaTag } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../../admin/header";
 import Select from "react-select";
@@ -11,16 +11,17 @@ const CreatePromoPage = () => {
   const customSelectStyles = {
     control: (provided, state) => ({
       ...provided,
-      borderColor: state.isFocused ? "#005429" : "#d1d5db",
-      minHeight: "38px",
+      borderColor: state.isFocused ? "#005429" : "#e5e7eb",
+      minHeight: "42px",
       fontSize: "14px",
-      borderRadius: "0.375rem",
-      boxShadow: state.isFocused ? "0 0 0 1px #005429" : "none",
+      borderRadius: "0.5rem",
+      boxShadow: state.isFocused ? "0 0 0 3px rgba(0, 84, 41, 0.1)" : "none",
       "&:hover": { borderColor: "#005429" },
+      transition: "all 0.2s",
     }),
     singleValue: (provided) => ({
       ...provided,
-      color: "#374151",
+      color: "#1f2937",
       fontSize: "14px",
     }),
     placeholder: (provided) => ({
@@ -32,8 +33,11 @@ const CreatePromoPage = () => {
       ...provided,
       fontSize: "14px",
       color: "#374151",
-      backgroundColor: state.isFocused ? "rgba(0, 84, 41, 0.1)" : "white",
+      backgroundColor: state.isFocused ? "rgba(0, 84, 41, 0.08)" : "white",
       cursor: "pointer",
+      "&:active": {
+        backgroundColor: "rgba(0, 84, 41, 0.15)",
+      },
     }),
   };
 
@@ -52,8 +56,8 @@ const CreatePromoPage = () => {
   const [loyaltyLevels, setLoyaltyLevels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectAll, setSelectAll] = useState(false);
 
-  // Fetch data
   const fetchData = useCallback(async () => {
     try {
       setError(null);
@@ -73,7 +77,7 @@ const CreatePromoPage = () => {
       }));
     } catch (error) {
       console.error("Error fetching data:", error);
-      setError("Failed to load data. Please try again.");
+      setError("Gagal memuat data. Silakan coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -88,10 +92,9 @@ const CreatePromoPage = () => {
     label: level.name || "N/A",
   }));
 
-  // Opsi untuk discountType
   const discountTypeOptions = [
-    { value: "percentage", label: "%" },
-    { value: "fixed", label: "Rp" },
+    { value: "percentage", label: "Persentase (%)", icon: <FaPercentage /> },
+    { value: "fixed", label: "Nominal (Rp)", icon: <FaMoneyBillWave /> },
   ];
 
   const handleInputChange = (e) => {
@@ -113,223 +116,293 @@ const CreatePromoPage = () => {
     });
   };
 
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setPromo((prev) => ({ ...prev, outlet: [] }));
+    } else {
+      setPromo((prev) => ({
+        ...prev,
+        outlet: outlets.map((o) => o._id),
+      }));
+    }
+    setSelectAll(!selectAll);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (promo.outlet.length === 0) {
+      setError("Pilih minimal satu outlet.");
+      return;
+    }
+
     try {
       setError(null);
       await axios.post("/api/promotion/promo-create", promo);
       navigate("/admin/promo-khusus");
     } catch (err) {
       console.error("Error creating promo:", err);
-      setError("Failed to create promo. Please try again.");
+      setError(err.response?.data?.message || "Gagal membuat promo. Silakan coba lagi.");
     }
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="text-red-500 text-center">
-          <p className="text-xl font-semibold mb-2">Error</p>
-          <p>{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 bg-[#005429] text-white px-4 py-2 rounded-md"
-          >
-            Refresh
-          </button>
-        </div>
+      <div className="flex flex-col justify-center items-center h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-t-[#005429] border-b-[#005429] border-l-transparent border-r-transparent"></div>
+        <p className="mt-4 text-gray-600 text-sm">Memuat data...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-full mx-auto">
-      <Header />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
 
-      {/* Toolbar */}
-      <div className="px-4 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b bg-white">
-        <div className="flex items-center flex-wrap text-gray-500 text-sm space-x-1">
-          <FaCut className="text-gray-500" />
-          <p>Promo</p>
-          <FaChevronRight size={12} />
-          <Link to="/admin/promo-khusus">Promo Khusus</Link>
-          <FaChevronRight size={12} />
-          <Link to="/admin/promo-khusus-create" className="font-semibold">
-            Tambah Promo Khusus
-          </Link>
+      {/* Main Content */}
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Buat Promo Khusus</h1>
+          <p className="text-gray-600">Isi formulir di bawah untuk membuat promo baru untuk pelanggan</p>
         </div>
-      </div>
 
-      {/* Form */}
-      <form
-        id="promo-form"
-        onSubmit={handleSubmit}
-        className="bg-slate-50 px-4 sm:px-6 py-8 max-w-7xl mx-auto"
-      >
-        <div className="bg-white rounded-lg p-6 sm:p-10 shadow-md space-y-6">
-          {/* Nama Promo */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-            <label className="text-sm font-semibold">Nama Promo</label>
-            <input
-              name="name"
-              type="text"
-              value={promo.name}
-              onChange={handleInputChange}
-              className="col-span-2 border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
-              placeholder="Contoh: Diskon Pelajar"
-              required
-            />
-          </div>
-
-          {/* Besar Diskon */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-            <label className="text-sm font-semibold">Besar Diskon</label>
-            <div className="col-span-2 flex items-center space-x-3">
-              <Select
-                className="w-[70px] text-sm"
-                classNamePrefix="react-select"
-                options={discountTypeOptions}
-                value={discountTypeOptions.find(opt => opt.value === promo.discountType)}
-                onChange={(selected) =>
-                  handleInputChange({
-                    target: { name: "discountType", value: selected.value },
-                  })
-                }
-                isSearchable={false} // karena cuma 2 opsi
-                styles={customSelectStyles}
-              />
-              <input
-                name="discountAmount"
-                type="number"
-                value={promo.discountAmount}
-                onChange={handleInputChange}
-                className="flex-1 border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
-                required
-              />
+        {/* Error Alert */}
+        {error && (
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg animate-shake">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700 font-medium">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-red-500 hover:text-red-700"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
             </div>
           </div>
+        )}
 
-          {/* Customer Type */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-            <label className="text-sm font-semibold">Customer Type</label>
-            <Select
-              name="customerType"
-              value={customerTypeOptions.find(
-                (opt) => opt.value === promo.customerType
-              )}
-              onChange={(opt) =>
-                handleInputChange({
-                  target: { name: "customerType", value: opt?.value },
-                })
-              }
-              options={customerTypeOptions}
-              placeholder="Select Customer Type"
-              className="col-span-2 text-sm"
-              classNamePrefix="react-select"
-              styles={customSelectStyles}
-              isClearable
-              required
-            />
-          </div>
-
-          {/* Validity Dates */}
-          {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-1">
-                Valid From
-              </label>
-              <input
-                name="validFrom"
-                type="date"
-                value={promo.validFrom}
-                onChange={handleInputChange}
-                className="w-full border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">
-                Valid To
-              </label>
-              <input
-                name="validTo"
-                type="date"
-                value={promo.validTo}
-                onChange={handleInputChange}
-                className="w-full border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
-                required
-              />
-            </div>
-          </div> */}
-
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Tanggal Promo</label>
-            <div className="flex gap-2">
-              <input
-                type="date"
-                name="validFrom"
-                value={promo.validFrom.slice(0, 10)}
-                onChange={e => setPromo(prev => ({ ...prev, validFrom: e.target.value }))}
-                className={`w-1/2 px-4 py-2 border rounded-md`}
-              />
-              <input
-                type="date"
-                name="validTo"
-                value={promo.validTo.slice(0, 10)}
-                onChange={e => setPromo(prev => ({ ...prev, validTo: e.target.value }))}
-                className={`w-1/2 px-4 py-2 border rounded-md`}
-              />
-            </div>
-          </div>
-
-          {/* Outlets */}
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Select Outlets
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 rounded-md border border-gray-200 p-3 max-h-48 overflow-y-auto">
-              {outlets.map((outlet) => (
-                <label
-                  key={outlet._id}
-                  className="flex items-center space-x-2 text-sm"
-                >
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex space-x-6">
+            {/* Basic Info Card */}
+            <div className="w-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#005429] to-[#007038] px-6 py-4">
+                <h2 className="text-lg font-semibold text-white flex items-center">
+                  <FaTag className="mr-2" />
+                  Informasi Promo
+                </h2>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Nama Promo */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Nama Promo <span className="text-red-500">*</span>
+                  </label>
                   <input
-                    type="checkbox"
-                    value={outlet._id}
-                    checked={promo.outlet.includes(outlet._id)}
-                    onChange={handleOutletChange}
-                    className="form-checkbox text-green-600 rounded"
+                    name="name"
+                    type="text"
+                    value={promo.name}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 focus:border-[#005429] focus:ring-2 focus:ring-[#005429] focus:ring-opacity-20 px-4 py-2.5 rounded-lg transition-all"
+                    placeholder="Contoh: Diskon Pelajar 20%"
+                    required
                   />
-                  <span>{outlet.name || "N/A"}</span>
-                </label>
-              ))}
+                </div>
+
+                {/* Besar Diskon */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Tipe & Besar Diskon <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-3">
+                    <Select
+                      className="w-48"
+                      classNamePrefix="react-select"
+                      options={discountTypeOptions}
+                      value={discountTypeOptions.find(opt => opt.value === promo.discountType)}
+                      onChange={(selected) =>
+                        handleInputChange({
+                          target: { name: "discountType", value: selected.value },
+                        })
+                      }
+                      isSearchable={false}
+                      styles={customSelectStyles}
+                    />
+                    <div className="flex-1 relative">
+                      <input
+                        name="discountAmount"
+                        type="number"
+                        min="0"
+                        step={promo.discountType === "percentage" ? "0.01" : "1000"}
+                        max={promo.discountType === "percentage" ? "100" : undefined}
+                        value={promo.discountAmount}
+                        onChange={handleInputChange}
+                        className="w-full border border-gray-300 focus:border-[#005429] focus:ring-2 focus:ring-[#005429] focus:ring-opacity-20 px-4 py-2.5 rounded-lg transition-all"
+                        placeholder={promo.discountType === "percentage" ? "Contoh: 20" : "Contoh: 50000"}
+                        required
+                      />
+                      {promo.discountType === "percentage" && (
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
+                      )}
+                    </div>
+                  </div>
+                  {promo.discountType === "percentage" && promo.discountAmount > 100 && (
+                    <p className="mt-1 text-sm text-red-600">Persentase tidak boleh lebih dari 100%</p>
+                  )}
+                </div>
+
+                {/* Customer Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <FaUsers className="inline mr-1.5 text-[#005429]" />
+                    Tipe Pelanggan <span className="text-red-500">*</span>
+                  </label>
+                  <Select
+                    name="customerType"
+                    value={customerTypeOptions.find(
+                      (opt) => opt.value === promo.customerType
+                    )}
+                    onChange={(opt) =>
+                      handleInputChange({
+                        target: { name: "customerType", value: opt?.value },
+                      })
+                    }
+                    options={customerTypeOptions}
+                    placeholder="Pilih tipe pelanggan"
+                    className="text-sm"
+                    classNamePrefix="react-select"
+                    styles={customSelectStyles}
+                    isClearable
+                    required
+                    menuPortalTarget={document.body}
+                    menuPosition="fixed"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="w-1/2 space-y-6">
+              {/* Validity Period Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-[#005429] to-[#007038] px-6 py-4">
+                  <h2 className="text-lg font-semibold text-white flex items-center">
+                    <FaCalendarAlt className="mr-2" />
+                    Periode Berlaku
+                  </h2>
+                </div>
+                <div className="p-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Tanggal Mulai & Berakhir <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1.5">Tanggal Mulai</label>
+                      <input
+                        type="date"
+                        name="validFrom"
+                        value={promo.validFrom.slice(0, 10)}
+                        onChange={e => setPromo(prev => ({ ...prev, validFrom: e.target.value }))}
+                        className="w-full px-4 py-2.5 border border-gray-300 focus:border-[#005429] focus:ring-2 focus:ring-[#005429] focus:ring-opacity-20 rounded-lg transition-all"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1.5">Tanggal Berakhir</label>
+                      <input
+                        type="date"
+                        name="validTo"
+                        value={promo.validTo.slice(0, 10)}
+                        min={promo.validFrom.slice(0, 10)}
+                        onChange={e => setPromo(prev => ({ ...prev, validTo: e.target.value }))}
+                        className="w-full px-4 py-2.5 border border-gray-300 focus:border-[#005429] focus:ring-2 focus:ring-[#005429] focus:ring-opacity-20 rounded-lg transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Outlets Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-[#005429] to-[#007038] px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-white flex items-center">
+                      <FaStore className="mr-2" />
+                      Pilih Outlet
+                    </h2>
+                    <span className="text-white text-sm bg-white/20 px-3 py-1 rounded-full">
+                      {promo.outlet.length} / {outlets.length} dipilih
+                    </span>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Outlet yang Berlaku <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSelectAll}
+                      className="text-sm text-[#005429] hover:text-[#007038] font-semibold transition"
+                    >
+                      {selectAll ? "Batalkan Semua" : "Pilih Semua"}
+                    </button>
+                  </div>
+                  <div className="border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto bg-gray-50">
+                    <div className="">
+                      {outlets.map((outlet) => (
+                        <label
+                          key={outlet._id}
+                          className="flex items-center space-x-3 p-3 rounded-lg hover:bg-white border border-transparent hover:border-[#005429] hover:shadow-sm transition-all cursor-pointer group"
+                        >
+                          <input
+                            type="checkbox"
+                            value={outlet._id}
+                            checked={promo.outlet.includes(outlet._id)}
+                            onChange={handleOutletChange}
+                            className="w-4 h-4 text-[#005429] border-gray-300 rounded focus:ring-[#005429] focus:ring-2"
+                          />
+                          <span className="text-sm text-gray-700 group-hover:text-[#005429] font-medium transition">
+                            {outlet.name || "N/A"}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {promo.outlet.length === 0 && (
+                    <p className="mt-2 text-sm text-amber-600">⚠️ Pilih minimal satu outlet</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex justify-end space-x-2 mt-3 sm:mt-0">
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
             <Link
               to="/admin/promo-khusus"
-              className="bg-white text-[#005429] border border-[#005429] text-sm px-4 py-2 rounded-md hover:bg-gray-50 transition"
+              className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all text-center"
             >
               Batal
             </Link>
             <button
               type="submit"
-              form="promo-form"
-              className="bg-[#005429] text-white text-sm px-4 py-2 rounded-md hover:bg-green-700 transition"
+              className="px-8 py-3 bg-gradient-to-r from-[#005429] to-[#007038] text-white font-semibold rounded-lg hover:shadow-lg hover:scale-105 transition-all transform"
             >
-              Tambah Promo
+              Simpan Promo
             </button>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };

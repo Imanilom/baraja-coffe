@@ -1,27 +1,22 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import {
-    getDownloadURL,
-    getStorage,
-    ref,
-    uploadBytesResumable,
-} from 'firebase/storage';
-import { app } from '../../firebase';
-import { Link } from "react-router-dom";
-import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaGift, FaPizzaSlice, FaChevronDown, FaInfoCircle } from "react-icons/fa";
-import { useNavigate, useParams } from "react-router-dom";
-import ConfirmationModal from "../menu/confirmmodal";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import Select from "react-select";
-import Header from "../admin/header";
+import dayjs from "dayjs";
+import Datepicker from "react-tailwindcss-datepicker";
+import { FaTimes, FaChevronRight, FaTicketAlt, FaPlus } from "react-icons/fa";
+import { useSelector } from "react-redux";
 
-const UpdateMenu = () => {
-    const customStyles = {
+const UpdateEvent = () => {
+
+    const { currentUser } = useSelector((state) => state.user);
+    const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
             borderColor: '#d1d5db', // Tailwind border-gray-300
-            minHeight: '34px',
-            fontSize: '14px',
-            color: '#6b7280', // text-green-900
+            minHeight: '36px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
             boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
             '&:hover': {
                 borderColor: '#9ca3af', // Tailwind border-gray-400
@@ -29,11 +24,11 @@ const UpdateMenu = () => {
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-green-900
+            color: '#6b7280', // text-gray-500
         }),
         input: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-green-900 for typed text
+            color: '#6b7280', // text-gray-500 for typed text
         }),
         placeholder: (provided) => ({
             ...provided,
@@ -48,489 +43,401 @@ const UpdateMenu = () => {
             cursor: 'pointer',
         }),
     };
-    const { id } = useParams(); // Get the menu item ID from the URL
-    const [title, setTitle] = useState([]);
-    const MainCategories = ['makanan', 'minuman', 'dessert', 'snack'];
-    const [formData, setFormData] = useState({
-        name: "",
-        price: 0,
-        description: "",
-        mainCategory: "",
-        category: "",
-        subCategory: "",
-        imageURL: "",
-        toppings: [],
-        addons: [],
-        rawMaterials: [],
-        availableAt: [],
-        workstation: ""
-    });
-
-
-    const [isChecked, setIsChecked] = useState(false);
-    const [selectedMainCategory, setSelectedMainCategory] = useState("");
-
-    const [isOptional, setIsOptional] = useState([false]);
+    const { id } = useParams();
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
 
-    const [categories, setCategories] = useState([]);
-    const [allCategories, setAllCategories] = useState([]);
-    const [rawMaterials, setRawMaterials] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [imagePreview, setImagePreview] = useState(null);
-    const [categoryMap, setCategoryMap] = useState({});
-    const navigate = useNavigate();
+    const [form, setForm] = useState({
+        name: "",
+        description: "",
+        location: "",
+        date: null,
+        price: "",
+        organizer: "",
+        contactEmail: "",
+        imageUrl: "",
+        category: "",
+        tags: "",
+        status: "upcoming",
+        capacity: "",
+        privacy: "public",
+        terms: "",
+    });
 
+    const [imagePreview, setImagePreview] = useState("");
+
+    // === Fetch data event by id ===
     useEffect(() => {
-        setLoading(true);
-        const fetchCategories = async () => {
+        const fetchDetail = async () => {
             try {
-                const res = await axios.get("/api/menu/categories");
+                const res = await axios.get(`/api/event/${id}`, {
+                    headers: { Authorization: `Bearer ${currentUser.token}` },
+                });
                 const data = res.data.data;
-
-                setAllCategories(data);
-                const main = data.filter((cat) => !cat.parentCategory);
-                setCategories(main);
-            } catch (error) {
-                console.error("Error fetching categories:", error);
+                setForm({
+                    name: data.name || "",
+                    description: data.description || "",
+                    location: data.location || "",
+                    date: data.date,
+                    price: data.price || "",
+                    organizer: data.organizer || "",
+                    contactEmail: data.contactEmail || "",
+                    imageUrl: data.imageUrl || "",
+                    category: data.category || "",
+                    tags: data.tags ? data.tags.join(", ") : "",
+                    status: data.status || "upcoming",
+                    capacity: data.capacity || "",
+                    privacy: data.privacy || "public",
+                    terms: data.terms || "",
+                });
+                setImagePreview(data.imageUrl || "");
+            } catch (err) {
+                console.error("Gagal load event:", err);
             } finally {
                 setLoading(false);
             }
         };
-
-        const fetchOutlets = async () => {
-            try {
-                const response = await axios.get("/api/outlet");
-                setOutlets(response.data.data || []);
-            } catch (error) {
-                console.error("Error fetching outlets:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        const fetchRawMaterial = async () => {
-            try {
-                const response = await axios.get("/api/storage/raw-material");
-                setRawMaterials(response.data.data || []);
-            } catch (error) {
-                console.error("Error fetching raw materials:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        const fetchMenuItem = async () => {
-            try {
-                const response = await axios.get(`/api/menu/menu-items/${id}`);
-                const menuItem = response.data.data;
-
-                setFormData(menuItem);
-                setTitle(menuItem?.name);
-                setImagePreview(menuItem.imageURL);
-            } catch (error) {
-                console.error("Error fetching menu item:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchCategories();
-        fetchOutlets();
-        fetchRawMaterial();
-        fetchMenuItem(); // Fetch the menu item to update
+        fetchDetail();
     }, [id]);
 
-    useEffect(() => {
-        if (formData.workstation === "kitchen") {
-            setIsChecked(true);
-        } else {
-            setIsChecked(false);
-        }
-    }, [formData.workstation]);
-
-    const mainCategoryOptions = MainCategories.map((cat) => ({
-        label: cat.charAt(0).toUpperCase() + cat.slice(1),
-        value: cat.toLowerCase()
-    }));
-
-
-    const categoryOptions = categories.map(category => ({
-        value: category._id,
-        label: category.name,
-    }));
-
-    const allCategoryOptions = allCategories
-        .filter((cat) => cat.parentCategory === formData.category?.id)
-        .map((cat) => ({
-            value: cat._id,
-            label: cat.name,
-        }));
-
-    const fileRef = useRef(null);
-    const [isOpen, setIsOpen] = useState(false);
-    const [showModal, setShowModal] = useState(false);
-    const [image, setImage] = useState(undefined);
-    const [imagePercent, setImagePercent] = useState(0);
-    const [imageError, setImageError] = useState(false);
-
-    // State untuk pemilihan dan pencarian
-    const [selectedCategories, setSelectedCategories] = useState([]);
-    const [searchTermCategories, setSearchTermCategories] = useState('');
-
-    const handleInputChange = (e) => {
+    const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prevData) => ({
-            ...prevData,
-            [name]: value,
-        }));
+        setForm((prev) => ({ ...prev, [name]: value }));
     };
 
-    // Cari kategori yang sesuai input, kecuali yang sudah dipilih
-    const searchCategories = (term) => {
-        if (!term) return [];
-
-        const lower = term.toLowerCase();
-        return categories.filter(
-            (cat) =>
-                cat.name.toLowerCase().includes(lower) &&
-                !selectedCategories.includes(cat._id)
-        );
-    };
-
-    // Memo hasil pencarian
-    const searchResultsCategories = useMemo(
-        () => searchCategories(searchTermCategories),
-        [searchTermCategories, selectedCategories, categories]
-    );
-
-    // Tambahkan kategori (pakai nama)
-    const handleAddCategory = (categoryId) => {
-        const categoryName = categoryMap[categoryId];
-        if (!formData.category.includes(categoryName)) {
-            const newSelected = [...selectedCategories, categoryId];
-            const newCategoryNames = [...formData.category, categoryName];
-
-            setSelectedCategories(newSelected);
-            setFormData((prev) => ({
+    const handleDateChange = (newValue) => {
+        if (newValue && newValue.startDate) {
+            setForm((prev) => ({
                 ...prev,
-                category: newCategoryNames,
+                date: new Date(newValue.startDate).toISOString(),
             }));
-
-            setSearchTermCategories("");
         }
     };
 
-    // Hapus kategori
-    const handleRemoveCategory = (categoryId) => {
-        const categoryName = categoryMap[categoryId];
-
-        const newSelected = selectedCategories.filter((id) => id !== categoryId);
-        const newCategoryNames = formData.category.filter((name) => name !== categoryName);
-
-        setSelectedCategories(newSelected);
-        setFormData((prev) => ({
-            ...prev,
-            category: newCategoryNames,
-        }));
-    };
-
-    useEffect(() => {
-        if (image) {
-            handleFileUpload(image);
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
         }
-    }, [image]);
-    const handleFileUpload = async (image) => {
-        const storage = getStorage(app);
-        const fileName = new Date().getTime() + image.name;
-        const storageRef = ref(storage, fileName);
-        const uploadTask = uploadBytesResumable(storageRef, image);
-        uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-                const progress =
-                    (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                setImagePercent(Math.round(progress));
-            },
-            (error) => {
-                setImageError(true);
-            },
-            () => {
-                getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) =>
-                    setFormData({ ...formData, imageURL: downloadURL })
-                );
-            }
-        );
     };
+
+    const handleRemoveImage = () => {
+        setImagePreview(null);
+        document.getElementById("file-upload").value = "";
+    };
+
+    const privacyOptions = [
+        { value: "public", label: "Public" },
+        { value: "private", label: "Private" },
+    ];
+    const statusOptions = [
+        { value: "upcoming", label: "Upcoming" },
+        { value: "ongoing", label: "Ongoing" },
+        { value: "completed", label: "Completed" },
+    ];
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         const payload = {
-            ...formData,
-            category: formData.category?.id || "",      // ambil hanya ID
-            subCategory: formData.subCategory?.id || "", // sama juga
+            ...form,
+            price: Number(form.price),
+            capacity: Number(form.capacity),
+            tags: form.tags.split(",").map((t) => t.trim()),
+            imageUrl: imagePreview || form.imageUrl,
         };
-
         try {
-            await axios.put(`/api/menu/menu-items/${id}`, payload);
-            navigate("/admin/menu", { state: { success: "Menu berhasil diperbarui" } });
-        } catch (error) {
-            console.error("Error updating menu item:", error);
+            await axios.put(`/api/event/${id}`, payload, {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
+            alert("Event berhasil diperbarui");
+            navigate("/admin/event");
+        } catch (err) {
+            alert("Update gagal", console.error(err));
         }
     };
 
-    // Show loading state
     if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
+        return <p className="text-center mt-10">Loading...</p>;
     }
 
     return (
-        <div className="">
-            <form onSubmit={handleSubmit}>
+        <div>
 
-                <div className="flex justify-between items-center px-6 py-3 my-3">
-                    <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                        <Link to="/admin/menu">
-                            Event
-                        </Link>
-                        <FaChevronRight />
-                        <span>{title}</span>
-                    </h1>
-                    <div className="flex items-center gap-3">
-                        <span
-                            onClick={() => setShowModal(true)}
-                            className="block border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
-                        >
-                            Batal
-                        </span>
-                        <button
-                            type="submit"
-                            className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
-                        >
-                            Simpan
-                        </button>
+            {/* Breadcrumb */}
+            <div className="px-3 py-2 flex items-center border-b">
+                <FaTicketAlt size={21} className="text-gray-500" />
+                <p className="ml-2 text-[15px] text-gray-500">Event</p>
+                <FaChevronRight size={20} className="text-gray-500 mx-2" />
+                <p className="text-[15px] text-gray-500">Update Event</p>
+            </div>
+
+            {/* Form sama seperti CreateEvent */}
+            <form
+                onSubmit={handleSubmit}
+                className="space-y-8 p-8 max-w-5xl mx-auto mb-[60px]"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Nama Event */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Nama Event
+                        </label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={form.name}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            required
+                        />
                     </div>
+
+                    {/* Lokasi */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Lokasi
+                        </label>
+                        <input
+                            type="text"
+                            name="location"
+                            value={form.location}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            required
+                        />
+                    </div>
+
+                    {/* Deskripsi */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Deskripsi
+                        </label>
+                        <textarea
+                            name="description"
+                            value={form.description}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm min-h-[120px]"
+                        />
+                    </div>
+
+                    {/* Tanggal & Waktu */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Tanggal & Waktu
+                        </label>
+                        <Datepicker
+                            primaryColor="green"
+                            asSingle={true}
+                            useRange={false}
+                            value={{
+                                startDate: form.date ? new Date(form.date) : null,
+                                endDate: form.date ? new Date(form.date) : null,
+                            }}
+                            onChange={handleDateChange}
+                            showTimePicker={true}
+                            displayFormat="DD-MM-YYYY HH:mm"
+                            inputClassName="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                        />
+                    </div>
+
+                    {/* Harga */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Harga Tiket (Rp)
+                        </label>
+                        <input
+                            type="number"
+                            name="price"
+                            value={form.price}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                        />
+                    </div>
+
+                    {/* Penyelenggara */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Penyelenggara
+                        </label>
+                        <input
+                            type="text"
+                            name="organizer"
+                            value={form.organizer}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="Nama penyelenggara"
+                        />
+                    </div>
+
+                    {/* Email Kontak */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Email Kontak
+                        </label>
+                        <input
+                            type="email"
+                            name="contactEmail"
+                            value={form.contactEmail}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="contoh@email.com"
+                        />
+                    </div>
+
+                    {/* Gambar */}
+                    <div>
+                        <label className="block font-medium mb-2">Gambar</label>
+                        <div className="relative w-40 h-40 border-2 border-dashed rounded-lg flex items-center justify-center overflow-hidden">
+                            <label
+                                htmlFor="file-upload"
+                                className="w-full h-full flex items-center justify-center cursor-pointer"
+                            >
+                                {imagePreview ? (
+                                    <img
+                                        src={imagePreview}
+                                        alt="Preview"
+                                        className="object-cover w-full h-full"
+                                    />
+                                ) : (
+                                    <FaPlus size={36} className="text-gray-400" />
+                                )}
+                            </label>
+                            {imagePreview && (
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveImage}
+                                    className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1"
+                                >
+                                    <FaTimes size={14} />
+                                </button>
+                            )}
+                        </div>
+                        <input
+                            id="file-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
+                    </div>
+
+                    {/* Kategori */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Kategori
+                        </label>
+                        <input
+                            type="text"
+                            name="category"
+                            value={form.category}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="Contoh: Music, Seminar..."
+                        />
+                    </div>
+
+                    {/* Tags */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Tags
+                        </label>
+                        <input
+                            type="text"
+                            name="tags"
+                            value={form.tags}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="Pisahkan dengan koma"
+                        />
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Status
+                        </label>
+                        <Select
+                            options={statusOptions}
+                            value={statusOptions.find(option => option.value === form.status)} // ⬅️ harusnya form.status
+                            onChange={(selected) =>
+                                setForm(prev => ({ ...prev, status: selected.value })) // ⬅️ update ke status
+                            }
+                            classNamePrefix="react-select"
+                            styles={customSelectStyles}
+                        />
+                    </div>
+
+                    {/* Kapasitas */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Kapasitas
+                        </label>
+                        <input
+                            type="number"
+                            name="capacity"
+                            value={form.capacity}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="300"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Privasi
+                        </label>
+                        <Select
+                            options={privacyOptions}
+                            value={privacyOptions.find(option => option.value === form.privacy)}
+                            onChange={(selected) =>
+                                setForm(prev => ({ ...prev, privacy: selected.value }))
+                            }
+                            classNamePrefix="react-select"
+                            styles={customSelectStyles}
+                        />
+                    </div>
+
+                    {/* Syarat & Ketentuan */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Syarat & Ketentuan
+                        </label>
+                        <textarea
+                            name="terms"
+                            value={form.terms}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm resize-y min-h-[100px]"
+                            placeholder="Tulis syarat & ketentuan..."
+                        />
+                    </div>
+
                 </div>
 
-                {/* Modal */}
-                <ConfirmationModal
-                    isOpen={showModal}
-                    onClose={() => setShowModal(false)}
-                    onConfirm={() => navigate("/admin/event")}
-                />
-
-                <div className="p-4 md:p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 shadow-md rounded-xl p-6 bg-white">
-                        {/* Bagian kiri */}
-                        <div className="space-y-4 text-green-900">
-                            {/* Name */}
-                            <div>
-                                <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
-                                    NAMA EVENT
-                                </label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleInputChange}
-                                    className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
-                                    required
-                                />
-                            </div>
-
-                            {/* Category */}
-                            <div>
-                                <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
-                                <Select
-                                    className="w-full text-sm"
-                                    options={categoryOptions}
-                                    value={
-                                        formData.category && formData.category.name
-                                            ? {
-                                                value: formData.category._id || "",
-                                                label: formData.category.name,
-                                            }
-                                            : null
-                                    }
-                                    onChange={(selectedOption) => {
-                                        const selectedCategory = categories.find(
-                                            (cat) => cat._id === selectedOption?.value
-                                        );
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            category: selectedCategory,
-                                            subCategory: "",
-                                        }));
-                                    }}
-                                    styles={customStyles}
-                                />
-                            </div>
-
-                            {/* Sub Category */}
-                            <div>
-                                <label className="my-2.5 text-xs block font-medium">
-                                    SUB KATEGORI
-                                </label>
-                                <Select
-                                    className="w-full text-sm"
-                                    options={allCategoryOptions}
-                                    value={
-                                        formData.subCategory
-                                            ? {
-                                                value: formData.subCategory._id,
-                                                label: formData.subCategory.name,
-                                            }
-                                            : null
-                                    }
-                                    onChange={(selectedOption) => {
-                                        const selectedSub = allCategories.find(
-                                            (sub) => sub._id === selectedOption?.value
-                                        );
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            subCategory: selectedSub,
-                                        }));
-                                    }}
-                                    styles={customStyles}
-                                    placeholder="Pilih sub kategori"
-                                />
-                            </div>
-
-                            {/* Price */}
-                            <div>
-                                <label className="my-2.5 text-xs block font-medium">HARGA</label>
-                                <input
-                                    type="number"
-                                    name="price"
-                                    value={formData.price}
-                                    onChange={handleInputChange}
-                                    className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
-                                    required
-                                />
-                            </div>
-
-                            {/* SKU */}
-                            {/* <div>
-                <label className="my-2.5 text-xs block font-medium">SKU</label>
-                <input
-                  type="text"
-                  name="sku"
-                  value={formData.sku}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
-                />
-              </div> */}
-
-                            {/* Barcode */}
-                            {/* <div>
-                <label className="my-2.5 text-xs block font-medium">BARCODE</label>
-                <input
-                  type="text"
-                  name="barcode"
-                  value={formData.barcode}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
-                />
-              </div> */}
-
-                            {/* Stock unit */}
-                            {/* <div>
-                <label className="my-2.5 text-xs block font-medium">
-                  SATUAN STOK
-                </label>
-                <input
-                  type="text"
-                  name="stock"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
-                />
-              </div> */}
-
-                            {/* Image Upload */}
-                            <div className="flex items-center space-x-4 p-4 rounded-lg">
-                                <img
-                                    src={formData.imageURL}
-                                    alt="Uploaded"
-                                    className="h-20 w-20 object-cover rounded cursor-pointer"
-                                    onClick={() => fileRef.current.click()}
-                                />
-                                <input
-                                    ref={fileRef}
-                                    type="file"
-                                    className="hidden"
-                                    onChange={(e) => setImage(e.target.files[0])}
-                                />
-                                {imagePercent > 0 && (
-                                    <div className="text-sm text-gray-600">
-                                        Upload Progress: {imagePercent}%
-                                    </div>
-                                )}
-                                {imageError && (
-                                    <div className="text-red-500 text-sm">Image upload failed</div>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="block mb-2.5 text-xs font-medium uppercase">Deskripsi</label>
-                                <textarea
-                                    name="description"
-                                    value={formData.description}
-                                    onChange={handleInputChange}
-                                    className="w-full border rounded p-2 h-36"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Bagian kanan */}
-                        <div className="space-y-4 text-sm text-green-900">
-
-                            {/* Outlet */}
-                            <div>
-                                <label className="block mb-1 text-sm font-medium">Pilih Outlet</label>
-                                <div className="grid gap-2">
-                                    {outlets.map((outlet) => (
-                                        <label
-                                            key={outlet._id}
-                                            className="inline-flex items-center space-x-2"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                value={outlet._id}
-                                                checked={formData.availableAt
-                                                    .map((item) =>
-                                                        typeof item === "string" ? item : item._id
-                                                    )
-                                                    .includes(outlet._id)}
-                                                onChange={(e) => {
-                                                    const checked = e.target.checked;
-                                                    const value = outlet._id;
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        availableAt: checked
-                                                            ? [...prev.availableAt, value]
-                                                            : prev.availableAt.filter((id) => id !== value),
-                                                    }));
-                                                }}
-                                                className="form-checkbox text-green-600"
-                                            />
-                                            <span>{outlet.name}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div className="flex justify-end gap-3">
+                    <Link
+                        to="/admin/event"
+                        className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-600"
+                    >
+                        Batal
+                    </Link>
+                    <button
+                        type="submit"
+                        className="px-5 py-2.5 rounded-lg bg-[#005429] text-white"
+                    >
+                        Update
+                    </button>
                 </div>
             </form>
-        </div>
 
+            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
+                <div className="w-full h-[2px] bg-[#005429]"></div>
+            </div>
+        </div>
     );
 };
 
-export default UpdateMenu;
+export default UpdateEvent;
