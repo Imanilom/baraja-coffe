@@ -331,6 +331,13 @@ class OrderDetailWidget extends ConsumerWidget {
               ),
             ),
           ],
+          if (item.notes != null && item.notes!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Note: ${item.notes}',
+              style: TextStyle(color: Colors.grey[600], fontSize: 11),
+            ),
+          ],
           const SizedBox(),
           Text(
             'Base Price: ${formatRupiah(item.menuItem.displayPrice())}',
