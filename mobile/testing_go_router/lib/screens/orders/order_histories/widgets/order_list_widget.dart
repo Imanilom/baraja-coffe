@@ -5,7 +5,6 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
 
 class OrderListWidget extends ConsumerWidget {
   final List<OrderDetailModel> orders;
@@ -16,111 +15,143 @@ class OrderListWidget extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedOrder = ref.watch(historyDetailProvider);
 
+    // 1) Sort DESC by createdAt
+    final sorted = [...orders]..sort(
+      (a, b) => (b.updatedAt ?? DateTime(1970)).compareTo(
+        a.updatedAt ?? DateTime(1970),
+      ),
+    );
+
+    String keyOf(DateTime? d) =>
+        DateFormat('yyyy-MM-dd').format(d ?? DateTime(1970));
+
+    // 2) Precompute stats per day (count + total grandTotal)
+    final Map<String, _DayStat> stats = {};
+    for (final o in sorted) {
+      final k = keyOf(o.createdAt);
+      stats.putIfAbsent(k, () => _DayStat());
+      stats[k]!.count += 1;
+      stats[k]!.total += (o.grandTotal ?? 0);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header bar
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           color: Colors.grey[50],
           child: Row(
             children: [
               Text(
-                'Order History (${orders.length})',
+                'Order History (${sorted.length})',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Spacer(),
+              const Spacer(),
               IconButton(
                 icon: Icon(Icons.refresh, color: Colors.blue[700]),
-                onPressed: () {
-                  ref.invalidate(orderHistoryProvider);
-                },
+                onPressed: () => ref.invalidate(orderHistoryProvider),
               ),
             ],
           ),
         ),
+        // List
         Expanded(
           child:
-              orders.isEmpty
-                  ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.receipt_long, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          'No orders found',
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  )
+              sorted.isEmpty
+                  ? const _EmptyState()
                   : ListView.builder(
                     padding: const EdgeInsets.all(8),
-                    itemCount: orders.length,
+                    itemCount: sorted.length,
                     itemBuilder: (context, index) {
-                      final order = orders[index];
+                      final order = sorted[index];
                       final isSelected = selectedOrder?.id == order.id;
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        elevation: isSelected ? 4 : 1,
-                        color: isSelected ? Colors.blue[50] : Colors.white,
-                        child: ListTile(
-                          title: Text(
-                            order.payment?.map((p) => p.method).join(', ') ??
-                                'No Payment Method',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            formatRupiah(order.grandTotal),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                      final currKey = keyOf(order.createdAt);
+                      final prevKey =
+                          index == 0
+                              ? null
+                              : keyOf(sorted[index - 1].createdAt);
+                      final isFirstOfDay = index == 0 || currKey != prevKey;
+
+                      final dayStat = stats[currKey]!; // sudah dipastikan ada
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isFirstOfDay)
+                            _DateHeader(
+                              date: order.createdAt,
+                              count: dayStat.count,
+                              total: dayStat.total,
+                            ),
+                          Card(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            elevation: isSelected ? 4 : 1,
+                            color: isSelected ? Colors.blue[50] : Colors.white,
+                            child: ListTile(
+                              title: Text(
+                                order.payment
+                                        ?.map((p) => p.method)
+                                        .join(', ') ??
+                                    'No Payment Method',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                formatRupiah(order.grandTotal ?? 0),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(
+                                        order.paymentStatus ?? '',
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      order.status.name.toUpperCase(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    DateFormat(
+                                      'dd MMM yyyy, HH:mm',
+                                    ).format(order.updatedAt ?? DateTime.now()),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              onTap:
+                                  () => ref
+                                      .read(historyDetailProvider.notifier)
+                                      .addToHistoryDetail(order),
                             ),
                           ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(order.paymentStatus!),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  order.status.name.toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                DateFormat(
-                                  'dd MMM yyyy, HH:mm',
-                                ).format(order.createdAt!),
-                                style: TextStyle(
-                                  color: Colors.grey[500],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            ref
-                                .read(historyDetailProvider.notifier)
-                                .addToHistoryDetail(order);
-                          },
-                        ),
+                        ],
                       );
                     },
                   ),
@@ -128,30 +159,107 @@ class OrderListWidget extends ConsumerWidget {
       ],
     );
   }
+}
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.blue;
-    }
+/// Model statistik per hari
+class _DayStat {
+  int count = 0;
+  int total = 0; // akumulasi grandTotal (Rp)
+}
+
+/// Header tanggal + ringkasan hari
+class _DateHeader extends StatelessWidget {
+  final DateTime? date;
+  final int count;
+  final int total;
+
+  const _DateHeader({
+    required this.date,
+    required this.count,
+    required this.total,
+  });
+
+  String _prettyDate(DateTime d) {
+    final now = DateTime.now();
+    bool sameDay(DateTime a, DateTime b) =>
+        a.year == b.year && a.month == b.month && a.day == b.day;
+
+    if (sameDay(d, now)) return 'Hari ini';
+    if (sameDay(d, now.subtract(const Duration(days: 1)))) return 'Kemarin';
+    return DateFormat(
+      'EEEE, dd MMM yyyy',
+      'id_ID',
+    ).format(d); // e.g. Senin, 04 Nov 2025
   }
 
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return Icons.check_circle;
-      case 'pending':
-        return Icons.access_time;
-      case 'cancelled':
-        return Icons.cancel;
-      default:
-        return Icons.receipt;
-    }
+  @override
+  Widget build(BuildContext context) {
+    final d = date ?? DateTime.now();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+      child: Row(
+        children: [
+          Text(
+            _prettyDate(d),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(child: Divider(color: Colors.grey[300], thickness: 1)),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.green.shade100),
+            ),
+            child: Text(
+              '$count pesanan',
+              style: TextStyle(
+                color: Colors.green[800],
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.receipt_long, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            'No orders found',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Color _getStatusColor(String status) {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return Colors.green;
+    case 'pending':
+      return Colors.orange;
+    case 'cancelled':
+      return Colors.red;
+    default:
+      return Colors.blue;
   }
 }

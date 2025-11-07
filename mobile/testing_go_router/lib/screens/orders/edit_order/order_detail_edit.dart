@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
+import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/widgets/dialogs/edit_order_item_dialog.dart';
 
@@ -219,6 +220,7 @@ class OrderDetailEdit extends ConsumerWidget {
                                     ),
                                   );
                                   Navigator.pop(context);
+                                  ref.invalidate(onlineOrderProvider);
                                   ref
                                       .read(onlineOrderDetailProvider.notifier)
                                       .clearOnlineOrderDetail();

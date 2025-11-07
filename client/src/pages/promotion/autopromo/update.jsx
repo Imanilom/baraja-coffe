@@ -1,456 +1,454 @@
 import { useState, useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
-import { FaCut, FaBell, FaUser, FaChevronRight } from "react-icons/fa";
+import { FaTimes } from "react-icons/fa";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import Select from "react-select";
+import { toast } from "react-toastify";
+import BundlingForm from "./bundlingform";
+import DiscountByProductForm from "./discountbyproduct";
 
-const UpdateAutoPromo = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
+const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
     const [formData, setFormData] = useState({
         name: "",
         promoType: "discount_on_quantity",
         conditions: {},
         discount: 0,
         bundlePrice: "",
-        outlet: "",
-        customerType: "", // Added for loyalty levels
-        validFrom: new Date().toISOString().split("T")[0],
-        validTo: new Date().toISOString().split("T")[0],
+        outlet: [],
+        customerType: "",
+        validFrom: "",
+        validTo: "",
         isActive: true,
     });
 
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    };
+
     const [outlets, setOutlets] = useState([]);
     const [products, setProducts] = useState([]);
-    const [loyaltyLevels, setLoyaltyLevels] = useState([]); // Loyalty levels data
-    const [loading, setLoading] = useState(true);
-    const [autopromo, setAutoPromo] = useState([]);
-    const [error, setError] = useState(null);
+    const [loyaltyLevels, setLoyaltyLevels] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [errors, setErrors] = useState({});
 
-    // Fetch outlets, products, and loyalty levels
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': { borderColor: '#9ca3af' },
+        }),
+        singleValue: (provided) => ({ ...provided, color: '#6b7280' }),
+        input: (provided) => ({ ...provided, color: '#6b7280' }),
+        placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '13px' }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
+
+    const promoTypeOptions = [
+        { value: "discount_on_quantity", label: "Diskon dengan Qty" },
+        { value: "discount_on_total", label: "Diskon dengan Total" },
+        { value: "product_specific", label: "Diskon dengan Produk" },
+        { value: "buy_x_get_y", label: "Beli X Gratis Y" },
+        { value: "bundling", label: "Bundling" },
+    ];
+
+    // Fetch data (outlets, products, loyalty levels)
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setError(null);
-                const [outletsRes, productsRes, loyaltyLevelsRes, autoPromoRes] = await Promise.all([
-                    axios.get("/api/outlet"),
-                    axios.get("/api/menu/menu-items"),
-                    axios.get("/api/promotion/loyalty-levels"),
-                    axios.get(`/api/promotion/autopromos/${id}`),
-                ]);
+        if (isOpen) {
+            const fetchData = async () => {
+                setLoading(true);
+                try {
+                    const [outletsRes, productsRes, loyaltyLevelsRes] = await Promise.all([
+                        axios.get("/api/outlet"),
+                        axios.get("/api/menu/menu-items"),
+                        axios.get("/api/promotion/loyalty-levels"),
+                    ]);
 
-                setOutlets(outletsRes.data || []);
-                setProducts(productsRes.data.data || []);
-                setLoyaltyLevels(loyaltyLevelsRes.data.data || []);
-                setAutoPromo(autoPromoRes.data || []);
-                setFormData(autoPromoRes.data || []);
-                // console.log(autoPromoRes.data);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again.");
-            } finally {
-                setLoading(false);
+                    setOutlets(outletsRes.data.data || []);
+                    setProducts(productsRes.data.data || []);
+                    setLoyaltyLevels(loyaltyLevelsRes.data.data || []);
+                } catch (err) {
+                    console.error(err);
+                    toast.error("Gagal memuat data");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            fetchData();
+        }
+    }, [isOpen]);
+
+    // Populate form with existing promo data
+    useEffect(() => {
+        if (isOpen && promoData) {
+            console.log("Loading promo data:", promoData); // Debug log
+
+            // Normalisasi outlet menjadi array ID
+            let normalizedOutlet = [];
+            if (Array.isArray(promoData.outlet)) {
+                normalizedOutlet = promoData.outlet.map(o => typeof o === 'object' ? o._id : o);
+            } else if (promoData.outlet) {
+                normalizedOutlet = [typeof promoData.outlet === 'object' ? promoData.outlet._id : promoData.outlet];
             }
-        };
 
-        fetchData();
-    }, []);
+            // Normalisasi conditions
+            let normalizedConditions = { ...promoData.conditions };
+
+            // Untuk product_specific, konversi array products dari object ke ID saja
+            if (promoData.promoType === "product_specific" && promoData.conditions?.products) {
+                if (Array.isArray(promoData.conditions.products)) {
+                    // Konversi dari [{_id: "...", name: "..."}] menjadi ["id1", "id2", ...]
+                    normalizedConditions.products = promoData.conditions.products.map(p => {
+                        if (typeof p === 'object' && p._id) {
+                            return p._id;
+                        }
+                        return p;
+                    });
+                } else {
+                    normalizedConditions.products = [];
+                }
+                console.log("Normalized products:", normalizedConditions.products); // Debug log
+            }
+
+            // Untuk bundling, pastikan bundleProducts adalah array
+            if (promoData.promoType === "bundling" && promoData.conditions?.bundleProducts) {
+                normalizedConditions.bundleProducts = Array.isArray(promoData.conditions.bundleProducts)
+                    ? promoData.conditions.bundleProducts
+                    : [];
+            }
+
+            const newFormData = {
+                name: promoData.name || "",
+                promoType: promoData.promoType || "discount_on_quantity",
+                conditions: normalizedConditions,
+                discount: promoData.discount || 0,
+                bundlePrice: promoData.bundlePrice || "",
+                outlet: normalizedOutlet,
+                customerType: promoData.consumerType || "",
+                validFrom: promoData.validFrom ? new Date(promoData.validFrom).toISOString().slice(0, 10) : "",
+                validTo: promoData.validTo ? new Date(promoData.validTo).toISOString().slice(0, 10) : "",
+                isActive: promoData.isActive === 1 || promoData.isActive === true,
+            };
+
+            console.log("Setting form data:", newFormData); // Debug log
+            setFormData(newFormData);
+            setErrors({});
+        }
+    }, [isOpen, promoData]);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]: type === "checkbox" ? checked : value,
-        }));
+        setFormData(prev => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
     };
 
     const handleConditionChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            conditions: {
-                ...prev.conditions,
-                [name]: value,
-            },
-        }));
+        setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, [name]: value } }));
+    };
+
+    const validate = () => {
+        let newErrors = {};
+
+        if (!formData.name.trim()) newErrors.name = "Nama promo wajib diisi!";
+        if (!formData.outlet.length) newErrors.outlet = "Pilih minimal satu outlet!";
+        if (!formData.validFrom || !formData.validTo) newErrors.date = "Pilih tanggal mulai dan akhir!";
+        if (formData.validFrom && formData.validTo && new Date(formData.validFrom) > new Date(formData.validTo))
+            newErrors.date = "Tanggal mulai tidak boleh lebih besar dari tanggal akhir!";
+
+        switch (formData.promoType) {
+            case "discount_on_quantity":
+                if (!formData.conditions?.minQuantity) newErrors.minQuantity = "Minimal pembelian wajib diisi!";
+                if (!formData.discount || formData.discount <= 0) newErrors.discount = "Potongan harus lebih dari 0!";
+                break;
+            case "discount_on_total":
+                if (!formData.conditions?.minTotal) newErrors.minTotal = "Minimal total wajib diisi!";
+                if (!formData.discount || formData.discount <= 0) newErrors.discount = "Potongan harus lebih dari 0!";
+                break;
+            case "buy_x_get_y":
+                if (!formData.conditions?.buyProduct) newErrors.buyProduct = "Pilih produk pembelian!";
+                if (!formData.conditions?.getProduct) newErrors.getProduct = "Pilih produk yang didapat!";
+                break;
+            case "bundling":
+                if (!formData.conditions?.bundleProducts?.length) newErrors.bundleProducts = "Tambahkan minimal 1 produk bundel!";
+                if (!formData.bundlePrice || formData.bundlePrice <= 0) newErrors.bundlePrice = "Harga bundel wajib diisi!";
+                break;
+            case "product_specific":
+                if (!formData.conditions?.products?.length)
+                    newErrors.products = "Tambahkan minimal 1 produk dengan diskon!";
+                break;
+            default:
+                break;
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log(formData);
-        try {
-            const response = await fetch("/api/promotion/autopromo-create", {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(formData),
-            });
+        if (!validate()) return;
 
-            if (response.ok) {
-                navigate("/admin/promo-otomatis")
-            } else {
-                alert("Failed to create promo");
+        const payload = {
+            name: formData.name,
+            promoType: formData.promoType,
+            conditions: formData.conditions,
+            discount: formData.discount,
+            bundlePrice: formData.bundlePrice,
+            outlet: formData.outlet,
+            consumerType: formData.customerType,
+            validFrom: formData.validFrom,
+            validTo: formData.validTo,
+            isActive: formData.isActive ? 1 : 0,
+        };
+
+        setSubmitting(true);
+        try {
+            const response = await axios.put(`/api/promotion/autopromos/${promoData._id}`, payload);
+            if (response.data.success) {
+                toast.success("Promo berhasil diperbarui!");
+
+                if (onSuccess) {
+                    onSuccess(response.data);
+                }
+
+                setTimeout(() => {
+                    onClose();
+                }, 1000);
             }
-        } catch (error) {
-            console.error("Error creating promo:", error);
+        } catch (err) {
+            console.error(err);
+            toast.error(err.response?.data?.message || "Gagal memperbarui promo");
+        } finally {
+            setSubmitting(false);
         }
     };
 
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
+    if (!isOpen) return null;
 
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-                    >
-                        Refresh
+    return (
+        <>
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity" onClick={onClose} />
+
+            <div className={`fixed right-0 top-0 h-full w-full md:w-[600px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className="flex justify-between items-center px-6 py-4 border-b bg-white">
+                    <h2 className="text-xl font-semibold text-green-900">Edit Promo Otomatis</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition" disabled={submitting}>
+                        <FaTimes size={20} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+                    {loading ? (
+                        <div className="flex justify-center items-center h-full">
+                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Nama Promo <span className="text-red-500">*</span></label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan nama promo"
+                                    className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.name ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                                />
+                                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Promo <span className="text-red-500">*</span></label>
+                                <Select
+                                    name="promoType"
+                                    value={{ value: formData.promoType, label: promoTypeOptions.find(opt => opt.value === formData.promoType)?.label }}
+                                    onChange={selected => setFormData(prev => ({ ...prev, promoType: selected.value, conditions: {}, discount: 0, bundlePrice: "" }))}
+                                    options={promoTypeOptions}
+                                    styles={customSelectStyles}
+                                />
+                            </div>
+
+                            {formData.promoType === "discount_on_quantity" && (
+                                <>
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Minimal Pembelian <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="number"
+                                            name="minQuantity"
+                                            value={formData.conditions?.minQuantity || ""}
+                                            onChange={handleConditionChange}
+                                            className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.minQuantity ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                                        />
+                                        {errors.minQuantity && <p className="text-red-500 text-xs mt-1">{errors.minQuantity}</p>}
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Potongan (%) <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="number"
+                                            name="discount"
+                                            value={formData.discount || ""}
+                                            onChange={handleChange}
+                                            className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.discount ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                                        />
+                                        {errors.discount && <p className="text-red-500 text-xs mt-1">{errors.discount}</p>}
+                                    </div>
+                                </>
+                            )}
+
+                            {formData.promoType === "discount_on_total" && (
+                                <>
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Minimal Harga <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="number"
+                                            name="minTotal"
+                                            value={formData.conditions?.minTotal || ""}
+                                            onChange={handleConditionChange}
+                                            className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.minTotal ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                                        />
+                                        {errors.minTotal && <p className="text-red-500 text-xs mt-1">{errors.minTotal}</p>}
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Potongan (Rp) <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="number"
+                                            name="discount"
+                                            value={formData.discount || ""}
+                                            onChange={handleChange}
+                                            className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.discount ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                                        />
+                                        {errors.discount && <p className="text-red-500 text-xs mt-1">{errors.discount}</p>}
+                                    </div>
+                                </>
+                            )}
+
+                            {formData.promoType === "buy_x_get_y" && (
+                                <>
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Pembelian Produk <span className="text-red-500">*</span></label>
+                                        <Select
+                                            value={products.map(p => ({ value: p.id, label: p.name })).find(opt => opt.value === formData.conditions?.buyProduct) || null}
+                                            onChange={selected => setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, buyProduct: selected.value } }))}
+                                            options={products.map(p => ({ value: p.id, label: p.name }))}
+                                            styles={customSelectStyles}
+                                            placeholder="Pilih produk..."
+                                        />
+                                        {errors.buyProduct && <p className="text-red-500 text-xs mt-1">{errors.buyProduct}</p>}
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Mendapatkan Produk <span className="text-red-500">*</span></label>
+                                        <Select
+                                            value={products.map(p => ({ value: p.id, label: p.name })).find(opt => opt.value === formData.conditions?.getProduct) || null}
+                                            onChange={selected => setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, getProduct: selected.value } }))}
+                                            options={products.map(p => ({ value: p.id, label: p.name }))}
+                                            styles={customSelectStyles}
+                                            placeholder="Pilih produk..."
+                                        />
+                                        {errors.getProduct && <p className="text-red-500 text-xs mt-1">{errors.getProduct}</p>}
+                                    </div>
+                                </>
+                            )}
+
+                            {formData.promoType === "bundling" && (
+                                <BundlingForm products={products} formData={formData} setFormData={setFormData} />
+                            )}
+
+                            {formData.promoType === "product_specific" && (
+                                <DiscountByProductForm
+                                    products={products}
+                                    formData={formData}
+                                    setFormData={setFormData}
+                                    errors={errors}
+                                    formatCurrency={formatCurrency}
+                                />
+                            )}
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Outlet <span className="text-red-500">*</span></label>
+                                <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                                    {outlets.map((o) => (
+                                        <label key={o._id} className="flex items-center gap-2 text-sm">
+                                            <input
+                                                type="checkbox"
+                                                checked={Array.isArray(formData.outlet) && formData.outlet.includes(o._id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setFormData((prev) => ({ ...prev, outlet: [...(Array.isArray(prev.outlet) ? prev.outlet : []), o._id] }));
+                                                    } else {
+                                                        setFormData((prev) => ({ ...prev, outlet: (Array.isArray(prev.outlet) ? prev.outlet : []).filter((id) => id !== o._id) }));
+                                                    }
+                                                }}
+                                                className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                            />
+                                            {o.name}
+                                        </label>
+                                    ))}
+                                </div>
+                                {errors.outlet && <p className="text-red-500 text-xs mt-1">{errors.outlet}</p>}
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Promo <span className="text-red-500">*</span></label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="date"
+                                        name="validFrom"
+                                        value={formData.validFrom}
+                                        onChange={e => setFormData(prev => ({ ...prev, validFrom: e.target.value }))}
+                                        className={`w-1/2 px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.date ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                                    />
+                                    <input
+                                        type="date"
+                                        name="validTo"
+                                        value={formData.validTo}
+                                        onChange={e => setFormData(prev => ({ ...prev, validTo: e.target.value }))}
+                                        className={`w-1/2 px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.date ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                                    />
+                                </div>
+                                {errors.date && <p className="text-red-500 text-xs mt-1">{errors.date}</p>}
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        name="isActive"
+                                        checked={formData.isActive}
+                                        onChange={handleChange}
+                                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                    />
+                                    Promo Aktif
+                                </label>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
+                    <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-100 transition" disabled={submitting}>
+                        Batal
+                    </button>
+                    <button type="button" onClick={handleSubmit} className="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 transition disabled:opacity-50" disabled={submitting || loading}>
+                        {submitting ? 'Memperbarui...' : 'Update'}
                     </button>
                 </div>
             </div>
-        );
-    }
-
-    return (
-        <div className="max-w-8xl mx-auto">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
-
-            {/* Breadcrumb */}
-            <form onSubmit={handleSubmit}>
-                <div className="px-3 py-2 flex justify-between items-center border-b">
-                    <div className="flex items-center space-x-2">
-                        <FaCut size={21} className="text-gray-500 inline-block" />
-                        <p className="text-[15px] text-gray-500">Promo</p>
-                        <FaChevronRight className="text-[15px] text-gray-500" />
-                        <Link to="/admin/promo-otomatis" className="text-[15px] text-gray-500">Promo Otomatis</Link>
-                        <FaChevronRight className="text-[15px] text-gray-500" />
-                        <p to="/admin/promo-otomatis-create" className="text-[15px] text-gray-500">{autopromo.name}</p>
-                    </div>
-
-                    <div className="flex space-x-2">
-                        <Link to="/admin/promo-otomatis"
-                            className="bg-white text-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">
-                            Batal
-                        </Link>
-                        <button
-                            type="submit"
-                            className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-                        >
-                            Simpan
-                        </button>
-                    </div>
-                </div>
-
-                <div className="bg-slate-50 p-6">
-                    <div className="w-full mx-auto p-12 bg-white shadow-lg rounded-lg space-y-6">
-
-                        {/* Promo Name */}
-                        <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700">Promo Name</label>
-                            <input
-                                type="text"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleChange}
-                                placeholder="Enter promo name"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                required
-                            />
-                        </div>
-
-                        {/* Promo Type */}
-                        <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700">Promo Type</label>
-                            <select
-                                name="promoType"
-                                value={formData.promoType}
-                                onChange={handleChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                            >
-                                <option value="discount_on_quantity">Discount on Quantity</option>
-                                <option value="discount_on_total">Discount on Total</option>
-                                <option value="buy_x_get_y">Buy X Get Y</option>
-                                <option value="bundling">Bundling</option>
-                            </select>
-                        </div>
-
-                        {/* Conditional Fields */}
-                        {formData.promoType === "discount_on_quantity" && (
-                            <div className="space-y-1">
-                                <label className="block text-sm font-medium text-gray-700">Minimum Quantity</label>
-                                <input
-                                    type="number"
-                                    name="minQuantity"
-                                    value={formData.conditions?.minQuantity || ""}
-                                    onChange={handleConditionChange}
-                                    placeholder="Min Quantity"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                    required
-                                />
-                            </div>
-                        )}
-
-                        {formData.promoType === "discount_on_total" && (
-                            <div className="space-y-1">
-                                <label className="block text-sm font-medium text-gray-700">Minimum Total</label>
-                                <input
-                                    type="number"
-                                    name="minTotal"
-                                    value={formData.conditions?.minTotal || ""}
-                                    onChange={handleConditionChange}
-                                    placeholder="Min Total"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                    required
-                                />
-                            </div>
-                        )}
-
-                        {formData.promoType === "buy_x_get_y" && (
-                            <div className="space-y-4">
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-medium text-gray-700">Buy Product</label>
-                                    <select
-                                        name="buyProduct"
-                                        value={formData.conditions?.buyProduct || ""}
-                                        onChange={(e) =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                conditions: { ...prev.conditions, buyProduct: e.target.value },
-                                            }))
-                                        }
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                        required
-                                    >
-                                        <option value="">Select Product</option>
-                                        {products.map((p) => (
-                                            <option key={p._id} value={p._id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-medium text-gray-700">Get Product</label>
-                                    <select
-                                        name="getProduct"
-                                        value={formData.conditions?.getProduct || ""}
-                                        onChange={(e) =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                conditions: { ...prev.conditions, getProduct: e.target.value },
-                                            }))
-                                        }
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                        required
-                                    >
-                                        <option value="">Select Product</option>
-                                        {products.map((p) => (
-                                            <option key={p._id} value={p._id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-
-                        {formData.promoType === "bundling" && (
-                            <div className="space-y-4">
-                                <fieldset className="space-y-2">
-                                    <legend className="text-sm font-semibold text-gray-700">Bundle Products</legend>
-                                    {formData.conditions?.bundleProducts?.map((bundle, index) => (
-                                        <div key={index} className="flex gap-2 items-center">
-                                            <select
-                                                value={bundle.product || ""}
-                                                onChange={(e) => {
-                                                    const updated = [...formData.conditions.bundleProducts];
-                                                    updated[index].product = e.target.value;
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        conditions: { ...prev.conditions, bundleProducts: updated },
-                                                    }));
-                                                }}
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
-                                                required
-                                            >
-                                                <option value="">Select Product</option>
-                                                {products.map((p) => (
-                                                    <option key={p._id} value={p._id}>{p.name}</option>
-                                                ))}
-                                            </select>
-                                            <input
-                                                type="number"
-                                                placeholder="Qty"
-                                                value={bundle.quantity || ""}
-                                                onChange={(e) => {
-                                                    const updated = [...formData.conditions.bundleProducts];
-                                                    updated[index].quantity = e.target.value;
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        conditions: { ...prev.conditions, bundleProducts: updated },
-                                                    }));
-                                                }}
-                                                className="w-24 px-3 py-2 border border-gray-300 rounded-md"
-                                                required
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const updated = [...formData.conditions.bundleProducts];
-                                                    updated.splice(index, 1);
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        conditions: { ...prev.conditions, bundleProducts: updated },
-                                                    }));
-                                                }}
-                                                className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                                            >
-                                                Remove
-                                            </button>
-                                        </div>
-                                    ))}
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                conditions: {
-                                                    ...prev.conditions,
-                                                    bundleProducts: [...(prev.conditions.bundleProducts || []), { product: "", quantity: "" }],
-                                                },
-                                            }))
-                                        }
-                                        className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                                    >
-                                        Add Product
-                                    </button>
-                                </fieldset>
-
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-medium text-gray-700">Bundle Price</label>
-                                    <input
-                                        type="number"
-                                        name="bundlePrice"
-                                        value={formData.bundlePrice || ""}
-                                        onChange={handleChange}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Discount */}
-                        {formData.promoType !== "buy_x_get_y" && (
-                            <div className="space-y-1">
-                                <label className="block text-sm font-medium text-gray-700">Discount</label>
-                                <input
-                                    type="number"
-                                    name="discount"
-                                    value={formData.discount || ""}
-                                    onChange={handleChange}
-                                    placeholder="Discount Amount"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                    required
-                                />
-                            </div>
-                        )}
-
-                        {/* Customer Type */}
-                        <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700">Customer Type</label>
-                            <select
-                                name="customerType"
-                                value={formData.customerType}
-                                onChange={handleChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                required
-                            >
-                                <option value="">All Customers</option>
-                                {loyaltyLevels.map((level) => (
-                                    <option key={level._id} value={level._id}>{level.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Outlet */}
-                        <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700">Outlet</label>
-                            <select
-                                name="outlet"
-                                value={formData.outlet}
-                                onChange={handleChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                required
-                            >
-                                <option value="">Select Outlet</option>
-                                {outlets.map((outlet) => (
-                                    <option key={outlet._id} value={outlet._id}>{outlet.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Valid Dates */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <label className="block text-sm font-medium text-gray-700">Valid From</label>
-                                <input
-                                    type="date"
-                                    name="validFrom"
-                                    value={formData.validFrom}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                    required
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="block text-sm font-medium text-gray-700">Valid To</label>
-                                <input
-                                    type="date"
-                                    name="validTo"
-                                    value={formData.validTo}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        {/* Active */}
-                        <div className="flex items-center mt-4">
-                            <input
-                                type="checkbox"
-                                name="isActive"
-                                checked={formData.isActive}
-                                onChange={handleChange}
-                                className="accent-blue-600"
-                            />
-                            <label className="ml-2 text-sm text-gray-700">Active</label>
-                        </div>
-                    </div>
-
-                </div>
-            </form>
-        </div>
-
-
+        </>
     );
 };
 

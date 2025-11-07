@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
+import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/edit_order_ops.model.dart';
@@ -11,7 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
-// import 'package:barajapos/models/menu_item_model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'dart:math';
@@ -114,27 +114,138 @@ class EditOrderItemNotifier extends StateNotifier<EditOrderItemModel> {
 
   /// dipanggil waktu masuk halaman edit
   Future<void> load(OrderDetailModel order) async {
-    // ambil master menu dari hive
-    final masterMenus = Hive.box<MenuItemModel>('menuItemsBox').values.toList();
+    // 1) Ambil master menu dari Hive
+    final menuBox = Hive.box<MenuItemModel>('menuItemsBox');
+    final masterMenus = menuBox.values.toList();
 
-    // enrich order items supaya menuItem-nya full
+    // 2) Enrich tiap item (menuItem + addons/toppings)
+    // di load():
     final enrichedItems =
         order.items.map((it) {
-          final full = masterMenus.firstWhereOrNull(
-            (m) => m.id == it.menuItem.id,
+          final fullMenu =
+              masterMenus.firstWhereOrNull((m) => m.id == it.menuItem.id) ??
+              it.menuItem;
+
+          // 1) Ambil default addons dari master (option.isDefault == true)
+          final defaultAddons =
+              (fullMenu.addons ?? const <AddonModel>[])
+                  .map((ad) {
+                    final defaults =
+                        (ad.options ?? const <AddonOptionModel>[])
+                            .where((o) => o.isDefault == true)
+                            .toList();
+                    // hanya keep kalau ada default
+                    if (defaults.isEmpty) return null;
+                    return ad.copyWith(options: defaults);
+                  })
+                  .whereType<AddonModel>()
+                  .toList();
+
+          // 2) Gunakan selected jika ada; kalau kosong → pakai default
+          final baseSelectedAddons =
+              (it.selectedAddons.isNotEmpty)
+                  ? it.selectedAddons
+                  : defaultAddons;
+
+          // 3) Resolve ke master agar objek lengkap (label, price, dll)
+          final resolvedAddons = _resolveSelectedAddons(
+            fullMenu.addons ?? const [],
+            baseSelectedAddons,
           );
-          if (full == null) return it;
-          return it.copyWith(menuItem: full);
+          final resolvedToppings = _resolveSelectedToppings(
+            fullMenu.toppings ?? const [],
+            it.selectedToppings,
+          );
+
+          final updated = it.copyWith(
+            menuItem: fullMenu,
+            selectedAddons: resolvedAddons,
+            selectedToppings: resolvedToppings,
+            quantity: (it.quantity <= 0) ? 1 : it.quantity,
+            notes: it.notes,
+            orderType: it.orderType,
+          );
+
+          return updated.copyWith(subtotal: updated.countSubTotalPrice());
         }).toList();
 
+    // 3) Susun kembali order
     final enrichedOrder = order.copyWith(items: enrichedItems);
 
+    // 4) Simpan ke state
     state = state.copyWith(
       order: enrichedOrder,
       originalItems: List<OrderItemModel>.from(enrichedItems),
       reason: null,
       error: null,
     );
+  }
+
+  /// Cocokkan toppings terpilih (berdasarkan id) dengan master toppings (agar object lengkap)
+  List<ToppingModel> _resolveSelectedToppings(
+    List<ToppingModel> masterToppings,
+    List<ToppingModel> selected,
+  ) {
+    if (selected.isEmpty || masterToppings.isEmpty) return selected;
+
+    // buat set id agar lookup cepat
+    final selectedIds = selected.map((t) => t.id).toSet();
+    // ambil object master by id (fallback tetap selected jika tidak ketemu)
+    final resolved = <ToppingModel>[];
+    for (final id in selectedIds) {
+      final full = masterToppings.firstWhereOrNull((t) => t.id == id);
+      if (full != null) {
+        resolved.add(full);
+      } else {
+        // fallback: gunakan objek asal (minimal id tetap ada)
+        final raw = selected.firstWhereOrNull((t) => t.id == id);
+        if (raw != null) resolved.add(raw);
+      }
+    }
+    return resolved;
+  }
+
+  /// Cocokkan addons terpilih (berdasarkan addon.id & option.id) dengan master addons/options
+  List<AddonModel> _resolveSelectedAddons(
+    List<AddonModel> masterAddons,
+    List<AddonModel> selected,
+  ) {
+    if (selected.isEmpty || masterAddons.isEmpty) return selected;
+
+    final resolved = <AddonModel>[];
+    for (final selAddon in selected) {
+      final masterAddon = masterAddons.firstWhereOrNull(
+        (a) => a.id == selAddon.id,
+      );
+      if (masterAddon == null) {
+        // tidak ketemu di master → simpan apa adanya
+        resolved.add(selAddon);
+        continue;
+      }
+
+      // match options by id agar properti label/price lengkap
+      final selOptionIds =
+          (selAddon.options ?? const <AddonOptionModel>[])
+              .map((o) => o.id)
+              .toSet();
+      final fullOptions = <AddonOptionModel>[];
+
+      for (final oid in selOptionIds) {
+        final fullOpt = (masterAddon.options ?? const <AddonOptionModel>[])
+            .firstWhereOrNull((o) => o.id == oid);
+        if (fullOpt != null) {
+          fullOptions.add(fullOpt);
+        } else {
+          // fallback: ambil dari selected (agar id tetap ada)
+          final raw = selAddon.options?.firstWhereOrNull((o) => o.id == oid);
+          if (raw != null) fullOptions.add(raw);
+        }
+      }
+
+      // rakit addon lengkap, tapi pilihan options hanya yang dipilih
+      resolved.add(masterAddon.copyWith(options: fullOptions));
+    }
+    return resolved;
   }
 
   // ====== PUBLIC GETTER utk UI ======
@@ -157,13 +268,29 @@ class EditOrderItemNotifier extends StateNotifier<EditOrderItemModel> {
     if (order == null) return;
 
     final items = [...order.items];
-    final idx = items.indexOf(oldItem);
-    if (idx == -1) return;
 
-    items[idx] = newItem;
+    final oldIdx = items.indexOf(oldItem);
+    if (oldIdx == -1) return;
+
+    // cari item lain (bukan oldIdx) yang sama persis dgn newItem
+    final dupIdx = items.indexWhere((it) => _sameItem(it, newItem));
+
+    if (dupIdx != -1 && dupIdx != oldIdx) {
+      // gabungkan qty ke item duplikat
+      final merged = items[dupIdx].copyWith(
+        quantity: items[dupIdx].quantity + newItem.quantity,
+      );
+      items[dupIdx] = merged;
+
+      // hapus item lama (posisi oldIdx)
+      items.removeAt(oldIdx);
+    } else {
+      // tidak ada yang sama → replace saja
+      items[oldIdx] = newItem;
+    }
 
     state = state.copyWith(order: order.copyWith(items: items));
-    _recalc();
+    _recalc(); // biar subtotal/tax/service/grandTotal ke-update
   }
 
   void removeItem(OrderItemModel menuItem) {
@@ -190,7 +317,7 @@ class EditOrderItemNotifier extends StateNotifier<EditOrderItemModel> {
     final items = [...order.items];
 
     // kalau item sama → tambah qty, kalau beda → tambah baru
-    final idx = items.indexWhere((it) => _sameSignature(it, item));
+    final idx = items.indexWhere((it) => _sameItem(it, item));
     if (idx != -1) {
       final merged = items[idx].copyWith(
         quantity: items[idx].quantity + item.quantity,

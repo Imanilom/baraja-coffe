@@ -5,7 +5,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/enums/location_type.dart';
 import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/models/applied_promos.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -61,9 +61,9 @@ abstract class OrderDetailModel with _$OrderDetailModel {
 
     // Diskon & Promo
     @HiveField(12) DiscountModel? discounts,
-    @HiveField(13) List<String>? appliedPromos,
-    @HiveField(14) String? appliedManualPromo,
-    @HiveField(15) String? appliedVoucher,
+    @HiveField(13) @Default([]) List<AppliedPromosModel>? appliedPromos,
+    @HiveField(14) @Default(null) String? appliedManualPromo,
+    @HiveField(15) @Default(null) String? appliedVoucher,
 
     // Pajak & Layanan
     @HiveField(16)

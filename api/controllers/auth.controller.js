@@ -288,10 +288,20 @@ export const googleAuth = async (req, res) => {
   const { idToken } = req.body;
 
   try {
+
+    const allowedClientIds = [
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_ID_WEB,
+    ].filter(Boolean);
+
     const ticket = await client.verifyIdToken({
       idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: allowedClientIds,
     });
+    // const ticket = await client.verifyIdToken({
+    //   idToken,
+    //   audience: process.env.GOOGLE_CLIENT_ID,
+    // });
 
     const payload = ticket.getPayload();
     const { email, name, picture } = payload;

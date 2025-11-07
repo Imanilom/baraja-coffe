@@ -1,120 +1,56 @@
-import React, { useEffect, useState, useRef } from "react";
-import Select from "react-select";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaPencilAlt, FaTrash, FaReceipt, FaTrashAlt, FaChevronRight, FaChevronLeft, FaEyeSlash, FaEye, FaPlus, FaDownload } from 'react-icons/fa';
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import MessageAlertMenu from "../../components/messageAlert";
-import ConfirmationModalActive from "../menu/confirmationModalAction";
-import MenuTable from "../menu/table";
+import dayjs from "dayjs";
+import { Link } from "react-router-dom";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaTicketAlt, FaTrashAlt, FaPencilAlt } from "react-icons/fa";
+import Datepicker from 'react-tailwindcss-datepicker';
+import * as XLSX from "xlsx";
+import Header from "../admin/header";
+import Paginated from "../../components/paginated";
 
-const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-6 rounded shadow-md text-center w-96">
-                <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
-                <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
-                <p>Apakah Anda yakin ingin menghapus item ini?</p>
-                <div className="flex justify-center mt-4">
-                    <button onClick={onClose} className="mr-2 px-4 py-2 bg-gray-300 rounded">Batal</button>
-                    <button onClick={onConfirm} className="px-4 py-2 bg-red-500 text-white rounded">Hapus</button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const EventManagement = () => {
-    const customStyles = {
-        control: (provided, state) => ({
-            ...provided,
-            borderColor: '#d1d5db',
-            minHeight: '34px',
-            fontSize: '13px',
-            color: '#6b7280',
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
-            '&:hover': {
-                borderColor: '#9ca3af',
-            },
-        }),
-        singleValue: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        input: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        placeholder: (provided) => ({
-            ...provided,
-            color: '#9ca3af',
-            fontSize: '13px',
-        }),
-        option: (provided, state) => ({
-            ...provided,
-            fontSize: '13px',
-            color: '#374151',
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
-            cursor: 'pointer',
-        }),
-    };
-
-    const location = useLocation();
-    const navigate = useNavigate();
-    const [menuItems, setMenuItems] = useState([]);
-    const [category, setCategory] = useState([]);
-    const [status, setStatus] = useState([]);
-    const [newStatus, setNewStatus] = useState(null);
-    const [selectedMenu, setSelectedMenu] = useState(null);
-    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-    const [outlets, setOutlets] = useState([]);
-    const [error, setError] = useState(null);
-    const [checkedItems, setCheckedItems] = useState([]);
-    const [checkAll, setCheckAll] = useState(false);
-    const [openDropdown, setOpenDropdown] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isShow, setIsShow] = useState(true);
+    const [error, setError] = useState(null);
+    const [event, setEvent] = useState([]);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
+    const [filteredData, setFilteredData] = useState([]);
+    const [tempSearch, setTempSearch] = useState([]);
 
-    // State final (filter aktif)
-    const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("");
-    const [selectedStatus, setSelectedStatus] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
-
-    // Pagination
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+    const ITEMS_PER_PAGE = 10;
+
+    const dropdownRef = useRef(null);
+
+    // Fetch event and outlets data
+    const fetchEvent = async () => {
+        try {
+            const eventResponse = await axios.get('/api/event');
+            const eventData = eventResponse.data.data || [];
+
+            setEvent(eventData);
+            setFilteredData(eventData);
+        } catch (err) {
+            console.error("Error fetching stock or movements:", err);
+            setEvent([]);
+            setFilteredData([]);
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
+        setError(null);
         try {
-            const menuResponse = await axios.get('/api/menu/menu-items');
-            const allMenuItems = menuResponse.data.data;
-
-            // Filter hanya menu dengan category name "Event"
-            const eventMenuItems = allMenuItems.filter(item => item.category?.name === "event");
-
-            setMenuItems(eventMenuItems);
-
-            const outletsResponse = await axios.get('/api/outlet');
-            setOutlets(outletsResponse.data.data);
-
-            const categoryResponse = await axios.get('/api/menu/categories');
-            setCategory(categoryResponse.data.data.filter((cat) => !cat.parentCategory));
-
-            setStatus([
-                { id: "ya", name: "Ya" },
-                { id: "tidak", name: "Tidak" }
+            await Promise.all([
+                fetchEvent(),
             ]);
-
-            setError(null);
         } catch (err) {
-            console.error("Error fetching data:", err);
+            console.error("General error:", err);
             setError("Failed to load data. Please try again later.");
-            setMenuItems([]);
-            setOutlets([]);
-            setCategory([]);
         } finally {
             setLoading(false);
         }
@@ -124,52 +60,16 @@ const EventManagement = () => {
         fetchData();
     }, []);
 
+    // Handle click outside dropdown to close
     useEffect(() => {
-        setCurrentPage(1);
-    }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery]);
-
-    const outletOptions = [
-        { value: '', label: 'Outlet' },
-        ...outlets.map(outlet => ({ value: outlet.name, label: outlet.name }))
-    ];
-
-    const categoryOptions = [
-        { value: '', label: 'Semua Kategori' },
-        ...category.map(category => ({ value: category.name, label: category.name }))
-    ];
-
-    const statusOptions = [
-        { value: '', label: 'Status' },
-        { value: true, label: 'Aktif' },
-        { value: false, label: 'Tidak Aktif' },
-    ];
-
-    const workstationOptions = [
-        { value: '', label: 'Tempat' },
-        { value: 'bar', label: 'Bar' },
-        { value: 'kitchen', label: 'Dapur' },
-    ];
-
-    const filteredMenuItems = menuItems.filter((item) => {
-        const matchOutlet =
-            selectedOutlet === '' ||
-            item.availableAt.some(outlet => outlet.name === selectedOutlet);
-        const matchCategory = selectedCategory === '' || item.category.name === selectedCategory;
-        const matchStatus = selectedStatus === '' || item.isActive === selectedStatus;
-
-        const matchSearch =
-            searchQuery === '' ||
-            item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.barcode?.toLowerCase().includes(searchQuery.toLowerCase());
-
-        return matchOutlet && matchCategory && matchStatus && matchSearch;
-    });
-
-    const totalPages = Math.ceil(filteredMenuItems.length / itemsPerPage);
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filteredMenuItems.slice(indexOfFirstItem, indexOfLastItem);
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setShowInput(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -180,53 +80,105 @@ const EventManagement = () => {
         }).format(amount);
     };
 
-    const handleUpdate = async (itemId, newStatus) => {
-        setLoading(true); // ⬅️ mulai loading
-        try {
-            setTimeout(async () => {
-                try {
-                    await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
-                    navigate("/admin/menu", {
-                        state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
-                    });
-                    fetchData();
-                } catch (error) {
-                    console.error("Error updating menu:", error);
-                } finally {
-                    setLoading(false); // ⬅️ stop loading setelah selesai
-                }
-            }, 2000);
-        } catch (error) {
-            console.error("Gagal update status:", error);
-            alert("Terjadi kesalahan saat update status");
-        }
+    const formatDateTime = (datetime) => {
+        const date = new Date(datetime); // baca UTC
+        const pad = (n) => n.toString().padStart(2, "0");
+
+        return `${pad(date.getUTCDate())}-${pad(date.getUTCMonth() + 1)}-${date.getUTCFullYear()} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
     };
 
-    const handleDelete = async (itemId) => {
-        try {
-            await axios.delete(`/api/menu/menu-items/${itemId}`);
-            fetchData();
-            setIsModalOpen(false);
-        } catch (error) {
-            console.error("Error deleting item:", error);
-        }
+
+    const formatDate = (dat) => {
+        const date = new Date(dat);
+        const pad = (n) => n.toString().padStart(2, "0");
+        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
     };
 
-    const handleDeleteSelected = async () => {
-        if (!window.confirm("Apakah Anda yakin ingin menghapus data terpilih?")) return;
-        try {
-            await axios.delete("/api/menu/menu-items", {
-                data: { id: checkedItems }
+    const formatTime = (time) => {
+        const date = new Date(time);
+        const pad = (n) => n.toString().padStart(2, "0");
+        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    };
+
+    // Calculate total pages based on filtered data
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+
+    const capitalizeWords = (text) => {
+        return text
+            .toLowerCase()
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+
+    // Apply filter function
+    const applyFilter = () => {
+        const allMovements = [];
+
+        event.forEach(stock => {
+            const movements = stock.movements || [];
+
+            const movementsInRange = movements.filter(movement => {
+                const movementDate = dayjs(movement.date);
+                return (
+                    movement.type === "in" && // hanya ambil stok masuk
+                    movementDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
+                    movementDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'))
+                );
             });
-            setCheckedItems([]);
-            setCheckAll(false);
-            fetchData();
-        } catch (error) {
-            console.error("Gagal menghapus:", error);
-        }
+
+            movementsInRange.forEach(movement => {
+                allMovements.push({
+                    ...movement,
+                    product: stock.productId?.name,
+                    unit: stock.productId?.unit
+                });
+            });
+        });
+
+        // Filter berdasarkan pencarian jika ada
+        const searched = tempSearch
+            ? allMovements.filter(m =>
+                m._id.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                m.product?.toLowerCase().includes(tempSearch.toLowerCase())
+            )
+            : allMovements;
+
+        // Urutkan berdasarkan tanggal terbaru
+        const sorted = searched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+
+        setFilteredData(sorted); // ← bikin state baru khusus movement hasil filter
+        setCurrentPage(1);
     };
 
-    // Error State
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return filteredData.slice(startIndex, endIndex);
+    }, [currentPage, filteredData]);
+
+    useEffect(() => {
+        applyFilter();
+    }, []);
+
+    const resetFilter = () => {
+        setTempSearch("");
+        setValue({
+            startDate: dayjs(),
+            endDate: dayjs(),
+        });
+        setCurrentPage(1);
+    };
+
+
+    // Show loading state
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+            </div>
+        );
+    }
+
+    // Show error state
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -245,87 +197,164 @@ const EventManagement = () => {
     }
 
     return (
-        <div className="w-full">
+        <div className="">
 
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    Event
-                </h1>
-                <div className="flex items-center gap-3">
-                    {/* <button
-            onClick={() => console.log('Ekspor Produk')}
-            className="flex items-center gap-2 bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
-          >
-            <FaDownload /> Ekspor
-          </button> */}
-
+            {/* Breadcrumb */}
+            <div className="px-3 py-2 flex justify-between items-center border-b gap-2">
+                <div className="flex items-center space-x-2">
+                    <FaTicketAlt size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Event</p>
+                </div>
+                <div className="flex space-x-2">
+                    {/* <button className="text-[#005429] hover:text-white bg-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">
+                        Ekspor Event
+                    </button> */}
                     <Link
                         to="/admin/event/create-event"
-                        className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+                        className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
                     >
-                        <FaPlus /> Tambah
+                        Tambah Event
                     </Link>
                 </div>
             </div>
 
-            <MessageAlertMenu />
+            {/* Filters */}
+            <div className="px-3 pb-4 mb-[60px]">
+                <div className="my-3 py-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded">
+                    {/* Tanggal */}
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
+                        <Datepicker
+                            showFooter
+                            showShortcuts
+                            value={value}
+                            onChange={setValue}
+                            displayFormat="DD-MM-YYYY"
+                            inputClassName="w-full text-[13px] border py-2 pr-6 pl-3 rounded cursor-pointer"
+                            popoverDirection="down"
+                        />
+                    </div>
 
-            <MenuTable
-                categoryOptions={categoryOptions}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                outletOptions={outletOptions}
-                workstationOptions={workstationOptions}
-                selectedOutlet={selectedOutlet}
-                setSelectedOutlet={setSelectedOutlet}
-                statusOptions={statusOptions}
-                selectedStatus={selectedStatus}
-                setSelectedStatus={setSelectedStatus}
-                checkAll={checkAll}
-                setCheckAll={setCheckAll}
-                checkedItems={checkedItems}
-                setCheckedItems={setCheckedItems}
-                currentItems={currentItems}
-                setSelectedMenu={() => { }} // sementara kosong
-                setNewStatus={() => { }} // sementara kosong
-                setIsConfirmOpen={() => { }} // sementara kosong
-                formatCurrency={formatCurrency}
-                setCurrentPage={setCurrentPage}
-                totalPages={totalPages}
-                menuItems={menuItems}
-                itemsPerPage={itemsPerPage}
-                handleDeleteSelected={handleDeleteSelected}
-                customStyles={customStyles}
-                currentPage={currentPage}
-                loading={loading}
-            />
+                    {/* Kosong biar rapih di desktop */}
+                    <div className="hidden lg:block col-span-3"></div>
 
+                    {/* Cari */}
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                        <div className="relative">
+                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                placeholder="Cari"
+                                value={tempSearch}
+                                onChange={(e) => setTempSearch(e.target.value)}
+                                className="text-[13px] border py-2 pl-8 pr-4 rounded w-full"
+                            />
+                        </div>
+                    </div>
 
-            <ConfirmationModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onConfirm={() => handleDelete(itemToDelete)}
-            />
+                    {/* Tombol Filter */}
+                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
+                        <button
+                            onClick={applyFilter}
+                            className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        >
+                            Terapkan
+                        </button>
+                        <button
+                            onClick={resetFilter}
+                            className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                </div>
 
-            <ConfirmationModalActive
-                isOpen={isConfirmOpen}
-                menu={selectedMenu}
-                newStatus={newStatus}
-                onClose={() => {
-                    setIsConfirmOpen(false);
-                    setSelectedMenu(null);
-                    setNewStatus(null);
-                }}
-                onConfirm={async () => {
-                    await handleUpdate(selectedMenu.id, newStatus);
-                    setIsConfirmOpen(false);
-                    setSelectedMenu(null);
-                    setNewStatus(null);
-                }}
-            />
+                {/* Table Responsive */}
+                <div className="bg-white overflow-x-auto rounded shadow-slate-200 shadow-md hidden md:block">
+                    <table className="min-w-full table-auto">
+                        <thead className="text-gray-400">
+                            <tr className="text-left text-[13px]">
+                                <th className="px-4 py-3 font-normal">Waktu</th>
+                                <th className="px-4 py-3 font-normal">Event</th>
+                                <th className="px-4 py-3 font-normal">Kategori</th>
+                                <th className="px-4 py-3 font-normal">Organisasi</th>
+                                <th className="px-4 py-3 font-normal">Lokasi</th>
+                                <th className="px-4 py-3 font-normal text-right">Kapasitas</th>
+                                <th className="px-4 py-3 font-normal text-right">Harga</th>
+                                <th className="px-4 py-3 font-normal"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-sm text-gray-600">
+                            {paginatedData.map((event) => (
+                                <tr
+                                    key={event._id}
+                                    className="hover:bg-slate-50 transition cursor-pointer"
+                                >
+                                    <td className="px-4 py-3 truncate">{formatDateTime(event.date)}</td>
+                                    <td className="px-4 py-3 truncate">{event.name}</td>
+                                    <td className="px-4 py-3 truncate">{event.category}</td>
+                                    <td className="px-4 py-3 truncate">{event.organizer}</td>
+                                    <td className="px-4 py-3 truncate">{event.location}</td>
+                                    <td className="px-4 py-3 text-right">{event.capacity}</td>
+                                    <td className="px-4 py-3 text-right">{formatCurrency(event.price)}</td>
+                                    <td className="px-4 py-3 text-right">
+                                        <div className="flex justify-center space-x-2">
+                                            <Link
+                                                to={`/admin/event/edit-event/${event._id}`}
+                                                className="flex items-center px-3 py-1 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded-md shadow-sm transition"
+                                            >
+                                                <FaPencilAlt className="mr-1" /> Edit
+                                            </Link>
+                                            <button className="flex items-center px-3 py-1 text-xs text-white bg-red-500 hover:bg-red-600 rounded-md shadow-sm transition">
+                                                <FaTrashAlt className="mr-1" /> Hapus
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="space-y-3 md:hidden">
+                    {paginatedData.map((event) => (
+                        <div
+                            key={event._id}
+                            className="bg-white p-4 rounded shadow-sm border"
+                        >
+                            <p className="text-sm font-medium text-gray-800">{event.name}</p>
+                            <p className="text-xs text-gray-500">{formatDateTime(event.date)}</p>
+                            <p className="text-xs text-gray-500">{event.location}</p>
+
+                            <div className="flex justify-between items-center mt-3">
+                                <span className="text-sm font-semibold">{formatCurrency(event.price)}</span>
+                                <div className="flex space-x-2">
+                                    <Link
+                                        to={`/admin/event/edit-event/${event._id}`}
+                                        className="px-3 py-1 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded"
+                                    >
+                                        Edit
+                                    </Link>
+                                    <button className="px-3 py-1 text-xs text-white bg-red-500 hover:bg-red-600 rounded">
+                                        Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
+
+            </div>
         </div>
+
     );
 };
 

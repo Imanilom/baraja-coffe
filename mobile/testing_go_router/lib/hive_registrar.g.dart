@@ -5,6 +5,8 @@
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
+import 'package:kasirbaraja/models/affected_item.model.dart';
+import 'package:kasirbaraja/models/applied_promos.model.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
@@ -12,6 +14,7 @@ import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/event.model.dart';
+import 'package:kasirbaraja/models/free_item.model.dart';
 import 'package:kasirbaraja/models/menu_category.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/menu_stock.model.dart';
@@ -33,6 +36,8 @@ extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
     registerAdapter(AddonModelAdapter());
     registerAdapter(AddonOptionModelAdapter());
+    registerAdapter(AffectedItemModelAdapter());
+    registerAdapter(AppliedPromosModelAdapter());
     registerAdapter(BluetoothPrinterModelAdapter());
     registerAdapter(CashierModelAdapter());
     registerAdapter(CustomAmountItemsModelAdapter());
@@ -40,6 +45,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(DiscountModelAdapter());
     registerAdapter(EditOrderItemModelAdapter());
     registerAdapter(EventAdapter());
+    registerAdapter(FreeItemModelAdapter());
     registerAdapter(MenuCategoryModelAdapter());
     registerAdapter(MenuItemModelAdapter());
     registerAdapter(MenuStockModelAdapter());
@@ -63,6 +69,8 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
   void registerAdapters() {
     registerAdapter(AddonModelAdapter());
     registerAdapter(AddonOptionModelAdapter());
+    registerAdapter(AffectedItemModelAdapter());
+    registerAdapter(AppliedPromosModelAdapter());
     registerAdapter(BluetoothPrinterModelAdapter());
     registerAdapter(CashierModelAdapter());
     registerAdapter(CustomAmountItemsModelAdapter());
@@ -70,6 +78,7 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(DiscountModelAdapter());
     registerAdapter(EditOrderItemModelAdapter());
     registerAdapter(EventAdapter());
+    registerAdapter(FreeItemModelAdapter());
     registerAdapter(MenuCategoryModelAdapter());
     registerAdapter(MenuItemModelAdapter());
     registerAdapter(MenuStockModelAdapter());

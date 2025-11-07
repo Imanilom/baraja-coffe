@@ -37,6 +37,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     super.initState();
     selectedToppings = List.from(widget.orderItem.selectedToppings);
     selectedAddons = List.from(widget.orderItem.selectedAddons);
+    print('selectedAddons: $selectedAddons');
     quantity = widget.orderItem.quantity;
     note = widget.orderItem.notes ?? '';
     selectedOrderType = widget.orderItem.orderType ?? OrderType.dineIn;
@@ -260,9 +261,9 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                     _buildQuantityButton(
                       icon: Icons.remove,
                       onPressed:
-                      quantity > 1
-                          ? () => setState(() => quantity--)
-                          : null,
+                          quantity > 1
+                              ? () => setState(() => quantity--)
+                              : null,
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
@@ -429,12 +430,12 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         color: enabled ? Colors.white : Colors.grey[400],
         padding: EdgeInsets.zero,
         onPressed:
-        enabled
-            ? () {
-          HapticFeedback.lightImpact();
-          onPressed();
-        }
-            : null,
+            enabled
+                ? () {
+                  HapticFeedback.lightImpact();
+                  onPressed();
+                }
+                : null,
       ),
     );
   }
@@ -489,7 +490,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                       style: TextStyle(
                         fontSize: 13,
                         color:
-                        note.isEmpty ? Colors.grey[500] : Colors.grey[800],
+                            note.isEmpty ? Colors.grey[500] : Colors.grey[800],
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -565,7 +566,8 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   }
 
   Widget _buildToppingItem(ToppingModel topping) {
-    final isSelected = selectedToppings.contains(topping);
+    final selectedTopIds = selectedToppings.map((t) => t.id).toSet();
+    final isSelected = selectedTopIds.contains(topping.id);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -624,15 +626,16 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   }
 
   Widget _buildAddonsSection(List<AddonModel> addons) {
+    if (addons.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(
+            const Icon(
               Icons.extension_outlined,
               size: 16,
-              color: const Color(0xFF4CAF50),
+              color: Color(0xFF4CAF50),
             ),
             const SizedBox(width: 6),
             Text(
@@ -646,12 +649,15 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           ],
         ),
         const SizedBox(height: 8),
-        ...addons.map((addon) => _buildAddonItem(addon)),
+        ...addons.map(_buildAddonItem),
       ],
     );
   }
 
   Widget _buildAddonItem(AddonModel addon) {
+    final options = addon.options ?? const <AddonOptionModel>[];
+    if (options.isEmpty) return const SizedBox.shrink();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
@@ -664,7 +670,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            addon.name!,
+            addon.name ?? '-',
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -672,18 +678,15 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
             ),
           ),
           const SizedBox(height: 6),
-          ...addon.options!.map((option) => _buildAddonOption(addon, option)),
+          ...options.map((opt) => _buildAddonOption(addon, opt)),
         ],
       ),
     );
   }
 
   Widget _buildAddonOption(AddonModel addon, AddonOptionModel option) {
-    final selectedAddon = selectedAddons.firstWhere(
-      (a) => a.id == addon.id,
-      orElse: () => AddonModel(id: '', name: '', type: '', options: []),
-    );
-    final isSelected = selectedAddon.options?.contains(option) ?? false;
+    final selectedOptionId = _selectedOptionIdFor(addon.id!); // bisa null
+    final isSelected = selectedOptionId == option.id;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
@@ -698,18 +701,18 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           width: isSelected ? 1.5 : 1,
         ),
       ),
-      child: RadioListTile<AddonOptionModel>(
+      child: RadioListTile<String>(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
         dense: true,
         title: Text(
-          option.label!,
+          option.label ?? '-',
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
         subtitle:
-            option.price! > 0
+            (option.price ?? 0) > 0
                 ? Text(
                   '+ ${formatRupiah(option.price!)}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10,
                     color: Colors.blue,
                     fontWeight: FontWeight.w500,
@@ -724,24 +727,42 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                     backgroundColor: Colors.green[50],
                   ),
                 ),
-        value: option,
-        groupValue: selectedAddon.options?.firstOrNull,
+        value: option.id!, // ← pakai id
+        groupValue: selectedOptionId, // ← pakai id terpilih
         activeColor: const Color(0xFF4CAF50),
-        onChanged: (value) {
-          if (value != null) {
-            HapticFeedback.lightImpact();
-            setState(() {
-              final index = selectedAddons.indexWhere((a) => a.id == addon.id);
-              if (index != -1) {
-                selectedAddons[index] = addon.copyWith(options: [value]);
-              } else {
-                selectedAddons.add(addon.copyWith(options: [value]));
-              }
-            });
-          }
+        onChanged: (val) {
+          if (val == null) return;
+          HapticFeedback.lightImpact();
+          _setSelectedOption(addon.id!, option, addon);
         },
       ),
     );
+  }
+
+  // Ambil optionId terpilih utk addon.id tertentu
+  String? _selectedOptionIdFor(String addonId) {
+    final a = selectedAddons.firstWhere(
+      (x) => x.id == addonId,
+      orElse: () => AddonModel(id: addonId, name: '', type: '', options: []),
+    );
+    if (a.options == null || a.options!.isEmpty) return null;
+    return a.options!.first.id; // karena single-choice
+  }
+
+  // Set option terpilih utk addon.id tertentu (replace single-choice)
+  void _setSelectedOption(
+    String addonId,
+    AddonOptionModel option,
+    AddonModel addonSource,
+  ) {
+    final idx = selectedAddons.indexWhere((x) => x.id == addonId);
+    final updated = addonSource.copyWith(options: [option]);
+    if (idx == -1) {
+      selectedAddons.add(updated);
+    } else {
+      selectedAddons[idx] = updated;
+    }
+    setState(() {});
   }
 
   Widget _buildActionButtons() {
@@ -883,64 +904,64 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
       context: context,
       builder:
           (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.note_outlined, color: Color(0xFF4CAF50), size: 20),
-            SizedBox(width: 8),
-            Text(
-              'Catatan Pesanan',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 2,
-          maxLength: 200,
-          decoration: InputDecoration(
-            hintText: 'Masukkan catatan khusus...',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+            title: const Row(
+              children: [
+                Icon(Icons.note_outlined, color: Color(0xFF4CAF50), size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Catatan Pesanan',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
-            focusedBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFF4CAF50)),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Batal',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              maxLines: 2,
+              maxLength: 200,
+              decoration: InputDecoration(
+                hintText: 'Masukkan catatan khusus...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFF4CAF50)),
+                ),
               ),
             ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() => note = controller.text.trim());
-              Navigator.of(context).pop();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Batal',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-            ),
-            child: const Text(
-              'Simpan',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() => note = controller.text.trim());
+                  Navigator.of(context).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: const Text(
+                  'Simpan',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 

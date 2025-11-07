@@ -134,7 +134,7 @@ import ReceiptMenu from "./pages/menu/receipt";
 import AddSubCategory from "./pages/menu/category_sub/create";
 import CreateTable from "./pages/table/tableplan/create";
 import EventManagement from "./pages/event";
-import CreateEvent from "./pages/event/craete";
+import CreateEvent from "./pages/event/create";
 import UpdateTableForm from "./pages/table/tableplan/update";
 import ProductionListManagement from "./pages/inventory/production_list";
 import UpdateProduction from "./pages/inventory/production_list/update";
@@ -163,6 +163,10 @@ import AssetManagement from "./pages/aset";
 import CreateDevice from "./pages/device/maindevice/create";
 import ReservationPage from "./pages/reservation";
 import TypeTransaction from "./pages/report/sales/status_transaction";
+import TicketManagement from "./pages/ticket";
+import CreateTicket from "./pages/ticket/create";
+import UpdateTicket from "./pages/ticket/update";
+import StockReconciliation from "./pages/stock_reconciliation";
 
 
 export default function App() {
@@ -316,10 +320,18 @@ export default function App() {
                 <Route path="target-sales" element={<TargetSalesManagementPage />} />
                 <Route path="receipt-design" element={<ReceiptDesign />} />
 
+                {/* Reconciliation */}
+                <Route path="reconciliation" element={<StockReconciliation />} />
+
                 {/* Event */}
                 <Route path="event" element={<EventManagement />} />
                 <Route path="event/create-event" element={<CreateEvent />} />
                 <Route path="event/edit-event/:id" element={<UpdateEvent />} />
+
+                {/* Ticket */}
+                <Route path="ticket" element={<TicketManagement />} />
+                <Route path="ticket/create-ticket" element={<CreateTicket />} />
+                <Route path="ticket/edit-ticket/:id" element={<UpdateTicket />} />
 
                 {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />

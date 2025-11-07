@@ -9,7 +9,7 @@ import {
   getUserOrderHistory,
   getCashierOrderHistory,
   charge,
-  createAppOrder,
+  // createAppOrder,
   createUnifiedOrder,
   getOrderById,
   getOrderId,
@@ -61,7 +61,8 @@ import {
 
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
-import { chargeWithLocking, createAppOrderWithLocking } from '../controllers/testapporder.controller.js';
+import { createAppOrder } from '../controllers/testapporder.controller.js';
+// import { chargeWithLocking, createAppOrderWithLocking } from '../controllers/testapporder.controller.js';
 
 const router = express.Router();
 
@@ -71,9 +72,9 @@ router.post('/order', createOrder);
 router.post("/unified-order", createUnifiedOrder);
 // TODO: Start route untuk melakukan charge from aplication
 
-router.post('/orderApp', createAppOrderWithLocking);
+router.post('/orderApp', createAppOrder);
 
-router.post("/charge", chargeWithLocking);
+router.post("/charge", charge);
 
 router.post('/final-payment', createFinalPayment);
 

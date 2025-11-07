@@ -14,12 +14,12 @@ import { useNavigate } from "react-router-dom";
 import ConfirmationModal from "../menu/confirmmodal";
 import AddonForm from "../menu/opsimodal";
 
-const CreateEvent = () => {
+const CreateTicket = () => {
     const [allCategories, setAllCategories] = useState([]);
     const [categories, setCategories] = useState([]);
     const [subCategories, setSubCategories] = useState([]);
 
-    const MainCategories = ['makanan', 'minuman', 'dessert', 'snack', 'event'];
+    // const MainCategories = ['event'];
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const [outlets, setOutlets] = useState([]);
@@ -52,7 +52,7 @@ const CreateEvent = () => {
         name: "",
         price: "",
         description: "",
-        mainCat: "",
+        mainCat: "event",
         category: "",
         subCategory: "",
         rawMaterials: [],
@@ -175,7 +175,6 @@ const CreateEvent = () => {
             const data = res.data.data;
 
             setAllCategories(data);
-            console.log(data);
             const main = data.filter((cat) => !cat.parentCategory);
             setCategories(main);
         } catch (error) {
@@ -214,7 +213,7 @@ const CreateEvent = () => {
                 price: Number(formData.price),
                 // discountedPrice: Number(formData.price), // bisa ubah sesuai diskon
                 imageURL: imageURL || "",
-                mainCat: selectedMainCategory,
+                mainCat: formData.mainCat,
                 category: formData.category,
                 subCategory: formData.subCategory || null,
                 availableAt: formData.availableAt, // array of outlet ids
@@ -234,10 +233,8 @@ const CreateEvent = () => {
                 workstation: valueToSend
             };
 
-            console.log(payload);
-
             await axios.post("/api/menu/menu-items", payload);
-            navigate("/admin/event/create-event");
+            navigate("/admin/ticket");
             // alert("Berhasil");
         } catch (err) {
             console.error("Gagal kirim data:", err);
@@ -260,12 +257,12 @@ const CreateEvent = () => {
 
                 <div className="flex justify-between items-center px-6 py-3 my-3">
                     <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                        <Link to="/admin/event">
-                            Event
+                        <Link to="/admin/ticket">
+                            Tiket
                         </Link>
                         <FaChevronRight />
                         <span>
-                            Tambah Event
+                            Tambah Tiket
                         </span>
                     </h1>
                     <div className="flex items-center gap-3">
@@ -315,7 +312,7 @@ const CreateEvent = () => {
                             {/* Nama Menu */}
                             <div>
                                 <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
-                                    NAMA MENU
+                                    NAMA
                                 </label>
                                 <input
                                     type="text"
@@ -391,7 +388,7 @@ const CreateEvent = () => {
                             </div>
 
                             {/* Sub Kategori */}
-                            {subCategories.length > 0 && (
+                            {/* {subCategories.length > 0 && (
                                 <div>
                                     <label className="my-2.5 text-xs block font-medium">
                                         SUB KATEGORI
@@ -413,7 +410,7 @@ const CreateEvent = () => {
                                         styles={customSelectStyles}
                                     />
                                 </div>
-                            )}
+                            )} */}
 
                             {/* Price */}
                             <div>
@@ -545,10 +542,10 @@ const CreateEvent = () => {
             <ConfirmationModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onConfirm={() => navigate("/admin/event")}
+                onConfirm={() => navigate("/admin/ticket")}
             />
         </div>
     );
 };
 
-export default CreateEvent;
+export default CreateTicket;

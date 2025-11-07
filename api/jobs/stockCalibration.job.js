@@ -5,7 +5,7 @@ import Recipe from '../models/modul_menu/Recipe.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
-import { calculateMaxPortions } from '../utils/stockCalculator.js';
+import { calculateMaxPortions, calculateMenuItemStock } from '../utils/stockCalculator.js';
 
 /**
  * ✅ OPTIMISTIC LOCKING CONSTANTS
@@ -27,13 +27,14 @@ const retryWithBackoff = async (fn, maxRetries = MAX_RETRY_ATTEMPTS) => {
 
       // Jika bukan version conflict, langsung throw
       if (!error.message?.includes('version') &&
-        !error.message?.includes('No matching document found')) {
+        !error.message?.includes('No matching document found') &&
+        !error.name?.includes('WriteConflict')) {
         throw error;
       }
 
       if (attempt < maxRetries) {
         const delay = RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-        console.log(`⚠️ Version conflict detected, retry ${attempt}/${maxRetries} after ${delay}ms...`);
+        console.log(`⚠️ Conflict detected, retry ${attempt}/${maxRetries} after ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -67,7 +68,7 @@ export const calibrateAllMenuStocks = async () => {
       const batch = menuItems.slice(i, i + batchSize);
       console.log(`🔄 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(menuItems.length / batchSize)}`);
 
-      for (const menuItem of batch) {
+      const batchPromises = batch.map(async (menuItem) => {
         try {
           const result = await calibrateSingleMenuStock(menuItem._id.toString());
 
@@ -80,16 +81,20 @@ export const calibrateAllMenuStocks = async () => {
           }
 
           successCount++;
+          return result;
         } catch (error) {
           errorCount++;
           console.error(`❌ Gagal mengkalibrasi ${menuItem.name}:`, error.message);
+          return null;
         }
+      });
 
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      // Gunakan Promise.allSettled untuk menghindari block seluruh batch
+      await Promise.allSettled(batchPromises);
 
+      // Delay antar batch untuk mengurangi load database
       if (i + batchSize < menuItems.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -128,197 +133,262 @@ export const calibrateAllMenuStocks = async () => {
 };
 
 /**
- * ✅ Kalibrasi stok untuk menu item tertentu DENGAN OPTIMISTIC LOCKING
+ * ✅ Kalibrasi stok untuk menu item tertentu DENGAN OPTIMISTIC LOCKING & SESSION MANAGEMENT
  */
-export const calibrateSingleMenuStock = async (menuItemId) => {
+export const calibrateSingleMenuStock = async (menuItemId, existingSession = null) => {
   return await retryWithBackoff(async () => {
-    // ✅ CRITICAL: Baca MenuItem dengan version
-    const menuItem = await MenuItem.findById(menuItemId);
-    if (!menuItem) {
-      throw new Error('Menu item tidak ditemukan');
+    const shouldManageSession = !existingSession;
+    const session = existingSession || await mongoose.startSession();
+
+    if (shouldManageSession) {
+      session.startTransaction();
     }
-    const menuItemVersion = menuItem.__v;
 
-    const recipe = await Recipe.findOne({ menuItemId: menuItem._id });
-    let calculatedStock = 0;
-
-    // Hitung stok berdasarkan resep
-    if (recipe?.baseIngredients?.length > 0) {
-      const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
-      if (defaultIngredients.length > 0) {
-        calculatedStock = await calculateMaxPortions(defaultIngredients);
+    try {
+      // ✅ CRITICAL: Baca MenuItem dengan version DAN session
+      const menuItem = await MenuItem.findById(menuItemId).session(session);
+      if (!menuItem) {
+        throw new Error('Menu item tidak ditemukan');
       }
-    }
+      const menuItemVersion = menuItem.__v;
 
-    // ✅ CRITICAL: Baca MenuStock dengan version
-    let menuStock = await MenuStock.findOne({ menuItemId: menuItem._id });
-    const menuStockVersion = menuStock?.__v;
+      const recipe = await Recipe.findOne({ menuItemId: menuItem._id }).session(session);
+      let calculatedStock = 0;
 
-    let manualStockReset = false;
-    let previousManualStock = null;
-
-    if (menuStock) {
-      const previousStock = menuStock.currentStock;
-
-      // ✅ CEK: Jika manualStock baru saja diubah (version berbeda), SKIP update
-      if (menuStock.manualStock !== null &&
-        menuStock.manualStock !== undefined &&
-        menuStock.lastAdjustedAt) {
-
-        const manualUpdateAge = Date.now() - new Date(menuStock.lastAdjustedAt).getTime();
-
-        // Jika manual adjustment dalam 5 menit terakhir, SKIP kalkulasi otomatis
-        if (manualUpdateAge < 5 * 60 * 1000) {
-          console.log(`⏭️ Skip kalibrasi ${menuItem.name} - manual adjustment baru (${Math.round(manualUpdateAge / 1000)}s ago)`);
-          return {
-            success: true,
-            menuItemId: menuItem._id.toString(),
-            menuItemName: menuItem.name,
-            skipped: true,
-            reason: 'recent_manual_adjustment',
-            timestamp: new Date()
-          };
+      // Hitung stok berdasarkan resep menggunakan fungsi dari stockCalculator
+      if (recipe?.baseIngredients?.length > 0) {
+        const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
+        if (defaultIngredients.length > 0) {
+          try {
+            // Gunakan calculateMaxPortions dari stockCalculator
+            calculatedStock = await calculateMaxPortions(defaultIngredients);
+            // console.log(`📊 Calculated stock for ${menuItem.name}: ${calculatedStock}`);
+          } catch (calcError) {
+            console.error(`❌ Error calculating stock for ${menuItem.name}:`, calcError);
+            calculatedStock = 0;
+          }
         }
       }
 
-      // Reset manual stock yang minus
-      if (menuStock.manualStock !== null &&
-        menuStock.manualStock !== undefined &&
-        menuStock.manualStock < 0) {
-        previousManualStock = menuStock.manualStock;
-        menuStock.manualStock = 0;
-        manualStockReset = true;
-        console.log(`🔄 Reset manual stock ${menuItem.name}: ${previousManualStock} → 0`);
-      }
+      // ✅ CRITICAL: Baca MenuStock dengan version DAN session
+      let menuStock = await MenuStock.findOne({ menuItemId: menuItem._id }).session(session);
+      const menuStockVersion = menuStock?.__v;
 
-      // ✅ OPTIMISTIC LOCKING: Update hanya jika version match
-      // Hanya update calculatedStock jika tidak ada manualStock
-      if (menuStock.manualStock === null || menuStock.manualStock === undefined) {
-        menuStock.calculatedStock = calculatedStock;
-        menuStock.currentStock = calculatedStock;
-        menuStock.quantity = calculatedStock - previousStock;
+      let manualStockReset = false;
+      let previousManualStock = null;
+
+      if (menuStock) {
+        const previousStock = menuStock.currentStock;
+
+        // ✅ CEK: Jika manualStock baru saja diubah (dalam 2 menit terakhir), SKIP update
+        if (menuStock.manualStock !== null &&
+          menuStock.manualStock !== undefined &&
+          menuStock.lastAdjustedAt) {
+
+          const manualUpdateAge = Date.now() - new Date(menuStock.lastAdjustedAt).getTime();
+
+          // Jika manual adjustment dalam 2 menit terakhir, SKIP kalkulasi otomatis
+          if (manualUpdateAge < 2 * 60 * 1000) {
+            console.log(`⏭️ Skip kalibrasi ${menuItem.name} - manual adjustment baru (${Math.round(manualUpdateAge / 1000)}s ago)`);
+
+            if (shouldManageSession) {
+              await session.commitTransaction();
+            }
+
+            return {
+              success: true,
+              menuItemId: menuItem._id.toString(),
+              menuItemName: menuItem.name,
+              skipped: true,
+              reason: 'recent_manual_adjustment',
+              timestamp: new Date()
+            };
+          }
+        }
+
+        // Reset manual stock yang minus
+        if (menuStock.manualStock !== null &&
+          menuStock.manualStock !== undefined &&
+          menuStock.manualStock < 0) {
+          previousManualStock = menuStock.manualStock;
+          menuStock.manualStock = 0;
+          manualStockReset = true;
+          console.log(`🔄 Reset manual stock ${menuItem.name}: ${previousManualStock} → 0`);
+        }
+
+        // ✅ OPTIMISTIC LOCKING: Update hanya jika version match
+        // Hanya update calculatedStock jika tidak ada manualStock
+        if (menuStock.manualStock === null || menuStock.manualStock === undefined) {
+          menuStock.calculatedStock = calculatedStock;
+          menuStock.currentStock = calculatedStock;
+          menuStock.quantity = calculatedStock - previousStock;
+        } else {
+          menuStock.currentStock = menuStock.manualStock;
+          menuStock.quantity = 0;
+        }
+
+        menuStock.lastCalculatedAt = new Date();
+
+        // ✅ CRITICAL: Save dengan version check DAN session
+        const updateResult = await MenuStock.findOneAndUpdate(
+          {
+            _id: menuStock._id,
+            __v: menuStockVersion
+          },
+          {
+            $set: {
+              calculatedStock: menuStock.calculatedStock,
+              currentStock: menuStock.currentStock,
+              quantity: menuStock.quantity,
+              manualStock: menuStock.manualStock,
+              lastCalculatedAt: menuStock.lastCalculatedAt
+            },
+            $inc: { __v: 1 }
+          },
+          {
+            new: true,
+            session
+          }
+        );
+
+        if (!updateResult) {
+          throw new Error('Version conflict: MenuStock was modified by another process');
+        }
+
+        menuStock = updateResult;
+
       } else {
-        menuStock.currentStock = menuStock.manualStock;
-        menuStock.quantity = 0;
+        // Buat MenuStock baru dengan session
+        menuStock = new MenuStock({
+          menuItemId: menuItem._id,
+          type: 'adjustment',
+          quantity: 0,
+          reason: 'manual_adjustment',
+          previousStock: 0,
+          currentStock: calculatedStock,
+          calculatedStock: calculatedStock,
+          manualStock: null,
+          handledBy: 'system',
+          notes: 'Initial stock calibration by system',
+          lastCalculatedAt: new Date(),
+          lastAdjustedAt: new Date()
+        });
+        await menuStock.save({ session });
       }
 
-      menuStock.lastCalculatedAt = new Date();
+      // Hitung effective stock
+      const effectiveStock = menuStock.manualStock !== null ? menuStock.manualStock : menuStock.calculatedStock;
 
-      // ✅ CRITICAL: Save dengan version check
-      const updateResult = await MenuStock.findOneAndUpdate(
+      // Di calibrateSingleMenuStock - Perbaikan bagian status change
+      // Auto activate/deactivate berdasarkan stok
+      let statusChange = null;
+      const previousStatus = menuItem.isActive;
+
+      // console.log(`🔍 DEBUG Status Check: ${menuItem.name}`);
+      // console.log(`🔍 DEBUG - Manual Stock: ${menuStock.manualStock}`);
+      // console.log(`🔍 DEBUG - Calculated Stock: ${calculatedStock}`);
+      // console.log(`🔍 DEBUG - Effective Stock: ${effectiveStock}`);
+      // console.log(`🔍 DEBUG - Previous Status: ${previousStatus}`);
+
+      if (menuStock.manualStock !== null && menuStock.manualStock !== undefined) {
+        // console.log(`🔍 DEBUG: Using manual stock logic`);
+        if (menuStock.manualStock < 1) {
+          if (menuItem.isActive) {
+            menuItem.isActive = false;
+            statusChange = 'deactivated';
+            console.log(`🔴 Nonaktifkan ${menuItem.name} - stok manual di bawah 1 (${menuStock.manualStock})`);
+          } else {
+            // console.log(`🔍 DEBUG: ${menuItem.name} already inactive, manual stock: ${menuStock.manualStock}`);
+          }
+        } else {
+          if (!menuItem.isActive) {
+            menuItem.isActive = true;
+            statusChange = 'activated';
+            console.log(`🟢 Aktifkan ${menuItem.name} - stok manual mencukupi (${menuStock.manualStock})`);
+          } else {
+            // console.log(`🔍 DEBUG: ${menuItem.name} already active, manual stock: ${menuStock.manualStock}`);
+          }
+        }
+      } else {
+        // console.log(`🔍 DEBUG: Using calculated stock logic`);
+        if (effectiveStock <= 0) {
+          if (menuItem.isActive) {
+            menuItem.isActive = false;
+            statusChange = 'deactivated';
+            console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
+          } else {
+            // console.log(`🔍 DEBUG: ${menuItem.name} already inactive, effective stock: ${effectiveStock}`);
+          }
+        } else {
+          if (!menuItem.isActive) {
+            menuItem.isActive = true;
+            statusChange = 'activated';
+            console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
+          } else {
+            // console.log(`🔍 DEBUG: ${menuItem.name} already active, effective stock: ${effectiveStock}`);
+          }
+        }
+      }
+
+      // console.log(`🔍 DEBUG: Final status for ${menuItem.name}: ${menuItem.isActive ? 'Active' : 'Inactive'}, Change: ${statusChange}`);
+
+      // ✅ OPTIMISTIC LOCKING: Update MenuItem dengan version check DAN session
+      const menuItemUpdateResult = await MenuItem.findOneAndUpdate(
         {
-          _id: menuStock._id,
-          __v: menuStockVersion  // ✅ Version check
+          _id: menuItem._id,
+          __v: menuItemVersion
         },
         {
           $set: {
-            calculatedStock: menuStock.calculatedStock,
-            currentStock: menuStock.currentStock,
-            quantity: menuStock.quantity,
-            manualStock: menuStock.manualStock,
-            lastCalculatedAt: menuStock.lastCalculatedAt
+            availableStock: effectiveStock,
+            isActive: menuItem.isActive
           },
-          $inc: { __v: 1 }  // ✅ Increment version
+          $inc: { __v: 1 }
         },
-        { new: true }
+        {
+          new: true,
+          session
+        }
       );
 
-      if (!updateResult) {
-        throw new Error('Version conflict: MenuStock was modified by another process');
+      if (!menuItemUpdateResult) {
+        throw new Error('Version conflict: MenuItem was modified by another process');
       }
 
-      menuStock = updateResult;
-
-    } else {
-      // Buat MenuStock baru
-      menuStock = await MenuStock.create({
-        menuItemId: menuItem._id,
-        type: 'adjustment',
-        quantity: 0,
-        reason: 'manual_adjustment',
-        previousStock: 0,
-        currentStock: calculatedStock,
-        calculatedStock: calculatedStock,
-        manualStock: null,
-        handledBy: 'system',
-        notes: 'Initial stock calibration by system',
-        lastCalculatedAt: new Date(),
-        lastAdjustedAt: new Date()
-      });
-    }
-
-    // Hitung effective stock
-    const effectiveStock = menuStock.manualStock !== null ? menuStock.manualStock : menuStock.calculatedStock;
-
-    // Auto activate/deactivate berdasarkan stok
-    let statusChange = null;
-    const previousStatus = menuItem.isActive;
-
-    if (menuStock.manualStock !== null && menuStock.manualStock !== undefined) {
-      if (menuStock.manualStock < 1) {
-        if (menuItem.isActive) {
-          menuItem.isActive = false;
-          statusChange = 'deactivated';
-          console.log(`🔴 Nonaktifkan ${menuItem.name} - stok manual di bawah 1 (${menuStock.manualStock})`);
-        }
-      } else {
-        if (!menuItem.isActive) {
-          menuItem.isActive = true;
-          statusChange = 'activated';
-          console.log(`🟢 Aktifkan ${menuItem.name} - stok manual mencukupi (${menuStock.manualStock})`);
-        }
+      // ✅ COMMIT HANYA JIKA INI TRANSACTION BARU
+      if (shouldManageSession) {
+        await session.commitTransaction();
       }
-    } else {
-      if (effectiveStock <= 0) {
-        if (menuItem.isActive) {
-          menuItem.isActive = false;
-          statusChange = 'deactivated';
-          console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
-        }
-      } else {
-        if (!menuItem.isActive) {
-          menuItem.isActive = true;
-          statusChange = 'activated';
-          console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
-        }
+
+      // console.log(`✅ Kalibrasi otomatis untuk ${menuItem.name}`);
+
+      return {
+        success: true,
+        menuItemId: menuItem._id.toString(),
+        menuItemName: menuItem.name,
+        calculatedStock,
+        manualStock: menuStock.manualStock,
+        previousManualStock,
+        effectiveStock,
+        previousStatus,
+        currentStatus: menuItemUpdateResult.isActive,
+        statusChange,
+        manualStockReset,
+        timestamp: new Date()
+      };
+
+    } catch (error) {
+      // ✅ ABORT HANYA JIKA INI TRANSACTION BARU
+      if (shouldManageSession && session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      throw error;
+    } finally {
+      // ✅ END SESSION HANYA JIKA INI TRANSACTION BARU
+      if (shouldManageSession) {
+        session.endSession();
       }
     }
-
-    // ✅ OPTIMISTIC LOCKING: Update MenuItem dengan version check
-    const menuItemUpdateResult = await MenuItem.findOneAndUpdate(
-      {
-        _id: menuItem._id,
-        __v: menuItemVersion  // ✅ Version check
-      },
-      {
-        $set: {
-          availableStock: effectiveStock,
-          isActive: menuItem.isActive
-        },
-        $inc: { __v: 1 }  // ✅ Increment version
-      },
-      { new: true }
-    );
-
-    if (!menuItemUpdateResult) {
-      throw new Error('Version conflict: MenuItem was modified by another process');
-    }
-
-    return {
-      success: true,
-      menuItemId: menuItem._id.toString(),
-      menuItemName: menuItem.name,
-      calculatedStock,
-      manualStock: menuStock.manualStock,
-      previousManualStock,
-      effectiveStock,
-      previousStatus,
-      currentStatus: menuItemUpdateResult.isActive,
-      statusChange,
-      manualStockReset,
-      timestamp: new Date()
-    };
-
   }); // End of retryWithBackoff
 };
 
@@ -327,53 +397,71 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
  */
 export const resetMinusManualStock = async (menuItemId) => {
   return await retryWithBackoff(async () => {
-    const menuStock = await MenuStock.findOne({
-      menuItemId: new mongoose.Types.ObjectId(menuItemId)
-    });
+    const session = await mongoose.startSession();
 
-    if (!menuStock) {
-      throw new Error('MenuStock tidak ditemukan');
-    }
+    try {
+      await session.withTransaction(async () => {
+        const menuStock = await MenuStock.findOne({
+          menuItemId: new mongoose.Types.ObjectId(menuItemId)
+        })
+          .populate('menuItemId', 'name')
+          .session(session);
 
-    const version = menuStock.__v;
-
-    // ✅ OPTIMISTIC LOCKING: Update dengan version check
-    const result = await MenuStock.findOneAndUpdate(
-      {
-        _id: menuStock._id,
-        __v: version  // ✅ Version check
-      },
-      {
-        $set: {
-          manualStock: 0,
-          currentStock: 0,
-          lastAdjustedAt: new Date(),
-          adjustedBy: 'system',
-          notes: 'Auto-reset minus manual stock to 0'
-        },
-        $inc: { __v: 1 }  // ✅ Increment version
-      },
-      { new: true }
-    );
-
-    if (!result) {
-      throw new Error('Version conflict: MenuStock was modified during reset');
-    }
-
-    console.log(`✅ Berhasil reset manual stock untuk ${menuItemId}: ${menuStock.manualStock} → 0`);
-
-    // Update MenuItem
-    await MenuItem.findByIdAndUpdate(
-      menuItemId,
-      {
-        $set: {
-          availableStock: 0,
-          isActive: false
+        if (!menuStock) {
+          throw new Error('MenuStock tidak ditemukan');
         }
-      }
-    );
 
-    return { success: true, reset: true };
+        const menuName = menuStock.menuItemId?.name || 'Unknown Menu';
+        const version = menuStock.__v;
+
+        // ✅ OPTIMISTIC LOCKING: Update dengan version check
+        const result = await MenuStock.findOneAndUpdate(
+          {
+            _id: menuStock._id,
+            __v: version
+          },
+          {
+            $set: {
+              manualStock: 0,
+              currentStock: 0,
+              lastAdjustedAt: new Date(),
+              adjustedBy: 'system',
+              notes: 'Auto-reset minus manual stock to 0'
+            },
+            $inc: { __v: 1 }
+          },
+          {
+            new: true,
+            session
+          }
+        );
+
+        if (!result) {
+          throw new Error('Version conflict: MenuStock was modified during reset');
+        }
+
+        console.log(`✅ Berhasil reset manual stock ${menuName}: ${menuStock.manualStock} → 0`);
+
+        // Update MenuItem
+        await MenuItem.findByIdAndUpdate(
+          menuItemId,
+          {
+            $set: {
+              availableStock: 0,
+              isActive: false
+            }
+          },
+          { session }
+        );
+      });
+
+      return { success: true, reset: true };
+
+    } catch (error) {
+      throw error;
+    } finally {
+      session.endSession();
+    }
   });
 };
 
@@ -393,15 +481,29 @@ export const bulkResetMinusManualStocks = async () => {
     let resetCount = 0;
     let errorCount = 0;
 
-    for (const stock of minusStocks) {
-      try {
-        await resetMinusManualStock(stock.menuItemId._id.toString());
-        resetCount++;
-        console.log(`✅ Reset ${stock.menuItemId?.name || 'Unknown'}: ${stock.manualStock} → 0`);
+    // Process dengan concurrency limit untuk menghindari overload
+    const concurrencyLimit = 5;
+    for (let i = 0; i < minusStocks.length; i += concurrencyLimit) {
+      const batch = minusStocks.slice(i, i + concurrencyLimit);
 
-      } catch (error) {
-        errorCount++;
-        console.error(`❌ Gagal reset ${stock.menuItemId?.name || 'Unknown'}:`, error.message);
+      const batchPromises = batch.map(async (stock) => {
+        try {
+          await resetMinusManualStock(stock.menuItemId._id.toString());
+          resetCount++;
+          console.log(`✅ Reset ${stock.menuItemId?.name || 'Unknown'}: ${stock.manualStock} → 0`);
+          return true;
+        } catch (error) {
+          errorCount++;
+          console.error(`❌ Gagal reset ${stock.menuItemId?.name || 'Unknown'}:`, error.message);
+          return false;
+        }
+      });
+
+      await Promise.allSettled(batchPromises);
+
+      // Delay antar batch
+      if (i + concurrencyLimit < minusStocks.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
 
@@ -497,7 +599,7 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
       throw new Error('menuItemIds harus berupa array yang tidak kosong');
     }
 
-    const concurrencyLimit = 10;
+    const concurrencyLimit = 8; // Reduced untuk menghindari write conflicts
     for (let i = 0; i < menuItemIds.length; i += concurrencyLimit) {
       const batch = menuItemIds.slice(i, i + concurrencyLimit);
       console.log(`🔄 Processing batch ${Math.floor(i / concurrencyLimit) + 1}/${Math.ceil(menuItemIds.length / concurrencyLimit)}`);
@@ -525,8 +627,9 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
 
       await Promise.allSettled(batchPromises);
 
+      // Increased delay untuk mengurangi write conflicts
       if (i + concurrencyLimit < menuItemIds.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 800));
       }
     }
 
@@ -596,4 +699,14 @@ export const manualStockCalibration = async (req, res) => {
       error: error.message
     });
   }
+};
+
+export default {
+  calibrateAllMenuStocks,
+  calibrateSingleMenuStock,
+  calibrateSelectedMenuStocks,
+  resetMinusManualStock,
+  bulkResetMinusManualStocks,
+  setupStockCalibrationCron,
+  manualStockCalibration
 };

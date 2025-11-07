@@ -13,6 +13,8 @@ import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 final selectedPaymentProvider = StateProvider<PaymentModel?>((ref) => null);
 final isProcessingConfirmProvider = StateProvider<bool>((ref) => false);
 
+enum _PaymentKind { pending, settlement, refund }
+
 class PaymentDetailsWidget extends ConsumerWidget {
   const PaymentDetailsWidget({super.key});
 
@@ -22,21 +24,22 @@ class PaymentDetailsWidget extends ConsumerWidget {
     final selectedPayment = ref.watch(selectedPaymentProvider);
     final isProcessingConfirm = ref.watch(isProcessingConfirmProvider);
 
-    // Filter hanya tagihan yang belum dibayar (status pending/unpaid)
+    final payments = orders?.payment ?? const <PaymentModel>[];
+
+    String statusOf(PaymentModel p) => (p.status ?? '').toLowerCase();
+
     final List<PaymentModel> pendingPayments =
-        orders?.payment
-            ?.where((payment) => payment.status?.toLowerCase() == 'pending')
-            .toList() ??
-        [];
+        payments.where((p) => statusOf(p) == 'pending').toList();
 
-    // Tagihan yang sudah dibayar untuk ditampilkan sebagai history
-    final List<PaymentModel> paidPayments =
-        orders?.payment
-            ?.where((payment) => payment.status?.toLowerCase() == 'settlement')
-            .toList() ??
-        [];
+    final List<PaymentModel> settledPayments =
+        payments.where((p) => statusOf(p) == 'settlement').toList();
 
-    if (pendingPayments.isEmpty && paidPayments.isEmpty) {
+    final List<PaymentModel> refundPayments =
+        payments.where((p) => statusOf(p) == 'refund').toList();
+
+    if (pendingPayments.isEmpty &&
+        settledPayments.isEmpty &&
+        refundPayments.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -60,7 +63,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Bagian tagihan yang belum dibayar
+                // Pending — bisa dipilih
                 if (pendingPayments.isNotEmpty) ...[
                   const Text(
                     'Pilih Tagihan yang Ingin Dibayar:',
@@ -87,16 +90,16 @@ class PaymentDetailsWidget extends ConsumerWidget {
                               payment.transactionId!,
                             );
                       },
-                      isPending: true,
+                      kind: _PaymentKind.pending, // <<— ubah param
                     ),
                   ),
                   const SizedBox(height: 24),
                 ],
 
-                // Bagian history pembayaran
-                if (paidPayments.isNotEmpty) ...[
+                // Settlement (history)
+                if (settledPayments.isNotEmpty) ...[
                   const Text(
-                    'Riwayat Pembayaran:',
+                    'Riwayat Pembayaran (Lunas):',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -104,12 +107,34 @@ class PaymentDetailsWidget extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...paidPayments.map(
+                  ...settledPayments.map(
                     (payment) => _buildPaymentCard(
                       payment: payment,
                       isSelected: false,
                       onTap: null,
-                      isPending: false,
+                      kind: _PaymentKind.settlement,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                // Refund (history)
+                if (refundPayments.isNotEmpty) ...[
+                  const Text(
+                    'Riwayat Refund:',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...refundPayments.map(
+                    (payment) => _buildPaymentCard(
+                      payment: payment,
+                      isSelected: false,
+                      onTap: null,
+                      kind: _PaymentKind.refund,
                     ),
                   ),
                 ],
@@ -119,8 +144,8 @@ class PaymentDetailsWidget extends ConsumerWidget {
         ),
         // Tombol Confirmation jika semua tagihan sudah dibayar
         if (pendingPayments.isEmpty &&
-            paidPayments.isNotEmpty &&
-            paidPayments.any((p) => p.status?.toLowerCase() == 'settlement'))
+            settledPayments.isNotEmpty &&
+            settledPayments.any((p) => p.status?.toLowerCase() == 'settlement'))
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -248,21 +273,22 @@ class PaymentDetailsWidget extends ConsumerWidget {
     required PaymentModel payment,
     required bool isSelected,
     VoidCallback? onTap,
-    required bool isPending,
+    required _PaymentKind kind,
   }) {
-    final Color primaryColor = isPending ? Colors.orange : Colors.green;
-    final Color backgroundColor =
-        isSelected ? primaryColor.withOpacity(0.05) : Colors.white;
-    final Color borderColor =
-        isSelected ? primaryColor : Colors.grey.withOpacity(0.2);
+    final Color primaryColor = switch (kind) {
+      _PaymentKind.pending => Colors.orange,
+      _PaymentKind.settlement => Colors.green,
+      _PaymentKind.refund => Colors.red,
+    };
+    final bool isPending = kind == _PaymentKind.pending;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: backgroundColor,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: isSelected ? 2.5 : 1),
+        border: Border.all(color: primaryColor, width: isSelected ? 2.5 : 1),
         boxShadow: [
           BoxShadow(
             color:
@@ -304,7 +330,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
                         ),
                       ),
                       child: Icon(
-                        _getPaymentIcon(payment),
+                        _getPaymentIcon(payment, kind),
                         color: primaryColor,
                         size: 24,
                       ),
@@ -596,26 +622,28 @@ class PaymentDetailsWidget extends ConsumerWidget {
     );
   }
 
-  IconData _getPaymentIcon(PaymentModel payment) {
-    if (payment.paymentType != null) {
-      switch (payment.paymentType!.toLowerCase()) {
+  IconData _getPaymentIcon(PaymentModel p, _PaymentKind kind) {
+    if (kind == _PaymentKind.refund) return Icons.undo_rounded;
+    // sisanya seperti punyamu:
+    if (p.paymentType != null) {
+      switch (p.paymentType!.toLowerCase()) {
         case 'dp':
           return Icons.savings_rounded;
         case 'pelunasan':
           return Icons.paid_rounded;
         case 'full':
           return Icons.account_balance_wallet_rounded;
-        default:
-          return Icons.receipt_rounded;
       }
     }
     return Icons.receipt_rounded;
   }
 
-  String _getPaymentTitle(PaymentModel payment) {
-    // Menentukan judul berdasarkan payment type atau default
-    if (payment.paymentType != null) {
-      switch (payment.paymentType!.toLowerCase()) {
+  String _getPaymentTitle(PaymentModel p) {
+    final s = (p.status ?? '').toLowerCase();
+    if (s == 'refund') return 'Pengembalian Dana';
+    // sisanya seperti punyamu...
+    if (p.paymentType != null) {
+      switch (p.paymentType!.toLowerCase()) {
         case 'dp':
           return 'Tagihan DP (Down Payment)';
         case 'pelunasan':
@@ -623,7 +651,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
         case 'full':
           return 'Pembayaran Penuh';
         default:
-          return 'Tagihan ${payment.paymentType}';
+          return 'Tagihan ${p.paymentType}';
       }
     }
     return 'Tagihan Pembayaran';

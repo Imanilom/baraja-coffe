@@ -1,5 +1,5 @@
-import Attendance from '../models/Attendance.js';
-import Employee from '../models/Employee.js';
+import Attendance from '../../models/model_hr/Attendance.model.js'
+import Employee from '../../models/model_hr/Employee.model.js';
 
 export const attendanceController = {
   // Check in

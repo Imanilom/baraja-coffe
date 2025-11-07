@@ -336,9 +336,9 @@ function isLockedItem(it) {
 
 // normalize dari payload Flutter → ke bentuk order.items kamu
 async function normalizeIncomingItem(raw) {
-    const menu = await MenuItem.findById(raw.menuItem).lean();
+    const menu = await MenuItem.findById(raw.id).lean();
     if (!menu) {
-        throw new Error(`Menu ${raw.menuItem} tidak ditemukan`);
+        throw new Error(`Menu ${raw.id} tidak ditemukan`);
     }
 
     // bikin addons dari id
@@ -390,7 +390,7 @@ async function normalizeIncomingItem(raw) {
     const subtotal = each * qty;
 
     return {
-        menuItem: raw.menuItem,
+        menuItem: raw.id,
         quantity: qty,
         subtotal,
         addons,
@@ -409,7 +409,7 @@ async function normalizeIncomingItem(raw) {
 
 export async function replaceOrderItemsAndAllocate({
     orderId,
-    incomingItems,
+    items,
     reason,
     userId,
     idempotencyKey,
@@ -443,7 +443,8 @@ export async function replaceOrderItemsAndAllocate({
 
         // 2. normalisasi semua incoming
         const normalizedIncoming = [];
-        for (const r of incomingItems) {
+        for (const r of items) {
+            console.log('normalizing items', r);
             const n = await normalizeIncomingItem(r);
             normalizedIncoming.push(n);
         }
@@ -519,6 +520,10 @@ export async function replaceOrderItemsAndAllocate({
         );
 
         // 8. simpan order
+        if (orderDoc.status.toLowerCase() == 'cancled') {
+            orderDoc.status = 'Pending';
+        }
+
         await orderDoc.save({ session });
 
         result = {
@@ -592,7 +597,7 @@ export async function allocateDeltaToPayments({
             (p) =>
                 p.isAdjustment === true &&
                 p.direction === "refund" &&
-                p.status === "settlement" &&
+                p.status === "refund" &&
                 Number(p.amount) > 0
         )
         // pakai yang terbaru dulu
@@ -793,7 +798,7 @@ export async function allocateDeltaToPayments({
                     payment_code: String(Date.now()),
                     transaction_id: `refund-${Date.now()}`,
                     method: "Cash",
-                    status: "settlement",
+                    status: "refund",
                     paymentType: settledRef?.paymentType || "Full",
                     amount: Math.max(0, amountAbs),
                     totalAmount: Math.max(0, amountAbs) ||
@@ -851,10 +856,7 @@ export async function allocateDeltaToPayments({
                 0,
                 Number(pending.totalAmount || 0) + grandDelta
             );
-            pending.remainingAmount = Math.max(
-                0,
-                Number(pending.remainingAmount || 0) + grandDelta
-            );
+            pending.remainingAmount = 0;
             await pending.save({ session });
 
             effects.pendingPaymentAdjusted.push({
