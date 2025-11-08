@@ -375,36 +375,19 @@ export const getMenuItems = async (req, res) => {
       console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
     }
 
-    // Dapatkan promo yang aktif
+    // 2) Ambil promo aktif
     const currentDate = new Date();
-    
-    // Ambil semua promo yang aktif dan valid
     const [activeAutoPromos, activePromos] = await Promise.all([
-      // Auto Promo - Perbaikan populate
       AutoPromo.find({
         isActive: true,
         validFrom: { $lte: currentDate },
         validTo: { $gte: currentDate }
       }).populate([
-        {
-          path: 'conditions.products',
-          model: 'MenuItem'
-        },
-        {
-          path: 'conditions.buyProduct',
-          model: 'MenuItem'
-        },
-        {
-          path: 'conditions.getProduct', 
-          model: 'MenuItem'
-        },
-        {
-          path: 'conditions.bundleProducts.product',
-          model: 'MenuItem'
-        }
+        { path: 'conditions.products', model: 'MenuItem' },
+        { path: 'conditions.buyProduct', model: 'MenuItem' },
+        { path: 'conditions.getProduct', model: 'MenuItem' },
+        { path: 'conditions.bundleProducts.product', model: 'MenuItem' }
       ]),
-      
-      // Regular Promo
       Promo.find({
         isActive: true,
         validFrom: { $lte: currentDate },
@@ -412,176 +395,75 @@ export const getMenuItems = async (req, res) => {
       })
     ]);
 
-    console.log('🔍 Active Auto Promos:', activeAutoPromos.length);
-    activeAutoPromos.forEach(promo => {
-      console.log(`📢 Promo: ${promo.name}, Type: ${promo.promoType}`);
-      if (promo.promoType === 'product_specific' && promo.conditions.products) {
-        console.log(`   Products:`, promo.conditions.products.map(p => p?._id?.toString()));
-      }
-    });
-
-    // Buat map untuk promo per product
+    // 3) Build promo map (sama seperti fungsi resep)
     const productPromoMap = new Map();
     const productBundleMap = new Map();
     const productBuyXGetYMap = new Map();
 
-    // Process Auto Promos dengan debugging
     activeAutoPromos.forEach(promo => {
-      console.log(`🔄 Processing promo: ${promo.name} (${promo.promoType})`);
-      
       switch (promo.promoType) {
-        case 'product_specific':
-          // Promo untuk produk spesifik
-          if (promo.conditions && promo.conditions.products) {
-            console.log(`   Found ${promo.conditions.products.length} products in promo`);
-            
-            promo.conditions.products.forEach(product => {
-              if (product && product._id) {
-                const productId = product._id.toString();
-                console.log(`   Adding promo to product: ${productId}`);
-                
-                if (!productPromoMap.has(productId)) {
-                  productPromoMap.set(productId, []);
-                }
-                productPromoMap.get(productId).push({
-                  type: 'auto_promo',
-                  promoId: promo._id,
-                  promoType: promo.promoType,
-                  name: promo.name,
-                  discount: promo.discount,
-                  discountType: 'percentage',
-                  validFrom: promo.validFrom,
-                  validTo: promo.validTo
-                });
-              } else {
-                console.log('   ❌ Invalid product found in promo');
-              }
-            });
-          } else {
-            console.log('   ❌ No products found in promo conditions');
-          }
-          break;
-
-        case 'bundling':
-          // Bundle promo
-          if (promo.conditions && promo.conditions.bundleProducts) {
-            promo.conditions.bundleProducts.forEach(bundleItem => {
-              if (bundleItem.product && bundleItem.product._id) {
-                const productId = bundleItem.product._id.toString();
-                if (!productBundleMap.has(productId)) {
-                  productBundleMap.set(productId, []);
-                }
-                productBundleMap.get(productId).push({
-                  type: 'bundle',
-                  promoId: promo._id,
-                  promoType: promo.promoType,
-                  name: promo.name,
-                  bundlePrice: promo.bundlePrice,
-                  bundleProducts: promo.conditions.bundleProducts,
-                  validFrom: promo.validFrom,
-                  validTo: promo.validTo
-                });
-              }
-            });
-          }
-          break;
-
-        case 'buy_x_get_y':
-          // Buy X Get Y promo
-          if (promo.conditions && promo.conditions.buyProduct && promo.conditions.getProduct) {
-            const buyProductId = promo.conditions.buyProduct._id.toString();
-            if (!productBuyXGetYMap.has(buyProductId)) {
-              productBuyXGetYMap.set(buyProductId, []);
-            }
-            productBuyXGetYMap.get(buyProductId).push({
-              type: 'buy_x_get_y',
+        case 'product_specific': {
+          const products = promo?.conditions?.products || [];
+          products.forEach(p => {
+            if (!p?._id) return;
+            const pid = p._id.toString();
+            if (!productPromoMap.has(pid)) productPromoMap.set(pid, []);
+            productPromoMap.get(pid).push({
+              type: 'auto_promo',
               promoId: promo._id,
               promoType: promo.promoType,
               name: promo.name,
-              buyProduct: promo.conditions.buyProduct,
-              getProduct: promo.conditions.getProduct,
-              minQuantity: promo.conditions.minQuantity,
+              discount: promo.discount,
+              discountType: 'percentage',
               validFrom: promo.validFrom,
               validTo: promo.validTo
             });
-          }
+          });
           break;
+        }
+        case 'bundling': {
+          const bundles = promo?.conditions?.bundleProducts || [];
+          bundles.forEach(bi => {
+            const pid = bi?.product?._id?.toString();
+            if (!pid) return;
+            if (!productBundleMap.has(pid)) productBundleMap.set(pid, []);
+            productBundleMap.get(pid).push({
+              type: 'bundle',
+              promoId: promo._id,
+              promoType: promo.promoType,
+              name: promo.name,
+              bundlePrice: promo.bundlePrice,
+              bundleProducts: promo.conditions.bundleProducts,
+              validFrom: promo.validFrom,
+              validTo: promo.validTo
+            });
+          });
+          break;
+        }
+        case 'buy_x_get_y': {
+          const buy = promo?.conditions?.buyProduct?._id?.toString();
+          if (!buy) break;
+          if (!productBuyXGetYMap.has(buy)) productBuyXGetYMap.set(buy, []);
+          productBuyXGetYMap.get(buy).push({
+            type: 'buy_x_get_y',
+            promoId: promo._id,
+            promoType: promo.promoType,
+            name: promo.name,
+            buyProduct: promo.conditions.buyProduct,
+            getProduct: promo.conditions.getProduct,
+            minQuantity: promo.conditions.minQuantity,
+            validFrom: promo.validFrom,
+            validTo: promo.validTo
+          });
+          break;
+        }
       }
     });
 
-    console.log('📊 Product Promo Map size:', productPromoMap.size);
-    console.log('📊 Product IDs in map:', Array.from(productPromoMap.keys()));
-
-    // Gunakan aggregation untuk join dengan MenuStock
+    // 4) Ambil MenuItem (tanpa filter resep) tetapi SERAGAMKAN STRUKTUR seperti fungsi resep
     const menuItems = await MenuItem.aggregate([
-      {
-        $match: {
-          isActive: true
-        }
-      },
-      {
-        $lookup: {
-          from: "menustocks",
-          localField: "_id",
-          foreignField: "menuItemId",
-          as: "stockInfo"
-        }
-      },
-      {
-        $lookup: {
-          from: "menuratings",
-          let: { menuItemId: "$_id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ["$menuItemId", "$$menuItemId"] },
-                isActive: true
-              }
-            }
-          ],
-          as: "ratings"
-        }
-      },
-      {
-        $lookup: {
-          from: "categories",
-          localField: "category",
-          foreignField: "_id",
-          as: "categoryInfo"
-        }
-      },
-      {
-        $lookup: {
-          from: "categories",
-          localField: "subCategory",
-          foreignField: "_id",
-          as: "subCategoryInfo"
-        }
-      },
-      {
-        $lookup: {
-          from: "toppings",
-          localField: "toppings",
-          foreignField: "_id",
-          as: "toppingsInfo"
-        }
-      },
-      {
-        $lookup: {
-          from: "addons",
-          localField: "addons",
-          foreignField: "_id",
-          as: "addonsInfo"
-        }
-      },
-      {
-        $lookup: {
-          from: "outlets",
-          localField: "availableAt",
-          foreignField: "_id",
-          as: "availableAt"
-        }
-      },
+      // { $match: { isActive: true } },
+      // recipes untuk hasRecipe/recipeCount
       {
         $lookup: {
           from: "recipes",
@@ -590,6 +472,53 @@ export const getMenuItems = async (req, res) => {
           as: "recipe"
         }
       },
+      // categories
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category"
+        }
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "subCategory",
+          foreignField: "_id",
+          as: "subCategory"
+        }
+      },
+      // outlets
+      {
+        $lookup: {
+          from: "outlets",
+          localField: "availableAt",
+          foreignField: "_id",
+          as: "availableAt"
+        }
+      },
+      // stock (array)
+      {
+        $lookup: {
+          from: "menustocks",
+          localField: "_id",
+          foreignField: "menuItemId",
+          as: "stockInfo"
+        }
+      },
+      // ratings
+      {
+        $lookup: {
+          from: "menuratings",
+          let: { menuItemId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$menuItemId", "$$menuItemId"] }, isActive: true } }
+          ],
+          as: "ratings"
+        }
+      },
+      // toppings & addons tetap via id list (akan di-populate)
       {
         $project: {
           name: 1,
@@ -599,23 +528,21 @@ export const getMenuItems = async (req, res) => {
           discountedPrice: 1,
           description: 1,
           discount: 1,
-          toppings: 1,
-          addons: 1,
+          toppings: 1,   // penting: simpan id list (akan di-populate)
+          addons: 1,     // penting: simpan id list (akan di-populate)
           availableAt: 1,
           workstation: 1,
           isActive: 1,
-          categoryInfo: { $arrayElemAt: ["$categoryInfo", 0] },
-          subCategoryInfo: { $arrayElemAt: ["$subCategoryInfo", 0] },
-          toppingsInfo: 1,
-          addonsInfo: 1,
+          category: { $arrayElemAt: ["$category", 0] },
+          subCategory: { $arrayElemAt: ["$subCategory", 0] },
           recipe: 1,
           stockData: {
             $cond: {
               if: { $gt: [{ $size: "$stockInfo" }, 0] },
-              then: { $arrayElemAt: ["$stockInfo", 0] },
+              then: { $arrayElemAt: ["$stockInfo", 0] }, // ambil 1 elemen
               else: {
                 calculatedStock: 0,
-                manualStock: 0,
+                manualStock: null,   // biarkan null agar flag akurat
                 currentStock: 0,
                 effectiveStock: 0,
                 lastCalculatedAt: null,
@@ -626,105 +553,85 @@ export const getMenuItems = async (req, res) => {
           averageRating: {
             $cond: {
               if: { $gt: [{ $size: "$ratings" }, 0] },
-              then: {
-                $round: [
-                  { $divide: [{ $sum: "$ratings.rating" }, { $size: "$ratings" }] },
-                  1
-                ]
-              },
+              then: { $round: [{ $divide: [{ $sum: "$ratings.rating" }, { $size: "$ratings" }] }, 1] },
               else: null
             }
           },
           reviewCount: { $size: "$ratings" }
         }
       },
-      {
-        $sort: { name: 1 }
-      }
+      { $sort: { name: 1 } }
     ]);
 
-    // Populate addons options
+    // 5) Populate toppings & addons (options) agar identik dengan fungsi resep
     const populatedMenuItems = await MenuItem.populate(menuItems, [
-      {
-        path: "addonsInfo",
-        populate: { path: "options" }
-      }
+      { path: "addons", populate: { path: "options" } },
+      { path: "toppings" }
     ]);
 
-    const formattedMenuItems = populatedMenuItems.map((item) => {
-      // ✅ HANDLE NULL/UNDEFINED STOCK - SEMUA JADI 0
+    // 6) Formatting output—DISESUAIKAN dengan fungsi resep
+    const formattedMenuItems = populatedMenuItems.map(item => {
       const safeCalculatedStock = item.stockData?.calculatedStock ?? 0;
-      const safeManualStock = item.stockData?.manualStock ?? 0;
+      const safeManualStockRaw = (item.stockData?.manualStock ?? null);
+      const safeManualStock = (safeManualStockRaw === undefined) ? null : safeManualStockRaw;
 
-      // ✅ LOGIC PRIORITAS: manualStock dulu, baru calculatedStock
-      const effectiveStock = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
-        ? safeManualStock
-        : safeCalculatedStock;
+      // prioritas manual > calculated
+      const effectiveStock =
+        (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+          ? safeManualStock
+          : safeCalculatedStock;
 
-      // ✅ CurrentStock harus sama dengan effectiveStock (sesuai prioritas)
       const safeCurrentStock = effectiveStock;
 
-      // ✅ Handle null untuk dates
       const lastCalculatedAt = item.stockData?.lastCalculatedAt || null;
       const lastAdjustedAt = item.stockData?.lastAdjustedAt || null;
 
-      // ✅ Tentukan stock source untuk informasi
-      const stockSource = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
-        ? 'manual'
-        : 'calculated';
+      const stockSource =
+        (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+          ? 'manual'
+          : 'calculated';
 
-      // ✅ Cek promo untuk produk ini
+      // promos
       const productId = item._id.toString();
       const autoPromos = productPromoMap.get(productId) || [];
       const bundlePromos = productBundleMap.get(productId) || [];
       const buyXGetYPromos = productBuyXGetYMap.get(productId) || [];
-      
-      console.log(`🔍 Checking promos for product: ${productId} - ${item.name}`);
-      console.log(`   Found auto promos: ${autoPromos.length}`);
-      console.log(`   Found bundle promos: ${bundlePromos.length}`);
-      console.log(`   Found buyXGetY promos: ${buyXGetYPromos.length}`);
-      
-      // Hitung harga setelah promo
-      let finalPrice = item.discountedPrice || item.price;
-      let appliedPromos = [];
 
-      // Apply auto promos (product specific)
+      let finalPrice = item.discountedPrice || item.price;
+      const appliedPromos = [];
+
       if (autoPromos.length > 0) {
-        const bestAutoPromo = autoPromos[0]; // Ambil promo pertama untuk sekarang
-        const discountAmount = (item.price * bestAutoPromo.discount) / 100;
+        // sejajarkan dengan fungsi resep (tanpa savings)
+        const best = autoPromos[0];
+        const discountAmount = (item.price * best.discount) / 100;
         finalPrice = Math.max(0, item.price - discountAmount);
         appliedPromos.push({
           type: 'auto_promo',
-          name: bestAutoPromo.name,
-          discountPercentage: bestAutoPromo.discount,
+          name: best.name,
+          discountPercentage: best.discount,
           originalPrice: item.price,
-          finalPrice: finalPrice,
-          savings: discountAmount
+          finalPrice: finalPrice
         });
-        console.log(`   💰 Applied promo: ${bestAutoPromo.name} - Discount: ${bestAutoPromo.discount}%`);
-        console.log(`   💰 Price: ${item.price} -> ${finalPrice}`);
       }
 
-      // Check bundle promos
       if (bundlePromos.length > 0) {
-        bundlePromos.forEach(bundlePromo => {
+        bundlePromos.forEach(bp => {
           appliedPromos.push({
             type: 'bundle',
-            name: bundlePromo.name,
-            bundlePrice: bundlePromo.bundlePrice,
-            productsInBundle: bundlePromo.bundleProducts
+            name: bp.name,
+            bundlePrice: bp.bundlePrice,
+            productsInBundle: bp.bundleProducts
           });
         });
       }
 
-      // Check buy x get y promos
       if (buyXGetYPromos.length > 0) {
-        buyXGetYPromos.forEach(buyXGetYPromo => {
+        buyXGetYPromos.forEach(px => {
           appliedPromos.push({
             type: 'buy_x_get_y',
-            name: buyXGetYPromo.name,
-            minQuantity: buyXGetYPromo.minQuantity,
-            getProduct: buyXGetYPromo.getProduct
+            name: px.name,
+            minQuantity: px.minQuantity,
+            getProduct: px.getProduct
           });
         });
       }
@@ -733,47 +640,47 @@ export const getMenuItems = async (req, res) => {
         id: item._id,
         name: item.name,
         mainCategory: item.mainCategory,
-        category: item.categoryInfo ? { id: item.categoryInfo._id, name: item.categoryInfo.name } : null,
-        subCategory: item.subCategoryInfo ? { id: item.subCategoryInfo._id, name: item.subCategoryInfo.name } : null,
+        category: item.category ? { id: item.category._id, name: item.category.name } : null,
+        subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
         imageUrl: item.imageURL,
         originalPrice: item.price,
-        discountedPrice: finalPrice, // Harga setelah promo
+        discountedPrice: finalPrice,
         description: item.description,
         discountPercentage: item.discount ? `${item.discount}%` : null,
         averageRating: item.averageRating,
         reviewCount: item.reviewCount,
         stock: {
           calculatedStock: safeCalculatedStock,
-          manualStock: safeManualStock,
+          manualStock: safeManualStock, // bisa null
           effectiveStock: effectiveStock,
           currentStock: safeCurrentStock,
           isAvailable: effectiveStock > 0,
           stockSource: stockSource,
-          lastCalculatedAt: lastCalculatedAt,
-          lastAdjustedAt: lastAdjustedAt
+          lastCalculatedAt,
+          lastAdjustedAt
         },
-        toppings: (item.toppingsInfo || []).map((topping) => ({
-          id: topping._id,
-          name: topping.name,
-          price: topping.price || 0,
-        })),
-        addons: (item.addonsInfo || []).map((addon) => ({
-          id: addon._id,
-          name: addon.name,
-          options: addon.options ? addon.options.map((opt) => ({
+        toppings: item.toppings ? item.toppings.map(t => ({
+          id: t._id,
+          name: t.name,
+          price: t.price || 0
+        })) : [],
+        addons: item.addons ? item.addons.map(a => ({
+          id: a._id,
+          name: a.name,
+          options: a.options ? a.options.map(opt => ({
             id: opt._id,
             label: opt.label,
             price: opt.price || 0,
-            isDefault: opt.isDefault || false,
-          })) : [],
-        })),
+            isDefault: !!opt.isDefault
+          })) : []
+        })) : [],
         availableAt: item.availableAt || [],
         workstation: item.workstation,
         isActive: item.isActive,
-        hasRecipe: (item.recipe && item.recipe.length > 0) || false,
-        recipeCount: item.recipe ? item.recipe.length : 0,
-        hasManualStock: safeManualStock > 0 || safeManualStock !== null,
-        // ✅ Informasi promo
+        hasRecipe: Array.isArray(item.recipe) && item.recipe.length > 0,
+        recipeCount: Array.isArray(item.recipe) ? item.recipe.length : 0,
+        // perbaiki flag: true hanya jika manualStock > 0
+        hasManualStock: (safeManualStock !== null && safeManualStock !== undefined && safeManualStock > 0),
         promotions: {
           hasPromo: appliedPromos.length > 0,
           activePromos: appliedPromos,
@@ -782,26 +689,21 @@ export const getMenuItems = async (req, res) => {
       };
     });
 
-    // Debug: Cek produk yang seharusnya dapat promo
-    const productsWithPromo = formattedMenuItems.filter(item => item.promotions.hasPromo);
-    console.log(`🎯 Products with promo: ${productsWithPromo.length}`);
-    productsWithPromo.forEach(item => {
-      console.log(`   ✅ ${item.name}: ${item.originalPrice} -> ${item.discountedPrice}`);
-    });
-
+    // 7) Meta diseragamkan
     const responsePayload = {
       success: true,
       data: formattedMenuItems,
       meta: {
         total: formattedMenuItems.length,
-        hasRecipes: formattedMenuItems.some(item => item.hasRecipe),
+        hasRecipes: formattedMenuItems.some(i => i.hasRecipe), // tidak dipaksa true
         withStockInfo: true,
-        withManualStock: formattedMenuItems.some(item => item.hasManualStock),
-        withPromotions: formattedMenuItems.some(item => item.promotions.hasPromo),
+        withManualStock: formattedMenuItems.some(i => i.hasManualStock),
+        withPromotions: formattedMenuItems.some(i => i.promotions.hasPromo),
         activeAutoPromos: activeAutoPromos.length,
         activeRegularPromos: activePromos.length,
-        productsWithPromo: productsWithPromo.length,
-        message: `Showing ${formattedMenuItems.length} menu items with promotions`
+        message: formattedMenuItems.length > 0
+          ? `Showing ${formattedMenuItems.length} menu items (unfiltered recipes) with promotions`
+          : "No menu items found"
       }
     };
 
@@ -839,7 +741,7 @@ export const getMenuItemsWithRecipes = async (req, res) => {
 
     // Dapatkan promo yang aktif
     const currentDate = new Date();
-    
+
     // Ambil semua promo yang aktif dan valid
     const [activeAutoPromos, activePromos] = await Promise.all([
       // Auto Promo
@@ -848,7 +750,7 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         validFrom: { $lte: currentDate },
         validTo: { $gte: currentDate }
       }).populate('conditions.products conditions.buyProduct conditions.getProduct conditions.bundleProducts.product'),
-      
+
       // Regular Promo
       Promo.find({
         isActive: true,
@@ -1094,7 +996,7 @@ export const getMenuItemsWithRecipes = async (req, res) => {
       const autoPromos = productPromoMap.get(productId) || [];
       const bundlePromos = productBundleMap.get(productId) || [];
       const buyXGetYPromos = productBuyXGetYMap.get(productId) || [];
-      
+
       // Hitung harga setelah promo
       let finalPrice = item.discountedPrice || item.price;
       let appliedPromos = [];
