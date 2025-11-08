@@ -1,0 +1,43 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: baraja_redis
+    networks:
+      - baraja-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    command: redis-server --port 6379
+
+  app:
+    build: .
+    image: barajacoffee/barajahub:latest
+    container_name: barajahub_windows
+    networks:
+      - baraja-network
+    ports:
+      - "3000:3000"
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://baraja_redis:6379
+      - REDIS_HOST=baraja_redis
+      - REDIS_PORT=6379
+      - HOST=0.0.0.0
+      - PORT=3000
+      - NODE_ENV=development
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    init: true
+
+networks:
+  baraja-network:
+    driver: bridge
