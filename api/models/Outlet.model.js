@@ -14,8 +14,8 @@ const OutletSchema = new mongoose.Schema({
   },
 
   // ✅ Tambahan jam buka & tutup
-  openTime: { type: String, required: true, default: '08:00' },  // format HH:mm
-  closeTime: { type: String, required: true, default: '22:00' },
+  openTime: { type: String, required: true, default: '06:00' },  // format HH:mm
+  closeTime: { type: String, required: true, default: '03:00' },
 
 }, { timestamps: true });
 
