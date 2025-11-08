@@ -140,72 +140,55 @@ export async function calculateMenuItemStock(menuItemId) {
  * @param {Array} ingredients - Array of ingredients with productId and quantity
  * @returns {number} maximum portions possible
  */
-// utils/stockCalculator.js - Perbaikan calculateMaxPortions
 export const calculateMaxPortions = async (ingredients) => {
   try {
-    // console.log(`🔍 DEBUG calculateMaxPortions: Processing ${ingredients.length} ingredients`);
-
     // Find central warehouse to exclude
     const centralWarehouse = await Warehouse.findOne({ code: 'gudang-pusat' });
     const centralWarehouseId = centralWarehouse?._id?.toString();
 
-    // console.log(`🔍 DEBUG: Central warehouse ID: ${centralWarehouseId}`);
-
     let maxPortion = Infinity;
 
     for (const ing of ingredients) {
-      // console.log(`🔍 DEBUG: Processing ingredient - Product: ${ing.productId}, Quantity: ${ing.quantity}, isDefault: ${ing.isDefault}`);
-
       // Get stocks from all warehouses except central
       const stockDocs = await ProductStock.find({
         productId: ing.productId,
         warehouse: { $ne: centralWarehouseId }
       }).populate('warehouse');
 
-      // console.log(`🔍 DEBUG: Found ${stockDocs.length} stock records for product ${ing.productId}`);
-
       if (!stockDocs || stockDocs.length === 0) {
-        // console.log(`❌ DEBUG: No stock found for product ${ing.productId} in non-central warehouses`);
+        // Tidak ada stok di warehouse manapun (selain central) → tidak bisa buat
         return 0;
       }
 
       // Calculate total available stock from all non-central warehouses
       const availableQty = stockDocs.reduce((sum, stock) => {
         if (stock.warehouse?.is_active !== false) {
-          const stockQty = stock.currentStock || 0;
-          // console.log(`🔍 DEBUG: Warehouse ${stock.warehouse?.name}: ${stockQty} stock`);
-          return sum + stockQty;
+          return sum + (stock.currentStock || 0);
         }
         return sum;
       }, 0);
 
-      // console.log(`🔍 DEBUG: Total available quantity for ${ing.productId}: ${availableQty}`);
-
       const requiredPerPortion = ing.quantity || 1;
 
-      if (requiredPerPortion <= 0) {
-        // console.log(`⚠️ DEBUG: Required quantity is 0 or negative for ${ing.productId}`);
-        continue;
-      }
+      if (requiredPerPortion <= 0) continue;
 
       const possiblePortion = Math.floor(availableQty / requiredPerPortion);
-      // console.log(`🔍 DEBUG: Possible portions for ${ing.productId}: ${availableQty} / ${requiredPerPortion} = ${possiblePortion}`);
-
       maxPortion = Math.min(maxPortion, possiblePortion);
 
-      // console.log(`🔍 DEBUG: Current max portion: ${maxPortion}`);
+      // console.log(`Ingredient ${ing.productId}: ${availableQty} available / ${requiredPerPortion} required = ${possiblePortion} portions`);
     }
 
     const result = isNaN(maxPortion) || maxPortion < 0 || maxPortion === Infinity ? 0 : maxPortion;
-    // console.log(`🔍 DEBUG: Final calculated portions: ${result}`);
+    // console.log(`Max portions calculated: ${result}`);
 
     return result;
 
   } catch (error) {
-    console.error('❌ Error in calculateMaxPortions:', error);
+    console.error('Error in calculateMaxPortions:', error);
     return 0;
   }
 };
+
 /**
  * Get detailed stock information for a menu item
  * @param {string} menuItemId - ID of the menu item
