@@ -11,4 +11,4 @@ TEST WINDOWS
 
 docker-compose down
 docker-compose -f docker-compose.dev.yml up -d
-docker logs barajahub -f
+docker logs barajahub_windows -f
