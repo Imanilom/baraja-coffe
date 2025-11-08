@@ -553,64 +553,116 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
 
   try {
     console.log(`🔄 Memulai kalibrasi ${menuItemIds.length} menu items terpilih...`);
+    try {
+      console.log(`🔄 Memulai kalibrasi ${menuItemIds.length} menu items terpilih...`);
 
-    if (!Array.isArray(menuItemIds) || menuItemIds.length === 0) {
-      throw new Error('menuItemIds harus berupa array yang tidak kosong');
-    }
-
-    // ✅ CHECK CONNECTION FIRST
-    if (!await checkDatabaseHealth()) {
-      throw new Error('Database not available for selected calibration');
-    }
-
-    // ✅ PROCESS SEQUENTIALLY TO AVOID CONNECTION OVERLOAD
-    for (let i = 0; i < menuItemIds.length; i++) {
-      try {
-        const result = await calibrateSingleMenuStock(menuItemIds[i]);
-
-        if (result.statusChange) {
-          if (result.statusChange === 'activated') activatedCount++;
-          if (result.statusChange === 'deactivated') deactivatedCount++;
-        }
-        if (result.manualStockReset) {
-          resetMinusCount++;
-        }
-
-        successCount++;
-
-        // ✅ DELAY BETWEEN ITEMS
-        if (i < menuItemIds.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-      } catch (error) {
-        console.error(`❌ Gagal mengkalibrasi menu item ${menuItemIds[i]}:`, error.message);
-        errorCount++;
+      if (!Array.isArray(menuItemIds) || menuItemIds.length === 0) {
+        throw new Error('menuItemIds harus berupa array yang tidak kosong');
       }
+      if (!Array.isArray(menuItemIds) || menuItemIds.length === 0) {
+        throw new Error('menuItemIds harus berupa array yang tidak kosong');
+      }
+
+      // ✅ CHECK CONNECTION FIRST
+      if (!await checkDatabaseHealth()) {
+        throw new Error('Database not available for selected calibration');
+      }
+      // ✅ CHECK CONNECTION FIRST
+      if (!await checkDatabaseHealth()) {
+        throw new Error('Database not available for selected calibration');
+      }
+
+      // ✅ PROCESS SEQUENTIALLY TO AVOID CONNECTION OVERLOAD
+      for (let i = 0; i < menuItemIds.length; i++) {
+        try {
+          const result = await calibrateSingleMenuStock(menuItemIds[i]);
+          // ✅ PROCESS SEQUENTIALLY TO AVOID CONNECTION OVERLOAD
+          for (let i = 0; i < menuItemIds.length; i++) {
+            try {
+              const result = await calibrateSingleMenuStock(menuItemIds[i]);
+
+              if (result.statusChange) {
+                if (result.statusChange === 'activated') activatedCount++;
+                if (result.statusChange === 'deactivated') deactivatedCount++;
+              }
+              if (result.manualStockReset) {
+                resetMinusCount++;
+              }
+              if (result.statusChange) {
+                if (result.statusChange === 'activated') activatedCount++;
+                if (result.statusChange === 'deactivated') deactivatedCount++;
+              }
+              if (result.manualStockReset) {
+                resetMinusCount++;
+              }
+
+              successCount++;
+              successCount++;
+
+              // ✅ DELAY BETWEEN ITEMS
+              if (i < menuItemIds.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+              }
+            } catch (error) {
+              console.error(`❌ Gagal mengkalibrasi menu item ${menuItemIds[i]}:`, error.message);
+              errorCount++;
+            }
+          }
+          // ✅ DELAY BETWEEN ITEMS
+          if (i < menuItemIds.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } catch (error) {
+          console.error(`❌ Gagal mengkalibrasi menu item ${menuItemIds[i]}:`, error.message);
+          errorCount++;
+        }
+      }
+
+      console.log(`✅ Kalibrasi terpilih selesai: ${successCount} berhasil, ${errorCount} gagal`);
+      console.log(`🔄 Status changes: ${activatedCount} diaktifkan, ${deactivatedCount} dinonaktifkan`);
+      console.log(`🔄 Manual stock reset: ${resetMinusCount} direset dari minus ke 0`);
+      console.log(`✅ Kalibrasi terpilih selesai: ${successCount} berhasil, ${errorCount} gagal`);
+      console.log(`🔄 Status changes: ${activatedCount} diaktifkan, ${deactivatedCount} dinonaktifkan`);
+      console.log(`🔄 Manual stock reset: ${resetMinusCount} direset dari minus ke 0`);
+
+      return {
+        success: true,
+        processed: menuItemIds.length,
+        successCount,
+        errorCount,
+        activatedCount,
+        deactivatedCount,
+        resetMinusCount,
+        timestamp: new Date()
+      };
+      return {
+        success: true,
+        processed: menuItemIds.length,
+        successCount,
+        errorCount,
+        activatedCount,
+        deactivatedCount,
+        resetMinusCount,
+        timestamp: new Date()
+      };
+
+    } catch (error) {
+      console.error('❌ Kalibrasi selected menu stocks gagal:', error);
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date()
+      };
     }
-
-    console.log(`✅ Kalibrasi terpilih selesai: ${successCount} berhasil, ${errorCount} gagal`);
-    console.log(`🔄 Status changes: ${activatedCount} diaktifkan, ${deactivatedCount} dinonaktifkan`);
-    console.log(`🔄 Manual stock reset: ${resetMinusCount} direset dari minus ke 0`);
-
-    return {
-      success: true,
-      processed: menuItemIds.length,
-      successCount,
-      errorCount,
-      activatedCount,
-      deactivatedCount,
-      resetMinusCount,
-      timestamp: new Date()
-    };
-
-  } catch (error) {
-    console.error('❌ Kalibrasi selected menu stocks gagal:', error);
-    return {
-      success: false,
-      error: error.message,
-      timestamp: new Date()
-    };
-  }
+  };
+} catch (error) {
+  console.error('❌ Kalibrasi selected menu stocks gagal:', error);
+  return {
+    success: false,
+    error: error.message,
+    timestamp: new Date()
+  };
+}
 };
 
 /**
@@ -628,16 +680,41 @@ export const manualStockCalibration = async (req, res) => {
         error: 'Database connection unavailable'
       });
     }
+    // ✅ CHECK CONNECTION FIRST
+    if (!await checkDatabaseHealth()) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database tidak tersedia, coba lagi beberapa saat',
+        error: 'Database connection unavailable'
+      });
+    }
 
     const { type, menuItemIds, includeStatusFix = true, resetMinusFirst = true } = req.body;
+    const { type, menuItemIds, includeStatusFix = true, resetMinusFirst = true } = req.body;
 
+    let result;
     let result;
 
     if (resetMinusFirst) {
       const resetResult = await bulkResetMinusManualStocks();
       console.log(`🔄 Pre-reset: ${resetResult.resetCount || 0} manual stock direset`);
     }
+    if (resetMinusFirst) {
+      const resetResult = await bulkResetMinusManualStocks();
+      console.log(`🔄 Pre-reset: ${resetResult.resetCount || 0} manual stock direset`);
+    }
 
+    if (type === 'selected' && menuItemIds && Array.isArray(menuItemIds)) {
+      if (menuItemIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'menuItemIds tidak boleh kosong'
+        });
+      }
+      result = await calibrateSelectedMenuStocks(menuItemIds);
+    } else {
+      result = await calibrateAllMenuStocks();
+    }
     if (type === 'selected' && menuItemIds && Array.isArray(menuItemIds)) {
       if (menuItemIds.length === 0) {
         return res.status(400).json({

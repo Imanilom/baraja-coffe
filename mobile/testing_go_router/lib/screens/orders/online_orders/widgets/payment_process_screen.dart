@@ -1456,6 +1456,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
+                    ref.invalidate(onlineOrderProvider);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
