@@ -3,8 +3,8 @@ module.exports = {
         {
             name: "barajahub",
             script: "api/index.js",
-            instances: "max",     // otomatis semua core
-            exec_mode: "cluster", // cluster mode
+            instances: "1",     // otomatis semua core
+            exec_mode: "fork", // cluster mode
             watch: false,
             env: {
                 NODE_ENV: "production"
