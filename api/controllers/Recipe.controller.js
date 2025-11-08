@@ -317,7 +317,7 @@ export const adjustMenuStock = async (req, res) => {
         const newStatus = updatedMenuItem.isActive;
 
         // console.log(`🔄 Stok manual berhasil direset ke stok sistem untuk ${menuName}`);
-        // console.log(`🔍 DEBUG: Final Status after reset: ${newStatus}`);
+        console.log(`🔍 DEBUG: Final Status after reset: ${newStatus}`);
 
         // Emit socket event
         io.to('join_cashier_room').emit('update_stock', {

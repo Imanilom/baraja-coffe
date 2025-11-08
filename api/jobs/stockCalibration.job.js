@@ -82,7 +82,7 @@ export const calibrateAllMenuStocks = async () => {
           successCount++;
         } catch (error) {
           errorCount++;
-          console.error(`❌ Gagal mengkalibrasi ${menuItem.name}:`, error.message);
+          // console.error(`❌ Gagal mengkalibrasi ${menuItem.name}:`, error.message);
         }
 
         await new Promise(resolve => setTimeout(resolve, 100));
