@@ -37,6 +37,33 @@ class _LisMenuState extends ConsumerState<ListMenu> {
   }
 
   void _handleAddToOrder(MenuItemModel menuItem) {
+    if (menuItem.stock?.manualStock == 0) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text(
+                'Stock Kosong',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: const Text(
+                'Silakan update stock di Workstation,\natau ganti menu lainnya.',
+                style: TextStyle(fontSize: 16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: const Text('Baiklah'),
+                  ),
+                ),
+              ],
+            ),
+      );
+      return;
+    }
+
     final notifier = ref.read(onlineOrderEditorProvider.notifier);
 
     final List<AddonModel> selectedAddons =

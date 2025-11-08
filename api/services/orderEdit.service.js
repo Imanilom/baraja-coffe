@@ -597,7 +597,7 @@ export async function allocateDeltaToPayments({
             (p) =>
                 p.isAdjustment === true &&
                 p.direction === "refund" &&
-                p.status === "settlement" &&
+                p.status === "refund" &&
                 Number(p.amount) > 0
         )
         // pakai yang terbaru dulu
@@ -798,7 +798,7 @@ export async function allocateDeltaToPayments({
                     payment_code: String(Date.now()),
                     transaction_id: `refund-${Date.now()}`,
                     method: "Cash",
-                    status: "settlement",
+                    status: "refund",
                     paymentType: settledRef?.paymentType || "Full",
                     amount: Math.max(0, amountAbs),
                     totalAmount: Math.max(0, amountAbs) ||

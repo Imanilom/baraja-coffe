@@ -164,7 +164,7 @@ class PrinterService {
       case 'kitchen_and_bar':
         return ['kitchen', 'bar'];
       case 'all':
-        return ['customer', 'kitchen', 'bar', 'waiter'];
+        return ['kitchen', 'bar', 'waiter', 'customer'];
       default:
         return [];
     }
