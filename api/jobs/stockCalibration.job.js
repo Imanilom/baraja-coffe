@@ -1,4 +1,4 @@
-// services/stockCalibration.service.js
+// jobs/stockCalibration.job.js
 import cron from 'node-cron';
 import mongoose from 'mongoose';
 import Recipe from '../models/modul_menu/Recipe.model.js';
@@ -12,6 +12,33 @@ import { calculateMaxPortions } from '../utils/stockCalculator.js';
  */
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 100;
+
+/**
+ * ✅ Database Health Check
+ */
+const checkDatabaseHealth = async () => {
+  try {
+    return mongoose.connection.readyState === 1;
+  } catch (error) {
+    console.error('❌ Database health check failed:', error);
+    return false;
+  }
+};
+
+/**
+ * ✅ Safe Database Operation Wrapper
+ */
+const safeDbOperation = async (operation, operationName) => {
+  try {
+    if (!await checkDatabaseHealth()) {
+      throw new Error(`Database not available for operation: ${operationName}`);
+    }
+    return await operation();
+  } catch (error) {
+    console.error(`❌ ${operationName} failed:`, error.message);
+    throw error;
+  }
+};
 
 /**
  * ✅ Helper function untuk retry dengan exponential backoff
@@ -41,7 +68,6 @@ const retryWithBackoff = async (fn, maxRetries = MAX_RETRY_ATTEMPTS) => {
 
   throw lastError;
 };
-
 
 /**
  * Kalibrasi stok semua menu items dengan optimasi + auto activate/deactivate + reset minus stock
@@ -78,13 +104,6 @@ export const calibrateAllMenuStocks = async () => {
         try {
           const result = await calibrateSingleMenuStock(menuItem._id.toString());
 
-          if (result.statusChange) {
-            if (result.statusChange === 'activated') activatedCount++;
-            if (result.statusChange === 'deactivated') deactivatedCount++;
-          }
-          if (result.manualStockReset) {
-            resetMinusCount++;
-          }
           if (result.statusChange) {
             if (result.statusChange === 'activated') activatedCount++;
             if (result.statusChange === 'deactivated') deactivatedCount++;
@@ -143,17 +162,28 @@ export const calibrateAllMenuStocks = async () => {
 
 /**
  * ✅ Kalibrasi stok untuk menu item tertentu DENGAN OPTIMISTIC LOCKING
+ * @param {string} menuItemId - ID menu item
+ * @param {Session} existingSession - Mongoose session jika dalam transaction
  */
 export const calibrateSingleMenuStock = async (menuItemId, existingSession = null) => {
   return await retryWithBackoff(async () => {
+    const useSession = existingSession !== null;
+
     // ✅ CRITICAL: Baca MenuItem dengan version
-    const menuItem = await MenuItem.findById(menuItemId);
+    const menuItem = useSession
+      ? await MenuItem.findById(menuItemId).session(existingSession)
+      : await MenuItem.findById(menuItemId);
+
     if (!menuItem) {
       throw new Error('Menu item tidak ditemukan');
     }
     const menuItemVersion = menuItem.__v;
 
-    const recipe = await Recipe.findOne({ menuItemId: menuItem._id });
+    const recipeQuery = useSession
+      ? Recipe.findOne({ menuItemId: menuItem._id }).session(existingSession)
+      : Recipe.findOne({ menuItemId: menuItem._id });
+
+    const recipe = await recipeQuery;
     let calculatedStock = 0;
 
     // Hitung stok berdasarkan resep
@@ -165,7 +195,11 @@ export const calibrateSingleMenuStock = async (menuItemId, existingSession = nul
     }
 
     // ✅ CRITICAL: Baca MenuStock dengan version
-    let menuStock = await MenuStock.findOne({ menuItemId: menuItem._id });
+    const menuStockQuery = useSession
+      ? MenuStock.findOne({ menuItemId: menuItem._id }).session(existingSession)
+      : MenuStock.findOne({ menuItemId: menuItem._id });
+
+    let menuStock = await menuStockQuery;
     const menuStockVersion = menuStock?.__v;
 
     let manualStockReset = false;
@@ -219,22 +253,31 @@ export const calibrateSingleMenuStock = async (menuItemId, existingSession = nul
       menuStock.lastCalculatedAt = new Date();
 
       // ✅ CRITICAL: Save dengan version check
+      const updateQuery = {
+        _id: menuStock._id,
+        __v: menuStockVersion
+      };
+
+      const updateData = {
+        $set: {
+          calculatedStock: menuStock.calculatedStock,
+          currentStock: menuStock.currentStock,
+          quantity: menuStock.quantity,
+          manualStock: menuStock.manualStock,
+          lastCalculatedAt: menuStock.lastCalculatedAt
+        },
+        $inc: { __v: 1 }
+      };
+
+      const updateOptions = { new: true };
+      if (useSession) {
+        updateOptions.session = existingSession;
+      }
+
       const updateResult = await MenuStock.findOneAndUpdate(
-        {
-          _id: menuStock._id,
-          __v: menuStockVersion  // ✅ Version check
-        },
-        {
-          $set: {
-            calculatedStock: menuStock.calculatedStock,
-            currentStock: menuStock.currentStock,
-            quantity: menuStock.quantity,
-            manualStock: menuStock.manualStock,
-            lastCalculatedAt: menuStock.lastCalculatedAt
-          },
-          $inc: { __v: 1 }  // ✅ Increment version
-        },
-        { new: true }
+        updateQuery,
+        updateData,
+        updateOptions
       );
 
       if (!updateResult) {
@@ -245,7 +288,7 @@ export const calibrateSingleMenuStock = async (menuItemId, existingSession = nul
 
     } else {
       // Buat MenuStock baru
-      menuStock = await MenuStock.create({
+      const newStockData = {
         menuItemId: menuItem._id,
         type: 'adjustment',
         quantity: 0,
@@ -258,7 +301,14 @@ export const calibrateSingleMenuStock = async (menuItemId, existingSession = nul
         notes: 'Initial stock calibration by system',
         lastCalculatedAt: new Date(),
         lastAdjustedAt: new Date()
-      });
+      };
+
+      if (useSession) {
+        menuStock = await MenuStock.create([newStockData], { session: existingSession });
+        menuStock = menuStock[0];
+      } else {
+        menuStock = await MenuStock.create(newStockData);
+      }
     }
 
     // Hitung effective stock
@@ -299,19 +349,28 @@ export const calibrateSingleMenuStock = async (menuItemId, existingSession = nul
     }
 
     // ✅ OPTIMISTIC LOCKING: Update MenuItem dengan version check
+    const menuItemUpdateQuery = {
+      _id: menuItem._id,
+      __v: menuItemVersion
+    };
+
+    const menuItemUpdateData = {
+      $set: {
+        availableStock: effectiveStock,
+        isActive: menuItem.isActive
+      },
+      $inc: { __v: 1 }
+    };
+
+    const menuItemUpdateOptions = { new: true };
+    if (useSession) {
+      menuItemUpdateOptions.session = existingSession;
+    }
+
     const menuItemUpdateResult = await MenuItem.findOneAndUpdate(
-      {
-        _id: menuItem._id,
-        __v: menuItemVersion  // ✅ Version check
-      },
-      {
-        $set: {
-          availableStock: effectiveStock,
-          isActive: menuItem.isActive
-        },
-        $inc: { __v: 1 }  // ✅ Increment version
-      },
-      { new: true }
+      menuItemUpdateQuery,
+      menuItemUpdateData,
+      menuItemUpdateOptions
     );
 
     if (!menuItemUpdateResult) {
@@ -419,7 +478,7 @@ export const resetMinusManualStock = async (menuItemId) => {
     } finally {
       session.endSession();
     }
-  }, 2, `resetMinusManualStock-${menuItemId}`);
+  });
 };
 
 /**
@@ -483,185 +542,192 @@ export const bulkResetMinusManualStocks = async () => {
 };
 
 /**
- * Setup cron job untuk kalibrasi stok dengan optimasi
+ * ✅ Kalibrasi stok untuk menu items tertentu saja dengan CONNECTION SAFETY
+ */
+export const calibrateSelectedMenuStocks = async (menuItemIds) => {
+  let successCount = 0;
+  let errorCount = 0;
+  let activatedCount = 0;
+  let deactivatedCount = 0;
+  let resetMinusCount = 0;
+
+  try {
+    console.log(`🔄 Memulai kalibrasi ${menuItemIds.length} menu items terpilih...`);
+
+    if (!Array.isArray(menuItemIds) || menuItemIds.length === 0) {
+      throw new Error('menuItemIds harus berupa array yang tidak kosong');
+    }
+
+    // ✅ CHECK CONNECTION FIRST
+    if (!await checkDatabaseHealth()) {
+      throw new Error('Database not available for selected calibration');
+    }
+
+    // ✅ PROCESS SEQUENTIALLY TO AVOID CONNECTION OVERLOAD
+    for (let i = 0; i < menuItemIds.length; i++) {
+      try {
+        const result = await calibrateSingleMenuStock(menuItemIds[i]);
+
+        if (result.statusChange) {
+          if (result.statusChange === 'activated') activatedCount++;
+          if (result.statusChange === 'deactivated') deactivatedCount++;
+        }
+        if (result.manualStockReset) {
+          resetMinusCount++;
+        }
+
+        successCount++;
+
+        // ✅ DELAY BETWEEN ITEMS
+        if (i < menuItemIds.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      } catch (error) {
+        console.error(`❌ Gagal mengkalibrasi menu item ${menuItemIds[i]}:`, error.message);
+        errorCount++;
+      }
+    }
+
+    console.log(`✅ Kalibrasi terpilih selesai: ${successCount} berhasil, ${errorCount} gagal`);
+    console.log(`🔄 Status changes: ${activatedCount} diaktifkan, ${deactivatedCount} dinonaktifkan`);
+    console.log(`🔄 Manual stock reset: ${resetMinusCount} direset dari minus ke 0`);
+
+    return {
+      success: true,
+      processed: menuItemIds.length,
+      successCount,
+      errorCount,
+      activatedCount,
+      deactivatedCount,
+      resetMinusCount,
+      timestamp: new Date()
+    };
+
+  } catch (error) {
+    console.error('❌ Kalibrasi selected menu stocks gagal:', error);
+    return {
+      success: false,
+      error: error.message,
+      timestamp: new Date()
+    };
+  }
+};
+
+/**
+ * ✅ Kalibrasi manual via API dengan connection safety
+ */
+export const manualStockCalibration = async (req, res) => {
+  try {
+    console.log('🎛️ Manual stock calibration requested');
+
+    // ✅ CHECK CONNECTION FIRST
+    if (!await checkDatabaseHealth()) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database tidak tersedia, coba lagi beberapa saat',
+        error: 'Database connection unavailable'
+      });
+    }
+
+    const { type, menuItemIds, includeStatusFix = true, resetMinusFirst = true } = req.body;
+
+    let result;
+
+    if (resetMinusFirst) {
+      const resetResult = await bulkResetMinusManualStocks();
+      console.log(`🔄 Pre-reset: ${resetResult.resetCount || 0} manual stock direset`);
+    }
+
+    if (type === 'selected' && menuItemIds && Array.isArray(menuItemIds)) {
+      if (menuItemIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'menuItemIds tidak boleh kosong'
+        });
+      }
+      result = await calibrateSelectedMenuStocks(menuItemIds);
+    } else {
+      result = await calibrateAllMenuStocks();
+    }
+
+    res.status(200).json({
+      success: result.success,
+      message: 'Kalibrasi stok manual selesai',
+      data: result
+    });
+  } catch (error) {
+    console.error('Manual stock calibration failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Kalibrasi stok manual gagal',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ✅ Setup cron job untuk kalibrasi stok dengan optimasi
  */
 export const setupStockCalibrationCron = () => {
   // Jalankan setiap 3 jam pada menit 5
   cron.schedule('5 */3 * * *', async () => {
-    // Jalankan setiap 3 jam pada menit 5
-    cron.schedule('5 */3 * * *', async () => {
-      console.log('⏰ Menjalankan scheduled stock calibration...');
-
-      try {
-        if (!await checkDatabaseHealth()) {
-          console.warn('⚠️ Database tidak terkoneksi, skip scheduled calibration');
-          return;
-        }
-
-        const resetResult = await bulkResetMinusManualStocks();
-        if (resetResult.success && resetResult.resetCount > 0) {
-          console.log(`🔄 Sebelum kalibrasi: ${resetResult.resetCount} manual stock direset dari minus`);
-        }
-
-        const result = await calibrateAllMenuStocks();
-
-        if (result.success) {
-          console.log('📈 Scheduled stock calibration completed successfully:', {
-            processed: result.processed,
-            successCount: result.successCount,
-            errorCount: result.errorCount,
-            activatedCount: result.activatedCount,
-            deactivatedCount: result.deactivatedCount,
-            resetMinusCount: result.resetMinusCount,
-            activatedCount: result.activatedCount,
-            deactivatedCount: result.deactivatedCount,
-            resetMinusCount: result.resetMinusCount,
-            duration: result.duration
-          });
-        } else {
-          console.error('❌ Scheduled stock calibration failed:', result.error);
-        }
-      } catch (error) {
-        console.error('❌ Scheduled stock calibration failed:', error);
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack
-        });
-      }
-    });
-
-    // Jalankan sekali saat startup dengan delay
-    setTimeout(async () => {
-      console.log('🚀 Menjalankan initial stock calibration...');
-      try {
-        await bulkResetMinusManualStocks();
-        await calibrateAllMenuStocks();
-      } catch (error) {
-        console.error('Initial calibration failed:', error);
-      }
-    }, 30000);
-  };
-
-  /**
-   * Kalibrasi stok untuk menu items tertentu saja dengan CONNECTION SAFETY
-   */
-  export const calibrateSelectedMenuStocks = async (menuItemIds) => {
-    let successCount = 0;
-    let errorCount = 0;
-    let activatedCount = 0;
-    let deactivatedCount = 0;
-    let resetMinusCount = 0;
+    console.log('⏰ Menjalankan scheduled stock calibration...');
 
     try {
-      console.log(`🔄 Memulai kalibrasi ${menuItemIds.length} menu items terpilih...`);
-
-      if (!Array.isArray(menuItemIds) || menuItemIds.length === 0) {
-        throw new Error('menuItemIds harus berupa array yang tidak kosong');
-      }
-
-      // ✅ CHECK CONNECTION FIRST
       if (!await checkDatabaseHealth()) {
-        throw new Error('Database not available for selected calibration');
+        console.warn('⚠️ Database tidak terkoneksi, skip scheduled calibration');
+        return;
       }
 
-      // ✅ PROCESS SEQUENTIALLY TO AVOID CONNECTION OVERLOAD
-      for (let i = 0; i < menuItemIds.length; i++) {
-        try {
-          const result = await calibrateSingleMenuStock(menuItemIds[i]);
-
-          if (result.statusChange) {
-            if (result.statusChange === 'activated') activatedCount++;
-            if (result.statusChange === 'deactivated') deactivatedCount++;
-          }
-          if (result.manualStockReset) {
-            resetMinusCount++;
-          }
-
-          successCount++;
-
-          // ✅ DELAY BETWEEN ITEMS
-          if (i < menuItemIds.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-        } catch (error) {
-          console.error(`❌ Gagal mengkalibrasi menu item ${menuItemIds[i]}:`, error.message);
-          errorCount++;
-        }
+      const resetResult = await bulkResetMinusManualStocks();
+      if (resetResult.success && resetResult.resetCount > 0) {
+        console.log(`🔄 Sebelum kalibrasi: ${resetResult.resetCount} manual stock direset dari minus`);
       }
 
-      console.log(`✅ Kalibrasi terpilih selesai: ${successCount} berhasil, ${errorCount} gagal`);
-      console.log(`🔄 Status changes: ${activatedCount} diaktifkan, ${deactivatedCount} dinonaktifkan`);
-      console.log(`🔄 Manual stock reset: ${resetMinusCount} direset dari minus ke 0`);
+      const result = await calibrateAllMenuStocks();
 
-      return {
-        success: true,
-        processed: menuItemIds.length,
-        successCount,
-        errorCount,
-        activatedCount,
-        deactivatedCount,
-        resetMinusCount,
-        timestamp: new Date()
-      };
-
-    } catch (error) {
-      console.error('❌ Kalibrasi selected menu stocks gagal:', error);
-      return {
-        success: false,
-        error: error.message,
-        timestamp: new Date()
-      };
-    }
-  };
-
-  /**
-   * Kalibrasi manual via API dengan connection safety
-   */
-  export const manualStockCalibration = async (req, res) => {
-    try {
-      console.log('🎛️ Manual stock calibration requested');
-
-      // ✅ CHECK CONNECTION FIRST
-      if (!await checkDatabaseHealth()) {
-        return res.status(500).json({
-          success: false,
-          message: 'Database tidak tersedia, coba lagi beberapa saat',
-          error: 'Database connection unavailable'
+      if (result.success) {
+        console.log('📈 Scheduled stock calibration completed successfully:', {
+          processed: result.processed,
+          successCount: result.successCount,
+          errorCount: result.errorCount,
+          activatedCount: result.activatedCount,
+          deactivatedCount: result.deactivatedCount,
+          resetMinusCount: result.resetMinusCount,
+          duration: result.duration
         });
-      }
-
-      const { type, menuItemIds, includeStatusFix = true, resetMinusFirst = true } = req.body;
-
-      let result;
-
-      if (resetMinusFirst) {
-        const resetResult = await bulkResetMinusManualStocks();
-        console.log(`🔄 Pre-reset: ${resetResult.resetCount || 0} manual stock direset`);
-      }
-
-      if (type === 'selected' && menuItemIds && Array.isArray(menuItemIds)) {
-        if (menuItemIds.length === 0) {
-          return res.status(400).json({
-            success: false,
-            message: 'menuItemIds tidak boleh kosong'
-          });
-        }
-        result = await calibrateSelectedMenuStocks(menuItemIds);
       } else {
-        result = await calibrateAllMenuStocks();
+        console.error('❌ Scheduled stock calibration failed:', result.error);
       }
-
-      res.status(200).json({
-        success: result.success,
-        message: 'Kalibrasi stok manual selesai',
-        data: result
-      });
     } catch (error) {
-      console.error('Manual stock calibration failed:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Kalibrasi stok manual gagal',
-        error: error.message
+      console.error('❌ Scheduled stock calibration failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack
       });
     }
-  };
+  });
+
+  // Jalankan sekali saat startup dengan delay
+  setTimeout(async () => {
+    console.log('🚀 Menjalankan initial stock calibration...');
+    try {
+      await bulkResetMinusManualStocks();
+      await calibrateAllMenuStocks();
+    } catch (error) {
+      console.error('Initial calibration failed:', error);
+    }
+  }, 30000);
+
+  console.log('✅ Stock calibration cron job setup completed');
+};
+
+export default {
+  calibrateSingleMenuStock,
+  calibrateAllMenuStocks,
+  calibrateSelectedMenuStocks,
+  resetMinusManualStock,
+  bulkResetMinusManualStocks,
+  setupStockCalibrationCron,
+  manualStockCalibration
+};
