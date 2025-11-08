@@ -183,9 +183,9 @@ export async function processOrderItems({
 
   // APPLY TAX SETELAH SEMUA DISKON
   const taxResult = await calculateTaxesAndServices(
-    outlet, 
-    promotionResults.totalAfterAllDiscounts, 
-    orderItems, 
+    outlet,
+    promotionResults.totalAfterAllDiscounts,
+    orderItems,
     customAmountItemsData
   );
 
@@ -197,24 +197,24 @@ export async function processOrderItems({
     menuItemsTotal: totalBeforeDiscount,
     customAmountTotal: totalCustomAmount,
     combinedTotalBeforeDiscount,
-    
+
     // Diskon
     loyaltyDiscount,
     autoPromoDiscount: promotionResults.autoPromoDiscount,
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     totalAllDiscounts: promotionResults.totalAllDiscounts,
-    
+
     // Setelah diskon
     totalAfterAllDiscounts: promotionResults.totalAfterAllDiscounts,
-    
+
     // Pajak (setelah semua diskon)
     totalTax: taxResult.totalTax,
     totalServiceFee: taxResult.totalServiceFee,
-    
+
     // Final
     grandTotal,
-    
+
     // Breakdown
     taxCalculationMethod: 'ALL_DISCOUNTS_BEFORE_TAX',
     note: 'Semua diskon (auto promo, manual promo, voucher) diterapkan sebelum tax'
@@ -265,9 +265,9 @@ export async function processOrderItems({
 /**
  * PROSES BARU: Semua diskon diterapkan SEBELUM tax
  */
-async function processAllDiscountsBeforeTax({ orderItems, outlet, orderType, voucherCode, customerType, totalBeforeDiscount, source, customAmountItems }) {
+export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderType, voucherCode, customerType, totalBeforeDiscount, source, customAmountItems }) {
   const canUsePromo = source === 'app' || source === 'cashier' || source === 'Cashier';
-  
+
   console.log('🎯 ALL DISCOUNTS BEFORE TAX STRATEGY:', {
     source,
     canUsePromo,
@@ -280,16 +280,16 @@ async function processAllDiscountsBeforeTax({ orderItems, outlet, orderType, vou
   const autoPromoDiscount = autoPromoResult.totalDiscount;
 
   // 2. APPLY MANUAL PROMO
-  const manualPromoResult = canUsePromo ? 
-    await checkManualPromo(totalBeforeDiscount, outlet, customerType) : 
+  const manualPromoResult = canUsePromo ?
+    await checkManualPromo(totalBeforeDiscount, outlet, customerType) :
     { discount: 0, appliedPromo: null };
   const manualDiscount = manualPromoResult.discount;
 
   // 3. APPLY VOUCHER (setelah auto & manual promo)
   const subtotalAfterAutoManual = Math.max(0, totalBeforeDiscount - autoPromoDiscount - manualDiscount);
-  
-  const voucherResult = canUsePromo ? 
-    await checkVoucher(voucherCode, subtotalAfterAutoManual, outlet) : 
+
+  const voucherResult = canUsePromo ?
+    await checkVoucher(voucherCode, subtotalAfterAutoManual, outlet) :
     { discount: 0, voucher: null };
   const voucherDiscount = voucherResult.voucher ? voucherResult.discount : 0;
 
@@ -300,16 +300,16 @@ async function processAllDiscountsBeforeTax({ orderItems, outlet, orderType, vou
   console.log('📊 ALL DISCOUNTS APPLICATION:', {
     // Sebelum diskon
     totalBeforeDiscount,
-    
+
     // Breakdown diskon
     autoPromoDiscount,
     manualDiscount,
     voucherDiscount,
     totalAllDiscounts,
-    
+
     // Setelah semua diskon
     totalAfterAllDiscounts,
-    
+
     // Urutan aplikasi
     calculationSteps: [
       `1. Harga awal: ${totalBeforeDiscount}`,
@@ -325,10 +325,10 @@ async function processAllDiscountsBeforeTax({ orderItems, outlet, orderType, vou
     manualDiscount,
     voucherDiscount,
     totalAllDiscounts,
-    
+
     // Total setelah semua diskon
     totalAfterAllDiscounts,
-    
+
     // Promotion details
     appliedPromos: autoPromoResult.appliedPromos,
     appliedPromo: manualPromoResult.appliedPromo,
@@ -424,16 +424,16 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
     // Jika ada specific menu items, hitung berdasarkan items tersebut
     if (charge.appliesToMenuItems?.length > 0) {
       applicableAmount = 0;
-      
+
       // Hitung dari regular items
       for (const item of orderItems) {
-        if (charge.appliesToMenuItems.some(menuId => 
+        if (charge.appliesToMenuItems.some(menuId =>
           menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
         )) {
           applicableAmount += item.subtotal || 0;
         }
       }
-      
+
       // Hitung dari custom amount items (jika applicable)
       for (const customItem of customAmountItems) {
         // Asumsikan custom amount items applicable untuk semua tax rules

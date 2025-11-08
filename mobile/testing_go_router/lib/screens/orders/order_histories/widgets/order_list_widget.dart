@@ -15,7 +15,7 @@ class OrderListWidget extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedOrder = ref.watch(historyDetailProvider);
 
-    // 1) Sort DESC by createdAt
+    // 1) Sort DESC by updatedAt
     final sorted = [...orders]..sort(
       (a, b) => (b.updatedAt ?? DateTime(1970)).compareTo(
         a.updatedAt ?? DateTime(1970),
@@ -28,7 +28,7 @@ class OrderListWidget extends ConsumerWidget {
     // 2) Precompute stats per day (count + total grandTotal)
     final Map<String, _DayStat> stats = {};
     for (final o in sorted) {
-      final k = keyOf(o.createdAt);
+      final k = keyOf(o.updatedAt);
       stats.putIfAbsent(k, () => _DayStat());
       stats[k]!.count += 1;
       stats[k]!.total += (o.grandTotal ?? 0);
@@ -70,11 +70,11 @@ class OrderListWidget extends ConsumerWidget {
                       final order = sorted[index];
                       final isSelected = selectedOrder?.id == order.id;
 
-                      final currKey = keyOf(order.createdAt);
+                      final currKey = keyOf(order.updatedAt);
                       final prevKey =
                           index == 0
                               ? null
-                              : keyOf(sorted[index - 1].createdAt);
+                              : keyOf(sorted[index - 1].updatedAt);
                       final isFirstOfDay = index == 0 || currKey != prevKey;
 
                       final dayStat = stats[currKey]!; // sudah dipastikan ada
@@ -84,7 +84,7 @@ class OrderListWidget extends ConsumerWidget {
                         children: [
                           if (isFirstOfDay)
                             _DateHeader(
-                              date: order.createdAt,
+                              date: order.updatedAt,
                               count: dayStat.count,
                               total: dayStat.total,
                             ),
