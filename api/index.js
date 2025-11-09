@@ -62,6 +62,7 @@ import { generateWebhookSecret } from './utils/tokenGenerator.js';
 // attendance routes
 import attendanceRoutes from './routes/attendance.route.js';
 import hrRoutes from './routes/hr.route.js';
+import { setupPaymentExpiryMonitor } from './services/paymentExpiryMonitor.js';
 
 dotenv.config();
 
@@ -202,6 +203,7 @@ const startServer = async () => {
 
     setupStockCalibrationCron();
     startAutoCancelScheduler();
+    setupPaymentExpiryMonitor();
     // Jalankan sekali untuk generate secret
     // console.log('Webhook Secret:', generateWebhookSecret());
 
