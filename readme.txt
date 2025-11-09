@@ -9,6 +9,4 @@ docker-compose up -d
 
 TEST WINDOWS
 
-docker-compose down
-docker-compose -f docker-compose.dev.yml up -d
-docker logs barajahub_windows -f
+docker-compose down; docker-compose -f docker-compose.dev.yml up -d; docker logs barajahub_windows -f
