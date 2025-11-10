@@ -528,8 +528,9 @@ export const createReservationWithOrder = async (req, res) => {
     let midtransResponse = null;
     
     // Create order if there are order items
+    // Create order if there are order items
     if (order_items && order_items.length > 0) {
-      // Generate order ID yang lebih pendek tanpa timestamp Unix
+      // Generate order ID yang lebih pendek - hanya menggunakan sequence number
       const orderSequence = await getNextOrderSequence();
       const orderId = `ORD-${reservation.reservation_code}-${orderSequence.toString().padStart(3, '0')}`;
       
@@ -626,7 +627,7 @@ export const createReservationWithOrder = async (req, res) => {
 
       // BUAT PAYMENT RECORD HANYA JIKA PERLU DP
       if (require_dp) {
-        // Generate payment code yang lebih pendek
+        // Generate payment code yang lebih pendek - hanya menggunakan sequence number
         const paymentSequence = await getNextPaymentSequence();
         const paymentCode = `PAY-${reservation.reservation_code}-${paymentSequence.toString().padStart(3, '0')}`;
         
@@ -685,7 +686,8 @@ export const createReservationWithOrder = async (req, res) => {
 
           // UPDATE PAYMENT RECORD DENGAN DATA MIDTRANS JIKA BERHASIL
           if (midtransResponse && midtransResponse.token) {
-            paymentRecord.transaction_id = midtransResponse.transaction_id || `MID-${Date.now()}`;
+            // Gunakan transaction_id dari Midtrans atau buat yang lebih pendek
+            paymentRecord.transaction_id = midtransResponse.transaction_id || `MID-${paymentSequence}`;
             paymentRecord.midtransRedirectUrl = midtransResponse.redirect_url;
             paymentRecord.raw_response = midtransResponse;
             
@@ -878,22 +880,22 @@ export const createReservationWithOrder = async (req, res) => {
   }
 };
 
-// Helper function untuk mendapatkan sequence order berikutnya
+// Helper function untuk mendapatkan sequence order berikutnya - DIPERBAIKI
 const getNextOrderSequence = async () => {
   const today = new Date();
   const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
   
-  // Cari order terakhir untuk hari ini
+  // Cari order terakhir untuk hari ini dengan pattern yang benar
   const lastOrder = await Order.findOne({
-    order_id: new RegExp(`ORD-RSV-${dateString}`)
+    order_id: new RegExp(`ORD-RSV-${dateString}-`)
   }).sort({ createdAt: -1 });
   
   let sequence = 1;
-  if (lastOrder) {
-    // Extract sequence dari order_id yang ada
+  if (lastOrder && lastOrder.order_id) {
+    // Extract sequence dari order_id: ORD-RSV-20251110-001
     const orderIdParts = lastOrder.order_id.split('-');
-    if (orderIdParts.length >= 5) {
-      const lastSequence = parseInt(orderIdParts[4]) || 0;
+    if (orderIdParts.length >= 4) {
+      const lastSequence = parseInt(orderIdParts[3]) || 0;
       sequence = lastSequence + 1;
     }
   }
@@ -901,22 +903,22 @@ const getNextOrderSequence = async () => {
   return sequence;
 };
 
-// Helper function untuk mendapatkan sequence payment berikutnya
+// Helper function untuk mendapatkan sequence payment berikutnya - DIPERBAIKI
 const getNextPaymentSequence = async () => {
   const today = new Date();
   const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
   
-  // Cari payment terakhir untuk hari ini
+  // Cari payment terakhir untuk hari ini dengan pattern yang benar
   const lastPayment = await Payment.findOne({
-    payment_code: new RegExp(`PAY-RSV-${dateString}`)
+    payment_code: new RegExp(`PAY-RSV-${dateString}-`)
   }).sort({ createdAt: -1 });
   
   let sequence = 1;
-  if (lastPayment) {
-    // Extract sequence dari payment_code yang ada
+  if (lastPayment && lastPayment.payment_code) {
+    // Extract sequence dari payment_code: PAY-RSV-20251110-001
     const paymentCodeParts = lastPayment.payment_code.split('-');
-    if (paymentCodeParts.length >= 5) {
-      const lastSequence = parseInt(paymentCodeParts[4]) || 0;
+    if (paymentCodeParts.length >= 4) {
+      const lastSequence = parseInt(paymentCodeParts[3]) || 0;
       sequence = lastSequence + 1;
     }
   }
