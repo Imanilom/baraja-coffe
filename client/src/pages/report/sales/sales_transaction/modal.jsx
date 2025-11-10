@@ -214,7 +214,7 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                     </div>
 
                     {/* Info Transaksi */}
-                    <div className="space-y-2 text-sm mb-6 bg-gray-50 p-4 rounded-lg">
+                    <div className="space-y-2 text-sm mb-6 bg-gray-50 rounded-lg">
                         <div className="flex justify-between">
                             <span className="font-medium text-gray-600">Kode Struk</span>
                             <p className="font-semibold">{selectedTrx.order_id}</p>
