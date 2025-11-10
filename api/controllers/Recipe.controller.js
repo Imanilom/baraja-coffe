@@ -381,7 +381,29 @@ export const adjustMenuStock = async (req, res) => {
 
     await session.commitTransaction();
     console.log('✅ Stok menu berhasil disesuaikan');
+    // Pastikan emit bekerja dengan benar
+    console.log('📤 Emitting stock_updated to kitchen_room for menu:', menuItemId);
 
+    // Emit ke kitchen room
+    console.log('📤 Broadcasting stock_updated to ALL clients');
+
+    // ✅ SOLUSI PALING MUDAH: Broadcast ke SEMUA client
+    io.emit('stock_updated', {
+      menuItemId: menuItemId.toString(),
+      message: 'Stock Updated',
+      stockData: {
+        menuItemId: stockDoc.menuItemId,
+        calculatedStock: stockDoc.calculatedStock,
+        manualStock: stockDoc.manualStock,
+        effectiveStock: stockDoc.effectiveStock,
+        lastAdjustedAt: stockDoc.lastAdjustedAt
+      },
+      timestamp: new Date()
+    });
+
+    console.log('✅ Stock update broadcasted to ALL clients');
+
+    console.log('✅ Stock update emitted successfully');
     // 🔥 TAMBAHAN: Emit socket sebelum kalibrasi
     io.to('join_cashier_room').emit('update_stock', {
       message: 'Stock Updated',
