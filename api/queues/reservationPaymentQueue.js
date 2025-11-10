@@ -14,8 +14,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Konfigurasi Redis
 const redisConnection = new Redis({
-  host: '127.0.0.1',
-  port: 6379
+  host: process.env.REDIS_HOST || '127.0.0.1',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false
 });
 // const redisConnection = new Redis({
 //   host: 'redis',

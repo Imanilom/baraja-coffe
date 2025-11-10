@@ -189,7 +189,7 @@ export const calculateMaxPortions = async (ingredients) => {
       }
 
       const possiblePortion = Math.floor(availableQty / requiredPerPortion);
-      console.log(`🔍 DEBUG: Possible portions for ${ing.productId}: ${availableQty} / ${requiredPerPortion} = ${possiblePortion}`);
+      // console.log(`🔍 DEBUG: Possible portions for ${ing.productId}: ${availableQty} / ${requiredPerPortion} = ${possiblePortion}`);
 
       maxPortion = Math.min(maxPortion, possiblePortion);
 
