@@ -586,7 +586,7 @@ export const createReservationWithOrder = async (req, res) => {
         user: customer_name || 'Guest',
         items: formattedOrderItems,
         customAmountItems: customAmountItems, // KOSONGKAN JIKA TIDAK ADA DP
-        status: require_dp ? 'Pending' : 'OnProcess', // STATUS ORDER BERBEDA
+        status: require_dp ? 'Pending' : 'Reserved', // STATUS ORDER BERBEDA
         paymentMethod: payment_method || (require_dp ? 'E-Wallet' : 'Cash'),
         orderType: 'Reservation',
         tableNumber: tables.map(t => t.table_number).join(', '),
