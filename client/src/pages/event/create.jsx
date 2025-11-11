@@ -6,9 +6,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { FaTimes, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaTicketAlt, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import Header from "../admin/header";
+import { useSelector } from "react-redux";
 
 
 const CreateEvent = () => {
+
+    const { currentUser } = useSelector((state) => state.user);
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -114,15 +117,15 @@ const CreateEvent = () => {
             capacity: Number(form.capacity),
             tags: form.tags.split(",").map((tag) => tag.trim())
         };
-        // console.log("Submit data:", payload);
-        axios.post("/api/event", payload);
+        console.log("Submit data:", payload);
+        axios.post("/api/event", payload, {
+            headers: { Authorization: `Bearer ${currentUser.token}` },
+        });
         navigate("/admin/event");
     };
 
     return (
         <div className="">
-            <Header />
-
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
@@ -387,6 +390,7 @@ const CreateEvent = () => {
                             onChange={handleChange}
                             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm resize-y min-h-[100px]"
                             placeholder="Tulis syarat & ketentuan..."
+                            required
                         />
                     </div>
                 </div>
@@ -407,13 +411,6 @@ const CreateEvent = () => {
                     </button>
                 </div>
             </form>
-
-
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
-            </div>
         </div>
     );
 };
