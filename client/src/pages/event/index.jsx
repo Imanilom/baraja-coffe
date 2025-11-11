@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
-import { FaTicketAlt, FaTrashAlt, FaPencilAlt, FaSearch, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaTag } from "react-icons/fa";
-import Datepicker from 'react-tailwindcss-datepicker';
+import { FaTicketAlt, FaTrashAlt, FaPencilAlt, FaSearch, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaTag, FaExclamationTriangle, FaCheckCircle, FaTimes } from "react-icons/fa";
 import Paginated from "../../components/paginated";
 import { useSelector } from "react-redux";
+import ConfirmModal from "../../components/modal/confirmmodal";
+import SuccessModal from "../../components/modal/successmodal";
+import ErrorModal from "../../components/modal/errormodal";
 
 const EventManagement = () => {
     const { currentUser } = useSelector((state) => state.user);
@@ -14,8 +16,8 @@ const EventManagement = () => {
     const [error, setError] = useState(null);
     const [event, setEvent] = useState([]);
     const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0]
     });
     const [filteredData, setFilteredData] = useState([]);
     const [tempSearch, setTempSearch] = useState("");
@@ -83,8 +85,11 @@ const EventManagement = () => {
     const applyFilter = () => {
         const filtered = event.filter(e => {
             const eventDate = dayjs(e.date);
-            const inDateRange = eventDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
-                eventDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'));
+            const startDate = value.startDate ? dayjs(value.startDate).startOf('day') : null;
+            const endDate = value.endDate ? dayjs(value.endDate).endOf('day') : null;
+
+            const inDateRange = (!startDate || eventDate.isAfter(startDate.subtract(1, 'second'))) &&
+                (!endDate || eventDate.isBefore(endDate.add(1, 'second')));
 
             const matchSearch = !tempSearch ||
                 e.name?.toLowerCase().includes(tempSearch.toLowerCase()) ||
@@ -102,35 +107,46 @@ const EventManagement = () => {
     const resetFilter = () => {
         setTempSearch("");
         setValue({
-            startDate: dayjs(),
-            endDate: dayjs(),
+            startDate: new Date().toISOString().split('T')[0],
+            endDate: new Date().toISOString().split('T')[0],
         });
         setFilteredData(event);
         setCurrentPage(1);
     };
 
-    const handleDelete = async (eventId) => {
-        if (!window.confirm('Apakah Anda yakin ingin menghapus event ini?')) return;
+    // Handle delete click - show modal
+    const handleDeleteClick = (eventId, eventName) => {
+        setEventToDelete({ id: eventId, name: eventName });
+        setShowDeleteModal(true);
+    };
 
-        setIsDeleting(eventId);
+    // Confirm delete - actual API call
+    const confirmDelete = async () => {
+        if (!eventToDelete) return;
+
+        setIsDeleting(eventToDelete.id);
+        setShowDeleteModal(false);
 
         try {
-            await axios.delete(`/api/event/${eventId}`, {
+            await axios.delete(`/api/event/${eventToDelete.id}`, {
                 headers: { Authorization: `Bearer ${currentUser.token}` },
             });
 
-            alert('Event berhasil dihapus!');
-
             // Update state tanpa reload
-            const updatedEvents = event.filter(e => e._id !== eventId);
+            const updatedEvents = event.filter(e => e._id !== eventToDelete.id);
             setEvent(updatedEvents);
-            setFilteredData(filteredData.filter(e => e._id !== eventId));
+            setFilteredData(filteredData.filter(e => e._id !== eventToDelete.id));
+
+            setShowSuccessModal(true);
+            setTimeout(() => setShowSuccessModal(false), 3000);
 
         } catch (error) {
             console.error('Error deleting event:', error);
-            alert(error.response?.data?.message || 'Gagal menghapus event');
+            setErrorMessage(error.response?.data?.message || 'Gagal menghapus event. Silakan coba lagi.');
+            setShowErrorModal(true);
         } finally {
             setIsDeleting(null);
+            setEventToDelete(null);
         }
     };
 
@@ -144,6 +160,7 @@ const EventManagement = () => {
         const colors = {
             'Technology': 'bg-blue-100 text-blue-700',
             'Music': 'bg-purple-100 text-purple-700',
+            'Music Show': 'bg-purple-100 text-purple-700',
             'Business': 'bg-green-100 text-green-700',
             'Sports': 'bg-red-100 text-red-700',
             'Education': 'bg-yellow-100 text-yellow-700'
@@ -181,6 +198,46 @@ const EventManagement = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-green-50">
+            {/* Modals */}
+            <ConfirmModal
+                isOpen={showDeleteModal}
+                onClose={() => {
+                    setShowDeleteModal(false);
+                    setEventToDelete(null);
+                }}
+                onConfirm={confirmDelete}
+                title="Hapus Event?"
+                message={
+                    <>
+                        Apakah Anda yakin ingin menghapus event{' '}
+                        <span className="font-semibold text-gray-800">"{eventToDelete?.name}"</span>?
+                        <br />
+                        <span className="text-sm text-red-500 mt-2 inline-block">
+                            Tindakan ini tidak dapat dibatalkan.
+                        </span>
+                    </>
+                }
+                confirmText="Ya, Hapus"
+                cancelText="Batal"
+            />
+
+            <SuccessModal
+                isOpen={showSuccessModal}
+                onClose={() => setShowSuccessModal(false)}
+                title="Berhasil!"
+                message="Event berhasil dihapus dari sistem!"
+                autoClose={true}
+                autoCloseDelay={3000}
+            />
+
+            <ErrorModal
+                isOpen={showErrorModal}
+                onClose={() => setShowErrorModal(false)}
+                title="Gagal Menghapus"
+                message={errorMessage}
+                buttonText="Tutup"
+            />
+
             {/* Header Section */}
             <div className="bg-white border-b shadow-sm sticky top-0 z-10">
                 <div className="px-6 py-4">
@@ -210,21 +267,34 @@ const EventManagement = () => {
                 {/* Filter Section */}
                 <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-gray-100">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+                        {/* Date Picker - FIXED VERSION */}
                         <div className="lg:col-span-3">
                             <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                                Tanggal
+                                Rentang Tanggal
                             </label>
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-sm border-2 border-gray-200 py-2.5 px-3 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none cursor-pointer"
-                                popoverDirection="down"
-                            />
+                            <div className="grid grid-cols-2 gap-2">
+                                {/* Start Date */}
+                                <div className="relative">
+                                    <input
+                                        type="date"
+                                        value={value.startDate}
+                                        onChange={(e) => setValue({ ...value, startDate: e.target.value })}
+                                        className="w-full px-3 py-3.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all text-sm"
+                                    />
+                                </div>
+                                {/* End Date */}
+                                <div className="relative">
+                                    <input
+                                        type="date"
+                                        value={value.endDate}
+                                        onChange={(e) => setValue({ ...value, endDate: e.target.value })}
+                                        className="w-full px-3 py-3.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all text-sm"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
+                        {/* Search Input */}
                         <div className="lg:col-span-4">
                             <label className="text-sm font-semibold text-gray-700 mb-2 block">
                                 Cari Event
@@ -241,6 +311,7 @@ const EventManagement = () => {
                             </div>
                         </div>
 
+                        {/* Action Buttons */}
                         <div className="lg:col-span-5 flex flex-col sm:flex-row gap-3">
                             <button
                                 onClick={applyFilter}
@@ -289,8 +360,10 @@ const EventManagement = () => {
                     <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
                         <div className="flex justify-between items-start">
                             <div>
-                                <p className="text-green-100 text-sm font-medium">Event Aktif</p>
-                                <h3 className="text-3xl font-bold mt-2">{filteredData.length}</h3>
+                                <p className="text-green-100 text-sm font-medium">Tiket Terjual</p>
+                                <h3 className="text-3xl font-bold mt-2">
+                                    {filteredData.reduce((sum, e) => sum + (e.soldTickets || 0), 0).toLocaleString()}
+                                </h3>
                             </div>
                             <div className="bg-white/20 p-3 rounded-xl">
                                 <FaCalendarAlt size={24} />
@@ -352,7 +425,10 @@ const EventManagement = () => {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center space-x-2">
                                                     <FaUsers className="text-blue-600" size={14} />
-                                                    <span className="text-sm font-medium text-gray-800">{event.capacity?.toLocaleString()}</span>
+                                                    <div>
+                                                        <span className="text-sm font-medium text-gray-800">{event.availableTickets?.toLocaleString() || 0}</span>
+                                                        <span className="text-xs text-gray-500"> / {event.capacity?.toLocaleString()}</span>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
@@ -370,7 +446,7 @@ const EventManagement = () => {
                                                         <FaPencilAlt size={14} />
                                                     </Link>
                                                     <button
-                                                        onClick={() => handleDelete(event._id)}
+                                                        onClick={() => handleDeleteClick(event._id, event.name)}
                                                         disabled={isDeleting === event._id}
                                                         className={`group relative p-2.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${isDeleting === event._id
                                                             ? 'bg-gray-400 cursor-not-allowed'
@@ -430,7 +506,9 @@ const EventManagement = () => {
                                     <div className="flex items-center justify-between pt-2 border-t">
                                         <div className="flex items-center space-x-2">
                                             <FaUsers className="text-blue-600" />
-                                            <span className="text-sm font-medium">{event.capacity?.toLocaleString()}</span>
+                                            <span className="text-sm font-medium">
+                                                {event.availableTickets?.toLocaleString() || 0} / {event.capacity?.toLocaleString()}
+                                            </span>
                                         </div>
                                         <span className="text-lg font-bold text-green-600">
                                             {formatCurrency(event.price)}
@@ -446,7 +524,7 @@ const EventManagement = () => {
                                             <span>Edit</span>
                                         </Link>
                                         <button
-                                            onClick={() => handleDelete(event._id)}
+                                            onClick={() => handleDeleteClick(event._id, event.name)}
                                             disabled={isDeleting === event._id}
                                             className={`flex-1 py-2.5 rounded-xl font-medium shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center space-x-2 ${isDeleting === event._id
                                                 ? 'bg-gray-400 cursor-not-allowed text-white'
@@ -471,13 +549,6 @@ const EventManagement = () => {
                         );
                     })}
                 </div>
-
-                <DeleteConfirmModal
-                    isOpen={showDeleteModal}
-                    onClose={() => setShowDeleteModal(false)}
-                    onConfirm={confirmDelete}
-                    eventName={eventToDelete?.name}
-                />
 
                 {/* Pagination */}
                 <Paginated
