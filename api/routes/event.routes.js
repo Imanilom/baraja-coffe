@@ -13,7 +13,7 @@ import {
 import { verifyToken } from '../utils/verifyUser.js';
 
 const router = Router();
-const marketingAcceess = verifyToken('marketing', 'admin', 'superadmin');
+const marketingAcceess = verifyToken(['marketing', 'admin', 'superadmin']);
 
 router.post('/', marketingAcceess, createEvent);
 router.get('/', getEvents);
