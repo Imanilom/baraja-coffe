@@ -1,3 +1,4 @@
+// models/Event.js
 import mongoose from 'mongoose';
 
 const EventSchema = new mongoose.Schema({
@@ -20,6 +21,10 @@ const EventSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
+    endDate: {
+        type: Date,
+        required: true
+    },
     price: {
         type: Number,
         required: true,
@@ -35,6 +40,10 @@ const EventSchema = new mongoose.Schema({
         required: true,
         trim: true,
         match: /.+\@.+\..+/
+    },
+    contactPhone: {
+        type: String,
+        trim: true
     },
     imageUrl: {
         type: String,
@@ -52,7 +61,7 @@ const EventSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['upcoming', 'ongoing', 'completed'],
+        enum: ['upcoming', 'ongoing', 'completed', 'cancelled'],
         default: 'upcoming'
     },
     capacity: {
@@ -60,13 +69,41 @@ const EventSchema = new mongoose.Schema({
         required: true,
         min: 1
     },
-    // ✅ FIXED: Changed to proper ticket tracking
+    
+    // ✅ NEW: Free event registration data
+    freeRegistrations: [{
+        _id: false,
+        fullName: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        email: {
+            type: String,
+            required: true,
+            trim: true,
+            match: /.+\@.+\..+/
+        },
+        phone: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        registrationDate: {
+            type: Date,
+            default: Date.now
+        },
+        notes: {
+            type: String,
+            trim: true
+        }
+    }],
+    
     soldTickets: {
         type: Number,
         default: 0,
         min: 0
     },
-    // ✅ ADDED: Track ticket purchases
     ticketPurchases: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'TicketPurchase'
@@ -84,28 +121,57 @@ const EventSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true
+    },
+    
+    // ✅ NEW: Link to menu item
+    menuItem: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'MenuItem'
+    },
+    isFreeEvent: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true
 });
 
-// ✅ ADDED: Virtual for available tickets
+// Virtual untuk tiket tersedia
 EventSchema.virtual('availableTickets').get(function () {
     return Math.max(0, this.capacity - this.soldTickets);
 });
 
-// ✅ ADDED: Method to check ticket availability
+// Method untuk mengecek ketersediaan tiket
 EventSchema.methods.hasAvailableTickets = function (requestedQuantity) {
     return this.availableTickets >= requestedQuantity;
 };
 
-// ✅ ADDED: Method to reserve tickets
+// Method untuk memesan tiket
 EventSchema.methods.reserveTickets = function (quantity) {
     if (this.hasAvailableTickets(quantity)) {
         this.soldTickets += quantity;
         return this.save();
     }
     throw new Error('Not enough tickets available');
+};  
+
+// ✅ NEW: Method untuk registrasi event gratis
+EventSchema.methods.registerFreeEvent = function (registrationData) {
+    if (this.freeRegistrations.length >= this.capacity) {
+        throw new Error('Event capacity reached');
+    }
+    
+    // Cek apakah email sudah terdaftar
+    const existingRegistration = this.freeRegistrations.find(
+        reg => reg.email === registrationData.email
+    );
+    
+    if (existingRegistration) {
+        throw new Error('Email already registered for this event');
+    }
+    
+    this.freeRegistrations.push(registrationData);
+    return this.save();
 };
 
 EventSchema.set('toJSON', { virtuals: true });

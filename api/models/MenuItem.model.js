@@ -1,5 +1,4 @@
 // models/MenuItem.js
-
 import mongoose from 'mongoose';
 
 const MenuItemSchema = new mongoose.Schema({
@@ -18,14 +17,13 @@ const MenuItemSchema = new mongoose.Schema({
     trim: true
   },
   mainCategory: {
-    type: String, // Main category type (e.g., "food", "beverage")
+    type: String,
     enum: ['makanan', 'minuman', 'instan', 'dessert', 'snack', 'event'],
     default: 'makanan'
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',
-    // required: true
   },
   subCategory: {
     type: mongoose.Schema.Types.ObjectId,
@@ -35,14 +33,30 @@ const MenuItemSchema = new mongoose.Schema({
     type: String,
     default: 'https://placehold.co/1920x1080/png'
   },
-  costPrice: { // Harga pokok produksi (auto-calculated)
+  costPrice: {
     type: Number,
     default: 0
   },
-  availableStock: { // Porsi tersedia (auto-calculated)
+  availableStock: {
     type: Number,
     default: 0
   },
+  
+  // ✅ NEW: Event-specific fields
+  event: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Event'
+  },
+  isEventItem: {
+    type: Boolean,
+    default: false
+  },
+  eventType: {
+    type: String,
+    enum: ['paid', 'free'],
+    default: 'paid'
+  },
+
   toppings: [
     {
       name: {
@@ -85,8 +99,7 @@ const MenuItemSchema = new mongoose.Schema({
       ref: 'Outlet'
     }
   ],
-  workstation:
-  {
+  workstation: {
     type: String,
     enum: ['kitchen', 'bar'],
   },
@@ -96,13 +109,17 @@ const MenuItemSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Auto-update costPrice
+// Auto-update costPrice (disesuaikan untuk event)
 MenuItemSchema.pre('save', async function (next) {
+  // Skip cost calculation for event items
+  if (this.isEventItem) {
+    return next();
+  }
+  
   if (this.isModified('toppings') || this.isModified('addons')) {
     const recipe = await mongoose.model('Recipe').findOne({ menuItemId: this._id });
     if (recipe) {
       let totalCost = 0;
-      // Hitung harga dasar
       for (const ing of recipe.baseIngredients) {
         const product = await mongoose.model('Product').findById(ing.productId);
         if (product) totalCost += (product.suppliers[0]?.price || 0) * ing.quantity;
