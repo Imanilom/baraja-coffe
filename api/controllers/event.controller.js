@@ -263,6 +263,7 @@ export async function updateEventStatus(req, res) {
     }
 }
 
+
 // Get all menu items with event category filter
 export async function getMenuItems(req, res) {
     try {
@@ -276,6 +277,13 @@ export async function getMenuItems(req, res) {
 
         // Filter by sub-category
         if (category) {
+            // Validasi bahwa category adalah ObjectId yang valid
+            if (!mongoose.Types.ObjectId.isValid(category)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid category ID format'
+                });
+            }
             filters.category = category;
         }
 
@@ -304,7 +312,10 @@ export async function getMenuItems(req, res) {
         const menuItems = await MenuItem.find(filters)
             .populate('category')
             .populate('subCategory')
-            .populate('event')
+            .populate({
+                path: 'event',
+                select: 'name date status capacity' // Hanya field yang diperlukan
+            })
             .populate('availableAt')
             .sort({ mainCategory: 1, name: 1 });
 
@@ -314,10 +325,14 @@ export async function getMenuItems(req, res) {
             count: menuItems.length
         });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error('Error in getMenuItems:', err);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to fetch menu items',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
     }
 }
-
 // Get event menu items specifically
 export async function getEventMenuItems(req, res) {
     try {

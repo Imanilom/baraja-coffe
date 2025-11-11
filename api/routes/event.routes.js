@@ -13,7 +13,7 @@ import {
     getEventMenuItems,
     getMenuItemById,
     getAvailableEvents
-} from '../controllers/eventController.js';
+} from '../controllers/event.controller.js';
 
 const router = express.Router();
 
