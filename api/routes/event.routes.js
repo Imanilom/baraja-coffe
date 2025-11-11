@@ -1,28 +1,38 @@
 // routes/eventRoutes.js
-import { Router } from 'express';
+import express from 'express';
 import {
     createEvent,
     getEvents,
     getEventById,
     updateEvent,
     deleteEvent,
-    addAttendee,
-    removeAttendee,
-    // buyTicket
-} from '../controllers/event.controller.js';
-import { verifyToken } from '../utils/verifyUser.js';
+    registerFreeEvent,
+    getEventRegistrations,
+    updateEventStatus,
+    getMenuItems,
+    getEventMenuItems,
+    getMenuItemById,
+    getAvailableEvents
+} from '../controllers/eventController.js';
 
-const router = Router();
-const marketingAcceess = verifyToken('marketing', 'admin', 'superadmin');
+const router = express.Router();
 
-router.post('/', marketingAcceess, createEvent);
+// Event CRUD Routes
+router.post('/', createEvent);
 router.get('/', getEvents);
 router.get('/:id', getEventById);
 router.put('/:id', updateEvent);
-router.delete('/:id', marketingAcceess, deleteEvent);
-router.post('/:id/attendees', addAttendee);
-router.delete('/:id/attendees', removeAttendee);
+router.delete('/:id', deleteEvent);
 
-// router.put('/ticket', buyTicket)
+// Event Registration & Management
+router.post('/:id/register', registerFreeEvent);
+router.get('/:id/registrations', getEventRegistrations);
+router.patch('/status/update', updateEventStatus);
+
+// Menu Items Routes (with Event support)
+router.get('/menu-items', getMenuItems);
+router.get('/menu-items/events', getEventMenuItems);
+router.get('/menu-items/events/available', getAvailableEvents);
+router.get('/menu-items/:id', getMenuItemById);
 
 export default router;
