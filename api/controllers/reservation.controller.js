@@ -72,7 +72,6 @@ const createReservationWithOrderSchema = Joi.object({
   require_dp: Joi.boolean().default(true) // FIELD BARU: menentukan apakah perlu DP atau tidak
 });
 
-
 // Create reservation only
 export const createReservation = async (req, res) => {
   const session = await mongoose.startSession();
@@ -529,9 +528,11 @@ export const createReservationWithOrder = async (req, res) => {
     let midtransResponse = null;
     
     // Create order if there are order items
+    // Create order if there are order items
     if (order_items && order_items.length > 0) {
-      // Generate order ID
-      const orderId = `ORD-${reservation.reservation_code}-${Date.now()}`;
+      // Generate order ID yang lebih pendek - hanya menggunakan sequence number
+      const orderSequence = await getNextOrderSequence();
+      const orderId = `ORD-${reservation.reservation_code}-${orderSequence.toString().padStart(3, '0')}`;
       
       // Prepare order items
       const formattedOrderItems = order_items.map(item => ({
@@ -586,7 +587,7 @@ export const createReservationWithOrder = async (req, res) => {
         user: customer_name || 'Guest',
         items: formattedOrderItems,
         customAmountItems: customAmountItems, // KOSONGKAN JIKA TIDAK ADA DP
-        status: require_dp ? 'Pending' : 'OnProcess', // STATUS ORDER BERBEDA
+        status: require_dp ? 'Pending' : 'Reserved', // STATUS ORDER BERBEDA
         paymentMethod: payment_method || (require_dp ? 'E-Wallet' : 'Cash'),
         orderType: 'Reservation',
         tableNumber: tables.map(t => t.table_number).join(', '),
@@ -626,7 +627,9 @@ export const createReservationWithOrder = async (req, res) => {
 
       // BUAT PAYMENT RECORD HANYA JIKA PERLU DP
       if (require_dp) {
-        const paymentCode = `PAY-${reservation.reservation_code}-${Date.now()}`;
+        // Generate payment code yang lebih pendek - hanya menggunakan sequence number
+        const paymentSequence = await getNextPaymentSequence();
+        const paymentCode = `PAY-${reservation.reservation_code}-${paymentSequence.toString().padStart(3, '0')}`;
         
         paymentRecord = new Payment({
           order_id: order.order_id,
@@ -683,7 +686,8 @@ export const createReservationWithOrder = async (req, res) => {
 
           // UPDATE PAYMENT RECORD DENGAN DATA MIDTRANS JIKA BERHASIL
           if (midtransResponse && midtransResponse.token) {
-            paymentRecord.transaction_id = midtransResponse.transaction_id || `MID-${Date.now()}`;
+            // Gunakan transaction_id dari Midtrans atau buat yang lebih pendek
+            paymentRecord.transaction_id = midtransResponse.transaction_id || `MID-${paymentSequence}`;
             paymentRecord.midtransRedirectUrl = midtransResponse.redirect_url;
             paymentRecord.raw_response = midtransResponse;
             
@@ -875,6 +879,54 @@ export const createReservationWithOrder = async (req, res) => {
     });
   }
 };
+
+// Helper function untuk mendapatkan sequence order berikutnya - DIPERBAIKI
+const getNextOrderSequence = async () => {
+  const today = new Date();
+  const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
+  
+  // Cari order terakhir untuk hari ini dengan pattern yang benar
+  const lastOrder = await Order.findOne({
+    order_id: new RegExp(`ORD-RSV-${dateString}-`)
+  }).sort({ createdAt: -1 });
+  
+  let sequence = 1;
+  if (lastOrder && lastOrder.order_id) {
+    // Extract sequence dari order_id: ORD-RSV-20251110-001
+    const orderIdParts = lastOrder.order_id.split('-');
+    if (orderIdParts.length >= 4) {
+      const lastSequence = parseInt(orderIdParts[3]) || 0;
+      sequence = lastSequence + 1;
+    }
+  }
+  
+  return sequence;
+};
+
+// Helper function untuk mendapatkan sequence payment berikutnya - DIPERBAIKI
+const getNextPaymentSequence = async () => {
+  const today = new Date();
+  const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
+  
+  // Cari payment terakhir untuk hari ini dengan pattern yang benar
+  const lastPayment = await Payment.findOne({
+    payment_code: new RegExp(`PAY-RSV-${dateString}-`)
+  }).sort({ createdAt: -1 });
+  
+  let sequence = 1;
+  if (lastPayment && lastPayment.payment_code) {
+    // Extract sequence dari payment_code: PAY-RSV-20251110-001
+    const paymentCodeParts = lastPayment.payment_code.split('-');
+    if (paymentCodeParts.length >= 4) {
+      const lastSequence = parseInt(paymentCodeParts[3]) || 0;
+      sequence = lastSequence + 1;
+    }
+  }
+  
+  return sequence;
+};
+
+
 
 
 // Get all reservations

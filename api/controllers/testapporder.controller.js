@@ -839,6 +839,7 @@ export const createAppOrder = async (req, res) => {
         });
 
         // ✅ Reservation creation
+        // ✅ Reservation creation
         let reservationRecord = null;
         if (orderType === 'reservation' && !isOpenBill) {
             try {
@@ -867,6 +868,70 @@ export const createAppOrder = async (req, res) => {
                     });
                 }
 
+                // ✅ Extract data baru dari reservationData
+                const servingType = reservationData.serving_type || 'ala carte';
+                const equipment = Array.isArray(reservationData.equipment)
+                    ? reservationData.equipment
+                    : [];
+                const agenda = reservationData.agenda || '';
+                const foodServingOption = reservationData.food_serving_option || 'immediate';
+                const foodServingTime = reservationData.food_serving_time
+                    ? new Date(reservationData.food_serving_time)
+                    : null;
+
+                // 🆕 CHANGED: Tentukan status berdasarkan sumber (GRO atau App)
+                const reservationStatus = isGroMode ? 'confirmed' : 'pending';
+
+                // ✅ Validation untuk serving_type
+                const validServingTypes = ['ala carte', 'buffet'];
+                if (!validServingTypes.includes(servingType)) {
+                    await Order.findByIdAndDelete(newOrder._id);
+                    if (stockDeductions.length > 0) {
+                        await rollbackStock(stockDeductions);
+                    }
+                    return res.status(400).json({
+                        success: false,
+                        message: `Invalid serving_type. Must be one of: ${validServingTypes.join(', ')}`
+                    });
+                }
+
+                // ✅ Validation untuk food_serving_option
+                const validFoodServingOptions = ['immediate', 'scheduled'];
+                if (!validFoodServingOptions.includes(foodServingOption)) {
+                    await Order.findByIdAndDelete(newOrder._id);
+                    if (stockDeductions.length > 0) {
+                        await rollbackStock(stockDeductions);
+                    }
+                    return res.status(400).json({
+                        success: false,
+                        message: `Invalid food_serving_option. Must be one of: ${validFoodServingOptions.join(', ')}`
+                    });
+                }
+
+                // ✅ Validation: jika scheduled, food_serving_time harus ada
+                if (foodServingOption === 'scheduled' && !foodServingTime) {
+                    await Order.findByIdAndDelete(newOrder._id);
+                    if (stockDeductions.length > 0) {
+                        await rollbackStock(stockDeductions);
+                    }
+                    return res.status(400).json({
+                        success: false,
+                        message: 'food_serving_time is required when food_serving_option is scheduled'
+                    });
+                }
+
+                console.log('📝 Creating reservation with complete data:', {
+                    serving_type: servingType,
+                    equipment_count: equipment.length,
+                    equipment_items: equipment.join(', ') || 'none',
+                    agenda: agenda || 'none',
+                    food_serving_option: foodServingOption,
+                    food_serving_time: foodServingTime ? foodServingTime.toISOString() : 'immediate',
+                    // 🆕 CHANGED: Log status reservasi
+                    status: reservationStatus,
+                    source: isGroMode ? 'GRO' : 'App'
+                });
+
                 reservationRecord = new Reservation({
                     reservation_date: parsedReservationDate,
                     reservation_time: reservationData.reservationTime,
@@ -875,9 +940,21 @@ export const createAppOrder = async (req, res) => {
                     guest_count: reservationData.guestCount,
                     guest_number: isGroMode ? guestPhone : null,
                     order_id: newOrder._id,
-                    status: 'pending',
+                    status: reservationStatus, // 🆕 CHANGED: Gunakan status yang sudah ditentukan
                     reservation_type: reservationType || 'nonBlocking',
                     notes: reservationData.notes || '',
+
+                    // ✅ Fields yang sudah ada sebelumnya
+                    serving_type: servingType,
+                    equipment: equipment,
+
+                    // ✅ BARU: Agenda
+                    agenda: agenda,
+
+                    // ✅ BARU: Food serving options
+                    food_serving_option: foodServingOption,
+                    food_serving_time: foodServingTime,
+
                     created_by: createdByData
                 });
 
@@ -886,10 +963,22 @@ export const createAppOrder = async (req, res) => {
                 newOrder.reservation = reservationRecord._id;
                 await newOrder.save();
 
-                console.log('✅ Reservation created with GRO data:', {
+                console.log('✅ Reservation created successfully:', {
                     reservationId: reservationRecord._id,
-                    createdBy: createdByData,
-                    guestNumber: guestPhone
+                    reservation_code: reservationRecord.reservation_code,
+                    status: reservationRecord.status, // 🆕 CHANGED: Log status
+                    serving_type: reservationRecord.serving_type,
+                    equipment_count: reservationRecord.equipment.length,
+                    equipment_list: reservationRecord.equipment.join(', ') || 'none',
+                    agenda: reservationRecord.agenda || 'none',
+                    food_serving_option: reservationRecord.food_serving_option,
+                    food_serving_time: reservationRecord.food_serving_time
+                        ? reservationRecord.food_serving_time.toISOString()
+                        : 'immediate',
+                    guest_count: reservationRecord.guest_count,
+                    createdBy: createdByData.employee_name || 'App User',
+                    // 🆕 CHANGED: Informasi tambahan
+                    isGroMode: isGroMode
                 });
             } catch (reservationError) {
                 console.error('❌ Reservation creation failed:', reservationError.message);

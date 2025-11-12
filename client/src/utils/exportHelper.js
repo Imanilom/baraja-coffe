@@ -33,6 +33,7 @@ export const exportToExcel = async (data, fileName, headerInfo = []) => {
         "Subtotal",
         "Diskon Transaksi",
         "Pajak",
+        "Service Charge",
         "Pembulatan",
         "Poin Ditukar",
         "Biaya Admin",

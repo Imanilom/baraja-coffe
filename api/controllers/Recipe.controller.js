@@ -5,6 +5,7 @@ import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import mongoose from 'mongoose';
 import { calculateMaxPortions } from '../utils/stockCalculator.js';
+import { calibrateSingleMenuStock } from '../jobs/stockCalibration.job.js';
 /**
  * Hitung porsi maksimal berdasarkan bahan tersedia
  */
@@ -242,6 +243,7 @@ export const updateSingleMenuStock = async (req, res) => {
 };
 
 // PATCH /api/menu-stocks/:menuItemId/adjust
+// PATCH /api/menu-stocks/:menuItemId/adjust
 export const adjustMenuStock = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -296,9 +298,19 @@ export const adjustMenuStock = async (req, res) => {
 
         await session.commitTransaction();
 
+        // 🔥 TAMBAHAN: Kalibrasi menu setelah reset stock
+        console.log(`🔄 Memulai kalibrasi otomatis untuk ${menuItemId} setelah reset stock...`);
+        try {
+          await calibrateSingleMenuStock(menuItemId.toString());
+          console.log(`✅ Kalibrasi otomatis berhasil untuk menu ${menuItemId}`);
+        } catch (calibrationError) {
+          console.error(`⚠️ Kalibrasi otomatis gagal (non-blocking):`, calibrationError.message);
+          // Non-blocking error, tidak menghentikan response
+        }
+
         return res.status(200).json({
           success: true,
-          message: 'Stok manual berhasil direset ke stok sistem',
+          message: 'Stok manual berhasil direset ke stok sistem dan dikalibrasi',
           data: menuStock
         });
 
@@ -368,12 +380,56 @@ export const adjustMenuStock = async (req, res) => {
     }
 
     await session.commitTransaction();
-    console.log('Stok menu berhasil disesuaikan');
-    io.to('join_cashier_room').emit('update_stock', { message: 'Stock Updated', data: stockDoc });
+    console.log('✅ Stok menu berhasil disesuaikan');
+    // Pastikan emit bekerja dengan benar
+    console.log('📤 Emitting stock_updated to kitchen_room for menu:', menuItemId);
+
+    // Emit ke kitchen room
+    console.log('📤 Broadcasting stock_updated to ALL clients');
+
+    // ✅ SOLUSI PALING MUDAH: Broadcast ke SEMUA client
+    io.emit('stock_updated', {
+      menuItemId: menuItemId.toString(),
+      message: 'Stock Updated',
+      stockData: {
+        menuItemId: stockDoc.menuItemId,
+        calculatedStock: stockDoc.calculatedStock,
+        manualStock: stockDoc.manualStock,
+        effectiveStock: stockDoc.effectiveStock,
+        lastAdjustedAt: stockDoc.lastAdjustedAt
+      },
+      timestamp: new Date()
+    });
+
+    console.log('✅ Stock update broadcasted to ALL clients');
+
+    console.log('✅ Stock update emitted successfully');
+    // 🔥 TAMBAHAN: Emit socket sebelum kalibrasi
+    io.to('join_cashier_room').emit('update_stock', {
+      message: 'Stock Updated',
+      data: stockDoc
+    });
+
+    // 🔥 TAMBAHAN: Kalibrasi menu setelah adjust stock berhasil
+    console.log(`🔄 Memulai kalibrasi otomatis untuk ${menuItemId} setelah adjust stock...`);
+    try {
+      const calibrationResult = await calibrateSingleMenuStock(menuItemId.toString());
+      console.log(`✅ Kalibrasi otomatis berhasil:`, calibrationResult);
+
+      // Emit update kalibrasi ke socket
+      io.to('join_cashier_room').emit('stock_calibrated', {
+        message: 'Stock Calibrated',
+        menuItemId,
+        data: calibrationResult
+      });
+    } catch (calibrationError) {
+      console.error(`⚠️ Kalibrasi otomatis gagal (non-blocking):`, calibrationError.message);
+      // Non-blocking error, tidak menghentikan response
+    }
 
     res.status(200).json({
       success: true,
-      message: 'Stok menu berhasil disesuaikan',
+      message: 'Stok menu berhasil disesuaikan dan dikalibrasi',
       data: stockDoc
     });
 

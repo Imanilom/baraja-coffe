@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
@@ -138,7 +139,7 @@ class MenuItemRepository {
       (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
     );
 
-    print("ggget local data :: ${localData.first.stock}");
+    debugPrint("get local data menu: ${localData.first.stock}");
     return localData;
   }
 

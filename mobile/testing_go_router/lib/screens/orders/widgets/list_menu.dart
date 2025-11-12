@@ -36,6 +36,34 @@ class _ListMenuState extends ConsumerState<ListMenu> {
   }
 
   void _handleAddToOrder(MenuItemModel menuItem) {
+    //jika stock 0, tidak bisa add to order dan dihimbau agar kasir mengupdate stock di worksstation
+    if (menuItem.stock?.manualStock == 0) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text(
+                'Stock Kosong',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: const Text(
+                'Silakan update stock di Workstation,\natau ganti menu lainnya.',
+                style: TextStyle(fontSize: 16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: const Text('Baiklah'),
+                  ),
+                ),
+              ],
+            ),
+      );
+      return;
+    }
+
     final orderDetail = ref.read(orderDetailProvider);
     final notifier = ref.read(orderDetailProvider.notifier);
 

@@ -4,6 +4,7 @@ import Payment from '../models/Payment.model.js';
 import OrderRevision from '../models/OrderRevision.model.js';
 import PaymentAdjustment from '../models/PaymentAdjustment.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
+import { processAllDiscountsBeforeTax, calculateTaxesAndServices } from './order.service.js';
 
 // --- Guard dapur: item yang boleh dikurangi/ubah
 const LOCKED_STATES = new Set(['printed', 'cooking', 'ready', 'served']);
@@ -456,30 +457,95 @@ export async function replaceOrderItemsAndAllocate({
         ];
 
         // 4. recalc total (pakai rasio pajak lama kayak tadi)
-        const itemsTotal = orderDoc.items.reduce((sum, it) => sum + Number(it.subtotal || 0), 0);
-        const discounts =
-            Number(orderDoc.discounts?.autoPromoDiscount || 0) +
-            Number(orderDoc.discounts?.manualDiscount || 0) +
-            Number(orderDoc.discounts?.voucherDiscount || 0);
+        // 4. Recalculate total + discounts + tax & service dari nol
 
-        const totalBeforeDiscount = itemsTotal;
-        const totalAfterDiscount = Math.max(0, totalBeforeDiscount - discounts);
+        // 4a. Hitung ulang total items & custom amount
+        const itemsTotal = orderDoc.items.reduce(
+            (sum, it) => sum + Number(it.subtotal || 0),
+            0
+        );
 
-        // derive rates
-        const baseBefore = Number(orderDoc.totalBeforeDiscount || 0);
-        const taxRate = baseBefore > 0 ? (Number(orderDoc.totalTax || 0) / baseBefore) : 0;
-        const serviceRate = baseBefore > 0 ? (Number(orderDoc.totalServiceFee || 0) / baseBefore) : 0;
+        const customAmountItems = orderDoc.customAmountItems || [];
+        const totalCustomAmount = customAmountItems.reduce(
+            (sum, ca) => sum + Number(ca.amount || 0),
+            0
+        );
 
-        const totalTax = Math.round(totalAfterDiscount * taxRate);
-        const totalServiceFee = Math.round(totalAfterDiscount * serviceRate);
-        const grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
+        // Kalau mau diskon juga kena custom amount → pakai itemsTotal + totalCustomAmount
+        // Kalau TIDAK mau custom amount kena diskon → pakai hanya itemsTotal
+        const totalBeforeDiscount = itemsTotal + totalCustomAmount;
+        // const totalBeforeDiscount = itemsTotal; // versi jika customAmount tidak kena diskon
 
+        // 4b. Hitung semua diskon sebelum pajak
+        const {
+            autoPromoDiscount,
+            manualDiscount,
+            voucherDiscount,
+            totalAllDiscounts,
+            totalAfterAllDiscounts,
+            appliedPromos,
+            appliedPromo,
+            voucher,
+        } = await processAllDiscountsBeforeTax({
+            orderItems: orderDoc.items,
+            outlet: orderDoc.outlet,
+            orderType: orderDoc.orderType,
+            voucherCode: null,          // kalau ada voucher dari frontend, isi di sini
+            customerType: null,         // atau ambil dari orderDoc kalau ada
+            totalBeforeDiscount,
+            source: orderDoc.source,
+            customAmountItems,
+        });
+
+        // 4c. Set nilai diskon dan total setelah semua diskon
         orderDoc.totalBeforeDiscount = totalBeforeDiscount;
-        orderDoc.totalAfterDiscount = totalAfterDiscount;
-        orderDoc.totalTax = totalTax;
-        orderDoc.totalServiceFee = totalServiceFee;
+        orderDoc.totalAfterDiscount = totalAfterAllDiscounts;
+
+        orderDoc.discounts = {
+            autoPromoDiscount,
+            manualDiscount,
+            voucherDiscount,
+        };
+
+        // detail promo otomatis
+        orderDoc.appliedPromos = appliedPromos || [];
+
+        // manual promo & voucher kalau ada
+        orderDoc.appliedManualPromo = appliedPromo?._id || null;
+        orderDoc.appliedVoucher = voucher?._id || null;
+
+        // 4d. Hitung Pajak & Service berdasarkan totalAfterDiscount
+        const taxableAmount = totalAfterAllDiscounts;
+
+        const {
+            taxAndServiceDetails,
+            totalTax,
+            totalServiceFee,
+        } = await calculateTaxesAndServices(
+            orderDoc.outlet,
+            taxableAmount,
+            orderDoc.items,
+            customAmountItems
+        );
+
+        orderDoc.taxAndServiceDetails = taxAndServiceDetails;
+        orderDoc.totalTax = Math.round(totalTax);
+        orderDoc.totalServiceFee = Math.round(totalServiceFee);
+
+        // 4e. Grand total baru (setelah diskon + tax + service)
+        const grandTotal = orderDoc.totalAfterDiscount +
+            orderDoc.totalTax +
+            orderDoc.totalServiceFee;
+
         orderDoc.grandTotal = grandTotal;
 
+        // 5. Hitung delta vs total sebelumnya (untuk allocateDeltaToPayments)
+        // const delta = {
+        //     subtotalDelta: totalBeforeDiscount - beforeTotals.totalBeforeDiscount,
+        //     taxDelta: totalTax - beforeTotals.totalTax,
+        //     serviceDelta: totalServiceFee - beforeTotals.totalServiceFee,
+        //     grandDelta: grandTotal - beforeTotals.grandTotal,
+        // };
         const delta = {
             subtotalDelta: totalBeforeDiscount - beforeTotals.totalBeforeDiscount,
             taxDelta: totalTax - beforeTotals.totalTax,

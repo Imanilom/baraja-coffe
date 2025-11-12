@@ -8,7 +8,7 @@ class MenuItemService {
   Future<Map<String, dynamic>> fetchMenuItems() async {
     try {
       final response = await _dio.get(
-        '/api/menu/menu-items',
+        '/api/menu/all-menu-items',
         options: Options(headers: {'ngrok-skip-browser-warning': true}),
         queryParameters: {'limit': '500'},
       );
