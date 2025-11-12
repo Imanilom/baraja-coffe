@@ -39,8 +39,10 @@ export const verifyToken = (allowedRoles = []) => {
         return next();
       }
 
+      const userRole = user.role?.name || user.role;
+
       // Cek apakah role user masuk ke daftar role yg diizinkan
-      if (!allowedRoles.includes(user.role.name)) {
+      if (!allowedRoles.includes(userRole)) {
         return res.status(403).json({ error: "Forbidden: Insufficient role" });
       }
 

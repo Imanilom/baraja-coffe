@@ -867,6 +867,54 @@ export const createAppOrder = async (req, res) => {
                     });
                 }
 
+                // reservationRecord = new Reservation({
+                //     reservation_date: parsedReservationDate,
+                //     reservation_time: reservationData.reservationTime,
+                //     area_id: reservationData.areaIds,
+                //     table_id: reservationData.tableIds,
+                //     guest_count: reservationData.guestCount,
+                //     guest_number: isGroMode ? guestPhone : null,
+                //     order_id: newOrder._id,
+                //     status: 'pending',
+                //     reservation_type: reservationType || 'nonBlocking',
+                //     notes: reservationData.notes || '',
+                //     created_by: createdByData
+                // });
+
+                // await reservationRecord.save();
+
+                // newOrder.reservation = reservationRecord._id;
+                // await newOrder.save();
+
+                // console.log('✅ Reservation created with GRO data:', {
+                //     reservationId: reservationRecord._id,
+                //     createdBy: createdByData,
+                //     guestNumber: guestPhone
+                // });
+                const servingType = reservationData.serving_type || 'ala carte';
+                const equipment = Array.isArray(reservationData.equipment)
+                    ? reservationData.equipment
+                    : [];
+
+                // ✅ Validation untuk serving_type
+                const validServingTypes = ['ala carte', 'buffet'];
+                if (!validServingTypes.includes(servingType)) {
+                    await Order.findByIdAndDelete(newOrder._id);
+                    if (stockDeductions.length > 0) {
+                        await rollbackStock(stockDeductions);
+                    }
+                    return res.status(400).json({
+                        success: false,
+                        message: `Invalid serving_type. Must be one of: ${validServingTypes.join(', ')}`
+                    });
+                }
+
+                console.log('📝 Creating reservation with additional data:', {
+                    serving_type: servingType,
+                    equipment_count: equipment.length,
+                    equipment_items: equipment.join(', ') || 'none'
+                });
+
                 reservationRecord = new Reservation({
                     reservation_date: parsedReservationDate,
                     reservation_time: reservationData.reservationTime,
@@ -878,6 +926,8 @@ export const createAppOrder = async (req, res) => {
                     status: 'pending',
                     reservation_type: reservationType || 'nonBlocking',
                     notes: reservationData.notes || '',
+                    serving_type: servingType,
+                    equipment: equipment,
                     created_by: createdByData
                 });
 
@@ -886,11 +936,16 @@ export const createAppOrder = async (req, res) => {
                 newOrder.reservation = reservationRecord._id;
                 await newOrder.save();
 
-                console.log('✅ Reservation created with GRO data:', {
+                console.log('✅ Reservation created successfully:', {
                     reservationId: reservationRecord._id,
-                    createdBy: createdByData,
-                    guestNumber: guestPhone
+                    reservation_code: reservationRecord.reservation_code,
+                    serving_type: reservationRecord.serving_type,
+                    equipment_count: reservationRecord.equipment.length,
+                    equipment_list: reservationRecord.equipment.join(', ') || 'none',
+                    guest_count: reservationRecord.guest_count,
+                    createdBy: createdByData.employee_name || 'App User'
                 });
+
             } catch (reservationError) {
                 console.error('❌ Reservation creation failed:', reservationError.message);
                 await Order.findByIdAndDelete(newOrder._id);

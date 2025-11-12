@@ -291,6 +291,7 @@ export const getKitchenOrder = async (req, res) => {
     // ✅ Ambil data order terbaru
     const orders = await Order.find({
       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] },
+
     })
       .populate({
         path: 'items.menuItem',
