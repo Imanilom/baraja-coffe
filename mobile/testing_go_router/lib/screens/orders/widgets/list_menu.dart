@@ -212,30 +212,34 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                 if (isSearchBarVisible)
                   Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: TextField(
+                    child: SearchBar(
                       controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Cari menu...',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: IconButton(
+                      hintText: 'Cari menu...',
+                      leading: const Icon(Icons.search_rounded),
+                      trailing: [
+                        IconButton(
                           icon: const Icon(Icons.clear),
                           onPressed: () {
                             _searchController.clear();
                             ref.read(searchQueryProvider.notifier).state = '';
                           },
                         ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
+                      ],
+                      onChanged: (value) {
+                        ref.read(searchQueryProvider.notifier).state = value;
+                      },
+
+                      // opsional: biar tampilannya mirip TextField kamu
+                      elevation: const WidgetStatePropertyAll(0),
+                      backgroundColor: const WidgetStatePropertyAll(
+                        Colors.white,
                       ),
-                      onChanged:
-                          (value) =>
-                              ref.read(searchQueryProvider.notifier).state =
-                                  value,
-                      autofocus: false,
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      constraints: const BoxConstraints(maxHeight: 48),
                     ),
                   ),
 
