@@ -263,7 +263,6 @@ export async function updateEventStatus(req, res) {
     }
 }
 
-
 // Get all menu items with event category filter
 export async function getMenuItems(req, res) {
     try {
