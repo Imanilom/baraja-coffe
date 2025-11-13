@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PaymentActionModel {
 
-@HiveField(0) String get name;@HiveField(1) String get method;@HiveField(2) String get url;
+@HiveField(0) String? get name;@HiveField(1) String? get method;@HiveField(2) String? get url;
 /// Create a copy of PaymentActionModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,7 +49,7 @@ abstract mixin class $PaymentActionModelCopyWith<$Res>  {
   factory $PaymentActionModelCopyWith(PaymentActionModel value, $Res Function(PaymentActionModel) _then) = _$PaymentActionModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) String name,@HiveField(1) String method,@HiveField(2) String url
+@HiveField(0) String? name,@HiveField(1) String? method,@HiveField(2) String? url
 });
 
 
@@ -66,12 +66,12 @@ class _$PaymentActionModelCopyWithImpl<$Res>
 
 /// Create a copy of PaymentActionModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? method = null,Object? url = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = freezed,Object? method = freezed,Object? url = freezed,}) {
   return _then(_self.copyWith(
-name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,method: null == method ? _self.method : method // ignore: cast_nullable_to_non_nullable
-as String,url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
-as String,
+name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String?,method: freezed == method ? _self.method : method // ignore: cast_nullable_to_non_nullable
+as String?,url: freezed == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -82,12 +82,12 @@ as String,
 @JsonSerializable()
 
 class _PaymentActionModel implements PaymentActionModel {
-   _PaymentActionModel({@HiveField(0) required this.name, @HiveField(1) required this.method, @HiveField(2) required this.url});
+   _PaymentActionModel({@HiveField(0) this.name = null, @HiveField(1) this.method = null, @HiveField(2) this.url = null});
   factory _PaymentActionModel.fromJson(Map<String, dynamic> json) => _$PaymentActionModelFromJson(json);
 
-@override@HiveField(0) final  String name;
-@override@HiveField(1) final  String method;
-@override@HiveField(2) final  String url;
+@override@JsonKey()@HiveField(0) final  String? name;
+@override@JsonKey()@HiveField(1) final  String? method;
+@override@JsonKey()@HiveField(2) final  String? url;
 
 /// Create a copy of PaymentActionModel
 /// with the given fields replaced by the non-null parameter values.
@@ -122,7 +122,7 @@ abstract mixin class _$PaymentActionModelCopyWith<$Res> implements $PaymentActio
   factory _$PaymentActionModelCopyWith(_PaymentActionModel value, $Res Function(_PaymentActionModel) _then) = __$PaymentActionModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) String name,@HiveField(1) String method,@HiveField(2) String url
+@HiveField(0) String? name,@HiveField(1) String? method,@HiveField(2) String? url
 });
 
 
@@ -139,12 +139,12 @@ class __$PaymentActionModelCopyWithImpl<$Res>
 
 /// Create a copy of PaymentActionModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? method = null,Object? url = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = freezed,Object? method = freezed,Object? url = freezed,}) {
   return _then(_PaymentActionModel(
-name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,method: null == method ? _self.method : method // ignore: cast_nullable_to_non_nullable
-as String,url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
-as String,
+name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String?,method: freezed == method ? _self.method : method // ignore: cast_nullable_to_non_nullable
+as String?,url: freezed == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

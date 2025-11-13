@@ -8,9 +8,9 @@ part 'payment_action.model.g.dart';
 @HiveType(typeId: 18) // Pastikan typeId unik
 abstract class PaymentActionModel with _$PaymentActionModel {
   factory PaymentActionModel({
-    @HiveField(0) required String name,
-    @HiveField(1) required String method,
-    @HiveField(2) required String url,
+    @HiveField(0) @Default(null) String? name,
+    @HiveField(1) @Default(null) String? method,
+    @HiveField(2) @Default(null) String? url,
   }) = _PaymentActionModel;
 
   factory PaymentActionModel.fromJson(Map<String, dynamic> json) =>
