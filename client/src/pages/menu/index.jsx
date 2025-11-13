@@ -95,13 +95,20 @@ const Menu = () => {
     setLoading(true);
     try {
       const menuResponse = await axios.get('/api/menu/all-menu-items-backoffice');
-      setMenuItems(menuResponse.data.data);
+      setMenuItems(menuResponse.data.data.filter((menu) => menu.mainCategory !== "event"));
 
       const outletsResponse = await axios.get('/api/outlet');
       setOutlets(outletsResponse.data.data);
 
       const categoryResponse = await axios.get('/api/menu/categories');
-      setCategory(categoryResponse.data.data.filter((cat) => !cat.parentCategory && cat.name !== "Event"));
+      const excludedCategories = ["Event", "Ruangan", "Sparkling"];
+
+      setCategory(
+        categoryResponse.data.data.filter((cat) =>
+          !excludedCategories.includes(cat.name) &&
+          !excludedCategories.includes(cat.parentCategory)
+        )
+      );
 
       setStatus([
         { id: "ya", name: "Ya" },
