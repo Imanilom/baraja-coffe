@@ -168,6 +168,9 @@ import CreateTicket from "./pages/ticket/create";
 import UpdateTicket from "./pages/ticket/update";
 import StockReconciliation from "./pages/stock_reconciliation";
 
+// HRD Routes
+import HRDashboard from "./pages/hr";
+
 
 export default function App() {
   return (
@@ -260,6 +263,9 @@ export default function App() {
                 <Route path="operational/expenditure" element={<ExpenditureManagement />} />
                 <Route path="operational/commission" element={<CommissionManagement />} />
                 <Route path="operational/table" element={<TableManagement />} />
+
+                {/* HR */}
+                 <Route path="hrdDashboard" element={<HRDashboard />} />
 
                 {/* Profit */}
                 <Route path="tax-revenue" element={<TaxRevenueManagement />} />
