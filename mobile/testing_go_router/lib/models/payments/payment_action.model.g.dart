@@ -17,9 +17,9 @@ class PaymentActionModelAdapter extends TypeAdapter<PaymentActionModel> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return PaymentActionModel(
-      name: fields[0] as String,
-      method: fields[1] as String,
-      url: fields[2] as String,
+      name: fields[0] == null ? null : fields[0] as String?,
+      method: fields[1] == null ? null : fields[1] as String?,
+      url: fields[2] == null ? null : fields[2] as String?,
     );
   }
 
@@ -52,9 +52,9 @@ class PaymentActionModelAdapter extends TypeAdapter<PaymentActionModel> {
 
 _PaymentActionModel _$PaymentActionModelFromJson(Map<String, dynamic> json) =>
     _PaymentActionModel(
-      name: json['name'] as String,
-      method: json['method'] as String,
-      url: json['url'] as String,
+      name: json['name'] as String? ?? null,
+      method: json['method'] as String? ?? null,
+      url: json['url'] as String? ?? null,
     );
 
 Map<String, dynamic> _$PaymentActionModelToJson(_PaymentActionModel instance) =>

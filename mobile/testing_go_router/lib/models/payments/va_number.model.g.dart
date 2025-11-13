@@ -17,8 +17,8 @@ class VANumberModelAdapter extends TypeAdapter<VANumberModel> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return VANumberModel(
-      bank: fields[0] as String,
-      vaNumber: fields[1] as String,
+      bank: fields[0] == null ? null : fields[0] as String?,
+      vaNumber: fields[1] == null ? null : fields[1] as String?,
     );
   }
 
@@ -49,8 +49,8 @@ class VANumberModelAdapter extends TypeAdapter<VANumberModel> {
 
 _VANumberModel _$VANumberModelFromJson(Map<String, dynamic> json) =>
     _VANumberModel(
-      bank: json['bank'] as String,
-      vaNumber: json['va_number'] as String,
+      bank: json['bank'] as String? ?? null,
+      vaNumber: json['va_number'] as String? ?? null,
     );
 
 Map<String, dynamic> _$VANumberModelToJson(_VANumberModel instance) =>

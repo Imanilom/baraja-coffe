@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$VANumberModel {
 
-@HiveField(0) String get bank;@HiveField(1)@JsonKey(name: 'va_number') String get vaNumber;
+@HiveField(0) String? get bank;@HiveField(1)@JsonKey(name: 'va_number') String? get vaNumber;
 /// Create a copy of VANumberModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,7 +49,7 @@ abstract mixin class $VANumberModelCopyWith<$Res>  {
   factory $VANumberModelCopyWith(VANumberModel value, $Res Function(VANumberModel) _then) = _$VANumberModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) String bank,@HiveField(1)@JsonKey(name: 'va_number') String vaNumber
+@HiveField(0) String? bank,@HiveField(1)@JsonKey(name: 'va_number') String? vaNumber
 });
 
 
@@ -66,11 +66,11 @@ class _$VANumberModelCopyWithImpl<$Res>
 
 /// Create a copy of VANumberModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? bank = null,Object? vaNumber = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? bank = freezed,Object? vaNumber = freezed,}) {
   return _then(_self.copyWith(
-bank: null == bank ? _self.bank : bank // ignore: cast_nullable_to_non_nullable
-as String,vaNumber: null == vaNumber ? _self.vaNumber : vaNumber // ignore: cast_nullable_to_non_nullable
-as String,
+bank: freezed == bank ? _self.bank : bank // ignore: cast_nullable_to_non_nullable
+as String?,vaNumber: freezed == vaNumber ? _self.vaNumber : vaNumber // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -81,11 +81,11 @@ as String,
 @JsonSerializable()
 
 class _VANumberModel implements VANumberModel {
-   _VANumberModel({@HiveField(0) required this.bank, @HiveField(1)@JsonKey(name: 'va_number') required this.vaNumber});
+   _VANumberModel({@HiveField(0) this.bank = null, @HiveField(1)@JsonKey(name: 'va_number') this.vaNumber = null});
   factory _VANumberModel.fromJson(Map<String, dynamic> json) => _$VANumberModelFromJson(json);
 
-@override@HiveField(0) final  String bank;
-@override@HiveField(1)@JsonKey(name: 'va_number') final  String vaNumber;
+@override@JsonKey()@HiveField(0) final  String? bank;
+@override@HiveField(1)@JsonKey(name: 'va_number') final  String? vaNumber;
 
 /// Create a copy of VANumberModel
 /// with the given fields replaced by the non-null parameter values.
@@ -120,7 +120,7 @@ abstract mixin class _$VANumberModelCopyWith<$Res> implements $VANumberModelCopy
   factory _$VANumberModelCopyWith(_VANumberModel value, $Res Function(_VANumberModel) _then) = __$VANumberModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) String bank,@HiveField(1)@JsonKey(name: 'va_number') String vaNumber
+@HiveField(0) String? bank,@HiveField(1)@JsonKey(name: 'va_number') String? vaNumber
 });
 
 
@@ -137,11 +137,11 @@ class __$VANumberModelCopyWithImpl<$Res>
 
 /// Create a copy of VANumberModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? bank = null,Object? vaNumber = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? bank = freezed,Object? vaNumber = freezed,}) {
   return _then(_VANumberModel(
-bank: null == bank ? _self.bank : bank // ignore: cast_nullable_to_non_nullable
-as String,vaNumber: null == vaNumber ? _self.vaNumber : vaNumber // ignore: cast_nullable_to_non_nullable
-as String,
+bank: freezed == bank ? _self.bank : bank // ignore: cast_nullable_to_non_nullable
+as String?,vaNumber: freezed == vaNumber ? _self.vaNumber : vaNumber // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
