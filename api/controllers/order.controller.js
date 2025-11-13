@@ -5338,144 +5338,174 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
+function makeLogger(route, reqId) {
+  const base = { route, reqId };
+  return {
+    info: (msg, extra = {}) =>
+      console.log(JSON.stringify({ level: 'info', msg, ...base, ...extra })),
+    warn: (msg, extra = {}) =>
+      console.warn(JSON.stringify({ level: 'warn', msg, ...base, ...extra })),
+    error: (msg, extra = {}) =>
+      console.error(JSON.stringify({ level: 'error', msg, ...base, ...extra })),
+    timeStart: (label) => console.time(`[${route}][${reqId}] ${label}`),
+    timeEnd: (label) => console.timeEnd(`[${route}][${reqId}] ${label}`),
+  };
+}
+
 export const getPendingOrders = async (req, res) => {
+  const reqId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const log = makeLogger('getPendingOrders', reqId);
+
   try {
     const { rawOutletId } = req.params;
     const { sources } = req.body;
-    console.log("rawOutletId:", rawOutletId, "sources:", sources);
+
+    log.info('incoming_request', {
+      params: { rawOutletId },
+      body: { sources },
+      method: req.method,
+      path: req.originalUrl,
+    });
+
     if (!rawOutletId) {
+      log.warn('missing_outlet_id');
       return res.status(400).json({ message: 'outletId is required' });
     }
 
-    const outletId = rawOutletId.trim();
-    const outletObjectId = new mongoose.Types.ObjectId(outletId);
+    let outletObjectId;
+    try {
+      outletObjectId = new mongoose.Types.ObjectId(rawOutletId.trim());
+    } catch {
+      log.warn('invalid_outlet_id', { rawOutletId });
+      return res.status(400).json({ message: 'Invalid outletId' });
+    }
 
-    // Ambil order pending / reserved dari outlet tertentu
+    const sourceFilter =
+      Array.isArray(sources) && sources.length
+        ? { source: { $in: sources } }
+        : {};
+
+    // ===== Query Orders =====
+    log.timeStart('query_orders');
     const pendingOrders = await Order.find({
       $and: [
-        {
-          source: { $in: sources },
-          outlet: outletObjectId
-        },
-        {
-          $or: [
-            // Status selain OnProcess
-            { status: { $in: ['Pending', 'Reserved'] } },
-            // Status OnProcess tapi hanya untuk Reservation
-            {
-              $and: [
-                { status: 'OnProcess' },
-                { orderType: 'Reservation' }
-              ]
-            }
-          ]
-        }
-      ]
+        { ...sourceFilter, outlet: outletObjectId },
+        { $or: [{ status: { $in: ['Pending', 'Reserved'] } }, { status: 'OnProcess' }] },
+      ],
     })
       .lean()
       .sort({ createdAt: -1 });
-
-    if (!pendingOrders.length || pendingOrders.length === 0) {
-      return res.status(200).json({ message: 'No online order found.', orders: pendingOrders });
-    }
-
-    const orderIds = pendingOrders.map(order => order.order_id);
-
-    // Enhanced: Ambil semua payment details untuk orders
-    const payments = await Payment.find({
-      order_id: { $in: orderIds },
-      status: { $ne: "void" }
-    })
-      .lean()
-      .sort({ createdAt: -1 }); // Sort by latest payment first
-
-    // console.log('Found payments:', payments);
-
-    // 🔧 Enhanced Payment Processing with Full Details
-    const paymentDetailsMap = new Map();
-    const paymentStatusMap = new Map();
-
-    payments.forEach(payment => {
-      const orderId = payment.order_id.toString();
-
-      // Determine payment status with DP logic
-      let status = payment?.status || 'Unpaid';
-      if (payment?.paymentType === 'Down Payment') {
-        if (payment?.status === 'settlement' && payment?.remainingAmount !== 0) {
-          status = 'partial';
-        } else if (payment?.status === 'settlement' && payment?.remainingAmount === 0) {
-          status = 'settlement';
-        }
-      }
-
-      // Store payment status
-      paymentStatusMap.set(orderId, status);
-
-      // Store complete payment details
-      if (!paymentDetailsMap.has(orderId)) {
-        paymentDetailsMap.set(orderId, []);
-      }
-
-      paymentDetailsMap.get(orderId).push(payment);
+    log.timeEnd('query_orders');
+    log.info('orders_fetched', {
+      totalOrders: pendingOrders.length,
+      hasSourceFilter: !!(sourceFilter.source),
     });
 
-    // Identify successful payments
-    const successfulPaymentOrderIds = new Set(
-      payments
-        .filter(p =>
-          p.status === 'Success' ||
-          p.status === 'settlement'
-        )
-        .map(p => p.order_id.toString())
-    );
+    if (!pendingOrders.length) {
+      log.info('no_orders_for_outlet', { outletId: rawOutletId.trim() });
+      return res.status(200).json({ message: 'No online order found.', orders: [] });
+    }
 
-    // Filter unpaid orders (optional - you might want to include all for admin view)
-    const unpaidOrders = pendingOrders.filter(
-      order => !successfulPaymentOrderIds.has(order._id.toString())
-    );
+    const orderIds = pendingOrders.map((o) => o.order_id);
 
-    // Get menu items for enrichment
+    // ===== Query Payments =====
+    log.timeStart('query_payments');
+    const payments = await Payment.find({
+      order_id: { $in: orderIds },
+      status: { $ne: 'void' },
+    })
+      .lean()
+      .sort({ createdAt: -1 });
+    log.timeEnd('query_payments');
+    log.info('payments_fetched', { totalPayments: payments.length });
+
+    // Map payments per order (dan pastikan urut terbaru → lama)
+    const paymentDetailsMap = new Map();
+    for (const p of payments) {
+      const k = String(p.order_id);
+      if (!paymentDetailsMap.has(k)) paymentDetailsMap.set(k, []);
+      paymentDetailsMap.get(k).push(p);
+    }
+    for (const [k, arr] of paymentDetailsMap.entries()) {
+      arr.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      paymentDetailsMap.set(k, arr);
+    }
+
+    // ===== Seleksi Final =====
+    log.timeStart('select_orders');
+    const selectedOrders = pendingOrders.filter((order) => {
+      if (order.status === 'Pending' || order.status === 'Reserved') return true;
+      console.log('bukan pending order');
+      if (order.status === 'OnProcess') {
+        const details = paymentDetailsMap.get(String(order.order_id)) || [];
+        const hasPendingPayment = details.some(
+          (p) => String(p.status).toLowerCase() === 'pending'
+        );
+        // const totalPaid = details.reduce((sum, p) => sum + (p.amount || 0), 0);
+        // const notFullyPaid = totalPaid < (order.grandTotal || 0);
+        // console.log('cek pending payment', { hasPendingPayment, notFullyPaid });
+        return hasPendingPayment;
+      }
+      console.log('bukan onprocess paid order');
+
+      return false;
+    });
+    log.timeEnd('select_orders');
+    log.info('orders_selected', {
+      totalSelected: selectedOrders.length,
+      totalDropped: pendingOrders.length - selectedOrders.length,
+    });
+
+    // ===== Enrichment Menu Items =====
     const menuItemIds = [
       ...new Set(
-        unpaidOrders
-          .flatMap(order =>
-            order.items.map(item => item.menuItem?.toString())
-          )
+        selectedOrders
+          .flatMap((order) => order.items.map((item) => item.menuItem?.toString()))
           .filter(Boolean)
-      )
+      ),
     ];
+    log.info('menu_ids_collected', { uniqueMenuIds: menuItemIds.length });
 
+    log.timeStart('query_menu_items');
     const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } }).lean();
-    const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
+    log.timeEnd('query_menu_items');
+    log.info('menu_items_fetched', { totalMenuItems: menuItems.length });
 
-    // Enhanced order enrichment with payment details
-    const enrichedOrders = unpaidOrders.map(order => {
-      // const orderId = order._id.toString();
-      const orderIdString = order.order_id.toString();
+    const menuItemMap = new Map(menuItems.map((it) => [it._id.toString(), it]));
 
-      // Enrich items as before
-      const updatedItems = order.items.map(item => {
+    // ===== Enrichment & Summary =====
+    log.timeStart('enrich_orders');
+    const enrichedOrders = selectedOrders.map((order) => {
+      const orderId = String(order.order_id);
+      const paymentDetails = paymentDetailsMap.get(orderId) || [];
+
+      const updatedItems = order.items.map((item) => {
         const menuItem = menuItemMap.get(item.menuItem?.toString());
 
-        const enrichedAddons = (item.addons || []).map(addon => {
-          const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
-          const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
+        const enrichedAddons = (item.addons || []).map((addon) => {
+          const matchedAddon = menuItem?.addons?.find((ma) => ma.name === addon.name);
+          const matchedOption =
+            matchedAddon?.options?.find((opt) => opt._id?.toString() === addon?.options?.[0]?.id?.toString()) ||
+            matchedAddon?.options?.find((opt) => opt.price === addon.price);
+
           return {
             id: addon._id,
             name: addon.name,
             options: matchedOption
-              ? [{ id: matchedOption._id, price: addon.price, label: matchedOption.label }]
+              ? [{ id: matchedOption._id, price: matchedOption.price, label: matchedOption.label }]
               : addon.options || [],
           };
         });
 
         return {
-          menuItem: menuItem ? {
-            id: menuItem._id,
-            name: menuItem.name,
-            originalPrice: menuItem.price,
-            workstation: menuItem.workstation
-          } : null,
+          menuItem: menuItem
+            ? {
+              id: menuItem._id,
+              name: menuItem.name,
+              originalPrice: menuItem.price,
+              workstation: menuItem.workstation,
+            }
+            : null,
           selectedToppings: item.toppings || [],
           selectedAddons: enrichedAddons,
           subtotal: item.subtotal,
@@ -5485,82 +5515,87 @@ export const getPendingOrders = async (req, res) => {
         };
       });
 
-      // Get payment details for this order
-      const paymentDetails = paymentDetailsMap.get(orderIdString) || [];
-      //get payment status jika payment detail ada 2 dan salah satunya belum lunas atau settlement beri satatus "partial", dan jika ada satu atau lebih yang lunas beri status "settlement" dan jika hanya ada satu yang lunas namun lebih kecil dari grand total beri status "partial"
+      const totalPaid = paymentDetails.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
+      const isFullyPaid = totalPaid >= (order.grandTotal || 0);
+      const isUnpaid = totalPaid === 0;
+      const isPartiallyPaid = !isUnpaid && !isFullyPaid;
+      const hasPendingPayment = paymentDetails.some(
+        (p) => String(p.status || '').toLowerCase() === 'pending'
+      );
 
-      const paymentStatus = paymentDetails.length > 1
-        ? paymentDetails.every(p => p.status === 'Success' || p.status === 'settlement')
-          ? 'Settlement'
-          : paymentDetails.some(p => p.status === 'Success' || p.status === 'settlement')
-            ? 'Partial'
-            : 'Pending'
-        : paymentDetails.length === 1
-          ? paymentDetails[0].status === 'Success' || paymentDetails[0].status === 'settlement'
-            ? 'Settlement'
-            : paymentDetails[0].payment_type === 'Down Payment' ? 'Partial' : 'Pending'
-          : 'Pending';
+      let paymentStatus = 'Pending';
+      if (isFullyPaid) paymentStatus = 'Settlement';
+      else if (isPartiallyPaid || hasPendingPayment) paymentStatus = 'Partial';
 
-      // Calculate payment summary
-      const totalPaid = paymentDetails.reduce((sum, payment) =>
-        sum + (payment.paidAmount || 0), 0);
-      const totalRemaining = paymentDetails.reduce((sum, payment) =>
-        sum + (payment.remainingAmount || 0), 0);
-      const latestPayment = paymentDetails[0]; // Since we sorted by latest first
+      const latestPayment = paymentDetails[0] || null;
 
       return {
         ...order,
-        paymentStatus,
         items: updatedItems,
-
-        // Enhanced Payment Information
         payment_details: paymentDetails,
+        paymentStatus,
         paymentSummary: {
           totalAmount: order.grandTotal,
-          totalPaid: totalPaid,
-          totalRemaining: Math.max(0, order.grandTotal - totalPaid),
+          totalPaid,
+          totalRemaining: Math.max(0, (order.grandTotal || 0) - totalPaid),
           paymentCount: paymentDetails.length,
-          hasDownPayment: paymentDetails.some(p => p.paymentType === 'Down Payment'),
+          hasDownPayment: paymentDetails.some((p) => p.paymentType === 'Down Payment'),
           latestPaymentDate: latestPayment?.paymentDate || null,
           latestPaymentMethod: latestPayment?.paymentMethod || null,
           latestTransactionId: latestPayment?.transactionId || null,
-          isFullyPaid: totalPaid >= order.grandTotal,
-          isPartiallyPaid: totalPaid > 0 && totalPaid < order.grandTotal,
-          isUnpaid: totalPaid === 0
-        }
+          isFullyPaid,
+          isPartiallyPaid,
+          isUnpaid,
+        },
       };
     });
+    log.timeEnd('enrich_orders');
 
-    // Add overall statistics
+    // ===== Statistik =====
+    log.timeStart('aggregate_statistics');
     const statistics = {
       totalOrders: enrichedOrders.length,
-      totalUnpaid: enrichedOrders.filter(o => o.paymentSummary.isUnpaid).length,
-      totalPartiallyPaid: enrichedOrders.filter(o => o.paymentSummary.isPartiallyPaid).length,
-      totalFullyPaid: enrichedOrders.filter(o => o.paymentSummary.isFullyPaid).length,
-      totalAmount: enrichedOrders.reduce((sum, order) => sum + order.grandTotal, 0),
-      totalPaidAmount: enrichedOrders.reduce((sum, order) => sum + order.paymentSummary.totalPaid, 0),
-      totalRemainingAmount: enrichedOrders.reduce((sum, order) => sum + order.paymentSummary.totalRemaining, 0)
+      totalUnpaid: enrichedOrders.filter((o) => o.paymentSummary.isUnpaid).length,
+      totalPartiallyPaid: enrichedOrders.filter((o) => o.paymentSummary.isPartiallyPaid).length,
+      totalFullyPaid: enrichedOrders.filter((o) => o.paymentSummary.isFullyPaid).length,
+      totalAmount: enrichedOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0),
+      totalPaidAmount: enrichedOrders.reduce((sum, o) => sum + o.paymentSummary.totalPaid, 0),
+      totalRemainingAmount: enrichedOrders.reduce(
+        (sum, o) => sum + o.paymentSummary.totalRemaining,
+        0
+      ),
     };
+    log.timeEnd('aggregate_statistics');
+    log.info('stats_ready', statistics);
 
-    res.status(200).json({
+    log.info('response_success', {
+      count: enrichedOrders.length,
+      outletId: rawOutletId.trim(),
+    });
+
+    return res.status(200).json({
       orders: enrichedOrders,
-      statistics: statistics,
+      statistics,
       meta: {
         count: enrichedOrders.length,
         timestamp: new Date().toISOString(),
-        outletId: outletId
-      }
+        outletId: rawOutletId.trim(),
+        reqId,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching pending unpaid orders:', error);
-    res.status(500).json({
+    const safe = { message: error?.message, name: error?.name };
+    // Hindari log payload sensitif
+    log.error('unhandled_error', safe);
+    return res.status(500).json({
       message: 'Error fetching pending orders',
       error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      reqId,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 };
+
 
 // Get User Orders
 export const getUserOrders = async (req, res) => {
@@ -6223,13 +6258,21 @@ export const getCashierOrderHistory = async (req, res) => {
       return res.status(400).json({ message: 'Cashier ID is required.' });
     }
 
+    const baseFilter = {
+      $and: [
+        { cashierId: { $exists: true } },
+        { cashierId: { $ne: null } },
+      ],
+    };
+    // Karena kamu memang fetch riwayat kasir tertentu, tambahkan exact match
+    // baseFilter.cashierId = cashierId;
+
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
-    const orders = await Order.find({ cashierId: cashierId })
-      .lean()
-      // const orders = await Order.find();
+    const orders = await Order.find(baseFilter)
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
+      .sort({ updatedAt: -1 }) // Mengisi detail voucher (opsional)
       // .populate('voucher')
-      .sort({ updatedAt: -1 }); // Mengisi detail voucher (opsional)
+      .lean();
     console.log(orders.length);
     if (!orders || orders.length === 0) {
       return res.status(200).json({ message: 'No order history found for this cashier.', orders });
@@ -6285,7 +6328,7 @@ export const getCashierOrderHistory = async (req, res) => {
     // );
 
     // Filter unpaid orders (optional - you might want to include all for admin view)
-    // const unpaidOrders = orders.filter(
+    // const selectedOrders = orders.filter(
     //   order => !successfulPaymentOrderIds.has(order._id.toString())
     // );
 

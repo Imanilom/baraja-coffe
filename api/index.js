@@ -203,7 +203,7 @@ const startServer = async () => {
 
     setupStockCalibrationCron();
     startAutoCancelScheduler();
-    setupPaymentExpiryMonitor();
+    // setupPaymentExpiryMonitor();
     // Jalankan sekali untuk generate secret
     // console.log('Webhook Secret:', generateWebhookSecret());
 

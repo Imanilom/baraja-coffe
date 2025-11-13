@@ -502,7 +502,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             ],
           ),
           content: const Text(
-            'Apakah Anda ingin memperbarui data aplikasi? Ini akan menyinkronkan data terbaru dari server.',
+            'Apakah Anda ingin memperbarui data aplikasi?\nIni akan menyinkronkan data terbaru dari server.\n\nData yang diupdate:\n- Menu Items\n- Stock\n- Payment Methods\n- Tax & Service.',
           ),
           actions: [
             TextButton(
@@ -513,6 +513,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             ),
             ElevatedButton.icon(
               onPressed: () {
+                Navigator.of(context).pop();
                 Navigator.of(context).pop();
                 _performDataUpdate(context, ref);
               },

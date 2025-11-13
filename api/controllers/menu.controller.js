@@ -374,18 +374,18 @@ export const getMenuItemsBackOffice = async (req, res) => {
 };
 
 export const getMenuItems = async (req, res) => {
-  const cacheKey = "menu_items_full_with_promos";
+  // const cacheKey = "menu_items_full_with_promos";
 
   try {
     // cek cache
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return res.status(200).json(JSON.parse(cached));
-      }
-    } catch (cacheErr) {
-      console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
-    }
+    // try {
+    //   const cached = await redis.get(cacheKey);
+    //   if (cached) {
+    //     return res.status(200).json(JSON.parse(cached));
+    //   }
+    // } catch (cacheErr) {
+    //   console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
+    // }
 
     // 2) Ambil promo aktif
     const currentDate = new Date();
@@ -720,11 +720,11 @@ export const getMenuItems = async (req, res) => {
     };
 
     // Simpan ke cache
-    try {
-      await redis.set(cacheKey, JSON.stringify(responsePayload), "EX", 300);
-    } catch (cacheErr) {
-      console.warn("⚠️ Redis write error:", cacheErr.message);
-    }
+    // try {
+    //   await redis.set(cacheKey, JSON.stringify(responsePayload), "EX", 300);
+    // } catch (cacheErr) {
+    //   console.warn("⚠️ Redis write error:", cacheErr.message);
+    // }
 
     return res.status(200).json(responsePayload);
   } catch (error) {
