@@ -7,7 +7,7 @@ import { MenuItem } from '../models/MenuItem.model.js';
 export async function createEvent(req, res) {
     try {
         const eventData = req.body;
-        
+
         // Create menu item for the event
         const menuItem = new MenuItem({
             name: eventData.name,
@@ -19,6 +19,7 @@ export async function createEvent(req, res) {
             eventType: eventData.price === 0 ? 'free' : 'paid',
             availableStock: eventData.capacity,
             availableAt: eventData.availableAt || [],
+            workstation: eventData.workstation || [],
             isActive: eventData.status !== 'cancelled'
         });
 
@@ -40,8 +41,8 @@ export async function createEvent(req, res) {
         // Populate the result
         const populatedEvent = await Event.findById(savedEvent._id).populate('menuItem');
 
-        res.status(201).json({ 
-            success: true, 
+        res.status(201).json({
+            success: true,
             data: populatedEvent,
             message: 'Event created successfully with menu item'
         });
@@ -64,7 +65,7 @@ export async function getEvents(req, res) {
             .populate('menuItem')
             .populate('freeRegistrations')
             .sort({ date: 1 });
-        
+
         res.json({ success: true, data: events });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -78,7 +79,7 @@ export async function getEventById(req, res) {
             .populate('menuItem')
             .populate('freeRegistrations')
             .populate('ticketPurchases');
-        
+
         if (!event) {
             return res.status(404).json({ success: false, message: 'Event not found' });
         }
@@ -134,9 +135,9 @@ export async function deleteEvent(req, res) {
         // Delete the event
         await Event.findByIdAndDelete(req.params.id);
 
-        res.json({ 
-            success: true, 
-            message: 'Event and linked menu item deleted successfully' 
+        res.json({
+            success: true,
+            message: 'Event and linked menu item deleted successfully'
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -155,17 +156,17 @@ export async function registerFreeEvent(req, res) {
         }
 
         if (!event.isFreeEvent) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'This is not a free event. Please purchase tickets instead.' 
+            return res.status(400).json({
+                success: false,
+                message: 'This is not a free event. Please purchase tickets instead.'
             });
         }
 
         // Check capacity
         if (event.freeRegistrations.length >= event.capacity) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Event is at full capacity' 
+            return res.status(400).json({
+                success: false,
+                message: 'Event is at full capacity'
             });
         }
 
@@ -174,9 +175,9 @@ export async function registerFreeEvent(req, res) {
             reg => reg.email === email
         );
         if (existingRegistration) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Email already registered for this event' 
+            return res.status(400).json({
+                success: false,
+                message: 'Email already registered for this event'
             });
         }
 
@@ -190,8 +191,8 @@ export async function registerFreeEvent(req, res) {
 
         await event.save();
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Successfully registered for the event',
             data: {
                 registrationId: event.freeRegistrations[event.freeRegistrations.length - 1]._id,
@@ -209,7 +210,7 @@ export async function getEventRegistrations(req, res) {
     try {
         const event = await Event.findById(req.params.id)
             .select('freeRegistrations name date capacity');
-        
+
         if (!event) {
             return res.status(404).json({ success: false, message: 'Event not found' });
         }
@@ -235,10 +236,10 @@ export async function getEventRegistrations(req, res) {
 export async function updateEventStatus(req, res) {
     try {
         const now = new Date();
-        
+
         // Update upcoming to ongoing
         await Event.updateMany(
-            { 
+            {
                 status: 'upcoming',
                 date: { $lte: now }
             },
@@ -247,16 +248,16 @@ export async function updateEventStatus(req, res) {
 
         // Update ongoing to completed
         await Event.updateMany(
-            { 
+            {
                 status: 'ongoing',
                 endDate: { $lt: now }
             },
             { status: 'completed' }
         );
 
-        res.json({ 
-            success: true, 
-            message: 'Event statuses updated successfully' 
+        res.json({
+            success: true,
+            message: 'Event statuses updated successfully'
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -289,7 +290,7 @@ export async function getMenuItems(req, res) {
         // Filter for event items
         if (mainCategory === 'event') {
             filters.isEventItem = true;
-            
+
             if (eventType) {
                 filters.eventType = eventType;
             }
@@ -318,15 +319,15 @@ export async function getMenuItems(req, res) {
             .populate('availableAt')
             .sort({ mainCategory: 1, name: 1 });
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             data: menuItems,
             count: menuItems.length
         });
     } catch (err) {
         console.error('Error in getMenuItems:', err);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: 'Failed to fetch menu items',
             error: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
@@ -335,9 +336,9 @@ export async function getMenuItems(req, res) {
 // Get event menu items specifically
 export async function getEventMenuItems(req, res) {
     try {
-        const filters = { 
-            mainCategory: 'event', 
-            isEventItem: true 
+        const filters = {
+            mainCategory: 'event',
+            isEventItem: true
         };
 
         const { eventType, status, includeInactive, upcomingOnly } = req.query;
@@ -363,21 +364,21 @@ export async function getEventMenuItems(req, res) {
         if (status || upcomingOnly) {
             menuItems = menuItems.filter(item => {
                 if (!item.event) return false;
-                
+
                 if (status) {
                     return item.event.status === status;
                 }
-                
+
                 if (upcomingOnly === 'true') {
                     return item.event.status === 'upcoming' || item.event.status === 'ongoing';
                 }
-                
+
                 return true;
             });
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             data: menuItems,
             count: menuItems.length
         });
@@ -416,17 +417,17 @@ export async function getMenuItemById(req, res) {
 export async function getAvailableEvents(req, res) {
     try {
         const now = new Date();
-        
+
         const events = await Event.find({
             status: { $in: ['upcoming', 'ongoing'] },
             date: { $gte: now }
         })
-        .populate('menuItem')
-        .sort({ date: 1 });
+            .populate('menuItem')
+            .sort({ date: 1 });
 
-        const availableEvents = events.filter(event => 
-            event.menuItem && 
-            event.menuItem.isActive && 
+        const availableEvents = events.filter(event =>
+            event.menuItem &&
+            event.menuItem.isActive &&
             event.menuItem.availableStock > 0
         );
 

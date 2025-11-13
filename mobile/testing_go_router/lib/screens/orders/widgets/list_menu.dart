@@ -22,17 +22,36 @@ class ListMenu extends ConsumerStatefulWidget {
 
 class _ListMenuState extends ConsumerState<ListMenu> {
   late final TextEditingController _searchController;
+  final _searchFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus) {
+        _selectAll();
+      }
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _selectAll() {
+    // Jalankan setelah frame biar selection nggak ketimpa
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final text = _searchController.text;
+      _searchController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: text.length,
+      );
+    });
   }
 
   void _handleAddToOrder(MenuItemModel menuItem) {
@@ -165,11 +184,14 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                       : Icons.search_rounded,
                 ),
                 onPressed: () {
-                  ref.read(searchBarProvider.notifier).state =
-                      !isSearchBarVisible;
-                  if (!isSearchBarVisible) {
+                  final visible = ref.read(searchBarProvider);
+                  ref.read(searchBarProvider.notifier).state = !visible;
+
+                  // clear saat MENYEMBUNYIKAN
+                  if (visible) {
                     _searchController.clear();
                     ref.read(searchQueryProvider.notifier).state = '';
+                    _searchFocus.unfocus();
                   }
                 },
               ),
@@ -212,30 +234,36 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                 if (isSearchBarVisible)
                   Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: TextField(
+                    child: SearchBar(
+                      focusNode: _searchFocus,
                       controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Cari menu...',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: IconButton(
+                      hintText: 'Cari menu...',
+                      leading: const Icon(Icons.search_rounded),
+                      trailing: [
+                        IconButton(
                           icon: const Icon(Icons.clear),
                           onPressed: () {
                             _searchController.clear();
                             ref.read(searchQueryProvider.notifier).state = '';
                           },
                         ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
+                      ],
+                      onChanged: (value) {
+                        ref.read(searchQueryProvider.notifier).state = value;
+                      },
+                      onTap: _selectAll,
+                      onTapOutside: (_) => _searchFocus.unfocus(),
+                      // opsional: biar tampilannya mirip TextField kamu
+                      elevation: const WidgetStatePropertyAll(0),
+                      backgroundColor: const WidgetStatePropertyAll(
+                        Colors.white,
                       ),
-                      onChanged:
-                          (value) =>
-                              ref.read(searchQueryProvider.notifier).state =
-                                  value,
-                      autofocus: false,
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      constraints: const BoxConstraints(maxHeight: 48),
                     ),
                   ),
 
