@@ -18,7 +18,7 @@ import {
   getMenuItemsBackOffice,
 } from '../controllers/menu.controller.js';
 
-import { assignMenuItemsToCategory, createCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';
+import { assignMenuItemsToCategory, createCategory, filterMenuByCategory, getCategories, updateCategory, deleteCategory, getCategoryById } from '../controllers/category.controller.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import { PrintLogger } from '../services/print-logger.service.js';
 
@@ -48,6 +48,9 @@ router.get('/menu-items/rating', getMenuByRating); // Get MenuItems by rating
 router.post('/categories', adminAccess, createCategory); // Create a new category
 router.get('/categories', getCategories); // Get all categories
 router.get('/categories/filter', filterMenuByCategory); // Filter menu items by category
+router.get('/categories/:id', getCategoryById); // Get category by ID
+router.put('/categories/:id', updateCategory); // Update a category
+router.delete('/categories/:id', deleteCategory); // Delete a category
 
 router.get('/menu-items/:id/stock-status', async (req, res) => {
   try {

@@ -19,30 +19,33 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
     return PaymentModel(
       orderId: fields[0] == null ? null : fields[0] as String?,
       transactionId: fields[1] == null ? null : fields[1] as String?,
-      method: fields[2] == null ? '' : fields[2] as String?,
-      status: fields[3] == null ? '' : fields[3] as String?,
-      paymentType: fields[4] == null ? '' : fields[4] as String?,
+      method: fields[2] == null ? null : fields[2] as String?,
+      status: fields[3] == null ? null : fields[3] as String?,
+      paymentType: fields[4] == null ? null : fields[4] as String?,
       amount: (fields[5] as num).toInt(),
       remainingAmount: fields[6] == null ? 0 : (fields[6] as num).toInt(),
-      phone: fields[7] == null ? '' : fields[7] as String?,
+      phone: fields[7] == null ? null : fields[7] as String?,
       discount: fields[8] == null ? 0 : (fields[8] as num).toInt(),
-      midtransRedirectUrl: fields[9] == null ? '' : fields[9] as String?,
-      fraudStatus: fields[10] == null ? '' : fields[10] as String?,
-      transactionTime: fields[11] == null ? '' : fields[11] as String?,
-      expiryTime: fields[12] == null ? '' : fields[12] as String?,
-      settlementTime: fields[13] == null ? '' : fields[13] as String?,
-      paidAt: fields[14] == null ? '' : fields[14] as String?,
+      midtransRedirectUrl: fields[9] == null ? null : fields[9] as String?,
+      fraudStatus: fields[10] == null ? null : fields[10] as String?,
+      transactionTime: fields[11] == null ? null : fields[11] as String?,
+      expiryTime: fields[12] == null ? null : fields[12] as String?,
+      settlementTime: fields[13] == null ? null : fields[13] as String?,
+      paidAt: fields[14] == null ? null : fields[14] as String?,
       vaNumbers:
           fields[15] == null
               ? []
               : (fields[15] as List?)?.cast<VANumberModel>(),
-      permataVaNumber: fields[16] == null ? '' : fields[16] as String?,
-      billKey: fields[17] == null ? '' : fields[17] as String?,
-      billerCode: fields[18] == null ? '' : fields[18] as String?,
-      pdfUrl: fields[19] == null ? '' : fields[19] as String?,
+      permataVaNumber:
+          fields[16] == null
+              ? []
+              : (fields[16] as List?)?.cast<VANumberModel>(),
+      billKey: fields[17] == null ? null : fields[17] as String?,
+      billerCode: fields[18] == null ? null : fields[18] as String?,
+      pdfUrl: fields[19] == null ? null : fields[19] as String?,
       currency: fields[20] == null ? 'IDR' : fields[20] as String,
-      merchantId: fields[21] == null ? '' : fields[21] as String?,
-      signatureKey: fields[22] == null ? '' : fields[22] as String?,
+      merchantId: fields[21] == null ? null : fields[21] as String?,
+      signatureKey: fields[22] == null ? null : fields[22] as String?,
       actions:
           fields[23] == null
               ? []
@@ -141,31 +144,35 @@ _PaymentModel _$PaymentModelFromJson(Map<String, dynamic> json) =>
     _PaymentModel(
       orderId: json['order_id'] as String? ?? null,
       transactionId: json['transaction_id'] as String? ?? null,
-      method: json['method'] as String? ?? '',
-      status: json['status'] as String? ?? '',
-      paymentType: json['paymentType'] as String? ?? '',
+      method: json['method'] as String? ?? null,
+      status: json['status'] as String? ?? null,
+      paymentType: json['paymentType'] as String? ?? null,
       amount: (json['amount'] as num).toInt(),
       remainingAmount: (json['remainingAmount'] as num?)?.toInt() ?? 0,
-      phone: json['phone'] as String? ?? '',
+      phone: json['phone'] as String? ?? null,
       discount: (json['discount'] as num?)?.toInt() ?? 0,
-      midtransRedirectUrl: json['midtransRedirectUrl'] as String? ?? '',
-      fraudStatus: json['fraud_status'] as String? ?? '',
-      transactionTime: json['transaction_time'] as String? ?? '',
-      expiryTime: json['expiry_time'] as String? ?? '',
-      settlementTime: json['settlement_time'] as String? ?? '',
-      paidAt: json['paid_at'] as String? ?? '',
+      midtransRedirectUrl: json['midtransRedirectUrl'] as String? ?? null,
+      fraudStatus: json['fraud_status'] as String? ?? null,
+      transactionTime: json['transaction_time'] as String? ?? null,
+      expiryTime: json['expiry_time'] as String? ?? null,
+      settlementTime: json['settlement_time'] as String? ?? null,
+      paidAt: json['paid_at'] as String? ?? null,
       vaNumbers:
           (json['va_numbers'] as List<dynamic>?)
               ?.map((e) => VANumberModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
-      permataVaNumber: json['permata_va_number'] as String? ?? '',
-      billKey: json['bill_key'] as String? ?? '',
-      billerCode: json['biller_code'] as String? ?? '',
-      pdfUrl: json['pdf_url'] as String? ?? '',
+      permataVaNumber:
+          (json['permata_va_number'] as List<dynamic>?)
+              ?.map((e) => VANumberModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      billKey: json['bill_key'] as String? ?? null,
+      billerCode: json['biller_code'] as String? ?? null,
+      pdfUrl: json['pdf_url'] as String? ?? null,
       currency: json['currency'] as String? ?? "IDR",
-      merchantId: json['merchant_id'] as String? ?? '',
-      signatureKey: json['signature_key'] as String? ?? '',
+      merchantId: json['merchant_id'] as String? ?? null,
+      signatureKey: json['signature_key'] as String? ?? null,
       actions:
           (json['actions'] as List<dynamic>?)
               ?.map(
@@ -204,7 +211,8 @@ Map<String, dynamic> _$PaymentModelToJson(_PaymentModel instance) =>
       'settlement_time': instance.settlementTime,
       'paid_at': instance.paidAt,
       'va_numbers': instance.vaNumbers?.map((e) => e.toJson()).toList(),
-      'permata_va_number': instance.permataVaNumber,
+      'permata_va_number':
+          instance.permataVaNumber?.map((e) => e.toJson()).toList(),
       'bill_key': instance.billKey,
       'biller_code': instance.billerCode,
       'pdf_url': instance.pdfUrl,

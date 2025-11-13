@@ -257,12 +257,12 @@ const CategoryIndex = () => {
           >
             Tambah Kategori
           </Link>
-          <Link
+          {/* <Link
             to="/admin/subcategory-create"
             className="bg-[#005429] text-white px-4 py-2 rounded inline-block text-[13px]"
           >
             Tambah Sub Kategori
-          </Link>
+          </Link> */}
         </div>
       </div>
 
