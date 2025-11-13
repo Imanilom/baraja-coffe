@@ -172,8 +172,8 @@ class OrderDetailWidget extends ConsumerWidget {
 
           //tombol edit order item hanyamuncul ketika payment detailnya belu sepenuhnya dibayar,
           if (order.items.isEmpty ||
-              order.payment!.isEmpty ||
-              order.payment!.any((p) => p.status!.toLowerCase() == "pending"))
+              order.payments.isEmpty ||
+              order.payments.any((p) => p.status!.toLowerCase() == "pending"))
             TextButton.icon(
               style: TextButton.styleFrom(backgroundColor: Colors.green[50]),
               icon: Icon(

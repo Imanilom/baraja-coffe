@@ -21,7 +21,8 @@ mixin _$PaymentModel {
 @HiveField(15)@JsonKey(name: 'va_numbers') List<VANumberModel>? get vaNumbers;@HiveField(16)@JsonKey(name: 'permata_va_number') List<VANumberModel>? get permataVaNumber;@HiveField(17)@JsonKey(name: 'bill_key') String? get billKey;@HiveField(18)@JsonKey(name: 'biller_code') String? get billerCode;@HiveField(19)@JsonKey(name: 'pdf_url') String? get pdfUrl;@HiveField(20) String get currency;@HiveField(21)@JsonKey(name: 'merchant_id') String? get merchantId;@HiveField(22)@JsonKey(name: 'signature_key') String? get signatureKey;// Payment actions
 @HiveField(23) List<PaymentActionModel>? get actions;// Raw response
 @HiveField(24)@JsonKey(name: 'raw_response') Map<String, dynamic>? get rawResponse;// Timestamps
-@HiveField(25) DateTime? get createdAt;@HiveField(26) DateTime? get updatedAt;@HiveField(27)@JsonKey(name: 'tendered_amount') int? get tenderedAmount;@HiveField(28)@JsonKey(name: 'change_amount') int? get changeAmount;
+@HiveField(25) DateTime? get createdAt;@HiveField(26) DateTime? get updatedAt;//untuk kasir
+@HiveField(27)@JsonKey(name: 'tendered_amount') int? get tenderedAmount;@HiveField(28)@JsonKey(name: 'change_amount') int? get changeAmount;@HiveField(29) PaymentTypeModel? get selectedPaymentType;@HiveField(30) PaymentMethodModel? get selectedPaymentMethod;
 /// Create a copy of PaymentModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -34,16 +35,16 @@ $PaymentModelCopyWith<PaymentModel> get copyWith => _$PaymentModelCopyWithImpl<P
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.method, method) || other.method == method)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentType, paymentType) || other.paymentType == paymentType)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.remainingAmount, remainingAmount) || other.remainingAmount == remainingAmount)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.midtransRedirectUrl, midtransRedirectUrl) || other.midtransRedirectUrl == midtransRedirectUrl)&&(identical(other.fraudStatus, fraudStatus) || other.fraudStatus == fraudStatus)&&(identical(other.transactionTime, transactionTime) || other.transactionTime == transactionTime)&&(identical(other.expiryTime, expiryTime) || other.expiryTime == expiryTime)&&(identical(other.settlementTime, settlementTime) || other.settlementTime == settlementTime)&&(identical(other.paidAt, paidAt) || other.paidAt == paidAt)&&const DeepCollectionEquality().equals(other.vaNumbers, vaNumbers)&&const DeepCollectionEquality().equals(other.permataVaNumber, permataVaNumber)&&(identical(other.billKey, billKey) || other.billKey == billKey)&&(identical(other.billerCode, billerCode) || other.billerCode == billerCode)&&(identical(other.pdfUrl, pdfUrl) || other.pdfUrl == pdfUrl)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.merchantId, merchantId) || other.merchantId == merchantId)&&(identical(other.signatureKey, signatureKey) || other.signatureKey == signatureKey)&&const DeepCollectionEquality().equals(other.actions, actions)&&const DeepCollectionEquality().equals(other.rawResponse, rawResponse)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.tenderedAmount, tenderedAmount) || other.tenderedAmount == tenderedAmount)&&(identical(other.changeAmount, changeAmount) || other.changeAmount == changeAmount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.method, method) || other.method == method)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentType, paymentType) || other.paymentType == paymentType)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.remainingAmount, remainingAmount) || other.remainingAmount == remainingAmount)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.midtransRedirectUrl, midtransRedirectUrl) || other.midtransRedirectUrl == midtransRedirectUrl)&&(identical(other.fraudStatus, fraudStatus) || other.fraudStatus == fraudStatus)&&(identical(other.transactionTime, transactionTime) || other.transactionTime == transactionTime)&&(identical(other.expiryTime, expiryTime) || other.expiryTime == expiryTime)&&(identical(other.settlementTime, settlementTime) || other.settlementTime == settlementTime)&&(identical(other.paidAt, paidAt) || other.paidAt == paidAt)&&const DeepCollectionEquality().equals(other.vaNumbers, vaNumbers)&&const DeepCollectionEquality().equals(other.permataVaNumber, permataVaNumber)&&(identical(other.billKey, billKey) || other.billKey == billKey)&&(identical(other.billerCode, billerCode) || other.billerCode == billerCode)&&(identical(other.pdfUrl, pdfUrl) || other.pdfUrl == pdfUrl)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.merchantId, merchantId) || other.merchantId == merchantId)&&(identical(other.signatureKey, signatureKey) || other.signatureKey == signatureKey)&&const DeepCollectionEquality().equals(other.actions, actions)&&const DeepCollectionEquality().equals(other.rawResponse, rawResponse)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.tenderedAmount, tenderedAmount) || other.tenderedAmount == tenderedAmount)&&(identical(other.changeAmount, changeAmount) || other.changeAmount == changeAmount)&&(identical(other.selectedPaymentType, selectedPaymentType) || other.selectedPaymentType == selectedPaymentType)&&(identical(other.selectedPaymentMethod, selectedPaymentMethod) || other.selectedPaymentMethod == selectedPaymentMethod));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,orderId,transactionId,method,status,paymentType,amount,remainingAmount,phone,discount,midtransRedirectUrl,fraudStatus,transactionTime,expiryTime,settlementTime,paidAt,const DeepCollectionEquality().hash(vaNumbers),const DeepCollectionEquality().hash(permataVaNumber),billKey,billerCode,pdfUrl,currency,merchantId,signatureKey,const DeepCollectionEquality().hash(actions),const DeepCollectionEquality().hash(rawResponse),createdAt,updatedAt,tenderedAmount,changeAmount]);
+int get hashCode => Object.hashAll([runtimeType,orderId,transactionId,method,status,paymentType,amount,remainingAmount,phone,discount,midtransRedirectUrl,fraudStatus,transactionTime,expiryTime,settlementTime,paidAt,const DeepCollectionEquality().hash(vaNumbers),const DeepCollectionEquality().hash(permataVaNumber),billKey,billerCode,pdfUrl,currency,merchantId,signatureKey,const DeepCollectionEquality().hash(actions),const DeepCollectionEquality().hash(rawResponse),createdAt,updatedAt,tenderedAmount,changeAmount,selectedPaymentType,selectedPaymentMethod]);
 
 @override
 String toString() {
-  return 'PaymentModel(orderId: $orderId, transactionId: $transactionId, method: $method, status: $status, paymentType: $paymentType, amount: $amount, remainingAmount: $remainingAmount, phone: $phone, discount: $discount, midtransRedirectUrl: $midtransRedirectUrl, fraudStatus: $fraudStatus, transactionTime: $transactionTime, expiryTime: $expiryTime, settlementTime: $settlementTime, paidAt: $paidAt, vaNumbers: $vaNumbers, permataVaNumber: $permataVaNumber, billKey: $billKey, billerCode: $billerCode, pdfUrl: $pdfUrl, currency: $currency, merchantId: $merchantId, signatureKey: $signatureKey, actions: $actions, rawResponse: $rawResponse, createdAt: $createdAt, updatedAt: $updatedAt, tenderedAmount: $tenderedAmount, changeAmount: $changeAmount)';
+  return 'PaymentModel(orderId: $orderId, transactionId: $transactionId, method: $method, status: $status, paymentType: $paymentType, amount: $amount, remainingAmount: $remainingAmount, phone: $phone, discount: $discount, midtransRedirectUrl: $midtransRedirectUrl, fraudStatus: $fraudStatus, transactionTime: $transactionTime, expiryTime: $expiryTime, settlementTime: $settlementTime, paidAt: $paidAt, vaNumbers: $vaNumbers, permataVaNumber: $permataVaNumber, billKey: $billKey, billerCode: $billerCode, pdfUrl: $pdfUrl, currency: $currency, merchantId: $merchantId, signatureKey: $signatureKey, actions: $actions, rawResponse: $rawResponse, createdAt: $createdAt, updatedAt: $updatedAt, tenderedAmount: $tenderedAmount, changeAmount: $changeAmount, selectedPaymentType: $selectedPaymentType, selectedPaymentMethod: $selectedPaymentMethod)';
 }
 
 
@@ -54,11 +55,11 @@ abstract mixin class $PaymentModelCopyWith<$Res>  {
   factory $PaymentModelCopyWith(PaymentModel value, $Res Function(PaymentModel) _then) = _$PaymentModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'transaction_id') String? transactionId,@HiveField(2) String? method,@HiveField(3) String? status,@HiveField(4) String? paymentType,@HiveField(5) int amount,@HiveField(6) int remainingAmount,@HiveField(7) String? phone,@HiveField(8) int discount,@HiveField(9) String? midtransRedirectUrl,@HiveField(10)@JsonKey(name: 'fraud_status') String? fraudStatus,@HiveField(11)@JsonKey(name: 'transaction_time') String? transactionTime,@HiveField(12)@JsonKey(name: 'expiry_time') String? expiryTime,@HiveField(13)@JsonKey(name: 'settlement_time') String? settlementTime,@HiveField(14)@JsonKey(name: 'paid_at') String? paidAt,@HiveField(15)@JsonKey(name: 'va_numbers') List<VANumberModel>? vaNumbers,@HiveField(16)@JsonKey(name: 'permata_va_number') List<VANumberModel>? permataVaNumber,@HiveField(17)@JsonKey(name: 'bill_key') String? billKey,@HiveField(18)@JsonKey(name: 'biller_code') String? billerCode,@HiveField(19)@JsonKey(name: 'pdf_url') String? pdfUrl,@HiveField(20) String currency,@HiveField(21)@JsonKey(name: 'merchant_id') String? merchantId,@HiveField(22)@JsonKey(name: 'signature_key') String? signatureKey,@HiveField(23) List<PaymentActionModel>? actions,@HiveField(24)@JsonKey(name: 'raw_response') Map<String, dynamic>? rawResponse,@HiveField(25) DateTime? createdAt,@HiveField(26) DateTime? updatedAt,@HiveField(27)@JsonKey(name: 'tendered_amount') int? tenderedAmount,@HiveField(28)@JsonKey(name: 'change_amount') int? changeAmount
+@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'transaction_id') String? transactionId,@HiveField(2) String? method,@HiveField(3) String? status,@HiveField(4) String? paymentType,@HiveField(5) int amount,@HiveField(6) int remainingAmount,@HiveField(7) String? phone,@HiveField(8) int discount,@HiveField(9) String? midtransRedirectUrl,@HiveField(10)@JsonKey(name: 'fraud_status') String? fraudStatus,@HiveField(11)@JsonKey(name: 'transaction_time') String? transactionTime,@HiveField(12)@JsonKey(name: 'expiry_time') String? expiryTime,@HiveField(13)@JsonKey(name: 'settlement_time') String? settlementTime,@HiveField(14)@JsonKey(name: 'paid_at') String? paidAt,@HiveField(15)@JsonKey(name: 'va_numbers') List<VANumberModel>? vaNumbers,@HiveField(16)@JsonKey(name: 'permata_va_number') List<VANumberModel>? permataVaNumber,@HiveField(17)@JsonKey(name: 'bill_key') String? billKey,@HiveField(18)@JsonKey(name: 'biller_code') String? billerCode,@HiveField(19)@JsonKey(name: 'pdf_url') String? pdfUrl,@HiveField(20) String currency,@HiveField(21)@JsonKey(name: 'merchant_id') String? merchantId,@HiveField(22)@JsonKey(name: 'signature_key') String? signatureKey,@HiveField(23) List<PaymentActionModel>? actions,@HiveField(24)@JsonKey(name: 'raw_response') Map<String, dynamic>? rawResponse,@HiveField(25) DateTime? createdAt,@HiveField(26) DateTime? updatedAt,@HiveField(27)@JsonKey(name: 'tendered_amount') int? tenderedAmount,@HiveField(28)@JsonKey(name: 'change_amount') int? changeAmount,@HiveField(29) PaymentTypeModel? selectedPaymentType,@HiveField(30) PaymentMethodModel? selectedPaymentMethod
 });
 
 
-
+$PaymentTypeModelCopyWith<$Res>? get selectedPaymentType;$PaymentMethodModelCopyWith<$Res>? get selectedPaymentMethod;
 
 }
 /// @nodoc
@@ -71,7 +72,7 @@ class _$PaymentModelCopyWithImpl<$Res>
 
 /// Create a copy of PaymentModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? orderId = freezed,Object? transactionId = freezed,Object? method = freezed,Object? status = freezed,Object? paymentType = freezed,Object? amount = null,Object? remainingAmount = null,Object? phone = freezed,Object? discount = null,Object? midtransRedirectUrl = freezed,Object? fraudStatus = freezed,Object? transactionTime = freezed,Object? expiryTime = freezed,Object? settlementTime = freezed,Object? paidAt = freezed,Object? vaNumbers = freezed,Object? permataVaNumber = freezed,Object? billKey = freezed,Object? billerCode = freezed,Object? pdfUrl = freezed,Object? currency = null,Object? merchantId = freezed,Object? signatureKey = freezed,Object? actions = freezed,Object? rawResponse = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,Object? tenderedAmount = freezed,Object? changeAmount = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? orderId = freezed,Object? transactionId = freezed,Object? method = freezed,Object? status = freezed,Object? paymentType = freezed,Object? amount = null,Object? remainingAmount = null,Object? phone = freezed,Object? discount = null,Object? midtransRedirectUrl = freezed,Object? fraudStatus = freezed,Object? transactionTime = freezed,Object? expiryTime = freezed,Object? settlementTime = freezed,Object? paidAt = freezed,Object? vaNumbers = freezed,Object? permataVaNumber = freezed,Object? billKey = freezed,Object? billerCode = freezed,Object? pdfUrl = freezed,Object? currency = null,Object? merchantId = freezed,Object? signatureKey = freezed,Object? actions = freezed,Object? rawResponse = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,Object? tenderedAmount = freezed,Object? changeAmount = freezed,Object? selectedPaymentType = freezed,Object? selectedPaymentMethod = freezed,}) {
   return _then(_self.copyWith(
 orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
 as String?,transactionId: freezed == transactionId ? _self.transactionId : transactionId // ignore: cast_nullable_to_non_nullable
@@ -102,10 +103,36 @@ as Map<String, dynamic>?,createdAt: freezed == createdAt ? _self.createdAt : cre
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,tenderedAmount: freezed == tenderedAmount ? _self.tenderedAmount : tenderedAmount // ignore: cast_nullable_to_non_nullable
 as int?,changeAmount: freezed == changeAmount ? _self.changeAmount : changeAmount // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,selectedPaymentType: freezed == selectedPaymentType ? _self.selectedPaymentType : selectedPaymentType // ignore: cast_nullable_to_non_nullable
+as PaymentTypeModel?,selectedPaymentMethod: freezed == selectedPaymentMethod ? _self.selectedPaymentMethod : selectedPaymentMethod // ignore: cast_nullable_to_non_nullable
+as PaymentMethodModel?,
   ));
 }
+/// Create a copy of PaymentModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentTypeModelCopyWith<$Res>? get selectedPaymentType {
+    if (_self.selectedPaymentType == null) {
+    return null;
+  }
 
+  return $PaymentTypeModelCopyWith<$Res>(_self.selectedPaymentType!, (value) {
+    return _then(_self.copyWith(selectedPaymentType: value));
+  });
+}/// Create a copy of PaymentModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentMethodModelCopyWith<$Res>? get selectedPaymentMethod {
+    if (_self.selectedPaymentMethod == null) {
+    return null;
+  }
+
+  return $PaymentMethodModelCopyWith<$Res>(_self.selectedPaymentMethod!, (value) {
+    return _then(_self.copyWith(selectedPaymentMethod: value));
+  });
+}
 }
 
 
@@ -113,7 +140,7 @@ as int?,
 
 @JsonSerializable(explicitToJson: true)
 class _PaymentModel implements PaymentModel {
-   _PaymentModel({@HiveField(0)@JsonKey(name: 'order_id') this.orderId = null, @HiveField(1)@JsonKey(name: 'transaction_id') this.transactionId = null, @HiveField(2) this.method = null, @HiveField(3) this.status = null, @HiveField(4) this.paymentType = null, @HiveField(5) required this.amount, @HiveField(6) this.remainingAmount = 0, @HiveField(7) this.phone = null, @HiveField(8) this.discount = 0, @HiveField(9) this.midtransRedirectUrl = null, @HiveField(10)@JsonKey(name: 'fraud_status') this.fraudStatus = null, @HiveField(11)@JsonKey(name: 'transaction_time') this.transactionTime = null, @HiveField(12)@JsonKey(name: 'expiry_time') this.expiryTime = null, @HiveField(13)@JsonKey(name: 'settlement_time') this.settlementTime = null, @HiveField(14)@JsonKey(name: 'paid_at') this.paidAt = null, @HiveField(15)@JsonKey(name: 'va_numbers') final  List<VANumberModel>? vaNumbers = const [], @HiveField(16)@JsonKey(name: 'permata_va_number') final  List<VANumberModel>? permataVaNumber = const [], @HiveField(17)@JsonKey(name: 'bill_key') this.billKey = null, @HiveField(18)@JsonKey(name: 'biller_code') this.billerCode = null, @HiveField(19)@JsonKey(name: 'pdf_url') this.pdfUrl = null, @HiveField(20) this.currency = "IDR", @HiveField(21)@JsonKey(name: 'merchant_id') this.merchantId = null, @HiveField(22)@JsonKey(name: 'signature_key') this.signatureKey = null, @HiveField(23) final  List<PaymentActionModel>? actions = const [], @HiveField(24)@JsonKey(name: 'raw_response') final  Map<String, dynamic>? rawResponse = const {}, @HiveField(25) this.createdAt, @HiveField(26) this.updatedAt, @HiveField(27)@JsonKey(name: 'tendered_amount') this.tenderedAmount = null, @HiveField(28)@JsonKey(name: 'change_amount') this.changeAmount = null}): _vaNumbers = vaNumbers,_permataVaNumber = permataVaNumber,_actions = actions,_rawResponse = rawResponse;
+   _PaymentModel({@HiveField(0)@JsonKey(name: 'order_id') this.orderId = null, @HiveField(1)@JsonKey(name: 'transaction_id') this.transactionId = null, @HiveField(2) this.method = null, @HiveField(3) this.status = null, @HiveField(4) this.paymentType = null, @HiveField(5) required this.amount, @HiveField(6) this.remainingAmount = 0, @HiveField(7) this.phone = null, @HiveField(8) this.discount = 0, @HiveField(9) this.midtransRedirectUrl = null, @HiveField(10)@JsonKey(name: 'fraud_status') this.fraudStatus = null, @HiveField(11)@JsonKey(name: 'transaction_time') this.transactionTime = null, @HiveField(12)@JsonKey(name: 'expiry_time') this.expiryTime = null, @HiveField(13)@JsonKey(name: 'settlement_time') this.settlementTime = null, @HiveField(14)@JsonKey(name: 'paid_at') this.paidAt = null, @HiveField(15)@JsonKey(name: 'va_numbers') final  List<VANumberModel>? vaNumbers = const [], @HiveField(16)@JsonKey(name: 'permata_va_number') final  List<VANumberModel>? permataVaNumber = const [], @HiveField(17)@JsonKey(name: 'bill_key') this.billKey = null, @HiveField(18)@JsonKey(name: 'biller_code') this.billerCode = null, @HiveField(19)@JsonKey(name: 'pdf_url') this.pdfUrl = null, @HiveField(20) this.currency = "IDR", @HiveField(21)@JsonKey(name: 'merchant_id') this.merchantId = null, @HiveField(22)@JsonKey(name: 'signature_key') this.signatureKey = null, @HiveField(23) final  List<PaymentActionModel>? actions = const [], @HiveField(24)@JsonKey(name: 'raw_response') final  Map<String, dynamic>? rawResponse = const {}, @HiveField(25) this.createdAt, @HiveField(26) this.updatedAt, @HiveField(27)@JsonKey(name: 'tendered_amount') this.tenderedAmount = null, @HiveField(28)@JsonKey(name: 'change_amount') this.changeAmount = null, @HiveField(29) this.selectedPaymentType = null, @HiveField(30) this.selectedPaymentMethod = null}): _vaNumbers = vaNumbers,_permataVaNumber = permataVaNumber,_actions = actions,_rawResponse = rawResponse;
   factory _PaymentModel.fromJson(Map<String, dynamic> json) => _$PaymentModelFromJson(json);
 
 // Basic payment info
@@ -183,8 +210,11 @@ class _PaymentModel implements PaymentModel {
 // Timestamps
 @override@HiveField(25) final  DateTime? createdAt;
 @override@HiveField(26) final  DateTime? updatedAt;
+//untuk kasir
 @override@HiveField(27)@JsonKey(name: 'tendered_amount') final  int? tenderedAmount;
 @override@HiveField(28)@JsonKey(name: 'change_amount') final  int? changeAmount;
+@override@JsonKey()@HiveField(29) final  PaymentTypeModel? selectedPaymentType;
+@override@JsonKey()@HiveField(30) final  PaymentMethodModel? selectedPaymentMethod;
 
 /// Create a copy of PaymentModel
 /// with the given fields replaced by the non-null parameter values.
@@ -199,16 +229,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.method, method) || other.method == method)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentType, paymentType) || other.paymentType == paymentType)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.remainingAmount, remainingAmount) || other.remainingAmount == remainingAmount)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.midtransRedirectUrl, midtransRedirectUrl) || other.midtransRedirectUrl == midtransRedirectUrl)&&(identical(other.fraudStatus, fraudStatus) || other.fraudStatus == fraudStatus)&&(identical(other.transactionTime, transactionTime) || other.transactionTime == transactionTime)&&(identical(other.expiryTime, expiryTime) || other.expiryTime == expiryTime)&&(identical(other.settlementTime, settlementTime) || other.settlementTime == settlementTime)&&(identical(other.paidAt, paidAt) || other.paidAt == paidAt)&&const DeepCollectionEquality().equals(other._vaNumbers, _vaNumbers)&&const DeepCollectionEquality().equals(other._permataVaNumber, _permataVaNumber)&&(identical(other.billKey, billKey) || other.billKey == billKey)&&(identical(other.billerCode, billerCode) || other.billerCode == billerCode)&&(identical(other.pdfUrl, pdfUrl) || other.pdfUrl == pdfUrl)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.merchantId, merchantId) || other.merchantId == merchantId)&&(identical(other.signatureKey, signatureKey) || other.signatureKey == signatureKey)&&const DeepCollectionEquality().equals(other._actions, _actions)&&const DeepCollectionEquality().equals(other._rawResponse, _rawResponse)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.tenderedAmount, tenderedAmount) || other.tenderedAmount == tenderedAmount)&&(identical(other.changeAmount, changeAmount) || other.changeAmount == changeAmount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.method, method) || other.method == method)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentType, paymentType) || other.paymentType == paymentType)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.remainingAmount, remainingAmount) || other.remainingAmount == remainingAmount)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.midtransRedirectUrl, midtransRedirectUrl) || other.midtransRedirectUrl == midtransRedirectUrl)&&(identical(other.fraudStatus, fraudStatus) || other.fraudStatus == fraudStatus)&&(identical(other.transactionTime, transactionTime) || other.transactionTime == transactionTime)&&(identical(other.expiryTime, expiryTime) || other.expiryTime == expiryTime)&&(identical(other.settlementTime, settlementTime) || other.settlementTime == settlementTime)&&(identical(other.paidAt, paidAt) || other.paidAt == paidAt)&&const DeepCollectionEquality().equals(other._vaNumbers, _vaNumbers)&&const DeepCollectionEquality().equals(other._permataVaNumber, _permataVaNumber)&&(identical(other.billKey, billKey) || other.billKey == billKey)&&(identical(other.billerCode, billerCode) || other.billerCode == billerCode)&&(identical(other.pdfUrl, pdfUrl) || other.pdfUrl == pdfUrl)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.merchantId, merchantId) || other.merchantId == merchantId)&&(identical(other.signatureKey, signatureKey) || other.signatureKey == signatureKey)&&const DeepCollectionEquality().equals(other._actions, _actions)&&const DeepCollectionEquality().equals(other._rawResponse, _rawResponse)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.tenderedAmount, tenderedAmount) || other.tenderedAmount == tenderedAmount)&&(identical(other.changeAmount, changeAmount) || other.changeAmount == changeAmount)&&(identical(other.selectedPaymentType, selectedPaymentType) || other.selectedPaymentType == selectedPaymentType)&&(identical(other.selectedPaymentMethod, selectedPaymentMethod) || other.selectedPaymentMethod == selectedPaymentMethod));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,orderId,transactionId,method,status,paymentType,amount,remainingAmount,phone,discount,midtransRedirectUrl,fraudStatus,transactionTime,expiryTime,settlementTime,paidAt,const DeepCollectionEquality().hash(_vaNumbers),const DeepCollectionEquality().hash(_permataVaNumber),billKey,billerCode,pdfUrl,currency,merchantId,signatureKey,const DeepCollectionEquality().hash(_actions),const DeepCollectionEquality().hash(_rawResponse),createdAt,updatedAt,tenderedAmount,changeAmount]);
+int get hashCode => Object.hashAll([runtimeType,orderId,transactionId,method,status,paymentType,amount,remainingAmount,phone,discount,midtransRedirectUrl,fraudStatus,transactionTime,expiryTime,settlementTime,paidAt,const DeepCollectionEquality().hash(_vaNumbers),const DeepCollectionEquality().hash(_permataVaNumber),billKey,billerCode,pdfUrl,currency,merchantId,signatureKey,const DeepCollectionEquality().hash(_actions),const DeepCollectionEquality().hash(_rawResponse),createdAt,updatedAt,tenderedAmount,changeAmount,selectedPaymentType,selectedPaymentMethod]);
 
 @override
 String toString() {
-  return 'PaymentModel(orderId: $orderId, transactionId: $transactionId, method: $method, status: $status, paymentType: $paymentType, amount: $amount, remainingAmount: $remainingAmount, phone: $phone, discount: $discount, midtransRedirectUrl: $midtransRedirectUrl, fraudStatus: $fraudStatus, transactionTime: $transactionTime, expiryTime: $expiryTime, settlementTime: $settlementTime, paidAt: $paidAt, vaNumbers: $vaNumbers, permataVaNumber: $permataVaNumber, billKey: $billKey, billerCode: $billerCode, pdfUrl: $pdfUrl, currency: $currency, merchantId: $merchantId, signatureKey: $signatureKey, actions: $actions, rawResponse: $rawResponse, createdAt: $createdAt, updatedAt: $updatedAt, tenderedAmount: $tenderedAmount, changeAmount: $changeAmount)';
+  return 'PaymentModel(orderId: $orderId, transactionId: $transactionId, method: $method, status: $status, paymentType: $paymentType, amount: $amount, remainingAmount: $remainingAmount, phone: $phone, discount: $discount, midtransRedirectUrl: $midtransRedirectUrl, fraudStatus: $fraudStatus, transactionTime: $transactionTime, expiryTime: $expiryTime, settlementTime: $settlementTime, paidAt: $paidAt, vaNumbers: $vaNumbers, permataVaNumber: $permataVaNumber, billKey: $billKey, billerCode: $billerCode, pdfUrl: $pdfUrl, currency: $currency, merchantId: $merchantId, signatureKey: $signatureKey, actions: $actions, rawResponse: $rawResponse, createdAt: $createdAt, updatedAt: $updatedAt, tenderedAmount: $tenderedAmount, changeAmount: $changeAmount, selectedPaymentType: $selectedPaymentType, selectedPaymentMethod: $selectedPaymentMethod)';
 }
 
 
@@ -219,11 +249,11 @@ abstract mixin class _$PaymentModelCopyWith<$Res> implements $PaymentModelCopyWi
   factory _$PaymentModelCopyWith(_PaymentModel value, $Res Function(_PaymentModel) _then) = __$PaymentModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'transaction_id') String? transactionId,@HiveField(2) String? method,@HiveField(3) String? status,@HiveField(4) String? paymentType,@HiveField(5) int amount,@HiveField(6) int remainingAmount,@HiveField(7) String? phone,@HiveField(8) int discount,@HiveField(9) String? midtransRedirectUrl,@HiveField(10)@JsonKey(name: 'fraud_status') String? fraudStatus,@HiveField(11)@JsonKey(name: 'transaction_time') String? transactionTime,@HiveField(12)@JsonKey(name: 'expiry_time') String? expiryTime,@HiveField(13)@JsonKey(name: 'settlement_time') String? settlementTime,@HiveField(14)@JsonKey(name: 'paid_at') String? paidAt,@HiveField(15)@JsonKey(name: 'va_numbers') List<VANumberModel>? vaNumbers,@HiveField(16)@JsonKey(name: 'permata_va_number') List<VANumberModel>? permataVaNumber,@HiveField(17)@JsonKey(name: 'bill_key') String? billKey,@HiveField(18)@JsonKey(name: 'biller_code') String? billerCode,@HiveField(19)@JsonKey(name: 'pdf_url') String? pdfUrl,@HiveField(20) String currency,@HiveField(21)@JsonKey(name: 'merchant_id') String? merchantId,@HiveField(22)@JsonKey(name: 'signature_key') String? signatureKey,@HiveField(23) List<PaymentActionModel>? actions,@HiveField(24)@JsonKey(name: 'raw_response') Map<String, dynamic>? rawResponse,@HiveField(25) DateTime? createdAt,@HiveField(26) DateTime? updatedAt,@HiveField(27)@JsonKey(name: 'tendered_amount') int? tenderedAmount,@HiveField(28)@JsonKey(name: 'change_amount') int? changeAmount
+@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'transaction_id') String? transactionId,@HiveField(2) String? method,@HiveField(3) String? status,@HiveField(4) String? paymentType,@HiveField(5) int amount,@HiveField(6) int remainingAmount,@HiveField(7) String? phone,@HiveField(8) int discount,@HiveField(9) String? midtransRedirectUrl,@HiveField(10)@JsonKey(name: 'fraud_status') String? fraudStatus,@HiveField(11)@JsonKey(name: 'transaction_time') String? transactionTime,@HiveField(12)@JsonKey(name: 'expiry_time') String? expiryTime,@HiveField(13)@JsonKey(name: 'settlement_time') String? settlementTime,@HiveField(14)@JsonKey(name: 'paid_at') String? paidAt,@HiveField(15)@JsonKey(name: 'va_numbers') List<VANumberModel>? vaNumbers,@HiveField(16)@JsonKey(name: 'permata_va_number') List<VANumberModel>? permataVaNumber,@HiveField(17)@JsonKey(name: 'bill_key') String? billKey,@HiveField(18)@JsonKey(name: 'biller_code') String? billerCode,@HiveField(19)@JsonKey(name: 'pdf_url') String? pdfUrl,@HiveField(20) String currency,@HiveField(21)@JsonKey(name: 'merchant_id') String? merchantId,@HiveField(22)@JsonKey(name: 'signature_key') String? signatureKey,@HiveField(23) List<PaymentActionModel>? actions,@HiveField(24)@JsonKey(name: 'raw_response') Map<String, dynamic>? rawResponse,@HiveField(25) DateTime? createdAt,@HiveField(26) DateTime? updatedAt,@HiveField(27)@JsonKey(name: 'tendered_amount') int? tenderedAmount,@HiveField(28)@JsonKey(name: 'change_amount') int? changeAmount,@HiveField(29) PaymentTypeModel? selectedPaymentType,@HiveField(30) PaymentMethodModel? selectedPaymentMethod
 });
 
 
-
+@override $PaymentTypeModelCopyWith<$Res>? get selectedPaymentType;@override $PaymentMethodModelCopyWith<$Res>? get selectedPaymentMethod;
 
 }
 /// @nodoc
@@ -236,7 +266,7 @@ class __$PaymentModelCopyWithImpl<$Res>
 
 /// Create a copy of PaymentModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? orderId = freezed,Object? transactionId = freezed,Object? method = freezed,Object? status = freezed,Object? paymentType = freezed,Object? amount = null,Object? remainingAmount = null,Object? phone = freezed,Object? discount = null,Object? midtransRedirectUrl = freezed,Object? fraudStatus = freezed,Object? transactionTime = freezed,Object? expiryTime = freezed,Object? settlementTime = freezed,Object? paidAt = freezed,Object? vaNumbers = freezed,Object? permataVaNumber = freezed,Object? billKey = freezed,Object? billerCode = freezed,Object? pdfUrl = freezed,Object? currency = null,Object? merchantId = freezed,Object? signatureKey = freezed,Object? actions = freezed,Object? rawResponse = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,Object? tenderedAmount = freezed,Object? changeAmount = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? orderId = freezed,Object? transactionId = freezed,Object? method = freezed,Object? status = freezed,Object? paymentType = freezed,Object? amount = null,Object? remainingAmount = null,Object? phone = freezed,Object? discount = null,Object? midtransRedirectUrl = freezed,Object? fraudStatus = freezed,Object? transactionTime = freezed,Object? expiryTime = freezed,Object? settlementTime = freezed,Object? paidAt = freezed,Object? vaNumbers = freezed,Object? permataVaNumber = freezed,Object? billKey = freezed,Object? billerCode = freezed,Object? pdfUrl = freezed,Object? currency = null,Object? merchantId = freezed,Object? signatureKey = freezed,Object? actions = freezed,Object? rawResponse = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,Object? tenderedAmount = freezed,Object? changeAmount = freezed,Object? selectedPaymentType = freezed,Object? selectedPaymentMethod = freezed,}) {
   return _then(_PaymentModel(
 orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
 as String?,transactionId: freezed == transactionId ? _self.transactionId : transactionId // ignore: cast_nullable_to_non_nullable
@@ -267,11 +297,37 @@ as Map<String, dynamic>?,createdAt: freezed == createdAt ? _self.createdAt : cre
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,tenderedAmount: freezed == tenderedAmount ? _self.tenderedAmount : tenderedAmount // ignore: cast_nullable_to_non_nullable
 as int?,changeAmount: freezed == changeAmount ? _self.changeAmount : changeAmount // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,selectedPaymentType: freezed == selectedPaymentType ? _self.selectedPaymentType : selectedPaymentType // ignore: cast_nullable_to_non_nullable
+as PaymentTypeModel?,selectedPaymentMethod: freezed == selectedPaymentMethod ? _self.selectedPaymentMethod : selectedPaymentMethod // ignore: cast_nullable_to_non_nullable
+as PaymentMethodModel?,
   ));
 }
 
+/// Create a copy of PaymentModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentTypeModelCopyWith<$Res>? get selectedPaymentType {
+    if (_self.selectedPaymentType == null) {
+    return null;
+  }
 
+  return $PaymentTypeModelCopyWith<$Res>(_self.selectedPaymentType!, (value) {
+    return _then(_self.copyWith(selectedPaymentType: value));
+  });
+}/// Create a copy of PaymentModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentMethodModelCopyWith<$Res>? get selectedPaymentMethod {
+    if (_self.selectedPaymentMethod == null) {
+    return null;
+  }
+
+  return $PaymentMethodModelCopyWith<$Res>(_self.selectedPaymentMethod!, (value) {
+    return _then(_self.copyWith(selectedPaymentMethod: value));
+  });
+}
 }
 
 // dart format on

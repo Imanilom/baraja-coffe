@@ -94,8 +94,8 @@ class OrderListWidget extends ConsumerWidget {
                             color: isSelected ? Colors.blue[50] : Colors.white,
                             child: ListTile(
                               title: Text(
-                                order.payment
-                                        ?.map((p) => p.method)
+                                order.payments
+                                        .map((p) => p.method)
                                         .join(', ') ??
                                     'No Payment Method',
                                 style: const TextStyle(

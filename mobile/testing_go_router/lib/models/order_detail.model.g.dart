@@ -51,10 +51,8 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       source: fields[22] == null ? 'Cashier' : fields[22] as String,
       createdAt: fields[23] as DateTime?,
       updatedAt: fields[24] as DateTime?,
-      payment:
-          fields[25] == null
-              ? null
-              : (fields[25] as List?)?.cast<PaymentModel>(),
+      payments:
+          fields[25] == null ? [] : (fields[25] as List).cast<PaymentModel>(),
       paymentStatus: fields[26] == null ? null : fields[26] as String?,
       id: fields[27] == null ? null : fields[27] as String?,
       isOpenBill: fields[28] == null ? false : fields[28] as bool,
@@ -128,7 +126,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(24)
       ..write(obj.updatedAt)
       ..writeByte(25)
-      ..write(obj.payment)
+      ..write(obj.payments)
       ..writeByte(26)
       ..write(obj.paymentStatus)
       ..writeByte(27)
@@ -225,11 +223,11 @@ _OrderDetailModel _$OrderDetailModelFromJson(
       json['updatedAtWIB'] == null
           ? null
           : DateTime.parse(json['updatedAtWIB'] as String),
-  payment:
+  payments:
       (json['payment_details'] as List<dynamic>?)
           ?.map((e) => PaymentModel.fromJson(e as Map<String, dynamic>))
           .toList() ??
-      null,
+      const <PaymentModel>[],
   paymentStatus: json['paymentStatus'] as String? ?? null,
   id: json['_id'] as String? ?? null,
   isOpenBill: json['isOpenBill'] as bool? ?? false,
@@ -280,7 +278,7 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'source': instance.source,
       'createdAtWIB': instance.createdAt?.toIso8601String(),
       'updatedAtWIB': instance.updatedAt?.toIso8601String(),
-      'payment_details': instance.payment,
+      'payment_details': instance.payments,
       'paymentStatus': instance.paymentStatus,
       '_id': instance.id,
       'isOpenBill': instance.isOpenBill,

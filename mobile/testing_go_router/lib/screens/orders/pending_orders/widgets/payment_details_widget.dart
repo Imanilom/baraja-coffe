@@ -24,15 +24,15 @@ class PaymentDetailsWidget extends ConsumerWidget {
 
     // Filter hanya tagihan yang belum dibayar (status pending/unpaid)
     final List<PaymentModel> pendingPayments =
-        orders?.payment
-            ?.where((payment) => payment.status?.toLowerCase() == 'pending')
+        orders?.payments
+            .where((payment) => payment.status?.toLowerCase() == 'pending')
             .toList() ??
         [];
 
     // Tagihan yang sudah dibayar untuk ditampilkan sebagai history
     final List<PaymentModel> paidPayments =
-        orders?.payment
-            ?.where((payment) => payment.status?.toLowerCase() == 'settlement')
+        orders?.payments
+            .where((payment) => payment.status?.toLowerCase() == 'settlement')
             .toList() ??
         [];
 

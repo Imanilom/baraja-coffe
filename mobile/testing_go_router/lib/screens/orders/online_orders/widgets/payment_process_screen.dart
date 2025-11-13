@@ -1254,7 +1254,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
       final paymentMethodAndType =
           '${ref.read(paymentProcessProvider).selectedType!.name} ${ref.read(paymentProcessProvider).selectedMethod!.name}';
       final List<PaymentModel> updatedPayments =
-          (widget.order.payment ?? [])
+          (widget.order.payments ?? [])
               .map((p) => p.copyWith(method: paymentMethodAndType))
               .toList();
       print('req data: $requestData');
@@ -1270,7 +1270,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
         //update paymentStatus pada widget.order
         final updatedOrder = widget.order.copyWith(
           paymentStatus: 'settlement',
-          payment: updatedPayments,
+          payments: updatedPayments,
         );
         final savedPrinter = ref.read(savedPrintersProvider.notifier);
         if (result.data?.orderType?.toLowerCase() != 'reservation') {

@@ -205,11 +205,11 @@ class OrderDetailWidget extends ConsumerWidget {
           ...order.items.map((item) => _buildItemCard(item)),
           const SizedBox(height: 12),
 
-          //tombol edit order item hanya muncul ketika payment detailnya belum sepenuhnya dibayar,
+          //tombol edit order item hanya muncul ketika payments detailnya belum sepenuhnya dibayar,
           if (order.items.isEmpty ||
-              order.payment!.isEmpty ||
-              order.payment!.any((p) => p.status!.toLowerCase() == "pending") ||
-              order.payment!.any(
+              order.payments.isEmpty ||
+              order.payments.any((p) => p.status!.toLowerCase() == "pending") ||
+              order.payments.any(
                 (p) => p.status!.toLowerCase() == "settlement",
               ))
             TextButton.icon(

@@ -9,6 +9,7 @@ import 'package:kasirbaraja/screens/main_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/screens/orders/edit_order/edit_order_screen.dart';
+import 'package:kasirbaraja/screens/payments/payment_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_success_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_type_screen.dart';
 import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
@@ -264,7 +265,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder:
             (context, state) => CustomTransitionPage(
               arguments: state.extra,
-              child: const PaymentMethodScreen(),
+              child: PaymentScreen(order: state.extra as OrderDetailModel),
+              // child: const PaymentMethodScreen(),
               transitionsBuilder: (
                 context,
                 animation,

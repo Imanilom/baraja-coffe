@@ -566,8 +566,8 @@ class ReceiptWidget extends ConsumerWidget {
   }
 
   Widget _buildPaymentDetailsSection(OrderDetailModel order) {
-    final details = order.payment; // <-- sesuaikan jika nama field berbeda
-    if (details == null || details.isEmpty) {
+    final details = order.payments; // <-- sesuaikan jika nama field berbeda
+    if (details.isEmpty) {
       // fallback lama: hanya tampilkan baris Payment tunggal jika ada
       if (order.paymentMethod != null && order.paymentMethod!.isNotEmpty) {
         return Column(

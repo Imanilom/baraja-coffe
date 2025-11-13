@@ -1370,7 +1370,7 @@ class PrinterService {
     if (isOrderDetailSplitPayment(orderDetail)) {
       print('isSplitPayment: ${orderDetail.isSplitPayment}');
       bytes.addAll(generator.feed(1));
-      for (var payment in orderDetail.payment!) {
+      for (var payment in orderDetail.payments) {
         bytes.addAll(
           generator.row([
             PosColumn(
@@ -2105,9 +2105,8 @@ class PrinterService {
 
   //membuat method untuk mengtahui orderdetail split payment atau tidak
   static bool isOrderDetailSplitPayment(OrderDetailModel orderDetail) {
-    print(orderDetail.payment);
-    if (orderDetail.payment == null) return false;
-    if (orderDetail.payment!.isEmpty) return false;
+    print(orderDetail.payments);
+    if (orderDetail.payments.isEmpty) return false;
 
     return true; //orderdetail
   }
