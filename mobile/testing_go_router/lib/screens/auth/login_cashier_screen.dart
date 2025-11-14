@@ -1553,7 +1553,7 @@ class _ModernLoginCashierScreenState
                         // 5. Jika berhasil, login cashier
                         ref
                             .read(authCashierProvider.notifier)
-                            .login(currentCashier);
+                            .login(currentCashier, currentDevice);
                         return true;
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(

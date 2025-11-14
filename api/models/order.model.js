@@ -464,6 +464,7 @@ const OrderSchema = new mongoose.Schema({
   user: { type: String, required: true, default: 'Guest' },
   cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   groId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  device_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Device', default: null },
   items: [OrderItemSchema],
   customAmountItems: [{
     amount: { type: Number, required: true },

@@ -8,6 +8,7 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
+import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/services/api_response_handler.dart';
 import 'package:dio/dio.dart';
@@ -353,11 +354,16 @@ Map<String, dynamic> createOrderRequest(
   final box = Hive.box('userBox');
   final user = box.get('user') as UserModel;
 
+  //logindevicebox
+  final loginDeviceBox = Hive.box('loginDevices');
+  final loginDevice = loginDeviceBox.get('loginDevice') as DeviceModel;
+
   return {
     'order_id': order.orderId,
     'user_id': order.userId ?? "",
     'user': order.user,
     'cashierId': order.cashierId ?? '',
+    'device_id': loginDevice.id ?? '',
     'items':
         order.items.map((item) {
           return {

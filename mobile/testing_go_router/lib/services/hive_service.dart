@@ -61,6 +61,10 @@ class HiveService {
   static Box<Event> get eventBox => Hive.box<Event>('eventsBox');
   static Box<DeviceModel> get deviceBox => Hive.box<DeviceModel>('devices');
 
+  //login device box
+  static Box<DeviceModel> get loginDeviceBox =>
+      Hive.box<DeviceModel>('loginDevices');
+
   // Clear all data (useful for logout or data refresh)
   static Future<void> clearAllData() async {
     await userBox.clear();
@@ -69,6 +73,7 @@ class HiveService {
     await paymentTypeBox.clear();
     await eventBox.clear();
     await deviceBox.clear();
+    await loginDeviceBox.clear();
   }
 
   // Close all boxes (call this when app is closing)
@@ -78,6 +83,7 @@ class HiveService {
     await paymentTypeBox.close();
     await eventBox.close();
     await deviceBox.close();
+    await loginDeviceBox.close();
   }
 
   // Check if data exists (to determine if sync is needed)
@@ -180,5 +186,16 @@ class HiveService {
     final box = Hive.box('userBox');
     final user = box.get('user') as UserModel?;
     return user?.token ?? '';
+  }
+
+  //saved device
+  static Future<void> saveLoginDevice(DeviceModel device) async {
+    final box = Hive.box('loginDevices');
+    await box.put('loginDevice', device);
+  }
+
+  static Future<DeviceModel?> getLoginDevice() async {
+    final box = Hive.box('loginDevices');
+    return box.get('loginDevice') as DeviceModel?;
   }
 }

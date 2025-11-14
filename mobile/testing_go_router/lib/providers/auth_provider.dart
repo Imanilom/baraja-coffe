@@ -83,10 +83,12 @@ class CashierNotifier extends StateNotifier<AsyncValue<CashierModel?>> {
 
   CashierNotifier(this.ref) : super(const AsyncValue.data(null));
 
-  Future<void> login(CashierModel cashier) async {
+  Future<void> login(CashierModel cashier, DeviceModel device) async {
     state = AsyncValue.data(cashier);
     print('cek login data cashier: $cashier');
     await HiveService.saveCashier(cashier);
+    await HiveService.saveLoginDevice(device);
+
     await ref
         .read(tryAuthProvider.notifier)
         .loginCashier(cashier.id!, cashier.password!);
@@ -280,7 +282,10 @@ class CashierLoginToDeviceNotifier extends StateNotifier<AsyncValue<bool>> {
 
   CashierLoginToDeviceNotifier(this.ref) : super(const AsyncValue.data(false));
 
-  Future<void> loginCashierToDevice(CashierModel cashier, DeviceModel device) async {
+  Future<void> loginCashierToDevice(
+    CashierModel cashier,
+    DeviceModel device,
+  ) async {
     state = const AsyncValue.loading();
 
     try {
