@@ -479,6 +479,17 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
     print('Custom amount berhasil dihapus');
   }
+
+  void setPayments(List<PaymentModel> payments) {
+    if (state == null) return;
+    state = state!.copyWith(payments: payments);
+  }
+
+  void addPayment(PaymentModel payment) {
+    if (state == null) return;
+    final current = state!.payments;
+    state = state!.copyWith(payments: [...current, payment]);
+  }
 }
 
 // Provider untuk OrderDetailNotifier

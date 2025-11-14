@@ -7,9 +7,9 @@ import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 // IMPORT provider tipe pembayaran yang sudah kamu punya
-// (di contoh sebelumnya ada di payment_provider.dart)
 import 'package:kasirbaraja/providers/payment_provider.dart'
     show paymentTypesProvider;
+import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 
 enum PaymentMode {
   single, // tanpa split
@@ -26,6 +26,7 @@ class PaymentScreen extends ConsumerStatefulWidget {
 }
 
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+  // === STATE LOGIKA (TETAP) ===
   PaymentMode _mode = PaymentMode.single;
 
   PaymentTypeModel? _selectedType;
@@ -39,12 +40,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   final TextEditingController _splitAmountController = TextEditingController();
 
   // sementara: simpan payments di lokal (nanti bisa diganti ke orderDetailProvider)
-  late List<PaymentModel> _payments;
+  // late List<PaymentModel> _payments;
 
   @override
   void initState() {
     super.initState();
-    _payments = List<PaymentModel>.from(widget.order.payments);
+    // _payments = List<PaymentModel>.from(widget.order.payments);
   }
 
   @override
@@ -54,7 +55,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     super.dispose();
   }
 
-  int get _grandTotal => widget.order.grandTotal;
+  OrderDetailModel get _order {
+    // subscribe di build pakai ref.watch, di sini cukup read
+    return ref.read(orderDetailProvider) ?? widget.order;
+  }
+
+  List<PaymentModel> get _payments => _order.payments;
+
+  int get _grandTotal => _order.grandTotal;
 
   int get _totalPaid {
     return _payments.fold(0, (sum, p) => sum + p.amount);
@@ -76,10 +84,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     if (_customCashController.text.isNotEmpty) {
-      final digitsOnly = _customCashController.text.replaceAll(
-        RegExp(r'[^0-9]'),
-        '',
-      );
+      final digitsOnly = _customCashController.text.replaceAll((r'[^0-9]'), '');
       final parsed = int.tryParse(digitsOnly);
       return parsed;
     }
@@ -159,10 +164,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final paymentTypesAsync = ref.watch(paymentTypesProvider);
+    ref.watch(orderDetailProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      // umumnya POS landscape nggak perlu keyboard naik-turun
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         elevation: 0,
@@ -173,91 +178,138 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          _buildSummaryCard(),
-          const SizedBox(height: 8),
-          _buildModeToggle(),
-          const SizedBox(height: 4),
-          Expanded(
-            child: paymentTypesAsync.when(
-              data:
-                  (types) => LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Row(
-                        children: [
-                          // PANEL KIRI (METODE)
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              children: [
-                                _buildPaymentTypes(types),
-                                const SizedBox(height: 8),
-                                Expanded(
-                                  child: _buildPaymentMethodsOrCashOptions(),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // PANEL KANAN (SPLIT + LIST + BUTTON)
-                          Expanded(
-                            flex: 4,
-                            child: Column(
-                              children: [
-                                if (_mode == PaymentMode.split)
-                                  _buildSplitAmountInput(),
-                                if (_mode == PaymentMode.split)
-                                  const SizedBox(height: 8),
-                                Expanded(child: _buildExistingPaymentsList()),
-                                _buildBottomActionBar(context),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error:
-                  (e, _) =>
-                      Center(child: Text('Gagal memuat tipe pembayaran: $e')),
+        actions: [
+          // 🔘 TOGGLE SPLIT PAYMENT DI APPBAR
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _mode =
+                    _mode == PaymentMode.single
+                        ? PaymentMode.split
+                        : PaymentMode.single;
+                // reset input split jika dimatikan
+                if (_mode == PaymentMode.single) {
+                  _splitAmountController.clear();
+                }
+              });
+            },
+            icon: Icon(
+              Icons.call_split,
+              size: 18,
+              color:
+                  _mode == PaymentMode.split
+                      ? const Color(0xFF2E7D4F)
+                      : Colors.grey[600],
+            ),
+            label: Text(
+              _mode == PaymentMode.split ? 'Split ON' : 'Split OFF',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color:
+                    _mode == PaymentMode.split
+                        ? const Color(0xFF2E7D4F)
+                        : Colors.grey[700],
+              ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
+      ),
+      body: paymentTypesAsync.when(
+        data:
+            (types) => Row(
+              children: [
+                // ⬅️ PANEL KIRI: DETAIL TAGIHAN (flex 2)
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    children: [
+                      _buildSummaryCard(),
+                      const SizedBox(height: 8),
+                      Expanded(child: _buildExistingPaymentsList()),
+                    ],
+                  ),
+                ),
+
+                // ➡️ PANEL KANAN: AREA PEMBAYARAN (flex 5)
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      if (_mode == PaymentMode.split) ...[
+                        const SizedBox(height: 8),
+                        _buildSplitAmountInput(),
+                      ],
+                      const SizedBox(height: 8),
+                      _buildPaymentTypes(types),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            // area metode / cash
+                            Expanded(
+                              child: _buildPaymentMethodsOrCashOptions(),
+                            ),
+                            _buildBottomActionBar(context),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error:
+            (e, _) => Center(child: Text('Gagal memuat tipe pembayaran: $e')),
       ),
     );
   }
 
-  // ================== SUMMARY & MODE ==================
+  // ================== SUMMARY (kiri atas) ==================
 
   Widget _buildSummaryCard() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: _boxWhite(),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: _buildSummaryItem(
-              label: 'Total Tagihan',
-              value: formatRupiah(_grandTotal),
-              highlight: true,
+          Text(
+            'Detail Tagihan',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[800],
             ),
           ),
-          Expanded(
-            child: _buildSummaryItem(
-              label: 'Sudah Dibayar',
-              value: formatRupiah(_totalPaid),
-            ),
-          ),
-          Expanded(
-            child: _buildSummaryItem(
-              label: 'Sisa Tagihan',
-              value: formatRupiah(_remaining),
-              highlight: _remaining > 0,
-            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryItem(
+                  label: 'Total',
+                  value: formatRupiah(_grandTotal),
+                  highlight: true,
+                ),
+              ),
+              Expanded(
+                child: _buildSummaryItem(
+                  label: 'Sudah Bayar',
+                  value: formatRupiah(_totalPaid),
+                ),
+              ),
+              Expanded(
+                child: _buildSummaryItem(
+                  label: 'Sisa',
+                  value: formatRupiah(_remaining),
+                  highlight: _remaining > 0,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -273,11 +325,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           value,
           style: TextStyle(
-            fontSize: highlight ? 18 : 16,
+            fontSize: highlight ? 17 : 15,
             fontWeight: highlight ? FontWeight.bold : FontWeight.w600,
             color: highlight ? const Color(0xFF2E7D4F) : Colors.black87,
           ),
@@ -286,105 +338,82 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  Widget _buildModeToggle() {
+  // ================== PANEL KIRI BAWAH: LIST PAYMENTS ==================
+
+  Widget _buildExistingPaymentsList() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _mode = PaymentMode.single;
-                  _splitAmountController.clear();
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color:
-                      _mode == PaymentMode.single
-                          ? const Color(0xFF2E7D4F)
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(999),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(12),
+      decoration: _boxWhite(),
+      child:
+          _payments.isEmpty
+              ? Center(
+                child: Text(
+                  'Belum ada pembayaran',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
                 ),
-                child: Center(
-                  child: Text(
-                    'Tanpa Split',
-                    style: TextStyle(
-                      color:
-                          _mode == PaymentMode.single
-                              ? Colors.white
-                              : Colors.grey[700],
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
+              )
+              : ListView.separated(
+                itemCount: _payments.length,
+                separatorBuilder: (_, __) => const Divider(height: 10),
+                itemBuilder: (context, index) {
+                  final p = _payments[index];
+                  return Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Colors.grey[200],
+                        child: Text(
+                          '${index + 1}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.method ?? p.paymentType ?? 'Pembayaran',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Nominal: ${formatRupiah(p.amount)}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            if (p.remainingAmount > 0)
+                              Text(
+                                'Sisa setelah ini: ${formatRupiah(p.remainingAmount)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _mode = PaymentMode.split;
-                  _selectedCashPreset = null;
-                  _customCashController.clear();
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color:
-                      _mode == PaymentMode.split
-                          ? const Color(0xFF2E7D4F)
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Center(
-                  child: Text(
-                    'Split Payment',
-                    style: TextStyle(
-                      color:
-                          _mode == PaymentMode.split
-                              ? Colors.white
-                              : Colors.grey[700],
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
-  // ================== PANEL KIRI: PAYMENT TYPE & METHOD ==================
+  // ================== PANEL KANAN: PAYMENT TYPES & METHODS ==================
 
   Widget _buildPaymentTypes(List<PaymentTypeModel> paymentTypes) {
     final activeTypes = paymentTypes.where((t) => t.isActive).toList();
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -492,7 +521,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 8, 12),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       padding: const EdgeInsets.all(12),
       decoration: _boxWhite(),
       child:
@@ -664,11 +693,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return list;
   }
 
-  // ================== PANEL KANAN: SPLIT INPUT & LIST ==================
+  // ================== SPLIT INPUT (KANAN BAWAH ATAS) ==================
 
   Widget _buildSplitAmountInput() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(8, 4, 16, 0),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       padding: const EdgeInsets.all(12),
       decoration: _boxWhite(),
       child: Column(
@@ -726,79 +755,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  Widget _buildExistingPaymentsList() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-      padding: const EdgeInsets.all(12),
-      decoration: _boxWhite(),
-      child:
-          _payments.isEmpty
-              ? Center(
-                child: Text(
-                  'Belum ada pembayaran',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-              )
-              : ListView.separated(
-                itemCount: _payments.length,
-                separatorBuilder: (_, __) => const Divider(height: 10),
-                itemBuilder: (context, index) {
-                  final p = _payments[index];
-                  return Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Colors.grey[200],
-                        child: Text(
-                          '${index + 1}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              p.method ?? p.paymentType ?? 'Pembayaran',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Nominal: ${formatRupiah(p.amount)}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            if (p.remainingAmount > 0)
-                              Text(
-                                'Sisa setelah ini: ${formatRupiah(p.remainingAmount)}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.orange,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-    );
-  }
-
-  // ================== BOTTOM ACTION BAR ==================
+  // ================== BOTTOM ACTION BAR (KANAN PALING BAWAH) ==================
 
   Widget _buildBottomActionBar(BuildContext context) {
     if (_mode == PaymentMode.single) {
       return Container(
-        margin: const EdgeInsets.fromLTRB(8, 0, 16, 12),
+        margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
         child: SizedBox(
           width: double.infinity,
           height: 46,
@@ -821,7 +783,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     // SPLIT MODE
     return Container(
-      margin: const EdgeInsets.fromLTRB(8, 0, 16, 12),
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: Row(
         children: [
           Expanded(
@@ -864,7 +826,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  // ================== HANDLER (BELUM NYAMBUNG BACKEND) ==================
+  // ================== HANDLER (LOGIKA TETAP) ==================
 
   String _currentMethodName() {
     if (_isCashSelected) return 'Cash';
@@ -878,9 +840,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final change = _changeSingleMode;
 
     final payment = PaymentModel(
-      orderId: widget.order.orderId,
+      orderId: _order.orderId,
       method: _currentMethodName(),
-      paymentType: _selectedType?.id,
+      paymentType: _selectedType?.name,
       amount: amount,
       tenderedAmount: tendered,
       changeAmount: change,
@@ -889,13 +851,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       createdAt: DateTime.now(),
     );
 
+    // 🚀 simpan ke orderDetailProvider
+    ref.read(orderDetailProvider.notifier).addPayment(payment);
+
+    // optional: kalau mau clear pilihan / input
     setState(() {
-      _payments = [..._payments, payment];
+      _selectedCashPreset = null;
+      _customCashController.clear();
     });
 
-    // TODO:
-    // - di sini nanti panggil orderDetailNotifier.appendPayment(payment)
-    // - lalu submit ke backend, print struk, navigasi ke success screen, dll.
     debugPrint('Bayar (tanpa split): $payment');
   }
 
@@ -907,9 +871,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final remainingAfter = (_remaining - amount).clamp(0, _grandTotal);
 
     final payment = PaymentModel(
-      orderId: widget.order.orderId,
+      orderId: _order.orderId,
       method: _currentMethodName(),
-      paymentType: _selectedType?.id,
+      paymentType: _selectedType?.name,
       amount: amount,
       tenderedAmount: tendered,
       changeAmount: change,
@@ -918,8 +882,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       createdAt: DateTime.now(),
     );
 
+    // 🚀 simpan ke orderDetailProvider
+    ref.read(orderDetailProvider.notifier).addPayment(payment);
+
+    // reset input lokal
     setState(() {
-      _payments = [..._payments, payment];
       _splitAmountController.clear();
       _selectedCashPreset = null;
       _customCashController.clear();
@@ -929,12 +896,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   void _onFinishSplitOrder() {
-    // TODO:
-    // - di sini nanti submit order dengan _payments sebagai order.payments
-    // - panggil backend / print / navigasi success
+    final order = ref.read(orderDetailProvider);
+
     debugPrint(
-      'Selesaikan order dengan ${_payments.length} payment, totalPaid=$_totalPaid',
+      'Selesaikan order dengan ${order?.payments.length ?? 0} payment, '
+      'totalPaid=${order?.payments.fold(0, (s, p) => s + p.amount) ?? 0}',
     );
+
+    // TODO:
+    // - di sini nanti panggil OrderService.createOrder(order!)
+    //   atau processPaymentOrder, dll, pakai order.payments
   }
 
   // ================== UTIL ==================
