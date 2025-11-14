@@ -321,5 +321,89 @@ export const fingerprintController = {
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
+  },
+
+  // Map raw fingerprint ke employee
+  mapRawFingerprint: async (req, res) => {
+    try {
+      const { rawFingerprintId, employeeId } = req.body;
+
+      // Cek raw fingerprint
+      const rawFingerprint = await RawFingerprint.findById(rawFingerprintId);
+      if (!rawFingerprint) {
+        return res.status(404).json({ message: 'Raw fingerprint data not found' });
+      }
+
+      if (rawFingerprint.isMapped) {
+        return res.status(400).json({ message: 'Fingerprint already mapped to an employee' });
+      }
+
+      // Cek employee
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+
+      // Update employeeId di employee untuk konsistensi
+      // (asumsi PIN dari device adalah employeeId)
+      if (rawFingerprint.deviceUserId.includes('USER_')) {
+        const pin = rawFingerprint.deviceUserId.replace('USER_', '');
+        employee.employeeId = pin; // Sync employeeId dengan PIN dari device
+        await employee.save();
+      }
+
+      // Update raw fingerprint status
+      rawFingerprint.isMapped = true;
+      rawFingerprint.mappedToEmployee = employeeId;
+      rawFingerprint.username = employee.user?.username || `Employee_${employee.employeeId}`;
+      await rawFingerprint.save();
+
+      // Buat fingerprint record di collection Fingerprint
+      const fingerprint = new Fingerprint({
+        employee: employeeId,
+        fingerprintData: rawFingerprint.fingerprintData,
+        fingerprintIndex: rawFingerprint.fingerprintIndex,
+        deviceId: rawFingerprint.deviceId,
+        deviceUserId: rawFingerprint.deviceUserId
+      });
+
+      await fingerprint.save();
+
+      res.json({
+        message: 'Fingerprint successfully mapped to employee',
+        data: {
+          rawFingerprint,
+          fingerprint,
+          employee: {
+            id: employee._id,
+            employeeId: employee.employeeId,
+            username: employee.user?.username
+          }
+        }
+      });
+
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+
+  // Get unmapped raw fingerprints dengan activity
+  getUnmappedFingerprintsWithActivity: async (req, res) => {
+    try {
+      const { minActivityCount = 1 } = req.query;
+
+      const fingerprints = await RawFingerprint.find({
+        isMapped: false,
+        activityCount: { $gte: parseInt(minActivityCount) }
+      })
+      .sort({ lastActivity: -1, activityCount: -1 });
+
+      res.json({
+        total: fingerprints.length,
+        data: fingerprints
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
   }
 };
