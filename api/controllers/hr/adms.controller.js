@@ -3,56 +3,136 @@ import Attendance from '../../models/model_hr/Attendance.model.js';
 import Employee from '../../models/model_hr/Employee.model.js';
 import RawFingerprint from '../../models/model_hr/RawFingerprint.model.js';
 
+// Cache untuk mencegah processing data yang sama berulang
+const processedCache = new Map();
+const CACHE_TTL = 60000; // 1 menit
+
 export const handleADMSUpload = async (req, res) => {
   try {
     const raw = req.body;
-    console.log("Raw body:", req.body);
+    console.log("Raw body received, length:", raw.length);
     
-    // ADMS sometimes sends heartbeat with no data
+    // Handle empty data (heartbeat)
     if (!raw || !raw.trim()) {
       return res.status(200).send('OK');
     }
 
+    // Handle OPLOG messages (device operation log)
+    if (raw.startsWith('OPLOG')) {
+      console.log("OPLOG message received and ignored");
+      return res.status(200).send('OK');
+    }
+
+    // Check cache untuk mencegah processing data yang sama
+    const cacheKey = raw.substring(0, 100); // Ambil bagian awal sebagai key
+    if (processedCache.has(cacheKey)) {
+      console.log("Skipping duplicate request (cached)");
+      return res.status(200).json({ message: 'Duplicate request ignored' });
+    }
+
+    // Set cache
+    processedCache.set(cacheKey, true);
+    setTimeout(() => processedCache.delete(cacheKey), CACHE_TTL);
+
     const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
     const results = [];
 
-    for (const line of lines) {
-      const parsed = parseADMSLine(line);
-      if (!parsed) continue;
+    console.log(`Processing ${lines.length} lines from device`);
 
-      const saved = await processFingerprintRecord(parsed);
-      results.push(saved);
+    let processedCount = 0;
+    let skippedCount = 0;
+
+    for (const line of lines) {
+      const parsed = parseADMSData(line);
+      if (!parsed) {
+        skippedCount++;
+        continue;
+      }
+
+      const result = await processFingerprintRecord(parsed);
+      results.push(result);
+      
+      if (result.status === 'historical_ignored') {
+        skippedCount++;
+      } else {
+        processedCount++;
+      }
     }
 
-    return res.status(200).json({ message: 'Logs processed', results });
+    console.log(`Processing completed: ${processedCount} processed, ${skippedCount} skipped`);
+
+    // Jika semua data di-skip (historical), kirim response khusus ke device
+    if (processedCount === 0 && skippedCount > 0) {
+      console.log("All data is historical, sending clear signal to device");
+      return res.status(200).send('OK: CLEAR'); // Signal untuk device clear buffer
+    }
+
+    return res.status(200).json({ 
+      message: 'Logs processed', 
+      processed: processedCount,
+      skipped: skippedCount,
+      results 
+    });
 
   } catch (error) {
-    console.error(error);
+    console.error("Error in handleADMSUpload:", error);
     return res.status(500).json({ message: error.message });
   }
 };
 
-export const parseADMSLine = (line) => {
-  // Format: "PIN=1234    2025-11-04 08:02:31    0"
-  const regex = /PIN=(\S+)\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d)/;
-  const match = line.match(regex);
+export const parseADMSData = (line) => {
+  // Format: "4    2022-08-26 12:53:54     0       1               0       0"
+  const format1 = /^(\d+)\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$/;
+  
+  const match = line.match(format1);
+  if (!match) {
+    return null;
+  }
 
-  if (!match) return null;
-
+  const pin = match[1];
+  const timestamp = match[2];
+  const statusCode = parseInt(match[3]);
+  
+  // Convert status code to checkIn/checkOut
+  let status = 'checkIn';
+  if (statusCode === 1 || statusCode === 4) {
+    status = 'checkOut';
+  }
+  
   return {
-    pin: match[1],
-    timestamp: match[2],
-    status: match[3] === '0' ? 'checkIn' : 'checkOut'
+    pin,
+    timestamp,
+    status,
+    statusCode,
+    verifyMethod: match[4],
+    workCode: match[5]
   };
 };
 
-export const processFingerprintRecord = async ({ pin, timestamp, status }) => {
+export const processFingerprintRecord = async (parsedData) => {
   try {
+    const { pin, timestamp, status } = parsedData;
+
+    // Filter data historis yang terlalu lama (lebih dari 30 hari)
+    const recordDate = new Date(timestamp);
+    const currentDate = new Date();
+    const daysDiff = Math.floor((currentDate - recordDate) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff > 30) {
+      return { 
+        pin, 
+        status: 'historical_ignored', 
+        message: `Historical data ignored (${daysDiff} days old)`,
+        timestamp,
+        daysOld: daysDiff
+      };
+    }
+
     // Cari employee berdasarkan PIN (employeeId)
     const employee = await Employee.findOne({ employeeId: pin });
     
     if (!employee) {
-      // Jika employee tidak ditemukan, simpan sebagai raw data
+      console.log(`Employee not found for PIN: ${pin}, saving as raw data`);
       return await saveRawFingerprintRecord(pin, timestamp, status);
     }
 
@@ -60,22 +140,26 @@ export const processFingerprintRecord = async ({ pin, timestamp, status }) => {
     const isFingerprintMapped = await checkFingerprintMapping(pin);
     
     if (!isFingerprintMapped) {
-      // Jika belum dipetakan, simpan sebagai raw data
+      console.log(`Fingerprint not mapped for PIN: ${pin}, saving as raw data`);
       return await saveRawFingerprintRecord(pin, timestamp, status);
     }
 
-    // Jika sudah dipetakan, simpan ke attendance
+    console.log(`Fingerprint mapped for PIN: ${pin}, saving to attendance`);
     return await saveAttendanceRecord(employee, timestamp, status);
 
   } catch (error) {
     console.error('Error processing fingerprint record:', error);
-    return { pin, error: error.message };
+    return { 
+      pin: parsedData.pin, 
+      error: error.message,
+      timestamp: parsedData.timestamp 
+    };
   }
 };
 
+
 export const saveRawFingerprintRecord = async (pin, timestamp, status) => {
   try {
-    // Generate unique deviceUserId dari PIN dan timestamp
     const deviceUserId = `USER_${pin}`;
     const username = `Employee_${pin}`;
     
@@ -85,51 +169,76 @@ export const saveRawFingerprintRecord = async (pin, timestamp, status) => {
       isMapped: false 
     });
 
+    const now = new Date();
+    const recordDate = new Date(timestamp);
+
     if (existingRaw) {
-      // Update last activity timestamp
-      existingRaw.lastActivity = new Date(timestamp);
-      existingRaw.lastStatus = status;
-      await existingRaw.save();
-      
-      return { 
-        pin, 
-        status: 'raw_updated', 
-        message: 'Raw fingerprint data updated',
-        mapped: false
-      };
+      // Update hanya jika data lebih baru
+      if (recordDate > existingRaw.lastActivity) {
+        existingRaw.lastActivity = recordDate;
+        existingRaw.lastStatus = status;
+        await existingRaw.save();
+        
+        console.log(`Updated raw fingerprint for PIN: ${pin}`);
+        
+        return { 
+          pin, 
+          status: 'raw_updated', 
+          message: 'Raw fingerprint data updated',
+          mapped: false,
+          timestamp 
+        };
+      } else {
+        console.log(`Duplicate raw data for PIN: ${pin}, ignoring`);
+        return { 
+          pin, 
+          status: 'raw_duplicate', 
+          message: 'Duplicate raw data ignored',
+          mapped: false,
+          timestamp 
+        };
+      }
     }
 
     // Simpan data fingerprint baru sebagai raw data
     const rawFingerprint = new RawFingerprint({
-      deviceId: 'X105', // Default device ID
+      deviceId: 'X105',
       deviceUserId,
       username,
-      fingerprintData: `FP_DATA_${pin}_${Date.now()}`, // Simulasi fingerprint data
-      fingerprintIndex: 0, // Default finger index
-      lastActivity: new Date(timestamp),
+      fingerprintData: `FP_${pin}_${Date.now()}`,
+      fingerprintIndex: 0,
+      lastActivity: recordDate,
       lastStatus: status,
       isMapped: false
     });
 
     await rawFingerprint.save();
 
+    console.log(`Saved new raw fingerprint for PIN: ${pin}`);
+
     return { 
       pin, 
       status: 'raw_saved', 
       message: 'Fingerprint saved as raw data (not mapped to employee)',
       mapped: false,
-      rawFingerprintId: rawFingerprint._id
+      rawFingerprintId: rawFingerprint._id,
+      timestamp 
     };
 
   } catch (error) {
     console.error('Error saving raw fingerprint:', error);
-    return { pin, error: 'Failed to save raw fingerprint data' };
+    return { 
+      pin, 
+      error: 'Failed to save raw fingerprint data',
+      timestamp 
+    };
   }
 };
 
 export const saveAttendanceRecord = async (employee, timestamp, status) => {
   try {
-    const dateOnly = new Date(timestamp);
+    const recordDate = new Date(timestamp);
+    const dateOnly = new Date(recordDate);
     dateOnly.setHours(0, 0, 0, 0);
 
     const existing = await Attendance.findOne({ 
@@ -139,49 +248,63 @@ export const saveAttendanceRecord = async (employee, timestamp, status) => {
 
     const updateField = status === 'checkIn' ? 'checkIn' : 'checkOut';
 
-    // Cegah duplikasi (kalau mesin mengirim ulang)
+    // Cek duplikasi dengan toleransi 2 menit
     if (existing?.[updateField]?.time) {
-      return { 
-        pin: employee.employeeId, 
-        status: 'duplicate_ignored',
-        mapped: true
-      };
+      const existingTime = new Date(existing[updateField].time);
+      const newTime = recordDate;
+      const timeDiff = Math.abs(newTime - existingTime) / (1000 * 60); // difference in minutes
+      
+      if (timeDiff < 2) {
+        console.log(`Duplicate ${status} for employee ${employee.employeeId}, ignoring`);
+        return { 
+          pin: employee.employeeId, 
+          status: 'duplicate_ignored',
+          mapped: true,
+          timestamp 
+        };
+      }
     }
 
     if (existing) {
-      // Update existing attendance record
+      // Update existing record
       await Attendance.findByIdAndUpdate(existing._id, {
         [updateField]: {
-          time: new Date(timestamp),
+          time: recordDate,
           device: 'X105',
           type: 'fingerprint'
         }
       });
       
+      console.log(`Updated ${status} for employee ${employee.employeeId}`);
+      
       return { 
         pin: employee.employeeId, 
         status: 'attendance_updated',
         mapped: true,
-        employee: employee.user?.username
+        employee: employee.user?.username,
+        timestamp 
       };
     }
 
-    // Create new attendance record
+    // Create new record
     await Attendance.create({
       employee: employee._id,
       date: dateOnly,
       [updateField]: {
-        time: new Date(timestamp),
+        time: recordDate,
         device: 'X105',
         type: 'fingerprint'
       }
     });
 
+    console.log(`Created new ${status} for employee ${employee.employeeId}`);
+
     return { 
       pin: employee.employeeId, 
       status: 'attendance_created',
       mapped: true,
-      employee: employee.user?.username
+      employee: employee.user?.username,
+      timestamp 
     };
 
   } catch (error) {
@@ -189,7 +312,8 @@ export const saveAttendanceRecord = async (employee, timestamp, status) => {
     return { 
       pin: employee.employeeId, 
       error: 'Failed to save attendance record',
-      mapped: true
+      mapped: true,
+      timestamp 
     };
   }
 };
@@ -198,7 +322,6 @@ export const checkFingerprintMapping = async (pin) => {
   try {
     const deviceUserId = `USER_${pin}`;
     
-    // Cek di RawFingerprint apakah sudah dipetakan
     const rawFingerprint = await RawFingerprint.findOne({ 
       deviceUserId,
       isMapped: true 
@@ -208,6 +331,30 @@ export const checkFingerprintMapping = async (pin) => {
   } catch (error) {
     console.error('Error checking fingerprint mapping:', error);
     return false;
+  }
+};
+
+// Fungsi untuk membersihkan data test/historical
+export const cleanupHistoricalData = async (req, res) => {
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - 1); // 1 tahun yang lalu
+    
+    const result = await RawFingerprint.deleteMany({
+      lastActivity: { $lt: cutoffDate },
+      isMapped: false
+    });
+    
+    res.json({
+      success: true,
+      message: `Cleaned up ${result.deletedCount} historical records`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -239,6 +386,49 @@ export const getFingerprintActivityLog = async (req, res) => {
       total: activities.length
     });
 
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
+  }
+};
+
+// controllers/hr/device.controller.js
+export const clearDeviceBuffer = async (req, res) => {
+  try {
+    const { deviceId } = req.body;
+    
+    // Simulasi perintah clear buffer ke device
+    // Dalam implementasi nyata, ini akan mengirim command ke device
+    console.log(`Sending clear buffer command to device: ${deviceId}`);
+    
+    // Return response yang membuat device clear buffer-nya
+    res.set('Content-Type', 'text/plain');
+    res.send(`OK: CLEAR BUFFER\nDevice: ${deviceId}\nTime: ${new Date().toISOString()}`);
+    
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
+  }
+};
+
+export const getDeviceStatus = async (req, res) => {
+  try {
+    const { deviceId } = req.query;
+    
+    // Return status device
+    res.json({
+      success: true,
+      deviceId: deviceId || 'X105',
+      status: 'connected',
+      lastCommunication: new Date(),
+      bufferSize: 0, // Asumsi buffer sudah clear
+      recommendation: 'Device is sending historical data repeatedly. Consider resetting device or clearing buffer.'
+    });
+    
   } catch (error) {
     res.status(500).json({ 
       success: false, 

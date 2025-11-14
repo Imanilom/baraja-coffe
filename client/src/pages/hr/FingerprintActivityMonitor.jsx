@@ -29,7 +29,7 @@ const FingerprintActivityMonitor = () => {
                 params.append('endDate', dateRange.endDate.toISOString());
             }
 
-            const response = await axios.get(`/api/adms/fingerprint/activities?${params}`);
+            const response = await axios.get(`/api/attendance/fingerprint/activities?${params}`);
             setActivities(response.data.data);
         } catch (err) {
             console.error("Error fetching activities:", err);
