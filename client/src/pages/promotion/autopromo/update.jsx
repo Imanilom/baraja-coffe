@@ -18,6 +18,18 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
         validFrom: "",
         validTo: "",
         isActive: true,
+        activeHours: {
+            isEnabled: false,
+            schedule: [
+                { dayOfWeek: 0, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 1, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 2, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 3, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 4, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 5, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 6, startTime: "00:00", endTime: "23:59" },
+            ]
+        }
     });
 
     const formatCurrency = (amount) => {
@@ -35,6 +47,8 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
+
+    const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
     const customSelectStyles = {
         control: (provided, state) => ({
@@ -96,7 +110,6 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
     // Populate form with existing promo data
     useEffect(() => {
         if (isOpen && promoData) {
-            console.log("Loading promo data:", promoData); // Debug log
 
             // Normalisasi outlet menjadi array ID
             let normalizedOutlet = [];
@@ -112,7 +125,6 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
             // Untuk product_specific, konversi array products dari object ke ID saja
             if (promoData.promoType === "product_specific" && promoData.conditions?.products) {
                 if (Array.isArray(promoData.conditions.products)) {
-                    // Konversi dari [{_id: "...", name: "..."}] menjadi ["id1", "id2", ...]
                     normalizedConditions.products = promoData.conditions.products.map(p => {
                         if (typeof p === 'object' && p._id) {
                             return p._id;
@@ -122,7 +134,6 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
                 } else {
                     normalizedConditions.products = [];
                 }
-                console.log("Normalized products:", normalizedConditions.products); // Debug log
             }
 
             // Untuk bundling, pastikan bundleProducts adalah array
@@ -131,6 +142,31 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
                     ? promoData.conditions.bundleProducts
                     : [];
             }
+
+            // Default schedule untuk 7 hari
+            const defaultSchedule = [
+                { dayOfWeek: 0, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 1, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 2, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 3, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 4, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 5, startTime: "00:00", endTime: "23:59" },
+                { dayOfWeek: 6, startTime: "00:00", endTime: "23:59" },
+            ];
+
+            // Normalisasi activeHours
+            let normalizedActiveHours = {
+                isEnabled: promoData.activeHours?.isEnabled || false,
+                schedule: promoData.activeHours?.schedule &&
+                    Array.isArray(promoData.activeHours.schedule) &&
+                    promoData.activeHours.schedule.length > 0
+                    ? promoData.activeHours.schedule.map(s => ({
+                        dayOfWeek: s.dayOfWeek,
+                        startTime: s.startTime || "00:00",
+                        endTime: s.endTime || "23:59"
+                    }))
+                    : defaultSchedule
+            };
 
             const newFormData = {
                 name: promoData.name || "",
@@ -143,9 +179,9 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
                 validFrom: promoData.validFrom ? new Date(promoData.validFrom).toISOString().slice(0, 10) : "",
                 validTo: promoData.validTo ? new Date(promoData.validTo).toISOString().slice(0, 10) : "",
                 isActive: promoData.isActive === 1 || promoData.isActive === true,
+                activeHours: normalizedActiveHours,
             };
 
-            console.log("Setting form data:", newFormData); // Debug log
             setFormData(newFormData);
             setErrors({});
         }
@@ -159,6 +195,33 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
     const handleConditionChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, [name]: value } }));
+    };
+
+    const handleActiveHoursToggle = (e) => {
+        setFormData(prev => ({
+            ...prev,
+            activeHours: {
+                ...prev.activeHours,
+                isEnabled: e.target.checked
+            }
+        }));
+    };
+
+    const handleScheduleChange = (dayIndex, field, value) => {
+        setFormData(prev => {
+            const newSchedule = [...prev.activeHours.schedule];
+            newSchedule[dayIndex] = {
+                ...newSchedule[dayIndex],
+                [field]: value
+            };
+            return {
+                ...prev,
+                activeHours: {
+                    ...prev.activeHours,
+                    schedule: newSchedule
+                }
+            };
+        });
     };
 
     const validate = () => {
@@ -203,6 +266,27 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
         e.preventDefault();
         if (!validate()) return;
 
+        // Pastikan activeHours memiliki struktur yang benar
+        let activeHoursPayload;
+
+        if (formData.activeHours?.isEnabled) {
+            // Jika enabled, kirim dengan schedule
+            activeHoursPayload = {
+                isEnabled: true,
+                schedule: formData.activeHours.schedule.map(day => ({
+                    dayOfWeek: Number(day.dayOfWeek),
+                    startTime: String(day.startTime || "00:00"),
+                    endTime: String(day.endTime || "23:59")
+                }))
+            };
+        } else {
+            // Jika tidak enabled, kirim objek minimal
+            activeHoursPayload = {
+                isEnabled: false,
+                schedule: []
+            };
+        }
+
         const payload = {
             name: formData.name,
             promoType: formData.promoType,
@@ -214,12 +298,14 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
             validFrom: formData.validFrom,
             validTo: formData.validTo,
             isActive: formData.isActive ? 1 : 0,
+            activeHours: activeHoursPayload,
         };
 
         setSubmitting(true);
         try {
             const response = await axios.put(`/api/promotion/autopromos/${promoData._id}`, payload);
-            if (response.data.success) {
+
+            if (response.data.success || response.data._id) {
                 toast.success("Promo berhasil diperbarui!");
 
                 if (onSuccess) {
@@ -231,7 +317,9 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
                 }, 1000);
             }
         } catch (err) {
+            console.error("=== ERROR ===");
             console.error(err);
+            console.error(err.response?.data);
             toast.error(err.response?.data?.message || "Gagal memperbarui promo");
         } finally {
             setSubmitting(false);
@@ -379,6 +467,41 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
                             )}
 
                             <div className="mb-4">
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.activeHours?.isEnabled || false}
+                                        onChange={handleActiveHoursToggle}
+                                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                    />
+                                    Aktifkan Jam Operasional Promo
+                                </label>
+
+                                {formData.activeHours?.isEnabled && formData.activeHours?.schedule && (
+                                    <div className="border rounded-md p-3 space-y-3 max-h-64 overflow-y-auto bg-gray-50">
+                                        {formData.activeHours.schedule.map((day, index) => (
+                                            <div key={index} className="flex items-center gap-2">
+                                                <span className="w-20 text-sm text-gray-700 font-medium">{dayNames[day.dayOfWeek]}</span>
+                                                <input
+                                                    type="time"
+                                                    value={day.startTime || "00:00"}
+                                                    onChange={(e) => handleScheduleChange(index, 'startTime', e.target.value)}
+                                                    className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600"
+                                                />
+                                                <span className="text-sm text-gray-500">sampai</span>
+                                                <input
+                                                    type="time"
+                                                    value={day.endTime || "23:59"}
+                                                    onChange={(e) => handleScheduleChange(index, 'endTime', e.target.value)}
+                                                    className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Outlet <span className="text-red-500">*</span></label>
                                 <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
                                     {outlets.map((o) => (
@@ -447,8 +570,7 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
                         {submitting ? 'Memperbarui...' : 'Update'}
                     </button>
                 </div>
-            </div>
-        </>
+            </div></>
     );
 };
 

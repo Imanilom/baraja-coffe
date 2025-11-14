@@ -6,6 +6,46 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
         (selectedTrx.totalAfterDiscount || 0) +
         (selectedTrx.taxAndServiceDetails?.[0]?.amount || 0);
 
+    // Get payment details
+    const paymentDetails = selectedTrx.paymentDetails || {};
+    const paymentMethod = selectedTrx.actualPaymentMethod || selectedTrx.paymentMethod || "-";
+    const paymentStatus = paymentDetails.status || "-";
+    const paymentType = paymentDetails.paymentType || "-";
+    const paymentCode = paymentDetails.payment_code || "-";
+    const transactionId = paymentDetails.transaction_id || "-";
+    const paidAmount = paymentDetails.amount || finalTotal;
+    const remainingAmount = paymentDetails.remainingAmount || 0;
+
+    // Helper function untuk styling badge payment status
+    const getPaymentStatusBadgeClass = (status) => {
+        switch (status) {
+            case "settlement":
+            case "paid":
+                return "bg-green-100 text-green-800";
+            case "pending":
+                return "bg-yellow-100 text-yellow-800";
+            case "failed":
+            case "expired":
+                return "bg-red-100 text-red-800";
+            default:
+                return "bg-gray-100 text-gray-800";
+        }
+    };
+
+    // Helper function untuk styling badge payment type
+    const getPaymentTypeBadgeClass = (type) => {
+        switch (type) {
+            case "Full":
+                return "bg-blue-100 text-blue-800";
+            case "Down Payment":
+                return "bg-purple-100 text-purple-800";
+            case "Final Payment":
+                return "bg-indigo-100 text-indigo-800";
+            default:
+                return "bg-gray-100 text-gray-800";
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex justify-end">
             {/* Backdrop */}
@@ -107,27 +147,60 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                         </div>
                     </div>
 
-                    {/* Payment */}
-                    <div className="border-t border-dashed space-y-2">
-                        <div className="flex my-2 justify-between">
-                            <span>{selectedTrx.paymentMethod}</span>
-                            <span>{formatCurrency(finalTotal)}</span>
+                    {/* Payment Details Section */}
+                    <div className="border-t border-dashed pt-4 space-y-3">
+                        <h3 className="font-semibold text-gray-800 mb-2">Detail Pembayaran</h3>
+
+                        {/* Payment Method & Status */}
+                        <div className="flex justify-between items-center">
+                            <span>Metode Pembayaran</span>
+                            <span className="font-medium">{paymentMethod}</span>
                         </div>
+
+                        {/* Payment Code */}
+                        {paymentCode !== "-" && (
+                            <div className="flex justify-between">
+                                <span>Kode Pembayaran</span>
+                                <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
+                                    {paymentCode}
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Transaction ID */}
+                        {transactionId !== "-" && (
+                            <div className="flex justify-between">
+                                <span>Transaction ID</span>
+                                <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
+                                    {transactionId}
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Payment Amount */}
+                        <div className="flex justify-between font-medium pt-2 border-t border-gray-200">
+                            <span>Jumlah Dibayar</span>
+                            <span className="text-green-700">{formatCurrency(paidAmount)}</span>
+                        </div>
+
+                        {/* Remaining Amount (for Down Payment) */}
+                        {remainingAmount > 0 && (
+                            <div className="flex justify-between text-orange-600">
+                                <span>Sisa Pembayaran</span>
+                                <span className="font-semibold">{formatCurrency(remainingAmount)}</span>
+                            </div>
+                        )}
+
+                        {/* Change */}
                         <div className="flex justify-between">
                             <span>Kembali</span>
-                            <span>{formatCurrency(0)}</span>
+                            <span>{formatCurrency(selectedTrx.change || 0)}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Footer */}
                 <div className="p-4 border-t space-y-4 bg-gray-50">
-                    {/* <button
-                                        onClick={() => handlePrint()}
-                                        className="w-full bg-green-700 hover:bg-green-800 text-white text-sm font-medium py-2.5 rounded-lg shadow"
-                                    >
-                                        Cetak Resi
-                                    </button> */}
                     <PdfButton
                         targetId="receipt-pdf"
                         fileName={`Resi_${selectedTrx?.order_id || "transaksi"}.pdf`}
