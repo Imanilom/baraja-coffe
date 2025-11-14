@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import EmployeeManagement from "./EmployeeManagement";
 import AttendanceManagement from "./AttendanceManagement";
 import FingerprintManagement from "./FingerprintManagement";
-import { FaUsers, FaCalendarAlt, FaFingerprint, FaChartBar } from "react-icons/fa";
+import FingerprintActivityMonitor from "./FingerprintActivityMonitor";
+import { FaUsers, FaCalendarAlt, FaFingerprint, FaChartBar, FaHistory} from "react-icons/fa";
 
 const HRDashboard = () => {
     const [activeTab, setActiveTab] = useState("employees");
@@ -11,6 +12,7 @@ const HRDashboard = () => {
         { id: "employees", name: "Karyawan", icon: FaUsers },
         { id: "attendance", name: "Kehadiran", icon: FaCalendarAlt },
         { id: "fingerprint", name: "Fingerprint", icon: FaFingerprint },
+        { id: "activity-monitor", name: "Monitor Aktivitas", icon: FaHistory },
         { id: "reports", name: "Laporan", icon: FaChartBar }
     ];
 
@@ -22,6 +24,8 @@ const HRDashboard = () => {
                 return <AttendanceManagement />;
             case "fingerprint":
                 return <FingerprintManagement />;
+            case "activity-monitor":
+                return <FingerprintActivityMonitor />;
             case "reports":
                 return <div className="p-6">Laporan HR - Dalam Pengembangan</div>;
             default:
