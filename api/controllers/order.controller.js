@@ -2379,7 +2379,8 @@ export const createUnifiedOrder = async (req, res) => {
       orderId,
       source,
       outletId,
-      tableNumber
+      tableNumber,
+      paymentDetails
     });
 
     // Execute dengan atomic lock untuk mencegah race condition

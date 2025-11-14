@@ -22,6 +22,18 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
     validFrom: startOfDay,
     validTo: endOfDay,
     isActive: true,
+    activeHours: {
+      isEnabled: false,
+      schedule: [
+        { dayOfWeek: 0, startTime: "00:00", endTime: "23:59" },
+        { dayOfWeek: 1, startTime: "00:00", endTime: "23:59" },
+        { dayOfWeek: 2, startTime: "00:00", endTime: "23:59" },
+        { dayOfWeek: 3, startTime: "00:00", endTime: "23:59" },
+        { dayOfWeek: 4, startTime: "00:00", endTime: "23:59" },
+        { dayOfWeek: 5, startTime: "00:00", endTime: "23:59" },
+        { dayOfWeek: 6, startTime: "00:00", endTime: "23:59" },
+      ]
+    }
   });
 
   const formatCurrency = (amount) => {
@@ -39,6 +51,8 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+
+  const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
   const customSelectStyles = {
     control: (provided, state) => ({
@@ -109,6 +123,18 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
         validFrom: startOfDay,
         validTo: endOfDay,
         isActive: true,
+        activeHours: {
+          isEnabled: false,
+          schedule: [
+            { dayOfWeek: 0, startTime: "00:00", endTime: "23:59" },
+            { dayOfWeek: 1, startTime: "00:00", endTime: "23:59" },
+            { dayOfWeek: 2, startTime: "00:00", endTime: "23:59" },
+            { dayOfWeek: 3, startTime: "00:00", endTime: "23:59" },
+            { dayOfWeek: 4, startTime: "00:00", endTime: "23:59" },
+            { dayOfWeek: 5, startTime: "00:00", endTime: "23:59" },
+            { dayOfWeek: 6, startTime: "00:00", endTime: "23:59" },
+          ]
+        }
       });
       setErrors({});
     }
@@ -122,6 +148,33 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
   const handleConditionChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, [name]: value } }));
+  };
+
+  const handleActiveHoursToggle = (e) => {
+    setFormData(prev => ({
+      ...prev,
+      activeHours: {
+        ...prev.activeHours,
+        isEnabled: e.target.checked
+      }
+    }));
+  };
+
+  const handleScheduleChange = (dayIndex, field, value) => {
+    setFormData(prev => {
+      const newSchedule = [...prev.activeHours.schedule];
+      newSchedule[dayIndex] = {
+        ...newSchedule[dayIndex],
+        [field]: value
+      };
+      return {
+        ...prev,
+        activeHours: {
+          ...prev.activeHours,
+          schedule: newSchedule
+        }
+      };
+    });
   };
 
   const validate = () => {
@@ -177,6 +230,7 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
       validFrom: formData.validFrom,
       validTo: formData.validTo,
       isActive: formData.isActive ? 1 : 0,
+      activeHours: formData.activeHours,
     };
 
     setSubmitting(true);
@@ -340,6 +394,41 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
                   formatCurrency={formatCurrency}
                 />
               )}
+
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.activeHours?.isEnabled || false}
+                    onChange={handleActiveHoursToggle}
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  Aktifkan Jam Operasional Promo
+                </label>
+
+                {formData.activeHours?.isEnabled && (
+                  <div className="border rounded-md p-3 space-y-3 max-h-64 overflow-y-auto bg-gray-50">
+                    {formData.activeHours.schedule.map((day, index) => (
+                      <div key={day.dayOfWeek} className="flex items-center gap-2">
+                        <span className="w-20 text-sm text-gray-700 font-medium">{dayNames[day.dayOfWeek]}</span>
+                        <input
+                          type="time"
+                          value={day.startTime}
+                          onChange={(e) => handleScheduleChange(index, 'startTime', e.target.value)}
+                          className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600"
+                        />
+                        <span className="text-sm text-gray-500">sampai</span>
+                        <input
+                          type="time"
+                          value={day.endTime}
+                          onChange={(e) => handleScheduleChange(index, 'endTime', e.target.value)}
+                          className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Outlet <span className="text-red-500">*</span></label>

@@ -3,19 +3,41 @@ import { Outlet } from '../models/Outlet.model.js';
 import LoyaltyLevel from '../models/LoyaltyLevel.model.js';
 
 // ✅ GET: Semua data pajak & service
-export const getAllCharges = async (req, res) => {
+export const getTax = async (req, res) => {
   try {
-    const charges = await TaxAndService.find()
+    const tax = await TaxAndService.find()
       .populate('appliesToOutlets', 'name')
-    res.status(200).json(charges);
+
+    // // Print detail untuk debugging
+    // console.log('\n=== BACKEND TAX DATA ===');
+    // console.log(`Jumlah data tax: ${tax.length}`);
+
+    // tax.forEach((item, index) => {
+    //   console.log(`\nTax Item ${index + 1}:`);
+    //   console.log(`- ID: ${item._id}`);
+    //   console.log(`- Name: ${item.name}`);
+    //   console.log(`- Type: ${item.type}`);
+    //   console.log(`- Percentage: ${item.percentage}`);
+    //   console.log(`- Is Active: ${item.isActive}`);
+    //   console.log(`- Applies to outlets: ${item.appliesToOutlets.map(outlet => outlet._id).join(', ')}`);
+    //   console.log(`- Outlet Names: ${item.appliesToOutlets.map(outlet => outlet.name).join(', ')}`);
+    // });
+
+    // console.log('=== END BACKEND DATA ===\n');
+
+    res.status(200).json({
+      success: true,
+      data: tax,
+      count: tax.length
+    });
   } catch (err) {
+    console.error('Error retrieving tax data:', err);
     res.status(500).json({
       error: 'Gagal mengambil data pajak dan service.',
       details: err.message
     });
   }
 };
-
 export const getAllChargesForCashier = async (req, res) => {
   try {
     const charges = await TaxAndService.find()

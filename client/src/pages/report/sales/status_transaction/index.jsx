@@ -52,13 +52,12 @@ const TypeTransaction = () => {
     const [error, setError] = useState(null);
 
     const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [selectedStatus, setSelectedStatus] = useState(""); // State baru untuk status
+    const [selectedStatus, setSelectedStatus] = useState("");
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
@@ -70,7 +69,6 @@ const TypeTransaction = () => {
         documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
     });
 
-    // Update statusOptions - hapus "Semua Status"
     const statusOptions = [
         { value: "Waiting", label: "Waiting" },
         { value: "Pending", label: "Pending" },
@@ -79,7 +77,7 @@ const TypeTransaction = () => {
         { value: "Cancelled", label: "Cancelled" },
     ];
 
-    // Update initialization dari URL params
+    // Initialize from URL params
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
@@ -104,9 +102,7 @@ const TypeTransaction = () => {
             setSelectedOutlet(outletParam);
         }
 
-        // Update ini untuk handle multiple status dari URL
         if (statusParam) {
-            // Jika ada comma, split jadi array, jika tidak jadikan array dengan 1 item
             const statusArray = statusParam.includes(',')
                 ? statusParam.split(',')
                 : [statusParam];
@@ -122,7 +118,7 @@ const TypeTransaction = () => {
         }
     }, []);
 
-    // Update function updateURLParams
+    // Update URL params
     const updateURLParams = (newDateRange, newOutlet, newStatus, newSearch, newPage) => {
         const params = new URLSearchParams();
 
@@ -137,7 +133,6 @@ const TypeTransaction = () => {
             params.set('outletId', newOutlet);
         }
 
-        // Update ini untuk handle array status
         if (newStatus && Array.isArray(newStatus) && newStatus.length > 0) {
             params.set('status', newStatus.join(','));
         }
@@ -152,7 +147,22 @@ const TypeTransaction = () => {
 
         setSearchParams(params);
     };
-    // Fetch products and outlets data
+
+    // Fungsi untuk fetch payment details berdasarkan order_id
+    const fetchPaymentDetails = async (orderId) => {
+        try {
+            const response = await axios.get(`/api/getPaymentStatus/${orderId}`);
+            if (response.data && response.data.success) {
+                return response.data.data;
+            }
+            return null;
+        } catch (err) {
+            console.error(`Error fetching payment for order ${orderId}:`, err);
+            return null;
+        }
+    };
+
+    // Fetch products with payment details
     const fetchProducts = async () => {
         setLoading(true);
         try {
@@ -161,7 +171,28 @@ const TypeTransaction = () => {
                 ? response.data
                 : response.data?.data ?? [];
 
-            setProducts(productsData);
+            // Fetch payment details untuk setiap order
+            const productsWithPayment = await Promise.all(
+                productsData.map(async (product) => {
+                    try {
+                        const paymentDetails = await fetchPaymentDetails(product.order_id);
+                        return {
+                            ...product,
+                            paymentDetails: paymentDetails || null,
+                            actualPaymentMethod: paymentDetails?.method || product.paymentMethod || 'N/A'
+                        };
+                    } catch (err) {
+                        console.error(`Error processing payment for ${product.order_id}:`, err);
+                        return {
+                            ...product,
+                            paymentDetails: null,
+                            actualPaymentMethod: product.paymentMethod || 'N/A'
+                        };
+                    }
+                })
+            );
+
+            setProducts(productsWithPayment);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);
@@ -222,10 +253,8 @@ const TypeTransaction = () => {
         let newStatus;
 
         if (Array.isArray(selectedValues)) {
-            // Dari StatusCheckboxFilter
             newStatus = selectedValues;
         } else if (selectedValues && selectedValues.value !== undefined) {
-            // Dari react-select (backward compatibility)
             newStatus = selectedValues.value ? [selectedValues.value] : [];
         } else {
             newStatus = [];
@@ -248,7 +277,7 @@ const TypeTransaction = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Update filter logic di applyFilter
+    // Apply filter function
     const applyFilter = useCallback(() => {
         let filtered = ensureArray([...products]);
 
@@ -257,15 +286,12 @@ const TypeTransaction = () => {
             filtered = filtered.filter(product => {
                 try {
                     const searchTermLower = searchTerm.toLowerCase();
-
                     return product.items?.some(item => {
                         const menuItem = item?.menuItem;
                         if (!menuItem) return false;
-
                         const name = (menuItem.name || '').toLowerCase();
                         const customer = (product.user || '').toLowerCase();
                         const receipt = (product.order_id || '').toLowerCase();
-
                         return name.includes(searchTermLower) ||
                             receipt.includes(searchTermLower) ||
                             customer.includes(searchTermLower);
@@ -290,7 +316,7 @@ const TypeTransaction = () => {
             });
         }
 
-        // Update filter by status untuk handle array
+        // Filter by status
         if (selectedStatus && Array.isArray(selectedStatus) && selectedStatus.length > 0) {
             filtered = filtered.filter(product => {
                 try {
@@ -306,23 +332,16 @@ const TypeTransaction = () => {
         if (dateRange && dateRange.startDate && dateRange.endDate) {
             filtered = filtered.filter(product => {
                 try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
+                    if (!product.createdAt) return false;
                     const productDate = new Date(product.createdAt);
                     const startDate = new Date(dateRange.startDate);
                     const endDate = new Date(dateRange.endDate);
-
                     startDate.setHours(0, 0, 0, 0);
                     endDate.setHours(23, 59, 59, 999);
-
                     if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
                         return false;
                     }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    return isInRange;
+                    return productDate >= startDate && productDate <= endDate;
                 } catch (err) {
                     console.error("Error filtering by date:", err);
                     return false;
@@ -333,7 +352,6 @@ const TypeTransaction = () => {
         setFilteredData(filtered);
     }, [products, searchTerm, selectedOutlet, selectedStatus, dateRange]);
 
-    // Auto-apply filter whenever dependencies change
     useEffect(() => {
         applyFilter();
     }, [applyFilter]);
@@ -344,11 +362,9 @@ const TypeTransaction = () => {
             console.error('filteredData is not an array:', filteredData);
             return [];
         }
-
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
+        return filteredData.slice(startIndex, endIndex);
     }, [currentPage, filteredData]);
 
     const formatCurrency = (amount) => {
@@ -366,19 +382,11 @@ const TypeTransaction = () => {
         return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
-    // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    // Calculate grand totals berdasarkan grandTotal dari setiap order
     const { grandTotalFinal } = useMemo(() => {
-        const totals = {
-            grandTotalFinal: 0,
-        };
-
-        if (!Array.isArray(filteredData)) {
-            return totals;
-        }
-
+        const totals = { grandTotalFinal: 0 };
+        if (!Array.isArray(filteredData)) return totals;
         filteredData.forEach(product => {
             try {
                 const grandTotal = Math.round(Number(product?.grandTotal) || 0);
@@ -387,11 +395,9 @@ const TypeTransaction = () => {
                 console.error("Error calculating totals for product:", err);
             }
         });
-
         return totals;
     }, [filteredData]);
 
-    // Show error state
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -411,7 +417,6 @@ const TypeTransaction = () => {
 
     return (
         <div className="mb-[50px]">
-            {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     <span>Laporan</span>
@@ -432,7 +437,6 @@ const TypeTransaction = () => {
                 </button>
             </div>
 
-            {/* Filters & Table */}
             {loading ? (
                 <TypeTransactionTableSkeleton />
             ) : (

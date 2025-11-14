@@ -21,20 +21,21 @@ export default function CategoryTabs({
                     ))}
                 </div>
             </div>
-
-            {/* CSS langsung di file ini */}
-            <style jsx>{`
-        .scrollbar-visible::-webkit-scrollbar {
-          height: 0; /* tinggi scrollbar horizontal */
-        }
-        .scrollbar-visible::-webkit-scrollbar-thumb {
-          background: #9ca3af; /* gray-400 */
-          border-radius: 9999px;
-        }
-        .scrollbar-visible::-webkit-scrollbar-track {
-          background: #e5e7eb; /* gray-200 */
-        }
-      `}</style>
         </>
     );
 }
+//  {/* CSS langsung di file ini */}
+//             <style jsx>
+//                 {`
+//         .scrollbar-visible::-webkit-scrollbar {
+//           height: 0; /* tinggi scrollbar horizontal */
+//         }
+//         .scrollbar-visible::-webkit-scrollbar-thumb {
+//           background: #9ca3af; /* gray-400 */
+//           border-radius: 9999px;
+//         }
+//         .scrollbar-visible::-webkit-scrollbar-track {
+//           background: #e5e7eb; /* gray-200 */
+//         }
+//       `}
+//             </style>

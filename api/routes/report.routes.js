@@ -18,7 +18,7 @@ import {
   getPaymentDetails
 } from '../controllers/report/payment.report.controller.js';
 
-
+import DailyProfitController from '../controllers/report/sales.report.controller.js';
 import stockOpnameController from '../controllers/stockopname.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { validateSalesReportQuery } from '../utils/salesReportQuery.js';
@@ -66,5 +66,17 @@ router.get('/stock-movement', stockOpnameController.generateStockMovementReport)
 router.get('/inventory-aging', stockOpnameController.generateInventoryAgingReport);
 
 router.post('/stock-opname', stockOpnameController.performStockOpname); // Perform stock opname
+
+// GET /api/daily-profit?date=2024-01-15&outletId=...
+router.get('/daily-profit', DailyProfitController.getDailyProfit);
+
+// GET /api/daily-profit/range?startDate=2024-01-01&endDate=2024-01-31&outletId=...
+router.get('/daily-profit/range', DailyProfitController.getDailyProfitRange);
+
+// GET /api/daily-profit/today?outletId=...
+router.get('/daily-profit/today', DailyProfitController.getTodayProfit);
+
+// GET /api/daily-profit/dashboard?days=7&outletId=...
+router.get('/daily-profit/dashboard', DailyProfitController.getProfitDashboard);
 
 export default router;

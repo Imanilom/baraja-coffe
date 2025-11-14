@@ -1,11 +1,11 @@
 import express from 'express';
 import {
-  getAllCharges,
   getAllChargesForCashier,
   getChargeById,
   createCharge,
   updateCharge,
-  deleteCharge
+  deleteCharge,
+  getTax
 } from '../controllers/taxAndService.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -13,7 +13,7 @@ const marketingAccess = verifyToken(['admin', 'superadmin', 'marketing']);
 
 const router = express.Router();
 
-router.get('/', getAllCharges);
+router.get('/', getTax);
 router.get('/cashier', getAllChargesForCashier);
 router.get('/:id', getChargeById);
 router.post('/', marketingAccess, createCharge);

@@ -13,6 +13,7 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
     orderItemsCount: orderItems.length
   });
 
+  // Cari semua promo yang aktif berdasarkan tanggal
   const autoPromos = await AutoPromo.find({
     outlet,
     isActive: true,
@@ -24,29 +25,79 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
   .populate('conditions.bundleProducts.product')
   .populate('conditions.products');
 
-  console.log('🔍 Auto Promos - Found promos:', {
+  console.log('🔍 Auto Promos - Found promos before active hours check:', {
     count: autoPromos.length,
     promos: autoPromos.map(p => ({
       name: p.name,
       promoType: p.promoType,
-      conditions: p.conditions
+      activeHours: p.activeHours,
+      isWithinActiveHours: p.isWithinActiveHours ? p.isWithinActiveHours(now) : 'method_not_available'
+    }))
+  });
+
+  // Filter promo berdasarkan jam aktif
+  const activePromos = autoPromos.filter(promo => {
+    if (!promo.activeHours || !promo.activeHours.isEnabled) {
+      // Jika jam aktif tidak diaktifkan, promo tetap aktif
+      console.log(`✅ ${promo.name}: Active hours not enabled, promo is active`);
+      return true;
+    }
+
+    // Periksa apakah promo aktif berdasarkan jam
+    const isActiveNow = promo.isWithinActiveHours(now);
+    console.log(`⏰ ${promo.name}: Active hours check - ${isActiveNow ? 'ACTIVE' : 'INACTIVE'}`);
+    
+    if (isActiveNow) {
+      console.log(`🎯 ${promo.name}: Currently within active hours`);
+    } else {
+      console.log(`⏸️ ${promo.name}: Currently outside active hours`);
+    }
+    
+    return isActiveNow;
+  });
+
+  console.log('🔍 Auto Promos - After active hours filtering:', {
+    totalFound: autoPromos.length,
+    activeAfterHoursCheck: activePromos.length,
+    activePromos: activePromos.map(p => ({
+      name: p.name,
+      promoType: p.promoType,
+      activeHours: p.activeHours
     }))
   });
 
   let totalDiscount = 0;
   let appliedPromos = [];
 
-  for (const promo of autoPromos) {
+  for (const promo of activePromos) {
     console.log('🔍 Processing promo:', promo.name);
+    
+    // Log detail active hours jika diaktifkan
+    if (promo.activeHours && promo.activeHours.isEnabled) {
+      const currentSchedule = promo.getCurrentSchedule ? promo.getCurrentSchedule() : null;
+      console.log('⏰ Active Hours Details:', {
+        promo: promo.name,
+        isEnabled: promo.activeHours.isEnabled,
+        currentSchedule: currentSchedule,
+        currentTime: now.toLocaleTimeString(),
+        dayOfWeek: now.getDay()
+      });
+    }
+
     const promoResult = await applyAutoPromo(promo, orderItems, orderType);
     
     if (promoResult.applied && promoResult.discount > 0) {
-      // PERBAIKAN: Format applied promo dengan structure yang benar
+      // Format applied promo dengan structure yang benar
       const appliedPromo = {
-        promoId: promo._id, // ObjectId
+        promoId: promo._id,
         promoName: promo.name,
         promoType: promo.promoType,
         discount: promoResult.discount,
+        hasActiveHours: !!(promo.activeHours && promo.activeHours.isEnabled),
+        activeHoursInfo: promo.activeHours && promo.activeHours.isEnabled ? {
+          isEnabled: true,
+          currentSchedule: promo.getCurrentSchedule ? promo.getCurrentSchedule() : null
+        } : { isEnabled: false },
         affectedItems: (promoResult.affectedItems || []).map(item => ({
           menuItem: item.menuItem,
           menuItemName: item.menuItemName,
@@ -68,11 +119,16 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
       totalDiscount += promoResult.discount;
       appliedPromos.push(appliedPromo);
       
-      console.log('✅ Promo applied successfully:', promo.name);
+      console.log('✅ Promo applied successfully:', {
+        name: promo.name,
+        discount: promoResult.discount,
+        hasActiveHours: appliedPromo.hasActiveHours
+      });
     } else {
       console.log('❌ Promo not applied:', {
         name: promo.name,
-        reason: promoResult.applied ? 'No discount' : 'Conditions not met'
+        reason: promoResult.applied ? 'No discount' : 'Conditions not met',
+        hasActiveHours: !!(promo.activeHours && promo.activeHours.isEnabled)
       });
     }
   }
@@ -80,13 +136,14 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
   console.log('🎯 FINAL AUTO PROMO RESULT:', {
     totalDiscount,
     appliedPromosCount: appliedPromos.length,
+    promosWithActiveHours: appliedPromos.filter(p => p.hasActiveHours).length,
     appliedPromos: appliedPromos.map(p => ({
       name: p.promoName,
       discount: p.discount,
-      type: p.promoType
+      type: p.promoType,
+      hasActiveHours: p.hasActiveHours
     }))
   });
-
 
   return {
     totalDiscount: Number(totalDiscount) || 0,
@@ -101,6 +158,7 @@ async function applyAutoPromo(promo, orderItems, orderType) {
     promoType: promo.promoType,
     consumerType: promo.consumerType,
     orderType: orderType,
+    hasActiveHours: !!(promo.activeHours && promo.activeHours.isEnabled),
     conditions: promo.conditions
   });
 
@@ -125,12 +183,14 @@ async function applyAutoPromo(promo, orderItems, orderType) {
     case 'bundling':
       return applyBundling(promo, orderItems);
     case 'product_specific':
-      return applyProductSpecific(promo, orderItems, orderType); // PERBAIKAN: Tambahkan orderType
+      return applyProductSpecific(promo, orderItems, orderType);
     default:
       console.log('❌ UNKNOWN PROMO TYPE:', promo.promoType);
       return { applied: false, discount: 0, affectedItems: [] };
   }
 }
+
+// [Fungsi-fungsi apply lainnya tetap sama, hanya tambahkan log untuk active hours]
 
 // 1. Discount on Quantity - UNTUK PROMO ROTI ANDA
 function applyDiscountOnQuantity(promo, orderItems) {
@@ -150,7 +210,7 @@ function applyDiscountOnQuantity(promo, orderItems) {
       
       affectedItems.push({
         menuItem: orderItem.menuItem,
-        menuItemName: orderItem.menuItemName, // Anda perlu menambahkan ini di orderItems
+        menuItemName: orderItem.menuItemName,
         quantity: orderItem.quantity,
         discountPerUnit: itemDiscountPerUnit,
         totalDiscount: itemTotalDiscount,
@@ -313,7 +373,7 @@ function applyBundling(promo, orderItems) {
 function applyProductSpecific(promo, orderItems, orderType) {
   const { conditions, discount, consumerType } = promo;
   
-  // PERBAIKAN 1: Cek consumer type
+  // Cek consumer type
   if (consumerType && consumerType !== '' && consumerType !== 'all' && consumerType !== orderType) {
     console.log('❌ Promo skipped - consumer type mismatch:', {
       promoConsumerType: consumerType,
@@ -322,7 +382,7 @@ function applyProductSpecific(promo, orderItems, orderType) {
     return { applied: false, discount: 0, affectedItems: [] };
   }
 
-  // PERBAIKAN 2: Normalize promo products dengan berbagai format
+  // Normalize promo products dengan berbagai format
   const promoProducts = (conditions.products || []).map(p => {
     console.log('🔍 Raw promo product:', p);
     
@@ -358,7 +418,7 @@ function applyProductSpecific(promo, orderItems, orderType) {
   });
 
   for (const item of orderItems) {
-    // PERBAIKAN 3: Normalize item ID dengan comprehensive approach
+    // Normalize item ID dengan comprehensive approach
     let itemId;
     
     if (item.menuItem === null || item.menuItem === undefined) {
@@ -374,7 +434,7 @@ function applyProductSpecific(promo, orderItems, orderType) {
       itemId = item.menuItem.toString();
     }
 
-    // PERBAIKAN 4: Bersihkan ID dari berbagai prefix
+    // Bersihkan ID dari berbagai prefix
     const cleanItemId = itemId
       .replace('$oid:', '')
       .replace('ObjectId(', '')
@@ -394,7 +454,7 @@ function applyProductSpecific(promo, orderItems, orderType) {
       )
     });
 
-    // PERBAIKAN 5: Gunakan matching yang lebih flexible
+    // Gunakan matching yang lebih flexible
     const isMatch = promoProducts.some(promoId => {
       const cleanPromoId = promoId
         .replace('$oid:', '')
@@ -451,6 +511,29 @@ function applyProductSpecific(promo, orderItems, orderType) {
   });
 
   return result;
+}
+
+// Fungsi helper tambahan untuk debugging active hours
+export function debugActiveHours(promo, currentTime = new Date()) {
+  if (!promo.activeHours || !promo.activeHours.isEnabled) {
+    return {
+      hasActiveHours: false,
+      message: 'Active hours not enabled for this promo'
+    };
+  }
+
+  const isActive = promo.isWithinActiveHours(currentTime);
+  const currentSchedule = promo.getCurrentSchedule ? promo.getCurrentSchedule() : null;
+  
+  return {
+    hasActiveHours: true,
+    isCurrentlyActive: isActive,
+    currentTime: currentTime.toLocaleString(),
+    currentSchedule,
+    allSchedules: promo.activeHours.schedule,
+    dayOfWeek: currentTime.getDay(),
+    currentTimeFormatted: currentTime.toTimeString().slice(0, 5)
+  };
 }
 
 export async function checkVoucher(voucherCode, totalAmount, outlet) {
