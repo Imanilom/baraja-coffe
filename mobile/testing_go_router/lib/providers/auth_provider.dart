@@ -83,11 +83,10 @@ class CashierNotifier extends StateNotifier<AsyncValue<CashierModel?>> {
 
   CashierNotifier(this.ref) : super(const AsyncValue.data(null));
 
-  Future<void> login(CashierModel cashier, DeviceModel device) async {
+  Future<void> login(CashierModel cashier) async {
     state = AsyncValue.data(cashier);
     print('cek login data cashier: $cashier');
     await HiveService.saveCashier(cashier);
-    await HiveService.saveLoginDevice(device);
 
     await ref
         .read(tryAuthProvider.notifier)

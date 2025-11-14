@@ -48,6 +48,7 @@ class HiveService {
     await Hive.openBox<PaymentTypeModel>('paymentTypes');
     await Hive.openBox<Event>('eventsBox');
     await Hive.openBox<DeviceModel>('devices');
+    // await Hive.openBox<DeviceModel>('loginDeviceBox');
   }
 
   // Helper methods to get boxes
@@ -62,8 +63,8 @@ class HiveService {
   static Box<DeviceModel> get deviceBox => Hive.box<DeviceModel>('devices');
 
   //login device box
-  static Box<DeviceModel> get loginDeviceBox =>
-      Hive.box<DeviceModel>('loginDevices');
+  // static Box<DeviceModel> get loginDeviceBox =>
+  //     Hive.box<DeviceModel>('loginDeviceBox');
 
   // Clear all data (useful for logout or data refresh)
   static Future<void> clearAllData() async {
@@ -73,7 +74,7 @@ class HiveService {
     await paymentTypeBox.clear();
     await eventBox.clear();
     await deviceBox.clear();
-    await loginDeviceBox.clear();
+    // await loginDeviceBox.clear();
   }
 
   // Close all boxes (call this when app is closing)
@@ -83,7 +84,7 @@ class HiveService {
     await paymentTypeBox.close();
     await eventBox.close();
     await deviceBox.close();
-    await loginDeviceBox.close();
+    // await loginDeviceBox.close();
   }
 
   // Check if data exists (to determine if sync is needed)
@@ -189,13 +190,13 @@ class HiveService {
   }
 
   //saved device
-  static Future<void> saveLoginDevice(DeviceModel device) async {
-    final box = Hive.box('loginDevices');
-    await box.put('loginDevice', device);
-  }
+  // static Future<void> saveLoginDevice(DeviceModel device) async {
+  //   final box = Hive.box('loginDeviceBox');
+  //   await box.put('loginDevice', device);
+  // }
 
-  static Future<DeviceModel?> getLoginDevice() async {
-    final box = Hive.box('loginDevices');
-    return box.get('loginDevice') as DeviceModel?;
-  }
+  // static Future<DeviceModel?> getLoginDevice() async {
+  //   final box = Hive.box('loginDeviceBox');
+  //   return box.get('loginDevice') as DeviceModel?;
+  // }
 }

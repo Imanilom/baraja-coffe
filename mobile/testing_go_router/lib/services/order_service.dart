@@ -353,17 +353,14 @@ Map<String, dynamic> createOrderRequest(
 ) {
   final box = Hive.box('userBox');
   final user = box.get('user') as UserModel;
-
-  //logindevicebox
-  final loginDeviceBox = Hive.box('loginDevices');
-  final loginDevice = loginDeviceBox.get('loginDevice') as DeviceModel;
+  final loginDevice = box.get('device') as DeviceModel;
 
   return {
     'order_id': order.orderId,
     'user_id': order.userId ?? "",
     'user': order.user,
-    'cashierId': order.cashierId ?? '',
-    'device_id': loginDevice.id ?? '',
+    'cashierId': order.cashier?.id ?? '',
+    'device_id': loginDevice.id,
     'items':
         order.items.map((item) {
           return {
