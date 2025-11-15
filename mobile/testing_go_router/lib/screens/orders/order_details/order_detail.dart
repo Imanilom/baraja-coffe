@@ -231,13 +231,10 @@ class OrderDetail extends ConsumerWidget {
                 VerticalIconTextButton(
                   icon: Icons.person_rounded,
                   label:
-                      (orderDetail?.user != "" && orderDetail?.user != null)
-                          ? (orderDetail!.user)
+                      (orderDetail?.user != null)
+                          ? (orderDetail!.user!)
                           : 'Pelanggan',
-                  color:
-                      orderDetail?.user != "" && orderDetail?.user != null
-                          ? Colors.green
-                          : Colors.grey,
+                  color: orderDetail?.user != null ? Colors.green : Colors.grey,
                   onPressed: () {
                     //initialize order detail
                     if (orderDetail == null) {
@@ -480,7 +477,7 @@ class OrderDetail extends ConsumerWidget {
                           child: const Text('Lanjutkan Pesanan'),
                         )
                         : orderDetail.items.isNotEmpty
-                        ? orderDetail.user == ''
+                        ? orderDetail.user == null
                             ? Row(
                               children: [
                                 IconButton(
@@ -803,7 +800,7 @@ class OrderDetail extends ConsumerWidget {
                                                       .isNotEmpty) {
                                                 // print('mau disimpan');
 
-                                                if (orderDetail.user == '') {
+                                                if (orderDetail.user == null) {
                                                   ScaffoldMessenger.of(
                                                     context,
                                                   ).showSnackBar(
@@ -895,7 +892,7 @@ class OrderDetail extends ConsumerWidget {
                                                       .items
                                                       .isNotEmpty) {
                                                 // print('mau dibayar');
-                                                if (orderDetail.user == "") {
+                                                if (orderDetail.user == null) {
                                                   ScaffoldMessenger.of(
                                                     context,
                                                   ).showSnackBar(
