@@ -6268,7 +6268,7 @@ export const getCashierOrderHistory = async (req, res) => {
       ],
     };
     // Karena kamu memang fetch riwayat kasir tertentu, tambahkan exact match
-    // baseFilter.cashierId = cashierId;
+    baseFilter.cashierId = cashierId;
 
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
     const orders = await Order.find(baseFilter)
