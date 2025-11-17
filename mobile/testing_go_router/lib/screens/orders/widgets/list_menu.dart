@@ -163,7 +163,14 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final menu = ref.watch(reservationMenuItemProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
 
-    const categories = ['All', 'makanan', 'minuman', 'event', 'Art Galery'];
+    const categories = [
+      'All',
+      'makanan',
+      'minuman',
+      'event',
+      'art galery',
+      'bazar',
+    ];
 
     return Row(
       children: [
