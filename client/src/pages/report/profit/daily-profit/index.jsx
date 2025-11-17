@@ -109,13 +109,13 @@ const DailyProfitManagement = () => {
                 startDate: startDate.toISOString().split('T')[0],
                 endDate: endDate.toISOString().split('T')[0],
             };
-            
+
             if (outletId) {
                 params.outletId = outletId;
             }
 
             const response = await axios.get('/api/report/daily-profit/range', { params });
-            
+
             if (response.data.success) {
                 setProfitData(response.data.data);
                 setError(null);
@@ -159,6 +159,7 @@ const DailyProfitManagement = () => {
     };
 
     // Export to Excel
+    // Export to Excel
     const exportToExcel = async () => {
         setExportLoading(true);
         try {
@@ -167,42 +168,186 @@ const DailyProfitManagement = () => {
                 return;
             }
 
-            // Prepare data for export
-            const dataToExport = profitData.map(item => ({
-                "Tanggal": item.date,
-                "Penjualan Kotor": item.totalRevenue,
-                "Laba Bersih": item.totalNetProfit,
-                "Total Pesanan": item.totalOrders,
-                "Total Item Terjual": item.totalItemsSold,
-                "Rata-rata Nilai Pesanan": Math.round(item.totalNetProfit / item.totalOrders) || 0
-            }));
+            // Get outlet name
+            const outletName = selectedOutlet ?
+                outlets.find(o => o._id === selectedOutlet)?.name : 'Semua Outlet';
 
-            // Add summary row
-            const summary = {
-                "Tanggal": "TOTAL",
-                "Penjualan Kotor": profitData.reduce((sum, item) => sum + item.totalRevenue, 0),
-                "Laba Bersih": profitData.reduce((sum, item) => sum + item.totalNetProfit, 0),
-                "Total Pesanan": profitData.reduce((sum, item) => sum + item.totalOrders, 0),
-                "Total Item Terjual": profitData.reduce((sum, item) => sum + item.totalItemsSold, 0),
-                "Rata-rata Nilai Pesanan": Math.round(
-                    profitData.reduce((sum, item) => sum + item.totalNetProfit, 0) / 
-                    profitData.reduce((sum, item) => sum + item.totalOrders, 0)
-                ) || 0
+            // Format date for display
+            const formatDateForExcel = (dateStr) => {
+                const date = new Date(dateStr);
+                const pad = (n) => n.toString().padStart(2, "0");
+                return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
             };
 
-            dataToExport.push(summary);
-
-            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            // Create workbook
             const wb = XLSX.utils.book_new();
+
+            // Create header data
+            const headerData = [
+                ['Laporan Laba Harian'],
+                [],
+                ['Outlet', outletName],
+                ['Tanggal', `${formatDateForExcel(dateRange.startDate)} s/d ${formatDateForExcel(dateRange.endDate)}`],
+                [],
+                ['Tanggal', 'Penjualan Kotor', 'Diskon', 'Pembulatan', 'Pembelian', 'Laba Kotor', '% Laba Kotor']
+            ];
+
+            // Prepare data rows
+            const dataRows = profitData.map(item => {
+                const profitMargin = item.totalRevenue > 0
+                    ? ((item.totalNetProfit / item.totalRevenue) * 100)
+                    : 0;
+
+                return [
+                    formatDateForExcel(item.date),
+                    item.totalRevenue,
+                    0, // Diskon (sesuaikan jika ada field diskon)
+                    0, // Pembulatan (sesuaikan jika ada field pembulatan)
+                    0, // Pembelian (sesuaikan jika ada field pembelian)
+                    item.totalNetProfit,
+                    profitMargin / 100 // Untuk format persentase
+                ];
+            });
+
+            // Add Grand Total row
+            const grandTotal = [
+                'Grand Total',
+                totals.totalRevenue,
+                0,
+                0,
+                0,
+                totals.totalNetProfit,
+                totals.totalRevenue > 0 ? (totals.totalNetProfit / totals.totalRevenue) : 0
+            ];
+
+            // Combine all data
+            const allData = [...headerData, ...dataRows, grandTotal];
+
+            // Create worksheet
+            const ws = XLSX.utils.aoa_to_sheet(allData);
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 15 }, // Tanggal
+                { wch: 18 }, // Penjualan Kotor
+                { wch: 12 }, // Diskon
+                { wch: 12 }, // Pembulatan
+                { wch: 12 }, // Pembelian
+                { wch: 18 }, // Laba Kotor
+                { wch: 15 }  // % Laba Kotor
+            ];
+
+            // Styling
+            const range = XLSX.utils.decode_range(ws['!ref']);
+
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!ws[cellAddress]) continue;
+
+                    // Header title (row 0)
+                    if (R === 0) {
+                        ws[cellAddress].s = {
+                            font: { bold: true, sz: 14 },
+                            alignment: { horizontal: 'left', vertical: 'center' }
+                        };
+                    }
+
+                    // Outlet and Tanggal info (rows 2-3)
+                    if ((R === 2 || R === 3) && C === 0) {
+                        ws[cellAddress].s = {
+                            font: { bold: true },
+                            alignment: { horizontal: 'left', vertical: 'center' }
+                        };
+                    }
+
+                    // Column headers (row 5)
+                    if (R === 5) {
+                        ws[cellAddress].s = {
+                            font: { bold: true },
+                            fill: { fgColor: { rgb: "F3F4F6" } },
+                            border: {
+                                top: { style: 'thin', color: { rgb: "000000" } },
+                                bottom: { style: 'thin', color: { rgb: "000000" } },
+                                left: { style: 'thin', color: { rgb: "000000" } },
+                                right: { style: 'thin', color: { rgb: "000000" } }
+                            },
+                            alignment: { horizontal: 'center', vertical: 'center' }
+                        };
+                    }
+
+                    // Data rows (from row 6 to before grand total)
+                    if (R > 5 && R < range.e.r) {
+                        // Format currency columns (B, C, D, E, F)
+                        if (C >= 1 && C <= 5) {
+                            ws[cellAddress].t = 'n';
+                            ws[cellAddress].z = '#,##0';
+                        }
+                        // Format percentage column (G)
+                        if (C === 6) {
+                            ws[cellAddress].t = 'n';
+                            ws[cellAddress].z = '0%';
+                        }
+
+                        ws[cellAddress].s = {
+                            border: {
+                                top: { style: 'thin', color: { rgb: "E5E7EB" } },
+                                bottom: { style: 'thin', color: { rgb: "E5E7EB" } },
+                                left: { style: 'thin', color: { rgb: "E5E7EB" } },
+                                right: { style: 'thin', color: { rgb: "E5E7EB" } }
+                            },
+                            alignment: {
+                                horizontal: C === 0 ? 'left' : 'right',
+                                vertical: 'center'
+                            }
+                        };
+                    }
+
+                    // Grand Total row (last row)
+                    if (R === range.e.r) {
+                        ws[cellAddress].s = {
+                            font: { bold: true },
+                            fill: { fgColor: { rgb: "F3F4F6" } },
+                            border: {
+                                top: { style: 'thin', color: { rgb: "000000" } },
+                                bottom: { style: 'thin', color: { rgb: "000000" } },
+                                left: { style: 'thin', color: { rgb: "000000" } },
+                                right: { style: 'thin', color: { rgb: "000000" } }
+                            },
+                            alignment: {
+                                horizontal: C === 0 ? 'left' : 'right',
+                                vertical: 'center'
+                            }
+                        };
+
+                        // Format currency for grand total
+                        if (C >= 1 && C <= 5) {
+                            ws[cellAddress].t = 'n';
+                            ws[cellAddress].z = '#,##0';
+                        }
+                        // Format percentage for grand total
+                        if (C === 6) {
+                            ws[cellAddress].t = 'n';
+                            ws[cellAddress].z = '0%';
+                        }
+                    }
+                }
+            }
+
+            // Merge cells for title
+            ws['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } } // Merge title across all columns
+            ];
+
+            // Add worksheet to workbook
             XLSX.utils.book_append_sheet(wb, ws, "Laba Harian");
-            
+
             // Generate filename
-            const startDateStr = dateRange.startDate.toISOString().split('T')[0];
-            const endDateStr = dateRange.endDate.toISOString().split('T')[0];
-            const outletName = selectedOutlet ? 
-                outlets.find(o => o._id === selectedOutlet)?.name : 'Semua-Outlet';
-            
-            const filename = `Laba_Harian_${outletName}_${startDateStr}_to_${endDateStr}.xlsx`;
+            const startDateStr = formatDateForExcel(dateRange.startDate);
+            const endDateStr = formatDateForExcel(dateRange.endDate);
+            const filename = `Laporan_Laba_Harian_${outletName.replace(/\s+/g, '_')}_${startDateStr}_to_${endDateStr}.xlsx`;
+
+            // Write file
             XLSX.writeFile(wb, filename);
         } catch (err) {
             console.error("Error exporting to Excel:", err);
@@ -230,7 +375,7 @@ const DailyProfitManagement = () => {
             totalOrders: profitData.reduce((sum, item) => sum + item.totalOrders, 0),
             totalItemsSold: profitData.reduce((sum, item) => sum + item.totalItemsSold, 0),
             averageOrderValue: Math.round(
-                profitData.reduce((sum, item) => sum + item.totalNetProfit, 0) / 
+                profitData.reduce((sum, item) => sum + item.totalNetProfit, 0) /
                 profitData.reduce((sum, item) => sum + item.totalOrders, 0)
             ) || 0
         };
@@ -259,14 +404,14 @@ const DailyProfitManagement = () => {
                     <span>Laba Harian</span>
                 </div>
                 <div className="flex gap-2">
-                    <button
+                    {/* <button
                         onClick={handleRefresh}
                         disabled={loading}
                         className="flex items-center gap-2 bg-gray-100 text-gray-700 text-[13px] px-[15px] py-[7px] rounded hover:bg-gray-200 disabled:opacity-50"
                     >
                         <FaSync className={loading ? "animate-spin" : ""} />
                         Refresh
-                    </button>
+                    </button> */}
                     <button
                         onClick={exportToExcel}
                         disabled={exportLoading || !profitData || profitData.length === 0}
@@ -370,9 +515,8 @@ const DailyProfitManagement = () => {
                                         <td className="p-4 font-medium">{formatDate(item.date)}</td>
                                         <td className="p-4 text-right">{formatCurrency(item.totalRevenue)}</td>
                                         <td className="p-4 text-right">
-                                            <span className={`font-semibold ${
-                                                item.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                                            }`}>
+                                            <span className={`font-semibold ${item.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                                                }`}>
                                                 {formatCurrency(item.totalNetProfit)}
                                             </span>
                                         </td>
@@ -408,9 +552,8 @@ const DailyProfitManagement = () => {
                                         {formatCurrency(totals.totalRevenue)}
                                     </td>
                                     <td className="p-4 text-right">
-                                        <span className={`${
-                                            totals.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                                        }`}>
+                                        <span className={`${totals.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                                            }`}>
                                             {formatCurrency(totals.totalNetProfit)}
                                         </span>
                                     </td>

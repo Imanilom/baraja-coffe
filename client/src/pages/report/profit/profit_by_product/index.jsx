@@ -340,36 +340,201 @@ const ProfitByProductManagement = () => {
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
     // Export current data to Excel
+    // Export current data to Excel
     const exportToExcel = () => {
-        const dataToExport = filteredData.map(order => {
+        // Get outlet name
+        const outletName = tempSelectedOutlet || 'Semua Outlet';
+
+        // Format date for display
+        const formatDateForExcel = (dateStr) => {
+            if (dayjs.isDayjs(dateStr)) {
+                return dateStr.format('DD-MM-YYYY');
+            }
+            const date = new Date(dateStr);
+            const pad = (n) => n.toString().padStart(2, "0");
+            return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
+        };
+
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+
+        // Create header data
+        const headerData = [
+            ['Laporan Laba Produk'],
+            [],
+            ['Outlet', outletName],
+            ['Tanggal', `${formatDateForExcel(value.startDate)} s/d ${formatDateForExcel(value.endDate)}`],
+            [],
+            ['Produk', 'Kategori', 'Penjualan Kotor', 'Diskon Produk', 'Pembelian', 'Laba Produk', '% Laba Produk']
+        ];
+
+        // Prepare data rows
+        const dataRows = filteredData.map(order => {
             const item = order.items?.[0] || {};
             const menuItem = item.menuItem || {};
+            const price = menuItem.price || 0;
+            const diskon = menuItem.diskon || 0;
+            const pembelian = menuItem.pembelian || 0;
+            const quantity = item.quantity || 1;
 
-            return {
-                "Waktu": new Date(order.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": order.cashier?.username || "-",
-                "ID Struk": order._id,
-                "Produk": menuItem.name || "-",
-                "Kategori": menuItem.category?.name || "-",
-                "Penjualan Kotor": menuItem.price || 0,
-                "Diskon": menuItem.diskon || 0,
-                "Pembelian": menuItem.pembelian || 0,
-                "Laba Produk": (menuItem.price || 0) - (menuItem.pembelian || 0),
-            };
+            const penjualanKotor = price * quantity;
+            const diskonTotal = diskon * quantity;
+            const pembelianTotal = pembelian * quantity;
+            const labaProduk = (price - pembelian) * quantity;
+            const labaPersen = price > 0 ? (labaProduk / penjualanKotor) : 0;
+
+            return [
+                menuItem.name || "-",
+                menuItem.category?.name || "-",
+                penjualanKotor,
+                diskonTotal,
+                pembelianTotal,
+                labaProduk,
+                labaPersen
+            ];
         });
 
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        // Add Grand Total row
+        const grandTotal = [
+            'Grand Total',
+            '',
+            totals.totalPenjualanKotor,
+            totals.totalDiskon,
+            totals.totalPembelian,
+            totals.totalLabaProduk,
+            totals.totalPenjualanKotor > 0 ? (totals.totalLabaProduk / totals.totalPenjualanKotor) : 0
+        ];
 
-        const columnWidths = Object.keys(dataToExport[0] || {}).map(key => ({
-            wch: Math.max(key.length + 2, 20)
-        }));
-        ws['!cols'] = columnWidths;
+        // Combine all data
+        const allData = [...headerData, ...dataRows, grandTotal];
 
-        const wb = XLSX.utils.book_new();
+        // Create worksheet
+        const ws = XLSX.utils.aoa_to_sheet(allData);
+
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 25 }, // Produk
+            { wch: 18 }, // Kategori
+            { wch: 18 }, // Penjualan Kotor
+            { wch: 15 }, // Diskon Produk
+            { wch: 15 }, // Pembelian
+            { wch: 18 }, // Laba Produk
+            { wch: 15 }  // % Laba Produk
+        ];
+
+        // Styling
+        const range = XLSX.utils.decode_range(ws['!ref']);
+
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!ws[cellAddress]) continue;
+
+                // Header title (row 0)
+                if (R === 0) {
+                    ws[cellAddress].s = {
+                        font: { bold: true, sz: 14 },
+                        alignment: { horizontal: 'left', vertical: 'center' }
+                    };
+                }
+
+                // Outlet and Tanggal info (rows 2-3)
+                if ((R === 2 || R === 3) && C === 0) {
+                    ws[cellAddress].s = {
+                        font: { bold: true },
+                        alignment: { horizontal: 'left', vertical: 'center' }
+                    };
+                }
+
+                // Column headers (row 5)
+                if (R === 5) {
+                    ws[cellAddress].s = {
+                        font: { bold: true },
+                        fill: { fgColor: { rgb: "F3F4F6" } },
+                        border: {
+                            top: { style: 'thin', color: { rgb: "000000" } },
+                            bottom: { style: 'thin', color: { rgb: "000000" } },
+                            left: { style: 'thin', color: { rgb: "000000" } },
+                            right: { style: 'thin', color: { rgb: "000000" } }
+                        },
+                        alignment: { horizontal: 'center', vertical: 'center' }
+                    };
+                }
+
+                // Data rows (from row 6 to before grand total)
+                if (R > 5 && R < range.e.r) {
+                    // Format currency columns (C, D, E, F = columns 2,3,4,5)
+                    if (C >= 2 && C <= 5) {
+                        ws[cellAddress].t = 'n';
+                        ws[cellAddress].z = '#,##0';
+                    }
+                    // Format percentage column (G = column 6)
+                    if (C === 6) {
+                        ws[cellAddress].t = 'n';
+                        ws[cellAddress].z = '0%';
+                    }
+
+                    ws[cellAddress].s = {
+                        border: {
+                            top: { style: 'thin', color: { rgb: "E5E7EB" } },
+                            bottom: { style: 'thin', color: { rgb: "E5E7EB" } },
+                            left: { style: 'thin', color: { rgb: "E5E7EB" } },
+                            right: { style: 'thin', color: { rgb: "E5E7EB" } }
+                        },
+                        alignment: {
+                            horizontal: C <= 1 ? 'left' : 'right',
+                            vertical: 'center'
+                        }
+                    };
+                }
+
+                // Grand Total row (last row)
+                if (R === range.e.r) {
+                    ws[cellAddress].s = {
+                        font: { bold: true },
+                        fill: { fgColor: { rgb: "F3F4F6" } },
+                        border: {
+                            top: { style: 'thin', color: { rgb: "000000" } },
+                            bottom: { style: 'thin', color: { rgb: "000000" } },
+                            left: { style: 'thin', color: { rgb: "000000" } },
+                            right: { style: 'thin', color: { rgb: "000000" } }
+                        },
+                        alignment: {
+                            horizontal: C <= 1 ? 'left' : 'right',
+                            vertical: 'center'
+                        }
+                    };
+
+                    // Format currency for grand total
+                    if (C >= 2 && C <= 5) {
+                        ws[cellAddress].t = 'n';
+                        ws[cellAddress].z = '#,##0';
+                    }
+                    // Format percentage for grand total
+                    if (C === 6) {
+                        ws[cellAddress].t = 'n';
+                        ws[cellAddress].z = '0%';
+                    }
+                }
+            }
+        }
+
+        // Merge cells for title
+        ws['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } } // Merge title across all columns
+        ];
+
+        // Add worksheet to workbook
         XLSX.utils.book_append_sheet(wb, ws, "Laba Produk");
-        XLSX.writeFile(wb, "Laporan_Laba_Produk.xlsx");
-    };
 
+        // Generate filename
+        const startDateStr = formatDateForExcel(value.startDate);
+        const endDateStr = formatDateForExcel(value.endDate);
+        const filename = `Laporan_Laba_Produk_${outletName.replace(/\s+/g, '_')}_${startDateStr}_to_${endDateStr}.xlsx`;
+
+        // Write file
+        XLSX.writeFile(wb, filename);
+    };
     // Calculate totals - PERBAIKAN: dari filteredData bukan paginatedData
     const calculateTotals = () => {
         let totalPenjualanKotor = 0;

@@ -298,7 +298,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
     final cashier = await HiveService.getCashier();
 
-    state = state!.copyWith(cashierId: cashier!.id);
+    state = state!.copyWith(cashier: cashier);
     print('statedtdt: $state');
     if (state == null) return false;
 

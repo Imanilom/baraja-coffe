@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.kasir.baraja"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "29.0.13113456"
+    ndkVersion = "29.0.13113456" //29.0.14206865
 
     compileOptions {
         // Flag to enable support for the new language APIs

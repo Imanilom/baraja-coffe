@@ -2357,7 +2357,8 @@ export const createUnifiedOrder = async (req, res) => {
       paymentDetails,
       user,
       contact,
-      cashierId
+      cashierId,
+      device_id
     } = req.body;
 
     // Validasi outletId
@@ -2379,7 +2380,8 @@ export const createUnifiedOrder = async (req, res) => {
       orderId,
       source,
       outletId,
-      tableNumber
+      tableNumber,
+      paymentDetails
     });
 
     // Execute dengan atomic lock untuk mencegah race condition
@@ -2500,6 +2502,7 @@ export const createUnifiedOrder = async (req, res) => {
 
       validated.outletId = outletId;
       validated.outlet = outletId;
+      validated.device_id = device_id;
       // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
       validated.customerId = customerId;
       validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
@@ -6265,7 +6268,7 @@ export const getCashierOrderHistory = async (req, res) => {
       ],
     };
     // Karena kamu memang fetch riwayat kasir tertentu, tambahkan exact match
-    // baseFilter.cashierId = cashierId;
+    baseFilter.cashierId = cashierId;
 
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
     const orders = await Order.find(baseFilter)

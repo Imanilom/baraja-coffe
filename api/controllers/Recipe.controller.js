@@ -243,7 +243,6 @@ export const updateSingleMenuStock = async (req, res) => {
 };
 
 // PATCH /api/menu-stocks/:menuItemId/adjust
-// PATCH /api/menu-stocks/:menuItemId/adjust
 export const adjustMenuStock = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -274,51 +273,83 @@ export const adjustMenuStock = async (req, res) => {
       }
     }
 
-    // Jika manualStock kosong atau null, reset ke calculated
+    // Handle reset stock
     if (manualStock === '' || manualStock === null) {
-      try {
-        const menuStock = await MenuStock.findOne({ menuItemId }).session(session);
-        if (!menuStock) {
-          await session.abortTransaction();
-          return res.status(404).json({ success: false, message: 'Stok menu tidak ditemukan' });
-        }
+      const menuStock = await MenuStock.findOne({ menuItemId }).session(session);
+      if (!menuStock) {
+        await session.abortTransaction();
+        return res.status(404).json({ success: false, message: 'Stok menu tidak ditemukan' });
+      }
 
-        // Reset manualStock ke null, sehingga menggunakan calculatedStock
-        menuStock.manualStock = null;
-        menuStock.adjustmentNote = 'Reset ke stok terhitung sistem';
-        menuStock.adjustedBy = adjustedBy || null;
-        menuStock.lastAdjustedAt = new Date();
+      const effectiveStock = menuStock.calculatedStock || 0;
 
-        await menuStock.save({ session });
+      // Reset dan aktifkan/nonaktifkan berdasarkan calculatedStock
+      menuStock.manualStock = null;
+      menuStock.adjustmentNote = 'Reset ke stok terhitung sistem';
+      menuStock.adjustedBy = adjustedBy || null;
+      menuStock.lastAdjustedAt = new Date();
+      await menuStock.save({ session });
 
-        // Update MenuItem.availableStock
-        await MenuItem.findByIdAndUpdate(menuItemId, {
-          availableStock: menuStock.effectiveStock
-        }, { session });
+      // ✅ Update MenuItem dengan status aktivasi DALAM transaction
+      const menuItem = await MenuItem.findById(menuItemId).session(session);
+      const previousStatus = menuItem.isActive;
 
-        await session.commitTransaction();
+      menuItem.availableStock = effectiveStock;
+      menuItem.isActive = effectiveStock > 0; // Aktif jika ada stok
+      await menuItem.save({ session });
 
-        // 🔥 TAMBAHAN: Kalibrasi menu setelah reset stock
-        console.log(`🔄 Memulai kalibrasi otomatis untuk ${menuItemId} setelah reset stock...`);
-        try {
-          await calibrateSingleMenuStock(menuItemId.toString());
-          console.log(`✅ Kalibrasi otomatis berhasil untuk menu ${menuItemId}`);
-        } catch (calibrationError) {
-          console.error(`⚠️ Kalibrasi otomatis gagal (non-blocking):`, calibrationError.message);
-          // Non-blocking error, tidak menghentikan response
-        }
+      const statusChange = previousStatus !== menuItem.isActive
+        ? (menuItem.isActive ? 'activated' : 'deactivated')
+        : null;
 
-        return res.status(200).json({
-          success: true,
-          message: 'Stok manual berhasil direset ke stok sistem dan dikalibrasi',
-          data: menuStock
+      await session.commitTransaction();
+
+      // ✅ Emit socket PERTAMA: Update instant
+      io.emit('stock_updated', {
+        menuItemId: menuItemId.toString(),
+        message: 'Stock Reset & Updated',
+        stockData: {
+          menuItemId: menuStock.menuItemId,
+          calculatedStock: menuStock.calculatedStock,
+          manualStock: menuStock.manualStock,
+          effectiveStock,
+          isActive: menuItem.isActive,
+          statusChange,
+          lastAdjustedAt: menuStock.lastAdjustedAt
+        },
+        phase: 'instant',
+        timestamp: new Date()
+      });
+
+      // ✅ Kalibrasi background (non-blocking)
+      console.log(`🔄 Memulai kalibrasi background untuk ${menuItemId} setelah reset stock...`);
+      calibrateSingleMenuStock(menuItemId.toString())
+        .then((calibrationResult) => {
+          console.log(`✅ Kalibrasi background berhasil:`, calibrationResult);
+
+          // Emit socket KEDUA: Update setelah kalibrasi
+          io.emit('stock_calibrated', {
+            menuItemId: menuItemId.toString(),
+            message: 'Stock Calibrated',
+            data: calibrationResult,
+            phase: 'calibrated',
+            timestamp: new Date()
+          });
+        })
+        .catch((calibrationError) => {
+          console.error(`⚠️ Kalibrasi background gagal (non-blocking):`, calibrationError.message);
         });
 
-      } catch (error) {
-        await session.abortTransaction();
-        console.error('Error resetting manual stock:', error);
-        return res.status(500).json({ success: false, message: 'Gagal mereset stok manual' });
-      }
+      return res.status(200).json({
+        success: true,
+        message: `Stok manual berhasil direset${statusChange ? ' dan menu ' + (statusChange === 'activated' ? 'diaktifkan' : 'dinonaktifkan') : ''}`,
+        data: {
+          ...menuStock.toJSON(),
+          effectiveStock,
+          isActive: menuItem.isActive,
+          statusChange
+        }
+      });
     }
 
     // Validasi untuk input manual stock
@@ -360,10 +391,27 @@ export const adjustMenuStock = async (req, res) => {
 
     await stockDoc.save({ session });
 
-    // Update MenuItem.availableStock
-    await MenuItem.findByIdAndUpdate(menuItemId, {
-      availableStock: stockDoc.effectiveStock
-    }, { session });
+    // ✅ Hitung effective stock dan aktifkan/nonaktifkan menu DALAM transaction
+    const effectiveStock = stockDoc.manualStock !== null ? stockDoc.manualStock : stockDoc.calculatedStock;
+
+    const menuItem = await MenuItem.findById(menuItemId).session(session);
+    const previousStatus = menuItem.isActive;
+
+    menuItem.availableStock = effectiveStock;
+
+    // Auto activate/deactivate berdasarkan stok
+    let statusChange = null;
+    if (effectiveStock > 0 && !menuItem.isActive) {
+      menuItem.isActive = true;
+      statusChange = 'activated';
+      console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
+    } else if (effectiveStock <= 0 && menuItem.isActive) {
+      menuItem.isActive = false;
+      statusChange = 'deactivated';
+      console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
+    }
+
+    await menuItem.save({ session });
 
     // Handle waste/pengurangan stok dengan ProductStock Movement
     if (reason && wasteQuantity) {
@@ -374,20 +422,15 @@ export const adjustMenuStock = async (req, res) => {
         adjustedBy,
         adjustmentNote,
         previousStock,
-        stockDoc.effectiveStock,
+        effectiveStock,
         session
       );
     }
 
     await session.commitTransaction();
     console.log('✅ Stok menu berhasil disesuaikan');
-    // Pastikan emit bekerja dengan benar
-    console.log('📤 Emitting stock_updated to kitchen_room for menu:', menuItemId);
 
-    // Emit ke kitchen room
-    console.log('📤 Broadcasting stock_updated to ALL clients');
-
-    // ✅ SOLUSI PALING MUDAH: Broadcast ke SEMUA client
+    // ✅ Emit socket PERTAMA: Update instant ke semua client
     io.emit('stock_updated', {
       menuItemId: menuItemId.toString(),
       message: 'Stock Updated',
@@ -395,42 +438,61 @@ export const adjustMenuStock = async (req, res) => {
         menuItemId: stockDoc.menuItemId,
         calculatedStock: stockDoc.calculatedStock,
         manualStock: stockDoc.manualStock,
-        effectiveStock: stockDoc.effectiveStock,
+        effectiveStock,
+        isActive: menuItem.isActive,
+        statusChange,
         lastAdjustedAt: stockDoc.lastAdjustedAt
       },
+      phase: 'instant',
       timestamp: new Date()
     });
 
-    console.log('✅ Stock update broadcasted to ALL clients');
-
-    console.log('✅ Stock update emitted successfully');
-    // 🔥 TAMBAHAN: Emit socket sebelum kalibrasi
+    // Emit khusus ke cashier room
     io.to('join_cashier_room').emit('update_stock', {
       message: 'Stock Updated',
-      data: stockDoc
+      data: {
+        ...stockDoc.toJSON(),
+        effectiveStock,
+        isActive: menuItem.isActive,
+        statusChange
+      }
     });
 
-    // 🔥 TAMBAHAN: Kalibrasi menu setelah adjust stock berhasil
-    console.log(`🔄 Memulai kalibrasi otomatis untuk ${menuItemId} setelah adjust stock...`);
-    try {
-      const calibrationResult = await calibrateSingleMenuStock(menuItemId.toString());
-      console.log(`✅ Kalibrasi otomatis berhasil:`, calibrationResult);
+    // ✅ Kalibrasi background (non-blocking) untuk validasi & sync
+    console.log(`🔄 Memulai kalibrasi background untuk ${menuItemId} setelah adjust stock...`);
+    calibrateSingleMenuStock(menuItemId.toString())
+      .then((calibrationResult) => {
+        console.log(`✅ Kalibrasi background berhasil:`, calibrationResult);
 
-      // Emit update kalibrasi ke socket
-      io.to('join_cashier_room').emit('stock_calibrated', {
-        message: 'Stock Calibrated',
-        menuItemId,
-        data: calibrationResult
+        // Emit socket KEDUA: Update setelah kalibrasi (untuk validasi)
+        io.emit('stock_calibrated', {
+          menuItemId: menuItemId.toString(),
+          message: 'Stock Calibrated',
+          data: calibrationResult,
+          phase: 'calibrated',
+          timestamp: new Date()
+        });
+
+        io.to('join_cashier_room').emit('stock_calibrated', {
+          message: 'Stock Calibrated',
+          menuItemId,
+          data: calibrationResult
+        });
+      })
+      .catch((calibrationError) => {
+        console.error(`⚠️ Kalibrasi background gagal (non-blocking):`, calibrationError.message);
       });
-    } catch (calibrationError) {
-      console.error(`⚠️ Kalibrasi otomatis gagal (non-blocking):`, calibrationError.message);
-      // Non-blocking error, tidak menghentikan response
-    }
 
+    // ✅ Response langsung tanpa menunggu kalibrasi
     res.status(200).json({
       success: true,
-      message: 'Stok menu berhasil disesuaikan dan dikalibrasi',
-      data: stockDoc
+      message: `Stok menu berhasil disesuaikan${statusChange ? ' dan menu ' + (statusChange === 'activated' ? 'diaktifkan' : 'dinonaktifkan') : ''}`,
+      data: {
+        ...stockDoc.toJSON(),
+        effectiveStock,
+        isActive: menuItem.isActive,
+        statusChange
+      }
     });
 
   } catch (error) {

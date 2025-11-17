@@ -30,7 +30,6 @@ dependencies:
   json_annotation: ^4.9.0
   assorted_layout_widgets: ^11.0.0
   permission_handler: ^12.0.0+1
-  flutter_thermal_printer: ^1.2.1+1
   print_bluetooth_thermal: ^1.1.6
   esc_pos_utils_plus: ^2.0.4
   socket_io_client: ^3.1.2
@@ -62,7 +61,8 @@ dev_dependencies:
   freezed: ^3.0.4
   build_runner: ^2.4.6
   hive_ce_generator: ^1.8.1
-  json_serializable: ^6.9.5
+  analyzer: ^8.4.1
+  json_serializable: ^6.10.0
 
 flutter:
   uses-material-design: true
