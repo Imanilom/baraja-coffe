@@ -116,9 +116,10 @@ class ReceiptWidget extends ConsumerWidget {
           DateFormat('dd/MM/yyyy HH:mm').format(order.createdAt!),
         ),
         _buildReceiptRow('Customer', order.user ?? 'Unknown'),
+        _buildReceiptRow('Cashier', order.cashier?.username ?? 'Unknown'),
         if (order.tableNumber!.isNotEmpty)
-          _buildReceiptRow('Table', order.tableNumber!),
-        _buildReceiptRow('Payment', order.paymentMethod!),
+          _buildReceiptRow('Table', order.tableNumber ?? ''),
+        _buildReceiptRow('Payment', order.paymentMethod ?? ''),
 
         const SizedBox(height: 16),
         Text(order.orderType.name, textAlign: TextAlign.center),

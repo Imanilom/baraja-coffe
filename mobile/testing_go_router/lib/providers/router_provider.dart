@@ -10,7 +10,6 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/screens/orders/edit_order/edit_order_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_success_screen.dart';
-import 'package:kasirbaraja/screens/payments/payment_type_screen.dart';
 import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
 import 'package:kasirbaraja/screens/reservation/reservation_menu_screen.dart';
 import 'package:kasirbaraja/screens/settings/setting_screen.dart';
