@@ -169,7 +169,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
                     orderDetail: orders,
                     orderId: orders!.id ?? '',
                     cashierId: '',
-                    source: orders.source,
+                    source: orders.source ?? 'Unknown',
                   ),
                 ),
               ],

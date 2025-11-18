@@ -144,7 +144,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
                   child: ConfirmOrderButton(
                     orderId: orders!.orderId ?? '',
                     cashierId: '',
-                    source: orders.source,
+                    source: orders.source ?? 'Unknown',
                   ),
                   // child: ElevatedButton(
                   //   onPressed:

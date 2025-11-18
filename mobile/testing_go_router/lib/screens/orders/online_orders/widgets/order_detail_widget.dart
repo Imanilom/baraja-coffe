@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
-import 'package:kasirbaraja/screens/orders/online_orders/widgets/sheets/delete_order_item_sheet.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
 
@@ -115,12 +113,12 @@ class OrderDetailWidget extends ConsumerWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildInfoRow('Customer', order.user),
+          _buildInfoRow('Customer', order.user ?? 'Unknown'),
           _buildInfoRow('Order Type', order.orderType.name),
           if (order.tableNumber!.isNotEmpty)
             _buildInfoRow('Table', order.tableNumber!),
           _buildInfoRow('Payment Method', order.paymentMethod!),
-          _buildInfoRow('Source', order.source),
+          _buildInfoRow('Source', order.source ?? 'Unknown'),
         ],
       ),
     );

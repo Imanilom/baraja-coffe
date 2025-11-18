@@ -2,17 +2,16 @@ import axios from "axios";
 import React, { useState, useEffect } from "react";
 import Select from "react-select";
 import {
-    FaBell,
     FaChevronRight,
     FaIdBadge,
-    FaUser,
+    FaEye,
+    FaEyeSlash,
 } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import MessageAlert from "../../../components/messageAlert";
-import Header from "../../admin/header";
+import CreateUserSkeleton from "./create_user_skeleton"; // Import skeleton
 
 const CreateUser = () => {
-
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -48,32 +47,70 @@ const CreateUser = () => {
         menuPortal: (base) => ({ ...base, zIndex: 9999 }),
     };
 
+    // Tab state
+    const [activeTab, setActiveTab] = useState("staff");
+    const [showPassword, setShowPassword] = useState(false);
+    const [showPin, setShowPin] = useState(false);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [outlets, setOutlets] = useState([]);
     const [search, setSearch] = useState("");
     const [selectedOutlets, setSelectedOutlets] = useState([]);
-    const [employeeType, setEmployeeType] = useState(""); // role
-    const [name, setName] = useState("");
+    const [employeeType, setEmployeeType] = useState("");
     const [roleOptions, setRoleOptions] = useState([]);
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [phone, setPhone] = useState("");
-    const [pin, setPin] = useState("");
     const [password, setPassword] = useState("");
+    const [pin, setPin] = useState("");
     const [formErrors, setFormErrors] = useState({});
-    const [submitAction, setSubmitAction] = useState("stay"); // default stay
+    const [submitAction, setSubmitAction] = useState("stay");
     const [alertMsg, setAlertMsg] = useState("");
     const navigate = useNavigate();
 
+    const tabs = [
+        {
+            id: "staff",
+            label: "Staff & Admin",
+            exclude: ["cashier", "cashier junior", "cashier senior", "customer"]
+        },
+        {
+            id: "cashier",
+            label: "Cashier",
+            roles: ["cashier", "cashier junior", "cashier senior"]
+        },
+        {
+            id: "customer",
+            label: "Customer",
+            roles: ["customer"]
+        },
+    ];
 
     const fetchRoles = async () => {
         setLoading(true);
         try {
             const res = await axios.get("/api/roles");
-            const formatted = res.data.map((role) => ({
-                value: role._id,      // gunakan _id sebagai value
-                label: role.name,     // tampilkan name sebagai label
+
+            // Filter roles berdasarkan tab aktif
+            let filtered = res.data;
+            const currentTab = tabs.find(t => t.id === activeTab);
+
+            if (currentTab.roles) {
+                // Jika ada roles yang specific (untuk cashier tab)
+                filtered = res.data.filter(role =>
+                    currentTab.roles.some(r => r.toLowerCase() === role.name.toLowerCase())
+                );
+            } else if (currentTab.exclude) {
+                // Jika ada exclude (untuk staff tab)
+                filtered = res.data.filter(role =>
+                    !currentTab.exclude.some(r => r.toLowerCase() === role.name.toLowerCase())
+                );
+            }
+
+            const formatted = filtered.map((role) => ({
+                value: role._id,
+                label: role.name,
             }));
             setRoleOptions(formatted);
         } catch (err) {
@@ -83,7 +120,6 @@ const CreateUser = () => {
         }
     };
 
-    // Fetch outlet list
     const fetchOutlets = async () => {
         setLoading(true);
         try {
@@ -105,8 +141,16 @@ const CreateUser = () => {
 
     useEffect(() => {
         fetchOutlets();
-        fetchRoles();
     }, []);
+
+    // Refetch roles ketika tab berubah
+    useEffect(() => {
+        fetchRoles();
+        // Reset selected role dan password/pin ketika pindah tab
+        setEmployeeType("");
+        setPassword("");
+        setPin("");
+    }, [activeTab]);
 
     const filteredOutlets = outlets.filter((o) =>
         o.name.toLowerCase().includes(search.toLowerCase())
@@ -121,15 +165,17 @@ const CreateUser = () => {
     const validateForm = () => {
         let errors = {};
         if (!employeeType) errors.employeeType = "Pilih role wajib.";
-        // if (!name) errors.name = "Nama wajib diisi.";
         if (!username) errors.username = "Username wajib diisi.";
-        if (employeeType === "staff" && !email)
-            errors.email = "Email wajib diisi.";
+        if (!email) errors.email = "Email wajib diisi.";
         if (!phone) errors.phone = "Nomor telepon wajib diisi.";
-        // if (!pin || pin.length !== 4)
-        //     errors.pin = "PIN wajib 4 digit.";
-        if (!password)
-            errors.password = "Password wajib diisi.";
+
+        // Validasi berbeda untuk Staff vs Cashier
+        if (activeTab === "cashier") {
+            if (!pin || pin.length !== 4) errors.pin = "PIN wajib 4 digit.";
+        } else {
+            if (!password) errors.password = "Password wajib diisi.";
+        }
+
         if (selectedOutlets.length === 0)
             errors.outlets = "Minimal pilih 1 outlet.";
 
@@ -147,41 +193,36 @@ const CreateUser = () => {
                 username,
                 email,
                 phone,
-                password: password,
+                password: activeTab === "cashier" ? pin : password, // kirim pin atau password
                 role: employeeType,
                 outlets: selectedOutlets,
             });
 
             if (submitAction === "exit") {
-                fetchOutlets();
                 navigate("/admin/access-settings/user", {
-                    state: { success: "Karyawan berhasil dibuat!" },
+                    state: { success: "User berhasil dibuat!" },
                 });
             } else {
-                // tetap di halaman, reset form
-                setName("");
+                // Reset form
                 setUsername("");
                 setEmail("");
                 setPhone("");
-                setPin("");
                 setEmployeeType("");
                 setSelectedOutlets([]);
-
-                setAlertMsg("Karyawan berhasil dibuat!"); // ✅ langsung show di page yg sama
+                setPassword("");
+                setPin("");
+                setAlertMsg("User berhasil dibuat!");
             }
         } catch (err) {
-            alert(err.response?.data?.message || "Gagal membuat karyawan");
+            alert(err.response?.data?.message || "Gagal membuat user");
         }
     };
 
-    if (loading) return <p className="text-center py-8">Loading...</p>;
+    if (loading) return <CreateUserSkeleton />;
     if (error) return <p className="text-center py-8 text-red-500">{error}</p>;
 
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-700">
-            {/* Header */}
-            <Header />
-
+        <div className="text-gray-700">
             <MessageAlert message={alertMsg} type="success" />
 
             {/* Form Container */}
@@ -224,32 +265,32 @@ const CreateUser = () => {
                     </div>
                 </div>
 
+                {/* Tab Navigation */}
+                <div className="px-6 pt-4">
+                    <div className="border-b border-gray-200">
+                        <div className="flex gap-1">
+                            {tabs.map((tab) => (
+                                <button
+                                    type="button"
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
+                                        ? "border-green-900 text-green-900"
+                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                        }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
                 {/* Content */}
                 <div className="p-6 space-y-6">
-
                     {/* Input fields */}
                     <div className="grid grid-cols-1 gap-6">
-                        {/* Left */}
                         <div className="space-y-4">
-                            {/* Nama */}
-                            {/* <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Nama <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Masukkan nama"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    className="w-full border rounded px-3 py-2 text-sm focus:ring-1 outline-none focus:ring-[#005429]"
-                                />
-                                {formErrors.name && (
-                                    <p className="text-xs text-red-500 mt-1">
-                                        {formErrors.name}
-                                    </p>
-                                )}
-                            </div> */}
-
                             {/* Username */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -269,7 +310,7 @@ const CreateUser = () => {
                                 )}
                             </div>
 
-                            {/* Email khusus staff */}
+                            {/* Email */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Email <span className="text-red-500">*</span>
@@ -298,7 +339,6 @@ const CreateUser = () => {
                                     placeholder="Masukkan nomor telepon"
                                     value={phone}
                                     onChange={(e) => {
-                                        // Hanya izinkan angka
                                         const onlyNums = e.target.value.replace(/\D/g, "");
                                         setPhone(onlyNums);
                                     }}
@@ -311,7 +351,7 @@ const CreateUser = () => {
                                 )}
                             </div>
 
-                            {/* Role select */}
+                            {/* Role select - filtered based on active tab */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Role <span className="text-red-500">*</span>
@@ -320,7 +360,7 @@ const CreateUser = () => {
                                     options={roleOptions}
                                     value={roleOptions.find((opt) => opt.value === employeeType)}
                                     onChange={(opt) => setEmployeeType(opt.value)}
-                                    placeholder="Pilih role karyawan..."
+                                    placeholder="Pilih role..."
                                     styles={customSelectStyles}
                                 />
                                 {formErrors.employeeType && (
@@ -330,42 +370,67 @@ const CreateUser = () => {
                                 )}
                             </div>
 
-                            {/* PIN */}
-                            {/* <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    PIN (4 digit) <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="password"
-                                    maxLength="4"
-                                    placeholder="Masukkan PIN"
-                                    value={pin}
-                                    onChange={(e) => setPin(e.target.value)}
-                                    className="w-1/2 border rounded px-3 py-2 text-sm focus:ring-1 outline-none focus:ring-[#005429]"
-                                />
-                                {formErrors.pin && (
-                                    <p className="text-xs text-red-500 mt-1">
-                                        {formErrors.pin}
-                                    </p>
-                                )}
-                            </div> */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Password <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="password"
-                                    placeholder="Masukkan password"
-                                    value={password} // bisa ganti state name ke password kalau mau lebih rapi
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-1/2 border rounded px-3 py-2 text-sm focus:ring-1 outline-none focus:ring-[#005429]"
-                                />
-                                {formErrors.password && (
-                                    <p className="text-xs text-red-500 mt-1">
-                                        {formErrors.password}
-                                    </p>
-                                )}
-                            </div>
+                            {/* Password atau PIN berdasarkan tab */}
+                            {activeTab === "cashier" ? (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        PIN (4 digit) <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="relative w-1/2">
+                                        <input
+                                            type={showPin ? "text" : "password"}
+                                            placeholder="Masukkan PIN 4 digit"
+                                            value={pin}
+                                            maxLength={4}
+                                            onChange={(e) => {
+                                                // Hanya izinkan angka
+                                                const onlyNums = e.target.value.replace(/\D/g, "");
+                                                setPin(onlyNums);
+                                            }}
+                                            className="w-full border rounded px-3 py-2 pr-10 text-sm focus:ring-1 outline-none focus:ring-[#005429]"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPin(!showPin)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                        >
+                                            {showPin ? <FaEyeSlash /> : <FaEye />}
+                                        </button>
+                                    </div>
+                                    {formErrors.pin && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            {formErrors.pin}
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Password <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="relative w-1/2">
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder="Masukkan password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="w-full border rounded px-3 py-2 pr-10 text-sm focus:ring-1 outline-none focus:ring-[#005429]"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                        >
+                                            {showPassword ? <FaEyeSlash /> : <FaEye />}
+                                        </button>
+                                    </div>
+                                    {formErrors.password && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            {formErrors.password}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 

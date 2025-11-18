@@ -1,6 +1,5 @@
-// dart format width=80
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -17,7 +16,7 @@ T _$identity<T>(T value) => value;
 mixin _$OrderDetailModel {
 
 // Identitas Order
-@HiveField(0)@JsonKey(name: 'order_id') String? get orderId;@HiveField(1)@JsonKey(name: 'user_id') String? get userId;@HiveField(2) String get user;@HiveField(3) String? get cashierId;// Item dan Status
+@HiveField(0)@JsonKey(name: 'order_id') String? get orderId;@HiveField(1)@JsonKey(name: 'user_id') String? get userId;@HiveField(2) String? get user;@HiveField(3) CashierModel? get cashier;// Item dan Status
 @HiveField(4) List<OrderItemModel> get items;@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) OrderStatus get status;// Pembayaran & Tipe Order
 @HiveField(6) String? get paymentMethod;@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType get orderType;// Lokasi
 @HiveField(8) String get deliveryAddress;@HiveField(9) String? get tableNumber;@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) LocationType get type;@HiveField(11) String? get outlet;// Diskon & Promo
@@ -79,9 +78,9 @@ class _$OrderDetailModelCopyWithImpl<$Res>
   return _then(_self.copyWith(
 orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
 as String?,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
-as String?,user: null == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
-as String,cashierId: freezed == cashierId ? _self.cashierId : cashierId // ignore: cast_nullable_to_non_nullable
-as String?,items: null == items ? _self.items : items // ignore: cast_nullable_to_non_nullable
+as String?,user: freezed == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
+as String?,cashier: freezed == cashier ? _self.cashier : cashier // ignore: cast_nullable_to_non_nullable
+as CashierModel?,items: null == items ? _self.items : items // ignore: cast_nullable_to_non_nullable
 as List<OrderItemModel>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as OrderStatus,paymentMethod: freezed == paymentMethod ? _self.paymentMethod : paymentMethod // ignore: cast_nullable_to_non_nullable
 as String?,orderType: null == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
@@ -99,8 +98,8 @@ as int,totalServiceFee: null == totalServiceFee ? _self.totalServiceFee : totalS
 as int,totalBeforeDiscount: null == totalBeforeDiscount ? _self.totalBeforeDiscount : totalBeforeDiscount // ignore: cast_nullable_to_non_nullable
 as int,totalAfterDiscount: null == totalAfterDiscount ? _self.totalAfterDiscount : totalAfterDiscount // ignore: cast_nullable_to_non_nullable
 as int,grandTotal: null == grandTotal ? _self.grandTotal : grandTotal // ignore: cast_nullable_to_non_nullable
-as int,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
-as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as int,source: freezed == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as String?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,payments: null == payments ? _self.payments : payments // ignore: cast_nullable_to_non_nullable
 as List<PaymentModel>,paymentStatus: freezed == paymentStatus ? _self.paymentStatus : paymentStatus // ignore: cast_nullable_to_non_nullable
@@ -133,6 +132,136 @@ $DiscountModelCopyWith<$Res>? get discounts {
 }
 
 
+/// Adds pattern-matching-related methods to [OrderDetailModel].
+extension OrderDetailModelPatterns on OrderDetailModel {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _OrderDetailModel value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _OrderDetailModel() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _OrderDetailModel value)  $default,){
+final _that = this;
+switch (_that) {
+case _OrderDetailModel():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _OrderDetailModel value)?  $default,){
+final _that = this;
+switch (_that) {
+case _OrderDetailModel() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: 'order_id')  String? orderId, @HiveField(1)@JsonKey(name: 'user_id')  String? userId, @HiveField(2)  String? user, @HiveField(3)  CashierModel? cashier, @HiveField(4)  List<OrderItemModel> items, @HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson)  OrderStatus status, @HiveField(6)  String? paymentMethod, @HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(8)  String deliveryAddress, @HiveField(9)  String? tableNumber, @HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson)  LocationType type, @HiveField(11)  String? outlet, @HiveField(12)  DiscountModel? discounts, @HiveField(13)  List<AppliedPromosModel>? appliedPromos, @HiveField(14)  String? appliedManualPromo, @HiveField(15)  String? appliedVoucher, @HiveField(16)  List<TaxServiceDetailModel> taxAndServiceDetails, @HiveField(17)  int totalTax, @HiveField(18)  int totalServiceFee, @HiveField(19)  int totalBeforeDiscount, @HiveField(20)  int totalAfterDiscount, @HiveField(21)  int grandTotal, @HiveField(22)  String? source, @HiveField(23)@JsonKey(name: 'createdAtWIB')  DateTime? createdAt, @HiveField(24)@JsonKey(name: 'updatedAtWIB')  DateTime? updatedAt, @HiveField(25)@JsonKey(name: 'payment_details')  List<PaymentModel>? payment, @HiveField(26)  String? paymentStatus, @HiveField(27)@JsonKey(name: '_id')  String? id, @HiveField(28)  bool isOpenBill, @HiveField(29)  int paymentAmount, @HiveField(30)  int changeAmount, @HiveField(31)  String? paymentType, @HiveField(32)  bool isSplitPayment, @HiveField(33)  int printSequence, @HiveField(34)  List<String> printHistory, @HiveField(35)  List<CustomAmountItemsModel>? customAmountItems, @HiveField(36)  int totalCustomAmount)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _OrderDetailModel() when $default != null:
+return $default(_that.orderId,_that.userId,_that.user,_that.cashier,_that.items,_that.status,_that.paymentMethod,_that.orderType,_that.deliveryAddress,_that.tableNumber,_that.type,_that.outlet,_that.discounts,_that.appliedPromos,_that.appliedManualPromo,_that.appliedVoucher,_that.taxAndServiceDetails,_that.totalTax,_that.totalServiceFee,_that.totalBeforeDiscount,_that.totalAfterDiscount,_that.grandTotal,_that.source,_that.createdAt,_that.updatedAt,_that.payment,_that.paymentStatus,_that.id,_that.isOpenBill,_that.paymentAmount,_that.changeAmount,_that.paymentType,_that.isSplitPayment,_that.printSequence,_that.printHistory,_that.customAmountItems,_that.totalCustomAmount);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: 'order_id')  String? orderId, @HiveField(1)@JsonKey(name: 'user_id')  String? userId, @HiveField(2)  String? user, @HiveField(3)  CashierModel? cashier, @HiveField(4)  List<OrderItemModel> items, @HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson)  OrderStatus status, @HiveField(6)  String? paymentMethod, @HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(8)  String deliveryAddress, @HiveField(9)  String? tableNumber, @HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson)  LocationType type, @HiveField(11)  String? outlet, @HiveField(12)  DiscountModel? discounts, @HiveField(13)  List<AppliedPromosModel>? appliedPromos, @HiveField(14)  String? appliedManualPromo, @HiveField(15)  String? appliedVoucher, @HiveField(16)  List<TaxServiceDetailModel> taxAndServiceDetails, @HiveField(17)  int totalTax, @HiveField(18)  int totalServiceFee, @HiveField(19)  int totalBeforeDiscount, @HiveField(20)  int totalAfterDiscount, @HiveField(21)  int grandTotal, @HiveField(22)  String? source, @HiveField(23)@JsonKey(name: 'createdAtWIB')  DateTime? createdAt, @HiveField(24)@JsonKey(name: 'updatedAtWIB')  DateTime? updatedAt, @HiveField(25)@JsonKey(name: 'payment_details')  List<PaymentModel>? payment, @HiveField(26)  String? paymentStatus, @HiveField(27)@JsonKey(name: '_id')  String? id, @HiveField(28)  bool isOpenBill, @HiveField(29)  int paymentAmount, @HiveField(30)  int changeAmount, @HiveField(31)  String? paymentType, @HiveField(32)  bool isSplitPayment, @HiveField(33)  int printSequence, @HiveField(34)  List<String> printHistory, @HiveField(35)  List<CustomAmountItemsModel>? customAmountItems, @HiveField(36)  int totalCustomAmount)  $default,) {final _that = this;
+switch (_that) {
+case _OrderDetailModel():
+return $default(_that.orderId,_that.userId,_that.user,_that.cashier,_that.items,_that.status,_that.paymentMethod,_that.orderType,_that.deliveryAddress,_that.tableNumber,_that.type,_that.outlet,_that.discounts,_that.appliedPromos,_that.appliedManualPromo,_that.appliedVoucher,_that.taxAndServiceDetails,_that.totalTax,_that.totalServiceFee,_that.totalBeforeDiscount,_that.totalAfterDiscount,_that.grandTotal,_that.source,_that.createdAt,_that.updatedAt,_that.payment,_that.paymentStatus,_that.id,_that.isOpenBill,_that.paymentAmount,_that.changeAmount,_that.paymentType,_that.isSplitPayment,_that.printSequence,_that.printHistory,_that.customAmountItems,_that.totalCustomAmount);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: 'order_id')  String? orderId, @HiveField(1)@JsonKey(name: 'user_id')  String? userId, @HiveField(2)  String? user, @HiveField(3)  CashierModel? cashier, @HiveField(4)  List<OrderItemModel> items, @HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson)  OrderStatus status, @HiveField(6)  String? paymentMethod, @HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(8)  String deliveryAddress, @HiveField(9)  String? tableNumber, @HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson)  LocationType type, @HiveField(11)  String? outlet, @HiveField(12)  DiscountModel? discounts, @HiveField(13)  List<AppliedPromosModel>? appliedPromos, @HiveField(14)  String? appliedManualPromo, @HiveField(15)  String? appliedVoucher, @HiveField(16)  List<TaxServiceDetailModel> taxAndServiceDetails, @HiveField(17)  int totalTax, @HiveField(18)  int totalServiceFee, @HiveField(19)  int totalBeforeDiscount, @HiveField(20)  int totalAfterDiscount, @HiveField(21)  int grandTotal, @HiveField(22)  String? source, @HiveField(23)@JsonKey(name: 'createdAtWIB')  DateTime? createdAt, @HiveField(24)@JsonKey(name: 'updatedAtWIB')  DateTime? updatedAt, @HiveField(25)@JsonKey(name: 'payment_details')  List<PaymentModel>? payment, @HiveField(26)  String? paymentStatus, @HiveField(27)@JsonKey(name: '_id')  String? id, @HiveField(28)  bool isOpenBill, @HiveField(29)  int paymentAmount, @HiveField(30)  int changeAmount, @HiveField(31)  String? paymentType, @HiveField(32)  bool isSplitPayment, @HiveField(33)  int printSequence, @HiveField(34)  List<String> printHistory, @HiveField(35)  List<CustomAmountItemsModel>? customAmountItems, @HiveField(36)  int totalCustomAmount)?  $default,) {final _that = this;
+switch (_that) {
+case _OrderDetailModel() when $default != null:
+return $default(_that.orderId,_that.userId,_that.user,_that.cashier,_that.items,_that.status,_that.paymentMethod,_that.orderType,_that.deliveryAddress,_that.tableNumber,_that.type,_that.outlet,_that.discounts,_that.appliedPromos,_that.appliedManualPromo,_that.appliedVoucher,_that.taxAndServiceDetails,_that.totalTax,_that.totalServiceFee,_that.totalBeforeDiscount,_that.totalAfterDiscount,_that.grandTotal,_that.source,_that.createdAt,_that.updatedAt,_that.payment,_that.paymentStatus,_that.id,_that.isOpenBill,_that.paymentAmount,_that.changeAmount,_that.paymentType,_that.isSplitPayment,_that.printSequence,_that.printHistory,_that.customAmountItems,_that.totalCustomAmount);case _:
+  return null;
+
+}
+}
+
+}
+
 /// @nodoc
 @JsonSerializable()
 
@@ -143,8 +272,8 @@ class _OrderDetailModel implements OrderDetailModel {
 // Identitas Order
 @override@HiveField(0)@JsonKey(name: 'order_id') final  String? orderId;
 @override@HiveField(1)@JsonKey(name: 'user_id') final  String? userId;
-@override@JsonKey()@HiveField(2) final  String user;
-@override@JsonKey()@HiveField(3) final  String? cashierId;
+@override@JsonKey()@HiveField(2) final  String? user;
+@override@JsonKey()@HiveField(3) final  CashierModel? cashier;
 // Item dan Status
  final  List<OrderItemModel> _items;
 // Item dan Status
@@ -192,7 +321,7 @@ class _OrderDetailModel implements OrderDetailModel {
 @override@JsonKey()@HiveField(20) final  int totalAfterDiscount;
 @override@JsonKey()@HiveField(21) final  int grandTotal;
 // Metadata
-@override@JsonKey()@HiveField(22) final  String source;
+@override@JsonKey()@HiveField(22) final  String? source;
 @override@HiveField(23)@JsonKey(name: 'createdAtWIB') final  DateTime? createdAt;
 @override@HiveField(24)@JsonKey(name: 'updatedAtWIB') final  DateTime? updatedAt;
  final  List<PaymentModel> _payments;
@@ -283,9 +412,9 @@ class __$OrderDetailModelCopyWithImpl<$Res>
   return _then(_OrderDetailModel(
 orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
 as String?,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
-as String?,user: null == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
-as String,cashierId: freezed == cashierId ? _self.cashierId : cashierId // ignore: cast_nullable_to_non_nullable
-as String?,items: null == items ? _self._items : items // ignore: cast_nullable_to_non_nullable
+as String?,user: freezed == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
+as String?,cashier: freezed == cashier ? _self.cashier : cashier // ignore: cast_nullable_to_non_nullable
+as CashierModel?,items: null == items ? _self._items : items // ignore: cast_nullable_to_non_nullable
 as List<OrderItemModel>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as OrderStatus,paymentMethod: freezed == paymentMethod ? _self.paymentMethod : paymentMethod // ignore: cast_nullable_to_non_nullable
 as String?,orderType: null == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
@@ -303,8 +432,8 @@ as int,totalServiceFee: null == totalServiceFee ? _self.totalServiceFee : totalS
 as int,totalBeforeDiscount: null == totalBeforeDiscount ? _self.totalBeforeDiscount : totalBeforeDiscount // ignore: cast_nullable_to_non_nullable
 as int,totalAfterDiscount: null == totalAfterDiscount ? _self.totalAfterDiscount : totalAfterDiscount // ignore: cast_nullable_to_non_nullable
 as int,grandTotal: null == grandTotal ? _self.grandTotal : grandTotal // ignore: cast_nullable_to_non_nullable
-as int,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
-as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as int,source: freezed == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as String?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,payments: null == payments ? _self._payments : payments // ignore: cast_nullable_to_non_nullable
 as List<PaymentModel>,paymentStatus: freezed == paymentStatus ? _self.paymentStatus : paymentStatus // ignore: cast_nullable_to_non_nullable

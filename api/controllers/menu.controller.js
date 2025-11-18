@@ -474,7 +474,7 @@ export const getMenuItems = async (req, res) => {
 
     // 4) Ambil MenuItem (tanpa filter resep) tetapi SERAGAMKAN STRUKTUR seperti fungsi resep
     const menuItems = await MenuItem.aggregate([
-      // { $match: { isActive: true } },
+      // { $match: { isActive: true } }, //boleh di uncoment jika workstation sudah menggunakan fitur auto active ketika mengisi manual stock.
       // recipes untuk hasRecipe/recipeCount
       {
         $lookup: {

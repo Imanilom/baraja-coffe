@@ -1,6 +1,5 @@
-// dart format width=80
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -92,6 +91,136 @@ as DateTime?,
 
 }
 
+
+/// Adds pattern-matching-related methods to [Event].
+extension EventPatterns on Event {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _Event value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _Event() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _Event value)  $default,){
+final _that = this;
+switch (_that) {
+case _Event():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _Event value)?  $default,){
+final _that = this;
+switch (_that) {
+case _Event() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String? description, @HiveField(3)  String? location, @HiveField(4)  DateTime? date, @HiveField(5)  int? price, @HiveField(6)  String? organizer, @HiveField(7)  String? contactEmail, @HiveField(8)  String? imageUrl, @HiveField(9)  String? category, @HiveField(10)  List<String>? tags, @HiveField(11)  String? status, @HiveField(12)  int? capacity, @HiveField(13)  List<String>? attendees, @HiveField(14)  String? privacy, @HiveField(15)  String? terms, @HiveField(16)  DateTime? createdAt, @HiveField(17)  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _Event() when $default != null:
+return $default(_that.id,_that.name,_that.description,_that.location,_that.date,_that.price,_that.organizer,_that.contactEmail,_that.imageUrl,_that.category,_that.tags,_that.status,_that.capacity,_that.attendees,_that.privacy,_that.terms,_that.createdAt,_that.updatedAt);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String? description, @HiveField(3)  String? location, @HiveField(4)  DateTime? date, @HiveField(5)  int? price, @HiveField(6)  String? organizer, @HiveField(7)  String? contactEmail, @HiveField(8)  String? imageUrl, @HiveField(9)  String? category, @HiveField(10)  List<String>? tags, @HiveField(11)  String? status, @HiveField(12)  int? capacity, @HiveField(13)  List<String>? attendees, @HiveField(14)  String? privacy, @HiveField(15)  String? terms, @HiveField(16)  DateTime? createdAt, @HiveField(17)  DateTime? updatedAt)  $default,) {final _that = this;
+switch (_that) {
+case _Event():
+return $default(_that.id,_that.name,_that.description,_that.location,_that.date,_that.price,_that.organizer,_that.contactEmail,_that.imageUrl,_that.category,_that.tags,_that.status,_that.capacity,_that.attendees,_that.privacy,_that.terms,_that.createdAt,_that.updatedAt);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String? description, @HiveField(3)  String? location, @HiveField(4)  DateTime? date, @HiveField(5)  int? price, @HiveField(6)  String? organizer, @HiveField(7)  String? contactEmail, @HiveField(8)  String? imageUrl, @HiveField(9)  String? category, @HiveField(10)  List<String>? tags, @HiveField(11)  String? status, @HiveField(12)  int? capacity, @HiveField(13)  List<String>? attendees, @HiveField(14)  String? privacy, @HiveField(15)  String? terms, @HiveField(16)  DateTime? createdAt, @HiveField(17)  DateTime? updatedAt)?  $default,) {final _that = this;
+switch (_that) {
+case _Event() when $default != null:
+return $default(_that.id,_that.name,_that.description,_that.location,_that.date,_that.price,_that.organizer,_that.contactEmail,_that.imageUrl,_that.category,_that.tags,_that.status,_that.capacity,_that.attendees,_that.privacy,_that.terms,_that.createdAt,_that.updatedAt);case _:
+  return null;
+
+}
+}
+
+}
 
 /// @nodoc
 @JsonSerializable()

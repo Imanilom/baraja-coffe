@@ -147,7 +147,8 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
                           orderId:
                               widget.orderDetail?.orderId ?? widget.orderId,
                           cashierId:
-                              widget.orderDetail?.cashierId ?? widget.cashierId,
+                              widget.orderDetail?.cashier?.id ??
+                              widget.cashierId,
                           source: widget.orderDetail?.source ?? widget.source,
                         );
 

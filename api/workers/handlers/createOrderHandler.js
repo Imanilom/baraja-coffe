@@ -39,6 +39,7 @@ export async function createOrderHandler({
         recipient_data,
         cashierId,
         paymentMethod,
+        device_id,
         ...cleanOrderData
       } = orderData;
 
@@ -196,6 +197,10 @@ export async function createOrderHandler({
 
       if (contact) {
         baseOrderData.contact = contact;
+      }
+
+      if (device_id) {
+        baseOrderData.device_id = device_id;
       }
 
       // Tambahkan loyalty data jika applied

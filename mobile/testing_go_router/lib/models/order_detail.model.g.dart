@@ -17,10 +17,10 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return OrderDetailModel(
-      orderId: fields[0] == null ? '' : fields[0] as String?,
+      orderId: fields[0] == null ? null : fields[0] as String?,
       userId: fields[1] as String?,
-      user: fields[2] == null ? '' : fields[2] as String,
-      cashierId: fields[3] == null ? '' : fields[3] as String?,
+      user: fields[2] == null ? null : fields[2] as String?,
+      cashier: fields[3] == null ? null : fields[3] as CashierModel?,
       items:
           fields[4] == null ? [] : (fields[4] as List).cast<OrderItemModel>(),
       status:
@@ -48,7 +48,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       totalBeforeDiscount: fields[19] == null ? 0 : (fields[19] as num).toInt(),
       totalAfterDiscount: fields[20] == null ? 0 : (fields[20] as num).toInt(),
       grandTotal: fields[21] == null ? 0 : (fields[21] as num).toInt(),
-      source: fields[22] == null ? 'Cashier' : fields[22] as String,
+      source: fields[22] == null ? null : fields[22] as String?,
       createdAt: fields[23] as DateTime?,
       updatedAt: fields[24] as DateTime?,
       payments:
@@ -82,7 +82,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(2)
       ..write(obj.user)
       ..writeByte(3)
-      ..write(obj.cashierId)
+      ..write(obj.cashier)
       ..writeByte(4)
       ..write(obj.items)
       ..writeByte(5)
@@ -169,10 +169,13 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
 _OrderDetailModel _$OrderDetailModelFromJson(
   Map<String, dynamic> json,
 ) => _OrderDetailModel(
-  orderId: json['order_id'] as String? ?? "",
+  orderId: json['order_id'] as String? ?? null,
   userId: json['user_id'] as String?,
-  user: json['user'] as String? ?? '',
-  cashierId: json['cashierId'] as String? ?? "",
+  user: json['user'] as String? ?? null,
+  cashier:
+      json['cashier'] == null
+          ? null
+          : CashierModel.fromJson(json['cashier'] as Map<String, dynamic>),
   items:
       (json['items'] as List<dynamic>?)
           ?.map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>))
@@ -214,7 +217,7 @@ _OrderDetailModel _$OrderDetailModelFromJson(
   totalBeforeDiscount: (json['totalBeforeDiscount'] as num?)?.toInt() ?? 0,
   totalAfterDiscount: (json['totalAfterDiscount'] as num?)?.toInt() ?? 0,
   grandTotal: (json['grandTotal'] as num?)?.toInt() ?? 0,
-  source: json['source'] as String? ?? 'Cashier',
+  source: json['source'] as String? ?? null,
   createdAt:
       json['createdAtWIB'] == null
           ? null
@@ -256,7 +259,7 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'order_id': instance.orderId,
       'user_id': instance.userId,
       'user': instance.user,
-      'cashierId': instance.cashierId,
+      'cashier': instance.cashier,
       'items': instance.items,
       'status': OrderStatusExtension.orderStatusToJson(instance.status),
       'paymentMethod': instance.paymentMethod,

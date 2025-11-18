@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
+import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/services/menu_item_service.dart';
 import 'package:hive_ce/hive.dart';
@@ -20,7 +21,6 @@ class MenuItemRepository {
               .toList();
 
       // Urutkan data API berdasarkan nama (abjad)
-      print("Data menu yg diambil: ${menuItemsList.first.stock}");
       menuItemsList.sort(
         (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
       );
@@ -42,11 +42,11 @@ class MenuItemRepository {
 
           if (localItem == null) {
             // Item baru - tambahkan
-            print("Menambah item baru: ${apiItem.name}");
+            debugPrint("Menambah item baru: ${apiItem.name}");
             await productBox.put(apiItem.id, apiItem);
           } else if (_hasDataChanged(localItem, apiItem)) {
             // Item sudah ada tapi data berubah - update
-            print("Mengupdate item: ${apiItem.name}");
+            debugPrint("Mengupdate item: ${apiItem.name}");
             await productBox.put(apiItem.id, apiItem);
           }
         }
@@ -58,7 +58,9 @@ class MenuItemRepository {
                 .toList();
 
         if (idsToDelete.isNotEmpty) {
-          print("Menghapus ${idsToDelete.length} item yang sudah tidak ada");
+          debugPrint(
+            "Menghapus ${idsToDelete.length} item yang sudah tidak ada",
+          );
           await productBox.deleteAll(idsToDelete);
         }
 
@@ -70,22 +72,21 @@ class MenuItemRepository {
         return sortedLocalData;
       } else {
         // Jika Hive kosong, simpan semua data yang sudah diurutkan
-        print(
+        debugPrint(
           "Data menu yang diambil di api: ${menuItemsResponse['data'].length}",
         );
         await productBox.putAll({
           for (var item in menuItemsList) item.id: item,
         });
-        print("stok data menu items: ${menuItemsList.first.stock}");
         return menuItemsList; // Sudah diurutkan di atas
       }
     } catch (e) {
-      print("Gagal mengambil data menu: ${e.toString()}");
+      debugPrint("Gagal mengambil data menu: ${e.toString()}");
 
       // Fallback: return data lokal jika ada error (dengan sorting)
       var productBox = Hive.box<MenuItemModel>('menuItemsBox');
       if (productBox.isNotEmpty) {
-        print("Menggunakan data lokal karena error");
+        debugPrint("Menggunakan data lokal karena error");
         final localData = productBox.values.toList();
         localData.sort(
           (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
@@ -102,9 +103,9 @@ class MenuItemRepository {
     try {
       final stockResponse = await _menuItemService.fetchMenuItemStock();
 
-      print("Data stock yg diambil: ${stockResponse['data'].length}");
+      debugPrint("Data stock yg diambil: ${stockResponse['data'].length}");
       // masukan kedalam data menu item
-      var productBox = Hive.box<MenuItemModel>('menuItemsBox');
+      // var productBox = Hive.box<MenuItemModel>('menuItemsBox');
       // if (productBox.isNotEmpty) {
       //   // input data api stock ke dalam hive menu item sesuai ID menu item
       //   final stockData = stockResponse['data'] as List;
@@ -125,7 +126,7 @@ class MenuItemRepository {
 
       return stockResponse;
     } catch (e) {
-      print("Gagal mengambil data stock: ${e.toString()}");
+      debugPrint("Gagal mengambil data stock: ${e.toString()}");
       rethrow;
     }
   }
@@ -199,6 +200,40 @@ class MenuItemRepository {
             .toSet();
 
     return !localSet.equals(apiSet);
+  }
+
+  Future<void> decreaseLocalStockFromOrderItems(
+    List<OrderItemModel> items,
+  ) async {
+    final productBox = Hive.box<MenuItemModel>('menuItemsBox');
+
+    for (final orderItem in items) {
+      final menuId = orderItem.menuItem.id;
+      if (menuId.isEmpty) continue;
+
+      final menuItem = productBox.get(menuId);
+      if (menuItem == null) continue;
+      if (menuItem.stock == null) continue;
+
+      final currentManualStock = menuItem.stock!.manualStock ?? 0;
+      final qty = orderItem.quantity;
+
+      // Jangan sampai minus
+      final newManualStock = (currentManualStock - qty).clamp(0, 999999);
+
+      final updatedStock = menuItem.stock!.copyWith(
+        manualStock: newManualStock,
+      );
+
+      final updatedMenuItem = menuItem.copyWith(stock: updatedStock);
+
+      await productBox.put(menuId, updatedMenuItem);
+
+      debugPrint(
+        '📉 Kurangi stok: ${menuItem.name} '
+        '(dari $currentManualStock → $newManualStock, qty: $qty)',
+      );
+    }
   }
 }
 

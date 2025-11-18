@@ -163,6 +163,8 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
       children: [
         Expanded(
           child: _SectionCard(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 8,
@@ -234,6 +236,8 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         ),
         Expanded(
           child: _SectionCard(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(8),
             child: Column(
               spacing: 8,
               children: [
@@ -1062,7 +1066,11 @@ class _SectionCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
 
-  const _SectionCard({required this.child, this.padding, this.margin});
+  const _SectionCard({
+    required this.child,
+    required this.padding,
+    required this.margin,
+  });
 
   @override
   Widget build(BuildContext context) {

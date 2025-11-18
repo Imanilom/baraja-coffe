@@ -2,7 +2,6 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
-import 'package:kasirbaraja/providers/go_router_refresh.dart';
 import 'package:kasirbaraja/screens/auth/login_cashier_screen.dart';
 import 'package:kasirbaraja/screens/data_sync_screen.dart';
 import 'package:kasirbaraja/screens/main_screen.dart';
