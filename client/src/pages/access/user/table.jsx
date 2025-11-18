@@ -3,8 +3,6 @@ import axios from "axios";
 import {
     FaTrash,
     FaPencilAlt,
-    FaChevronRight,
-    FaChevronLeft,
     FaSearch,
 } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
@@ -15,7 +13,7 @@ import Paginated from "../../../components/paginated";
 
 const ITEMS_PER_PAGE = 10;
 
-export default function UserTable({ currentUser, customSelectStyles }) {
+export default function UserTable({ currentUser, customSelectStyles, roleGroup, allowedRoles, excludeRoles = [] }) {
     const navigate = useNavigate();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -40,9 +38,8 @@ export default function UserTable({ currentUser, customSelectStyles }) {
                 headers: { Authorization: `Bearer ${currentUser.token}` },
             });
 
-            const employeeData = (res.data || []).filter(
-                (emp) => emp.role !== "customer"
-            );
+            // Jangan filter customer di sini, biarkan semua data masuk
+            const employeeData = res.data || [];
 
             setUsers(employeeData);
             setError(null);
@@ -58,6 +55,31 @@ export default function UserTable({ currentUser, customSelectStyles }) {
         fetchData();
     }, []);
 
+    // Reset filter saat tab berubah
+    useEffect(() => {
+        setSearch("");
+        setStatusFilter("all");
+        setRoleFilter("all");
+        setCurrentPage(1);
+    }, [roleGroup]);
+
+    // ✅ Filter users berdasarkan role group
+    const usersInGroup = users.filter((user) => {
+        const userRole = user.role?.name?.toLowerCase();
+
+        // Jika allowedRoles adalah "all", tampilkan semua user
+        if (allowedRoles === "all") {
+            // Tapi exclude role yang ada di excludeRoles
+            if (excludeRoles.length > 0) {
+                return !excludeRoles.some(role => role.toLowerCase() === userRole);
+            }
+            return true;
+        }
+
+        // Jika allowedRoles adalah array, filter berdasarkan role
+        return allowedRoles.some(role => role.toLowerCase() === userRole);
+    });
+
     // ✅ Options untuk Status
     const statusOptions = [
         { value: "all", label: "Semua Status" },
@@ -65,16 +87,15 @@ export default function UserTable({ currentUser, customSelectStyles }) {
         { value: "inactive", label: "Tidak Aktif" },
     ];
 
-    // ✅ Generate options untuk Role dari data users
+    // ✅ Generate options untuk Role HANYA dari users dalam group ini
     const roleOptions = [
         { value: "all", label: "Semua Role" },
-        ...[...new Set(users.map((u) => u.role?.name))]
-            .filter(Boolean) // buang undefined/null
+        ...[...new Set(usersInGroup.map((u) => u.role?.name))]
+            .filter(Boolean)
             .map((role) => ({ value: role, label: role })),
     ];
 
     const handleUpdate = async (itemId, username, newStatus) => {
-        // 🔹 langsung update state lokal biar tampilan berubah
         setUsers((prev) =>
             prev.map((user) =>
                 user._id === itemId ? { ...user, isActive: newStatus } : user
@@ -92,7 +113,6 @@ export default function UserTable({ currentUser, customSelectStyles }) {
                 state: { success: `${username} berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
             });
 
-            // opsional: fetch ulang buat sync dengan backend
             fetchData();
         } catch (error) {
             console.error("Error updating User:", error);
@@ -100,8 +120,6 @@ export default function UserTable({ currentUser, customSelectStyles }) {
         }
     };
 
-
-    // Hapus user
     const handleDelete = async () => {
         try {
             await axios.delete(`/api/user/delete/${deleteId}`, {
@@ -116,8 +134,8 @@ export default function UserTable({ currentUser, customSelectStyles }) {
         }
     };
 
-    // Apply filter
-    const filteredData = users.filter((user) => {
+    // Apply filter pada usersInGroup
+    const filteredData = usersInGroup.filter((user) => {
         const matchSearch =
             user.username?.toLowerCase().includes(search.toLowerCase()) ||
             user.email?.toLowerCase().includes(search.toLowerCase());
@@ -160,26 +178,6 @@ export default function UserTable({ currentUser, customSelectStyles }) {
             </div>
         );
     }
-
-    // generate nomor halaman
-    const renderPageNumbers = () => {
-        let pages = [];
-        for (let i = 1; i <= totalPages; i++) {
-            pages.push(
-                <button
-                    key={i}
-                    onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 border rounded ${currentPage === i
-                        ? "bg-green-900 text-white border-green-900"
-                        : "hover:bg-gray-100"
-                        }`}
-                >
-                    {i}
-                </button>
-            );
-        }
-        return pages;
-    };
 
     return (
         <>
@@ -230,7 +228,6 @@ export default function UserTable({ currentUser, customSelectStyles }) {
                         />
                     </div>
                 </div>
-
             </div>
 
             {/* Table */}
@@ -291,7 +288,7 @@ export default function UserTable({ currentUser, customSelectStyles }) {
                                             <span
                                                 onClick={() => {
                                                     setSelectedUser(user);
-                                                    setNewStatus(!user.isActive); // toggle status
+                                                    setNewStatus(!user.isActive);
                                                     setIsConfirmOpen(true);
                                                 }}
                                                 className={`px-2 py-1 text-xs rounded-full cursor-pointer ${user.isActive
