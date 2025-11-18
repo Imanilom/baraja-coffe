@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
-import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/reservation_order_detail_provider.dart';
 import 'package:kasirbaraja/widgets/cards/event_item_card.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
 import 'package:kasirbaraja/widgets/dialogs/add_custom_amount_dialog.dart';

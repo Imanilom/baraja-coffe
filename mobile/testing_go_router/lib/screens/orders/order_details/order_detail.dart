@@ -1,11 +1,9 @@
-import 'package:assorted_layout_widgets/assorted_layout_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/saved_order_detail_provider.dart';
@@ -15,12 +13,10 @@ import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/providers/tax_and_service_provider.dart';
 import 'package:kasirbaraja/repositories/online_order_repository.dart';
 import 'package:kasirbaraja/screens/orders/order_details/dialog_order_type.dart';
-import 'package:kasirbaraja/utils/generate_order_id.dart';
 import 'package:kasirbaraja/widgets/buttons/vertical_icon_text_button.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/widgets/dialogs/edit_order_item_dialog.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
 
 class OrderDetail extends ConsumerWidget {
   const OrderDetail({super.key});

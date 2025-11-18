@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:bcrypt/bcrypt.dart';
-import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/notification_service.dart';
 import 'package:kasirbaraja/widgets/inputs/pin_input.dart';
 import 'package:permission_handler/permission_handler.dart';

@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
-import 'package:kasirbaraja/models/edit_order_ops.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/models/device.model.dart';
-import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/services/api_response_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';

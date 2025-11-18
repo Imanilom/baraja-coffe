@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
-import 'package:kasirbaraja/configs/app_config.dart';
 
 //hapus aja semua ini udh ga kepake karna gagal / fail
 void main() {
