@@ -12,32 +12,30 @@ const HRSettingsSchema = new mongoose.Schema({
     toleranceLate: { type: Number, default: 15 }, // dalam menit
     workHoursPerDay: { type: Number, default: 8 },
     workDaysPerWeek: { type: Number, default: 6 },
-    overtimeRate: { type: Number, default: 1.5 } // multiplier dari hourly rate
+    requiredTappingPerDay: { type: Number, default: 1 } // Minimal tapping per hari
   },
   
-  // Pengaturan cuti
-  leave: {
-    annualLeaveDays: { type: Number, default: 12 },
-    sickLeaveDays: { type: Number, default: 12 },
-    maternityLeaveDays: { type: Number, default: 90 },
-    paternityLeaveDays: { type: Number, default: 2 }
+  // Pengaturan perhitungan gaji
+  salaryCalculation: {
+    prorataFormula: { type: String, default: 'basicSalary / totalWorkingDays' },
+    overtime1Rate: { type: Number, default: 1.5 }, // Multiplier untuk lembur normal
+    overtime2Rate: { type: Number, default: 2.0 }, // Multiplier untuk lembur holiday
+    maxOvertimeHours: { type: Number, default: 4 } // Maksimal jam lembur per hari
   },
   
   // Pengaturan BPJS
   bpjs: {
-    kesehatanRate: { type: Number, default: 0.04 }, // 4%
-    ketenagakerjaanRate: { type: Number, default: 0.03 }, // 3%
+    kesehatanRateEmployee: { type: Number, default: 0.01 }, // 1% dari gaji
+    kesehatanRateEmployer: { type: Number, default: 0.04 }, // 4% dari gaji (perusahaan)
+    ketenagakerjaanRateEmployee: { type: Number, default: 0.02 }, // 2% dari gaji
+    ketenagakerjaanRateEmployer: { type: Number, default: 0.037 }, // 3.7% dari gaji (perusahaan)
     maxSalaryBpjs: { type: Number, default: 12000000 } // batas maksimal perhitungan BPJS
   },
   
-  // Pengaturan pajak
-  tax: {
-    ptkp: { type: Number, default: 54000000 }, // Penghasilan Tidak Kena Pajak
-    taxRates: [{
-      minIncome: Number,
-      maxIncome: Number,
-      rate: Number
-    }]
+  // Pengaturan potongan
+  deductions: {
+    humanErrorDeduction: { type: Number, default: 0 }, // Potongan human error
+    absenceDeductionRate: { type: Number, default: 1 } // Rate potongan absen
   }
 
 }, { timestamps: true });

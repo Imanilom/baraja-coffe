@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
+import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/services/menu_item_service.dart';
 import 'package:hive_ce/hive.dart';
@@ -199,6 +200,40 @@ class MenuItemRepository {
             .toSet();
 
     return !localSet.equals(apiSet);
+  }
+
+  Future<void> decreaseLocalStockFromOrderItems(
+    List<OrderItemModel> items,
+  ) async {
+    final productBox = Hive.box<MenuItemModel>('menuItemsBox');
+
+    for (final orderItem in items) {
+      final menuId = orderItem.menuItem.id;
+      if (menuId.isEmpty) continue;
+
+      final menuItem = productBox.get(menuId);
+      if (menuItem == null) continue;
+      if (menuItem.stock == null) continue;
+
+      final currentManualStock = menuItem.stock!.manualStock ?? 0;
+      final qty = orderItem.quantity;
+
+      // Jangan sampai minus
+      final newManualStock = (currentManualStock - qty).clamp(0, 999999);
+
+      final updatedStock = menuItem.stock!.copyWith(
+        manualStock: newManualStock,
+      );
+
+      final updatedMenuItem = menuItem.copyWith(stock: updatedStock);
+
+      await productBox.put(menuId, updatedMenuItem);
+
+      debugPrint(
+        '📉 Kurangi stok: ${menuItem.name} '
+        '(dari $currentManualStock → $newManualStock, qty: $qty)',
+      );
+    }
   }
 }
 

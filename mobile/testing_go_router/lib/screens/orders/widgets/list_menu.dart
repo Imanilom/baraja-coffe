@@ -13,6 +13,8 @@ import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
 import 'package:kasirbaraja/widgets/dialogs/add_custom_amount_dialog.dart';
 import 'package:kasirbaraja/widgets/dialogs/add_order_item_dialog.dart';
 
+final disabledMenuIdsProvider = StateProvider<Set<String>>((ref) => {});
+
 class ListMenu extends ConsumerStatefulWidget {
   const ListMenu({super.key});
 
@@ -54,34 +56,82 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     });
   }
 
+  void _showMenuActionSheet(MenuItemModel menuItem, bool isDisabled) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  isDisabled ? Icons.check_circle_outline : Icons.block,
+                  color: isDisabled ? Colors.green : Colors.red,
+                ),
+                title: Text(
+                  isDisabled ? 'Aktifkan menu ini' : 'Nonaktifkan menu ini',
+                ),
+                subtitle: const Text('Perubahan hanya di device kasir ini'),
+                onTap: () {
+                  final notifier = ref.read(disabledMenuIdsProvider.notifier);
+                  final current = {...notifier.state};
+
+                  if (isDisabled) {
+                    current.remove(menuItem.id);
+                  } else {
+                    current.add(menuItem.id);
+                  }
+
+                  notifier.state = current;
+                  Navigator.pop(ctx);
+                },
+              ),
+              const Divider(height: 0),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Batal'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _handleAddToOrder(MenuItemModel menuItem) {
     //jika stock 0, tidak bisa add to order dan dihimbau agar kasir mengupdate stock di worksstation
-    if (menuItem.stock?.manualStock == 0) {
-      showDialog(
-        context: context,
-        builder:
-            (context) => AlertDialog(
-              title: const Text(
-                'Stock Kosong',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              content: const Text(
-                'Silakan update stock di Workstation,\natau ganti menu lainnya.',
-                style: TextStyle(fontSize: 16),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: const Text('Baiklah'),
-                  ),
-                ),
-              ],
-            ),
-      );
-      return;
-    }
+    // if (menuItem.stock?.manualStock == 0) {
+    //   showDialog(
+    //     context: context,
+    //     builder:
+    //         (context) => AlertDialog(
+    //           title: const Text(
+    //             'Stock Kosong',
+    //             style: TextStyle(fontWeight: FontWeight.bold),
+    //           ),
+    //           content: const Text(
+    //             'Silakan update stock di Workstation,\natau ganti menu lainnya.',
+    //             style: TextStyle(fontSize: 16),
+    //           ),
+    //           actions: [
+    //             TextButton(
+    //               onPressed: () => Navigator.pop(context),
+    //               child: Padding(
+    //                 padding: const EdgeInsets.all(8.0),
+    //                 child: const Text('Baiklah'),
+    //               ),
+    //             ),
+    //           ],
+    //         ),
+    //   );
+    //   return;
+    // }
 
     final orderDetail = ref.read(orderDetailProvider);
     final notifier = ref.read(orderDetailProvider.notifier);
@@ -163,7 +213,14 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final menu = ref.watch(reservationMenuItemProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
 
-    const categories = ['All', 'makanan', 'minuman', 'event', 'Art Galery'];
+    const categories = [
+      'All',
+      'makanan',
+      'minuman',
+      'event',
+      'art galery',
+      'bazar',
+    ];
 
     return Row(
       children: [
@@ -403,29 +460,41 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                                   padding: const EdgeInsets.all(8),
                                   itemCount: data.length + 1,
                                   itemBuilder: (context, index) {
-                                    // Item pertama adalah tombol Custom Amount
                                     if (index == 0) {
                                       return _buildCustomAmountButton();
                                     }
 
-                                    // Item selanjutnya adalah menu (index - 1 karena ada custom amount di depan)
                                     final menuIndex = index - 1;
+                                    final menuItem = data[menuIndex];
 
-                                    return selectedCategory == 'event'
-                                        ? EventItemCard(
-                                          menuItem: data[menuIndex],
-                                          onTap:
-                                              () => _handleAddToOrder(
-                                                data[menuIndex],
-                                              ),
-                                        )
-                                        : MenuItemCard(
-                                          menuItem: data[menuIndex],
-                                          onTap:
-                                              () => _handleAddToOrder(
-                                                data[menuIndex],
-                                              ),
-                                        );
+                                    // cek apakah menu ini sedang di-disable
+                                    final disabledIds = ref.watch(
+                                      disabledMenuIdsProvider,
+                                    );
+                                    final isOutOfStock =
+                                        (menuItem.stock?.manualStock ?? 0) <= 0;
+                                    final isDisabled =
+                                        disabledIds.contains(menuItem.id) ||
+                                        isOutOfStock;
+
+                                    if (selectedCategory == 'event') {
+                                      return EventItemCard(
+                                        menuItem: menuItem,
+                                        onTap:
+                                            () => _handleAddToOrder(menuItem),
+                                      );
+                                    }
+
+                                    return MenuItemCard(
+                                      menuItem: menuItem,
+                                      isDisabled: isDisabled,
+                                      onTap: () => _handleAddToOrder(menuItem),
+                                      onLongPress:
+                                          () => _showMenuActionSheet(
+                                            menuItem,
+                                            isDisabled,
+                                          ),
+                                    );
                                   },
                                 ),
                   ),

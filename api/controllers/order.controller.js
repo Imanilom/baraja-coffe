@@ -5393,7 +5393,7 @@ export const getPendingOrders = async (req, res) => {
     const pendingOrders = await Order.find({
       $and: [
         { ...sourceFilter, outlet: outletObjectId },
-        { $or: [{ status: { $in: ['Pending', 'Reserved'] } }, { status: 'OnProcess' }] },
+        { $or: [{ status: { $in: ['Pending', 'Reserved', 'Waiting', 'Completed'] } }, { status: 'OnProcess' }] },
       ],
     })
       .lean()
@@ -5439,7 +5439,7 @@ export const getPendingOrders = async (req, res) => {
     const selectedOrders = pendingOrders.filter((order) => {
       if (order.status === 'Pending' || order.status === 'Reserved') return true;
       console.log('bukan pending order');
-      if (order.status === 'OnProcess') {
+      if (order.status === 'OnProcess' || order.status === 'Waiting' || order.status === 'Completed') {
         const details = paymentDetailsMap.get(String(order.order_id)) || [];
         const hasPendingPayment = details.some(
           (p) => String(p.status).toLowerCase() === 'pending'
@@ -5526,9 +5526,17 @@ export const getPendingOrders = async (req, res) => {
         (p) => String(p.status || '').toLowerCase() === 'pending'
       );
 
-      let paymentStatus = 'Pending';
-      if (isFullyPaid) paymentStatus = 'Settlement';
-      else if (isPartiallyPaid || hasPendingPayment) paymentStatus = 'Partial';
+      const paymentStatus = paymentDetails.length > 1
+        ? paymentDetails.every(p => p.status === 'Success' || p.status === 'settlement')
+          ? 'Settlement'
+          : paymentDetails.some(p => p.status === 'Success' || p.status === 'settlement')
+            ? 'Partial'
+            : 'Pending'
+        : paymentDetails.length === 1
+          ? paymentDetails[0].status === 'Success' || paymentDetails[0].status === 'settlement'
+            ? 'Settlement'
+            : paymentDetails[0].payment_type === 'Down Payment' ? 'Partial' : 'Pending'
+          : 'Pending';
 
       const latestPayment = paymentDetails[0] || null;
 
@@ -6272,6 +6280,11 @@ export const getCashierOrderHistory = async (req, res) => {
 
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
     const orders = await Order.find(baseFilter)
+      .populate({
+        path: 'cashierId',
+        model: 'User',
+        select: 'username profilePicture' // pilih field yang kamu butuh
+      })
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       .sort({ updatedAt: -1 }) // Mengisi detail voucher (opsional)
       // .populate('voucher')
@@ -6339,6 +6352,7 @@ export const getCashierOrderHistory = async (req, res) => {
     // Mapping data sesuai kebutuhan frontend
     const mappedOrders = orders.map(order => {
       const orderIdString = order.order_id.toString();
+
 
       const updatedItems = order.items.map(item => {
         // const relatedPayments = paymentMap[order.order_id] || [];
@@ -6425,6 +6439,8 @@ export const getCashierOrderHistory = async (req, res) => {
 
       return {
         ...order,
+        cashierId: undefined,
+        cashier: order.cashierId,
         // appliedPromos: [],
         items: updatedItems,
         payment_details: paymentDetails,
@@ -6899,7 +6915,7 @@ export const processPaymentCashier = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { order_id, selected_payment_id, payment_method, cashier_id, payment_type } = req.body;
+    const { order_id, selected_payment_id, payment_method, cashier_id, payment_type, device_id } = req.body;
 
     // Validasi input
     if (!order_id || !selected_payment_id || !Array.isArray(selected_payment_id)) {
@@ -6994,11 +7010,16 @@ export const processPaymentCashier = async (req, res) => {
     // Update status order jika semua pembayaran sudah lunas
     order.cashierId = cashier._id;
     order.paymentMethod = payment_type;
+    if (device_id) {
+      order.device_id = device_id;
+    }
     await order.save({ session });
     console.log('is fully paid:', isFullyPaid);
     if (isFullyPaid) {
       if (order.orderType === 'Reservation') {
         order.status = 'Completed';
+      } else if (order.status.toLowerCase() === 'onprocess') {
+        order.status = 'OnProcess';
       } else {
         console.log('ordered waiting');
         order.status = 'Waiting';
