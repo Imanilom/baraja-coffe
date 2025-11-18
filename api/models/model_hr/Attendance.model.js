@@ -14,7 +14,7 @@ const AttendanceSchema = new mongoose.Schema({
     time: Date,
     location: String,
     device: String,
-    photo: String, // foto selfie saat check-in
+    photo: String,
     type: {
       type: String,
       enum: ['fingerprint', 'mobile', 'web', 'manual'],
@@ -25,7 +25,7 @@ const AttendanceSchema = new mongoose.Schema({
     time: Date,
     location: String,
     device: String,
-    photo: String, // foto selfie saat check-out
+    photo: String,
     type: {
       type: String,
       enum: ['fingerprint', 'mobile', 'web', 'manual'],
@@ -44,19 +44,42 @@ const AttendanceSchema = new mongoose.Schema({
     type: Number, // dalam jam
     default: 0
   },
+  overtime1Hours: { // Lembur jam normal
+    type: Number,
+    default: 0
+  },
+  overtime2Hours: { // Lembur jam holiday
+    type: Number,
+    default: 0
+  },
   
-  // Status kehadiran
+  // Status kehadiran berdasarkan tapping
   status: {
     type: String,
-    enum: ['present', 'absent', 'late', 'halfday', 'holiday', 'leave'],
+    enum: ['present', 'absent', 'late', 'halfday', 'holiday', 'leave', 'sick', 'permission'],
     default: 'present'
   },
   
-  // Keterangan jika ada
+  // Tapping information
+  tappingCount: {
+    type: Number,
+    default: 0
+  },
+  fingerprintTapping: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Keterangan
   notes: String,
   
-  // Approval untuk overtime
+  // Approval
   overtimeApproved: {
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+    at: Date,
+    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' }
+  },
+  leaveApproved: {
     by: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
     at: Date,
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' }

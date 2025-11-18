@@ -1,6 +1,5 @@
-// dart format width=80
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -21,7 +20,8 @@ mixin _$PaymentModel {
 @HiveField(15)@JsonKey(name: 'va_numbers') List<VANumberModel>? get vaNumbers;@HiveField(16)@JsonKey(name: 'permata_va_number') List<VANumberModel>? get permataVaNumber;@HiveField(17)@JsonKey(name: 'bill_key') String? get billKey;@HiveField(18)@JsonKey(name: 'biller_code') String? get billerCode;@HiveField(19)@JsonKey(name: 'pdf_url') String? get pdfUrl;@HiveField(20) String get currency;@HiveField(21)@JsonKey(name: 'merchant_id') String? get merchantId;@HiveField(22)@JsonKey(name: 'signature_key') String? get signatureKey;// Payment actions
 @HiveField(23) List<PaymentActionModel>? get actions;// Raw response
 @HiveField(24)@JsonKey(name: 'raw_response') Map<String, dynamic>? get rawResponse;// Timestamps
-@HiveField(25) DateTime? get createdAt;@HiveField(26) DateTime? get updatedAt;@HiveField(27)@JsonKey(name: 'tendered_amount') int? get tenderedAmount;@HiveField(28)@JsonKey(name: 'change_amount') int? get changeAmount;
+@HiveField(25) DateTime? get createdAt;@HiveField(26) DateTime? get updatedAt;//untuk kasir
+@HiveField(27)@JsonKey(name: 'tendered_amount') int? get tenderedAmount;@HiveField(28)@JsonKey(name: 'change_amount') int? get changeAmount;
 /// Create a copy of PaymentModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -109,6 +109,136 @@ as int?,
 }
 
 
+/// Adds pattern-matching-related methods to [PaymentModel].
+extension PaymentModelPatterns on PaymentModel {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _PaymentModel value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _PaymentModel() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _PaymentModel value)  $default,){
+final _that = this;
+switch (_that) {
+case _PaymentModel():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _PaymentModel value)?  $default,){
+final _that = this;
+switch (_that) {
+case _PaymentModel() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: 'order_id')  String? orderId, @HiveField(1)@JsonKey(name: 'transaction_id')  String? transactionId, @HiveField(2)  String? method, @HiveField(3)  String? status, @HiveField(4)  String? paymentType, @HiveField(5)  int amount, @HiveField(6)  int remainingAmount, @HiveField(7)  String? phone, @HiveField(8)  int discount, @HiveField(9)  String? midtransRedirectUrl, @HiveField(10)@JsonKey(name: 'fraud_status')  String? fraudStatus, @HiveField(11)@JsonKey(name: 'transaction_time')  String? transactionTime, @HiveField(12)@JsonKey(name: 'expiry_time')  String? expiryTime, @HiveField(13)@JsonKey(name: 'settlement_time')  String? settlementTime, @HiveField(14)@JsonKey(name: 'paid_at')  String? paidAt, @HiveField(15)@JsonKey(name: 'va_numbers')  List<VANumberModel>? vaNumbers, @HiveField(16)@JsonKey(name: 'permata_va_number')  List<VANumberModel>? permataVaNumber, @HiveField(17)@JsonKey(name: 'bill_key')  String? billKey, @HiveField(18)@JsonKey(name: 'biller_code')  String? billerCode, @HiveField(19)@JsonKey(name: 'pdf_url')  String? pdfUrl, @HiveField(20)  String currency, @HiveField(21)@JsonKey(name: 'merchant_id')  String? merchantId, @HiveField(22)@JsonKey(name: 'signature_key')  String? signatureKey, @HiveField(23)  List<PaymentActionModel>? actions, @HiveField(24)@JsonKey(name: 'raw_response')  Map<String, dynamic>? rawResponse, @HiveField(25)  DateTime? createdAt, @HiveField(26)  DateTime? updatedAt, @HiveField(27)@JsonKey(name: 'tendered_amount')  int? tenderedAmount, @HiveField(28)@JsonKey(name: 'change_amount')  int? changeAmount)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _PaymentModel() when $default != null:
+return $default(_that.orderId,_that.transactionId,_that.method,_that.status,_that.paymentType,_that.amount,_that.remainingAmount,_that.phone,_that.discount,_that.midtransRedirectUrl,_that.fraudStatus,_that.transactionTime,_that.expiryTime,_that.settlementTime,_that.paidAt,_that.vaNumbers,_that.permataVaNumber,_that.billKey,_that.billerCode,_that.pdfUrl,_that.currency,_that.merchantId,_that.signatureKey,_that.actions,_that.rawResponse,_that.createdAt,_that.updatedAt,_that.tenderedAmount,_that.changeAmount);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: 'order_id')  String? orderId, @HiveField(1)@JsonKey(name: 'transaction_id')  String? transactionId, @HiveField(2)  String? method, @HiveField(3)  String? status, @HiveField(4)  String? paymentType, @HiveField(5)  int amount, @HiveField(6)  int remainingAmount, @HiveField(7)  String? phone, @HiveField(8)  int discount, @HiveField(9)  String? midtransRedirectUrl, @HiveField(10)@JsonKey(name: 'fraud_status')  String? fraudStatus, @HiveField(11)@JsonKey(name: 'transaction_time')  String? transactionTime, @HiveField(12)@JsonKey(name: 'expiry_time')  String? expiryTime, @HiveField(13)@JsonKey(name: 'settlement_time')  String? settlementTime, @HiveField(14)@JsonKey(name: 'paid_at')  String? paidAt, @HiveField(15)@JsonKey(name: 'va_numbers')  List<VANumberModel>? vaNumbers, @HiveField(16)@JsonKey(name: 'permata_va_number')  List<VANumberModel>? permataVaNumber, @HiveField(17)@JsonKey(name: 'bill_key')  String? billKey, @HiveField(18)@JsonKey(name: 'biller_code')  String? billerCode, @HiveField(19)@JsonKey(name: 'pdf_url')  String? pdfUrl, @HiveField(20)  String currency, @HiveField(21)@JsonKey(name: 'merchant_id')  String? merchantId, @HiveField(22)@JsonKey(name: 'signature_key')  String? signatureKey, @HiveField(23)  List<PaymentActionModel>? actions, @HiveField(24)@JsonKey(name: 'raw_response')  Map<String, dynamic>? rawResponse, @HiveField(25)  DateTime? createdAt, @HiveField(26)  DateTime? updatedAt, @HiveField(27)@JsonKey(name: 'tendered_amount')  int? tenderedAmount, @HiveField(28)@JsonKey(name: 'change_amount')  int? changeAmount)  $default,) {final _that = this;
+switch (_that) {
+case _PaymentModel():
+return $default(_that.orderId,_that.transactionId,_that.method,_that.status,_that.paymentType,_that.amount,_that.remainingAmount,_that.phone,_that.discount,_that.midtransRedirectUrl,_that.fraudStatus,_that.transactionTime,_that.expiryTime,_that.settlementTime,_that.paidAt,_that.vaNumbers,_that.permataVaNumber,_that.billKey,_that.billerCode,_that.pdfUrl,_that.currency,_that.merchantId,_that.signatureKey,_that.actions,_that.rawResponse,_that.createdAt,_that.updatedAt,_that.tenderedAmount,_that.changeAmount);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: 'order_id')  String? orderId, @HiveField(1)@JsonKey(name: 'transaction_id')  String? transactionId, @HiveField(2)  String? method, @HiveField(3)  String? status, @HiveField(4)  String? paymentType, @HiveField(5)  int amount, @HiveField(6)  int remainingAmount, @HiveField(7)  String? phone, @HiveField(8)  int discount, @HiveField(9)  String? midtransRedirectUrl, @HiveField(10)@JsonKey(name: 'fraud_status')  String? fraudStatus, @HiveField(11)@JsonKey(name: 'transaction_time')  String? transactionTime, @HiveField(12)@JsonKey(name: 'expiry_time')  String? expiryTime, @HiveField(13)@JsonKey(name: 'settlement_time')  String? settlementTime, @HiveField(14)@JsonKey(name: 'paid_at')  String? paidAt, @HiveField(15)@JsonKey(name: 'va_numbers')  List<VANumberModel>? vaNumbers, @HiveField(16)@JsonKey(name: 'permata_va_number')  List<VANumberModel>? permataVaNumber, @HiveField(17)@JsonKey(name: 'bill_key')  String? billKey, @HiveField(18)@JsonKey(name: 'biller_code')  String? billerCode, @HiveField(19)@JsonKey(name: 'pdf_url')  String? pdfUrl, @HiveField(20)  String currency, @HiveField(21)@JsonKey(name: 'merchant_id')  String? merchantId, @HiveField(22)@JsonKey(name: 'signature_key')  String? signatureKey, @HiveField(23)  List<PaymentActionModel>? actions, @HiveField(24)@JsonKey(name: 'raw_response')  Map<String, dynamic>? rawResponse, @HiveField(25)  DateTime? createdAt, @HiveField(26)  DateTime? updatedAt, @HiveField(27)@JsonKey(name: 'tendered_amount')  int? tenderedAmount, @HiveField(28)@JsonKey(name: 'change_amount')  int? changeAmount)?  $default,) {final _that = this;
+switch (_that) {
+case _PaymentModel() when $default != null:
+return $default(_that.orderId,_that.transactionId,_that.method,_that.status,_that.paymentType,_that.amount,_that.remainingAmount,_that.phone,_that.discount,_that.midtransRedirectUrl,_that.fraudStatus,_that.transactionTime,_that.expiryTime,_that.settlementTime,_that.paidAt,_that.vaNumbers,_that.permataVaNumber,_that.billKey,_that.billerCode,_that.pdfUrl,_that.currency,_that.merchantId,_that.signatureKey,_that.actions,_that.rawResponse,_that.createdAt,_that.updatedAt,_that.tenderedAmount,_that.changeAmount);case _:
+  return null;
+
+}
+}
+
+}
+
 /// @nodoc
 
 @JsonSerializable(explicitToJson: true)
@@ -183,6 +313,7 @@ class _PaymentModel implements PaymentModel {
 // Timestamps
 @override@HiveField(25) final  DateTime? createdAt;
 @override@HiveField(26) final  DateTime? updatedAt;
+//untuk kasir
 @override@HiveField(27)@JsonKey(name: 'tendered_amount') final  int? tenderedAmount;
 @override@HiveField(28)@JsonKey(name: 'change_amount') final  int? changeAmount;
 

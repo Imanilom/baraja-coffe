@@ -57,35 +57,29 @@ router.get('/attendance/summary', attendanceController.getAttendanceSummary);
 // Manual attendance correction
 router.put('/attendance/:id', attendanceController.updateAttendance);
 
-// Register fingerprint
+// Fingerprint Routes
 router.post('/fingerprints/register', fingerprintController.registerFingerprint);
-
-// Get fingerprints by employee
 router.get('/fingerprints/employee/:employeeId', fingerprintController.getFingerprintsByEmployee);
-
-// Get fingerprint by device user ID
 router.get('/fingerprints/device-user/:deviceUserId', fingerprintController.getFingerprintByDeviceUserId);
-
-// Verify fingerprint
 router.post('/fingerprints/verify', fingerprintController.verifyFingerprint);
-
-// Update device user ID
 router.put('/fingerprints/:id/device-user', fingerprintController.updateDeviceUserId);
-
-// Sync with device
 router.post('/fingerprints/sync', fingerprintController.syncWithDevice);
-
-// Bulk sync with device
 router.post('/fingerprints/bulk-sync', fingerprintController.bulkSyncWithDevice);
-
-// Get all device users
 router.get('/fingerprints/device-users', fingerprintController.getAllDeviceUsers);
-
-// Delete fingerprint
 router.delete('/fingerprints/:id', fingerprintController.deleteFingerprint);
-
-// Deactivate fingerprint
 router.patch('/fingerprints/:id/deactivate', fingerprintController.deactivateFingerprint);
+router.patch('/fingerprints/:id/reactivate', fingerprintController.reactivateFingerprint);
+
+// Device User ID based operations
+router.patch('/fingerprints/device-user/:deviceUserId/deactivate', fingerprintController.deactivateFingerprintByDeviceUser);
+router.patch('/fingerprints/device-user/:deviceUserId/reactivate', fingerprintController.reactivateFingerprintByDeviceUser);
+
+// Raw fingerprint mapping routes
+router.post('/fingerprints/map-raw', fingerprintController.mapRawFingerprint);
+router.post('/fingerprints/auto-map', fingerprintController.autoMapFingerprint);
+router.post('/fingerprints/bulk-auto-map', fingerprintController.bulkAutoMapFingerprints);
+router.get('/fingerprints/unmapped-raw', fingerprintController.getUnmappedFingerprintsWithActivity);
+router.get('/fingerprints/with-employee', fingerprintController.getAllFingerprintsWithEmployee);
 
 export default router;
 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
+import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 
 class PaymentSuccessScreen extends ConsumerWidget {
   const PaymentSuccessScreen({super.key});

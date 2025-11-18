@@ -115,12 +115,12 @@ class OrderDetailWidget extends ConsumerWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildInfoRow('Customer', order.user),
+          _buildInfoRow('Customer', order.user ?? 'Unknown'),
           _buildInfoRow('Order Type', order.orderType.name),
           if (order.tableNumber!.isNotEmpty)
             _buildInfoRow('Table', order.tableNumber!),
           _buildInfoRow('Payment Method', order.paymentMethod!),
-          _buildInfoRow('Source', order.source),
+          _buildInfoRow('Source', order.source ?? 'Unknown'),
         ],
       ),
     );

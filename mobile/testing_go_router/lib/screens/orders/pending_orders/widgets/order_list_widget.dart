@@ -150,8 +150,8 @@ class OrderListWidget extends ConsumerWidget {
                         ),
                         child: Center(
                           child: Text(
-                            order.user.isNotEmpty
-                                ? order.user[0].toUpperCase()
+                            order.user != null
+                                ? order.user![0].toUpperCase()
                                 : '?',
                             style: const TextStyle(
                               color: Colors.white,
@@ -190,7 +190,7 @@ class OrderListWidget extends ConsumerWidget {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  order.user,
+                                  order.user ?? 'Unknown',
                                   style: TextStyle(
                                     color: Colors.grey.shade600,
                                     fontSize: 13,

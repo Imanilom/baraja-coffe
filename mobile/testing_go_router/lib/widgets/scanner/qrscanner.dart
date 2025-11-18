@@ -406,7 +406,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Order ID: ${orderDetail.orderId}'),
-                  if (orderDetail.user.isNotEmpty)
+                  if (orderDetail.user != null)
                     Text('Customer: ${orderDetail.user}'),
                   if (orderDetail.tableNumber!.isNotEmpty)
                     Text('Table: ${orderDetail.tableNumber}'),

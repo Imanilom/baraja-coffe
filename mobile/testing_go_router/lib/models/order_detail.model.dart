@@ -6,6 +6,7 @@ import 'package:kasirbaraja/enums/location_type.dart';
 import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/applied_promos.model.dart';
+import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -20,10 +21,10 @@ part 'order_detail.model.g.dart';
 abstract class OrderDetailModel with _$OrderDetailModel {
   factory OrderDetailModel({
     // Identitas Order
-    @HiveField(0) @Default("") @JsonKey(name: 'order_id') String? orderId,
+    @HiveField(0) @Default(null) @JsonKey(name: 'order_id') String? orderId,
     @HiveField(1) @JsonKey(name: 'user_id') String? userId,
-    @HiveField(2) @Default('') String user,
-    @HiveField(3) @Default("") String? cashierId,
+    @HiveField(2) @Default(null) String? user,
+    @HiveField(3) @Default(null) CashierModel? cashier,
 
     // Item dan Status
     @HiveField(4) @Default([]) List<OrderItemModel> items,
@@ -78,7 +79,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(21) @Default(0) int grandTotal,
 
     // Metadata
-    @HiveField(22) @Default('Cashier') String source,
+    @HiveField(22) @Default(null) String? source,
     @HiveField(23) @JsonKey(name: 'createdAtWIB') DateTime? createdAt,
     @HiveField(24) @JsonKey(name: 'updatedAtWIB') DateTime? updatedAt,
     @HiveField(25)
