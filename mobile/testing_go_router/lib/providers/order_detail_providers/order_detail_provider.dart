@@ -588,6 +588,14 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     final current = state!.payments;
     state = state!.copyWith(payments: [...current, payment]);
   }
+
+  int get totalPaid =>
+      (state?.payments ?? []).fold(0, (sum, p) => sum + p.amount);
+
+  int get remaining =>
+      state == null ? 0 : (state!.grandTotal - totalPaid).clamp(0, 1 << 31);
+
+  bool get isFullyPaid => remaining == 0;
 }
 
 // Provider untuk OrderDetailNotifier
