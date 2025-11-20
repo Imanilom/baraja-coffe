@@ -393,85 +393,232 @@ export const getKitchenOrder = async (req, res) => {
   }
 };
 
+// export const updateKitchenOrderStatus = async (req, res) => {
+//   const { orderId } = req.params;
+//   const { status, kitchenId, kitchenName } = req.body;
+
+//   console.log('Updating kitchen order status for orderId:', orderId, 'to status:', status);
+//   if (!orderId || !status) {
+//     return res.status(400).json({ success: false, message: 'orderId and status are required' });
+//   }
+
+//   try {
+//     // 🔍 Cek order dan reservasi terkait
+//     const order = await Order.findOne({ order_id: orderId })
+//       .populate('reservation')
+//       .populate('items.menuItem');
+
+//     if (!order) {
+//       return res.status(404).json({ success: false, message: 'Order not found' });
+//     }
+
+//     // 🚫 CEK: Jika status ingin diubah ke Completed dan ada reservasi aktif
+//     // ⚠️ Hanya cek jika order punya reservation (dine-in)
+//     if (status === 'Completed' && order.reservation) {
+//       const reservation = order.reservation;
+
+//       // Cek apakah reservasi masih aktif (belum selesai)
+//       if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Cannot complete order with active reservation. Reservation might have OTS or additional orders.'
+//         });
+//       }
+
+//       // Atau cek berdasarkan waktu reservasi
+//       const now = new Date();
+//       const reservationEnd = new Date(reservation.reservation_end || reservation.end_time);
+//       if (reservationEnd > now) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Cannot complete order while reservation is still active. Customer might add more orders.'
+//         });
+//       }
+//     }
+
+//     // ✅ Update status order
+//     const updatedOrder = await Order.findOneAndUpdate(
+//       { order_id: orderId },
+//       { $set: { status: status } },
+//       { new: true }
+//     ).populate('items.menuItem');
+
+//     // 🔥 EMIT SOCKET EVENTS
+//     const updateData = {
+//       order_id: orderId,
+//       orderStatus: status,
+//       orderType: order.order_type || 'dine-in', // 🎯 Tambahkan order type
+//       kitchen: { id: kitchenId, name: kitchenName },
+//       timestamp: new Date(),
+//       hasActiveReservation: !!order.reservation
+//     };
+
+//     // Emit ke room customer agar tahu progres order
+//     io.to(`order_${orderId}`).emit('order_status_update', updateData);
+
+//     // Emit ke cashier agar kasir tahu kitchen update status
+//     io.to('cashier_room').emit('kitchen_order_updated', updateData);
+
+//     // Emit ke kitchen room juga kalau perlu broadcast antar kitchen
+//     io.to('kitchen_room').emit('kitchen_order_updated', updateData);
+
+//     res.status(200).json({
+//       success: true,
+//       data: updatedOrder,
+//       message: status === 'Completed' && order.reservation
+//         ? 'Order completed but reservation is still active'
+//         : 'Order status updated successfully'
+//     });
+//   } catch (error) {
+//     console.error('Error updating kitchen order status:', error);
+//     res.status(500).json({ success: false, message: 'Failed to update kitchen order status' });
+//   }
+// };
+
 export const updateKitchenOrderStatus = async (req, res) => {
   const { orderId } = req.params;
   const { status, kitchenId, kitchenName } = req.body;
 
-  console.log('Updating kitchen order status for orderId:', orderId, 'to status:', status);
   if (!orderId || !status) {
     return res.status(400).json({ success: false, message: 'orderId and status are required' });
   }
 
   try {
-    // 🔍 Cek order dan reservasi terkait
-    const order = await Order.findOne({ order_id: orderId })
-      .populate('reservation')
-      .populate('items.menuItem');
-
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
-    }
-
-    // 🚫 CEK: Jika status ingin diubah ke Completed dan ada reservasi aktif
-    // ⚠️ Hanya cek jika order punya reservation (dine-in)
-    if (status === 'Completed' && order.reservation) {
-      const reservation = order.reservation;
-
-      // Cek apakah reservasi masih aktif (belum selesai)
-      if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cannot complete order with active reservation. Reservation might have OTS or additional orders.'
-        });
-      }
-
-      // Atau cek berdasarkan waktu reservasi
-      const now = new Date();
-      const reservationEnd = new Date(reservation.reservation_end || reservation.end_time);
-      if (reservationEnd > now) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cannot complete order while reservation is still active. Customer might add more orders.'
-        });
-      }
-    }
-
-    // ✅ Update status order
-    const updatedOrder = await Order.findOneAndUpdate(
-      { order_id: orderId },
-      { $set: { status: status } },
-      { new: true }
-    ).populate('items.menuItem');
-
-    // 🔥 EMIT SOCKET EVENTS
+    // ✅ KUNCI: Emit socket LANGSUNG tanpa tunggu DB
     const updateData = {
       order_id: orderId,
       orderStatus: status,
-      orderType: order.order_type || 'dine-in', // 🎯 Tambahkan order type
+      orderType: 'dine-in', // Temporary, akan diupdate setelah query DB
       kitchen: { id: kitchenId, name: kitchenName },
       timestamp: new Date(),
-      hasActiveReservation: !!order.reservation
     };
 
-    // Emit ke room customer agar tahu progres order
+    // 🔥 EMIT DULU (non-blocking)
     io.to(`order_${orderId}`).emit('order_status_update', updateData);
-
-    // Emit ke cashier agar kasir tahu kitchen update status
     io.to('cashier_room').emit('kitchen_order_updated', updateData);
-
-    // Emit ke kitchen room juga kalau perlu broadcast antar kitchen
     io.to('kitchen_room').emit('kitchen_order_updated', updateData);
 
+    // Response ke client LANGSUNG
     res.status(200).json({
       success: true,
-      data: updatedOrder,
-      message: status === 'Completed' && order.reservation
-        ? 'Order completed but reservation is still active'
-        : 'Order status updated successfully'
+      message: 'Status update broadcasted, DB update in progress',
+      data: { orderId, status }
     });
+
+    // ✅ DB update di background (async, non-blocking)
+    setImmediate(async () => {
+      try {
+        const order = await Order.findOne({ order_id: orderId })
+          .populate({
+            path: 'items.menuItem',
+            select: 'name workstation'
+          })
+          .populate('reservation')
+          .lean(); // ✅ lean() = faster query
+
+        if (!order) {
+          console.error(`Order ${orderId} not found for status update`);
+          return;
+        }
+
+        // Validation: reservasi aktif
+        if (status === 'Completed' && order.reservation) {
+          const reservation = order.reservation;
+          if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
+            console.warn(`Order ${orderId} has active reservation, skipping completion`);
+
+            // Emit correction
+            io.to(`order_${orderId}`).emit('status_update_corrected', {
+              order_id: orderId,
+              status: 'OnProcess',
+              reason: 'Active reservation'
+            });
+            return;
+          }
+        }
+
+        // Update DB
+        await Order.updateOne(
+          { order_id: orderId },
+          { $set: { status: status } }
+        );
+
+        // Emit final confirmation dengan data lengkap
+        const finalData = {
+          ...updateData,
+          orderType: order.order_type || 'dine-in',
+          hasActiveReservation: !!order.reservation
+        };
+
+        io.to(`order_${orderId}`).emit('status_confirmed', finalData);
+
+        console.log(`✅ Order ${orderId} status updated to ${status} in DB`);
+      } catch (error) {
+        console.error(`❌ Background DB update failed for ${orderId}:`, error);
+      }
+    });
+
   } catch (error) {
-    console.error('Error updating kitchen order status:', error);
-    res.status(500).json({ success: false, message: 'Failed to update kitchen order status' });
+    console.error('Error in updateKitchenOrderStatus:', error);
+    res.status(500).json({ success: false, message: 'Failed to update status' });
+  }
+};
+
+// ✅ OPTIMASI 2: Dedicated endpoint untuk auto-confirm (dari Flutter)
+export const batchAutoConfirmOrders = async (req, res) => {
+  const { orderIds } = req.body; // Array of order IDs
+
+  if (!orderIds || !Array.isArray(orderIds)) {
+    return res.status(400).json({ success: false, message: 'orderIds array required' });
+  }
+
+  try {
+    // Response LANGSUNG
+    res.status(200).json({
+      success: true,
+      message: `Confirming ${orderIds.length} orders`,
+      orderIds: orderIds
+    });
+
+    // ✅ Bulk update di background
+    setImmediate(async () => {
+      try {
+        const result = await Order.updateMany(
+          {
+            order_id: { $in: orderIds },
+            status: { $in: ['Waiting', 'Reserved'] }
+          },
+          {
+            $set: { status: 'OnProcess' }
+          }
+        );
+
+        console.log(`✅ Batch confirmed ${result.modifiedCount} orders`);
+
+        // Emit confirmation ke setiap order
+        for (const orderId of orderIds) {
+          io.to(`order_${orderId}`).emit('order_status_update', {
+            order_id: orderId,
+            orderStatus: 'OnProcess',
+            timestamp: new Date()
+          });
+        }
+
+        // Emit ke kitchen & cashier
+        io.to('kitchen_room').emit('batch_orders_confirmed', {
+          orderIds,
+          count: result.modifiedCount,
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        console.error('Batch auto-confirm error:', error);
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in batchAutoConfirmOrders:', error);
+    res.status(500).json({ success: false, message: 'Batch confirm failed' });
   }
 };
 

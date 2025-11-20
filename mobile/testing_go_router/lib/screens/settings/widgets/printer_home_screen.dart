@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
-import 'package:kasirbaraja/services/printer_service_copy.dart';
 
 class PrinterHomeScreen extends ConsumerStatefulWidget {
   const PrinterHomeScreen({super.key});

@@ -1,9 +1,7 @@
 // ignore_for_file: invalid_annotation_target
 import 'package:hive_ce/hive.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:kasirbaraja/models/menu_category.model.dart';
 import 'package:kasirbaraja/models/menu_stock.model.dart';
-import 'package:kasirbaraja/models/menu_subcategory.model.dart';
 
 import 'addon.model.dart';
 import 'topping.model.dart';

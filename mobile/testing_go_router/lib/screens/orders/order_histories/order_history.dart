@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
-import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/widgets/order_list_widget.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/widgets/receipt_widget.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/widgets/order_detail_widget.dart';

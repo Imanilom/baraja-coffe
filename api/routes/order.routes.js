@@ -47,7 +47,8 @@ import {
   logPrintFailure,
   logSkippedItem,
   logProblematicItem,
-  getProblematicPrintReport
+  getProblematicPrintReport,
+  batchAutoConfirmOrders
 } from '../controllers/operation.controller.js';
 
 import {
@@ -100,6 +101,7 @@ router.get('/orders', getAllOrders);
 
 router.get('/orders/kitchen', getKitchenOrder);
 router.put('/orders/:orderId/status', updateKitchenOrderStatus);
+router.post('/batch-confirm', batchAutoConfirmOrders);
 router.put('/orders/kitchen/items/status', updateKitchenItemStatus);
 router.put('/orders/kitchen/items/bulk-update', bulkUpdateKitchenItems);
 

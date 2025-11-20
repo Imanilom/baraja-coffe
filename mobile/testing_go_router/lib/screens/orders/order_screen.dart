@@ -3,10 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/screens/orders/order_details/order_detail.dart';
 import 'package:kasirbaraja/screens/orders/widgets/list_menu.dart';
-import 'package:kasirbaraja/screens/orders/online_orders/online_order.dart';
-import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
 import 'package:kasirbaraja/screens/orders/widgets/saved_order.dart';
-import 'package:kasirbaraja/screens/orders/widgets/reservation_order.dart';
 
 class OrderScreen extends ConsumerWidget {
   const OrderScreen({super.key});

@@ -49,7 +49,7 @@ extension OrderItemModelExtensions on OrderItemModel {
         _areToppingsEqual(selectedToppings, other.selectedToppings) &&
         _areAddonsEqual(selectedAddons, other.selectedAddons) &&
         _areNotesEqual(notes, other.notes) &&
-        _areOrderItemOrderTypeEqual(orderType!, other.orderType!);
+        _areOrderItemOrderTypeEqual(orderType, other.orderType);
   }
 
   /// Mengecek apakah dua list toppings sama
