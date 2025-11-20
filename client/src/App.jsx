@@ -170,6 +170,7 @@ import StockReconciliation from "./pages/stock_reconciliation";
 
 // HRD Routes
 import HRDashboard from "./pages/hr";
+import DeviceMenuManager from "./pages/menuondevice";
 
 
 export default function App() {
@@ -207,6 +208,9 @@ export default function App() {
                 <Route path="subcategory-create" element={<AddSubCategory />} />
                 <Route path="manage-stock/:id" element={<ManageStock />} />
                 <Route path="manage-price-and-selling-status/:id" element={<PriceSellingStatusManagement />} />
+
+                {/* Menu On Device */}
+                <Route path="menu-on-device" element={<DeviceMenuManager />} />
 
                 {/* Table */}
                 <Route path="table-management" element={<Table />} />
@@ -265,7 +269,7 @@ export default function App() {
                 <Route path="operational/table" element={<TableManagement />} />
 
                 {/* HR */}
-                 <Route path="hrdDashboard" element={<HRDashboard />} />
+                <Route path="hrdDashboard" element={<HRDashboard />} />
 
                 {/* Profit */}
                 <Route path="tax-revenue" element={<TaxRevenueManagement />} />
