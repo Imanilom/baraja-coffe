@@ -6,9 +6,9 @@ import { io } from '../index.js';
 export const broadcastCashOrderToKitchen = async (orderInfo) => {
   try {
     const { orderId, tableNumber, orderData, outletId, isAppOrder = false, isWebOrder = false, deliveryOption } = orderInfo;
-    
+
     const areaCode = tableNumber?.charAt(0).toUpperCase();
-    
+
     console.log(`Broadcasting CASH order ${orderId} to kitchen/bar`);
 
     const kitchenData = {
@@ -34,7 +34,7 @@ export const broadcastCashOrderToKitchen = async (orderInfo) => {
         global.io.to(barRoom).emit('beverage_order_received', {
           ...kitchenData,
           assignedBar: barRoom,
-          items: orderData.items?.filter(item => 
+          items: orderData.items?.filter(item =>
             item.category === 'beverage' || item.category === 'drink'
           ) || []
         });
@@ -56,7 +56,7 @@ export const broadcastCashOrderToKitchen = async (orderInfo) => {
 export const broadcastOrderCreation = async (orderId, orderData) => {
   try {
     const { tableNumber, source, outletId, paymentDetails } = orderData;
-    
+
     if (!tableNumber) {
       console.log('⚠️ No table number, skipping broadcast');
       return;
@@ -98,7 +98,7 @@ export const broadcastOrderCreation = async (orderId, orderData) => {
 export const broadcastNewOrderToAreas = async (orderInfo) => {
   try {
     const { orderId, tableNumber, orderData, source, outletId, paymentMethod } = orderInfo;
-    
+
     if (!tableNumber) {
       console.log('⚠️ No table number, skipping area broadcast');
       return;
@@ -126,7 +126,7 @@ export const broadcastNewOrderToAreas = async (orderInfo) => {
     if (global.io) {
       // ✅ Broadcast ke area room (untuk kasir di area tersebut)
       global.io.to(areaRoom).emit('new_order_in_area', broadcastData);
-      
+
       // ✅ Broadcast ke area group
       if (areaGroup) {
         global.io.to(areaGroup).emit('new_order_in_group', {
@@ -142,12 +142,12 @@ export const broadcastNewOrderToAreas = async (orderInfo) => {
       global.io.to(`outlet_${outletId}`).emit('new_order', broadcastData);
 
       console.log(`✅ ${source} Order ${orderId} broadcasted to area ${areaCode}`);
-      
+
       // Log connected devices di area ini untuk debugging
       const areaRoomClients = global.io.sockets.adapter.rooms.get(areaRoom)?.size || 0;
       const cashierRoomClients = global.io.sockets.adapter.rooms.get('cashier_room')?.size || 0;
       console.log(`📊 Connected devices - Area ${areaCode}: ${areaRoomClients}, Cashier room: ${cashierRoomClients}`);
-      
+
     } else {
       console.warn('❌ Socket IO not available for broadcasting');
     }
