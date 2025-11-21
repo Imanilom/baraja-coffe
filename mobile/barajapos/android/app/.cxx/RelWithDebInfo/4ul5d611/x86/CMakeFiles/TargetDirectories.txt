@@ -1,0 +1,2 @@
+C:/Users/FNULNU/Documents/GitHub/baraja-coffe/mobile/barajapos/android/app/.cxx/RelWithDebInfo/4ul5d611/x86/CMakeFiles/edit_cache.dir
+C:/Users/FNULNU/Documents/GitHub/baraja-coffe/mobile/barajapos/android/app/.cxx/RelWithDebInfo/4ul5d611/x86/CMakeFiles/rebuild_cache.dir

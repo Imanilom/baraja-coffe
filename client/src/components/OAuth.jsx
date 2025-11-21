@@ -3,6 +3,7 @@ import { app } from '../firebase';
 import { useDispatch } from 'react-redux';
 import { signInSuccess } from '../redux/user/userSlice';
 import { useNavigate } from 'react-router-dom';
+import { FaGoogle } from "react-icons/fa";
 
 export default function OAuth() {
   const dispatch = useDispatch();
@@ -34,11 +35,8 @@ export default function OAuth() {
   };
   return (
     <button
-      type='button'
-      onClick={handleGoogleClick}
-      className='bg-red-700 text-white rounded-lg p-3 uppercase hover:opacity-95'
-    >
-      Continue with google
+      onClick={handleGoogleClick} className="p-3 rounded-full border hover:bg-gray-100">
+      <FaGoogle className="text-red-500" />
     </button>
   );
 }
