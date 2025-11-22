@@ -5,11 +5,15 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 // Provider tipe pembayaran yang sudah kamu punya
 import 'package:kasirbaraja/providers/payment_provider.dart'
-    show paymentTypesProvider;
+    show paymentMethodsProvider;
+
+// 🔹 Helper saran cash
+import 'package:kasirbaraja/helper/payment_helper.dart';
 
 /// Mode pembayaran:
 /// - single: tanpa split, 1x bayar langsung lunas
@@ -20,8 +24,8 @@ enum PaymentMode { single, split }
 class SplitCard {
   final String id;
   int amount;
-  PaymentTypeModel? type;
   PaymentMethodModel? method;
+  PaymentTypeModel? type;
   bool isPaid;
 
   /// true = nominal ini di-set manual oleh user (tidak di-overwrite otomatis)
@@ -30,8 +34,8 @@ class SplitCard {
   SplitCard({
     required this.id,
     required this.amount,
-    this.type,
     this.method,
+    this.type,
     this.isPaid = false,
     this.isManual = false,
   });
@@ -69,8 +73,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   PaymentMode _mode = PaymentMode.single;
 
   // ======= SINGLE PAYMENT STATE =======
-  PaymentTypeModel? _selectedType;
   PaymentMethodModel? _selectedMethod;
+  PaymentTypeModel? _selectedType;
 
   int? _selectedCashPreset;
   final TextEditingController _customCashController = TextEditingController();
@@ -78,6 +82,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   // ======= SPLIT PAYMENT STATE =======
   final List<SplitCard> _splitCards = [];
   final Map<String, TextEditingController> _splitAmountControllers = {};
+
+  // 🔹 cash per split card (baru)
+  final Map<String, TextEditingController> _splitCashControllers = {};
+  final Map<String, int?> _splitCashPresetSelected = {};
 
   // ======= PAYMENTS TERSIMPAN DI ORDER =======
   late List<PaymentModel> _payments;
@@ -90,14 +98,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     _payments = List<PaymentModel>.from(
       (widget.order.payments ?? <PaymentModel>[]),
     );
-
-    // Jika nanti mau langsung masuk split mode, kamu bisa inisialisasi di sini.
   }
 
   @override
   void dispose() {
     _customCashController.dispose();
     for (final c in _splitAmountControllers.values) {
+      c.dispose();
+    }
+    for (final c in _splitCashControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -119,7 +128,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   // ======= SINGLE PAYMENT: CASH LOGIC =======
 
   bool get _isCashSelectedSingle =>
-      _selectedType != null && _selectedType!.id == 'cash';
+      _selectedMethod != null && _selectedMethod!.id == 'cash';
 
   int? get _effectiveTenderedSingle {
     if (!_isCashSelectedSingle) return null;
@@ -151,7 +160,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   bool get _canPaySingleMode {
-    if (_selectedType == null) return false;
+    if (_selectedMethod == null) return false;
     if (_remaining <= 0) return false;
 
     if (_isCashSelectedSingle) {
@@ -161,8 +170,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     // non cash → cukup pilih method
-    if (_selectedType!.id != 'cash') {
-      return _selectedMethod != null;
+    if (_selectedMethod!.id != 'cash') {
+      return _selectedType != null;
     }
 
     return false;
@@ -235,8 +244,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     final count = autoCards.length;
-    final base = remainingForAuto ~/ count;
-    var extra = remainingForAuto % count;
+    final base = count == 0 ? 0 : remainingForAuto ~/ count;
+    var extra = count == 0 ? 0 : remainingForAuto % count;
 
     autoCards.sort((a, b) => a.id.compareTo(b.id));
 
@@ -255,10 +264,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   void _syncSplitControllers() {
     for (final card in _splitCards) {
-      final controller =
-          _splitAmountControllers[card.id] ?? TextEditingController();
-      controller.text = card.amount.toString();
-      _splitAmountControllers[card.id] = controller;
+      // nominal tagihan per card
+      final amountCtrl =
+          _splitAmountControllers[card.id] ??
+          TextEditingController(text: card.amount.toString());
+      amountCtrl.text = card.amount.toString();
+      _splitAmountControllers[card.id] = amountCtrl;
+
+      // cash/tender per card: kalau belum ada, kosongkan
+      _splitCashControllers.putIfAbsent(card.id, () => TextEditingController());
     }
   }
 
@@ -312,10 +326,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // benar-benar hapus
     _splitCards.removeWhere((c) => c.id == card.id);
 
-    final controller = _splitAmountControllers.remove(card.id);
-    controller?.dispose();
+    final amountCtrl = _splitAmountControllers.remove(card.id);
+    amountCtrl?.dispose();
 
-    // reset manual flag & rebalance sisa card yang unpaid
+    final cashCtrl = _splitCashControllers.remove(card.id);
+    cashCtrl?.dispose();
+
+    _splitCashPresetSelected.remove(card.id);
+
+    // reset manual dan rebalance
     for (var i = 0; i < _splitCards.length; i++) {
       if (!_splitCards[i].isPaid) {
         _splitCards[i] = _splitCards[i].copyWith(isManual: false);
@@ -342,6 +361,27 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     _rebalanceUnpaidCards();
   }
 
+  // 🔹 tendered per split card (cash)
+  int? _getTenderedForCard(SplitCard card) {
+    if (card.type?.id != 'cash') return null;
+    final preset = _splitCashPresetSelected[card.id];
+    if (preset != null) return preset;
+
+    final ctrl = _splitCashControllers[card.id];
+    if (ctrl == null || ctrl.text.isEmpty) return null;
+
+    final digitsOnly = ctrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final parsed = int.tryParse(digitsOnly);
+    return parsed;
+  }
+
+  int _getChangeForCard(SplitCard card) {
+    if (card.type?.id != 'cash') return 0;
+    final tendered = _getTenderedForCard(card) ?? 0;
+    final change = tendered - card.amount;
+    return change > 0 ? change : 0;
+  }
+
   bool _canPaySplitCard(SplitCard card) {
     if (!_isSplitPlanValid) return false;
     if (card.isPaid) return false;
@@ -349,8 +389,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (card.amount > _remaining) return false;
 
     if (card.type == null) return false;
+
     if (card.type!.id == 'cash') {
-      // uang pas, tidak cek tendered (kalau mau nanti bisa ditambah cash per card)
+      final tendered = _getTenderedForCard(card);
+      if (tendered == null) return false;
+      if (tendered < card.amount) return false;
       return true;
     } else {
       return card.method != null;
@@ -361,19 +404,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (!_canPaySplitCard(card)) return;
 
     final amount = card.amount;
-    final tendered = amount; // asumsikan uang pas (bisa diupgrade)
+    final tendered = _getTenderedForCard(card) ?? amount;
+    final change = _getChangeForCard(card);
+
     final remainingAfter = (_remaining - amount).clamp(0, _grandTotal);
 
-    final payment = PaymentModel(
+    final payment = PaymentHelper.buildPaymentModelForCard(
       orderId: widget.order.orderId,
-      method: card.method?.name ?? card.type?.name ?? 'Payment',
-      paymentType: card.type?.id,
+      methodModel: _selectedMethod!,
+      typeModel: _selectedType,
       amount: amount,
-      tenderedAmount: tendered,
-      changeAmount: 0,
-      remainingAmount: remainingAfter,
-      status: remainingAfter > 0 ? 'partial' : 'settlement',
-      createdAt: DateTime.now(),
+      remainingAfter: remainingAfter,
+      tendered: tendered,
+      change: change,
     );
 
     setState(() {
@@ -401,9 +444,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   void _finishOrderToBackend() {
-    // TODO:
+    //TODO: kirim ke backend
+    final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
     // 1. Sync _payments ke OrderDetailProvider / OrderDetailModel
+    orderDetailNotifier.setPayments(_payments);
     // 2. Panggil service utk kirim ke backend (unified-order / process-payment)
+    orderDetailNotifier.submitOrder(ref);
     debugPrint(
       'Selesaikan order. TotalPaid=$_totalPaid, Payments=${_payments.length}',
     );
@@ -413,7 +459,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final paymentTypesAsync = ref.watch(paymentTypesProvider);
+    final methodsAsync = ref.watch(paymentMethodsProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -462,10 +508,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: paymentTypesAsync.when(
-        data: (types) {
-          final activeTypes = types.where((t) => t.isActive).toList();
-
+      body: methodsAsync.when(
+        data: (methods) {
+          final activeMethods = methods.where((m) => m.isActive).toList();
           return Row(
             children: [
               // ========= PANEL KIRI: DETAIL TAGIHAN + RIWAYAT PAYMENT =========
@@ -489,8 +534,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     Expanded(
                       child:
                           _mode == PaymentMode.single
-                              ? _buildSinglePaymentPanel(activeTypes)
-                              : _buildSplitPaymentPanel(activeTypes),
+                              ? _buildSinglePaymentPanel(activeMethods)
+                              : _buildSplitPaymentPanel(activeMethods),
                     ),
                   ],
                 ),
@@ -613,7 +658,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              p.method ?? p.paymentType ?? 'Pembayaran',
+                              '-$p',
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -624,6 +669,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               'Nominal: ${formatRupiah(p.amount)}',
                               style: const TextStyle(fontSize: 12),
                             ),
+                            if (p.changeAmount != null &&
+                                (p.changeAmount ?? 0) > 0)
+                              Text(
+                                'Kembalian: ${formatRupiah(p.changeAmount!)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.blueGrey,
+                                ),
+                              ),
                             if (p.remainingAmount > 0)
                               Text(
                                 'Sisa setelah ini: ${formatRupiah(p.remainingAmount)}',
@@ -644,10 +698,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   // ======= PANEL KANAN: SINGLE PAYMENT =======
 
-  Widget _buildSinglePaymentPanel(List<PaymentTypeModel> activeTypes) {
+  Widget _buildSinglePaymentPanel(List<PaymentMethodModel> activeMethods) {
     return Column(
       children: [
-        _buildPaymentTypesSingle(activeTypes),
+        _buildPaymentMethodsSingle(activeMethods),
         const SizedBox(height: 8),
         Expanded(
           child: Container(
@@ -655,7 +709,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             padding: const EdgeInsets.all(12),
             decoration: _boxWhite(),
             child:
-                _selectedType == null
+                _selectedMethod == null
                     ? Center(
                       child: Text(
                         'Pilih tipe pembayaran terlebih dahulu',
@@ -669,7 +723,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           _buildCashOptionsSingle()
                         else
                           Expanded(
-                            child: _buildNonCashMethodsSingle(_selectedType!),
+                            child: _buildNonCashTypesSingle(_selectedMethod!),
                           ),
                         const SizedBox(height: 8),
                         _buildBottomActionBarSingle(),
@@ -681,14 +735,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  Widget _buildPaymentTypesSingle(List<PaymentTypeModel> paymentTypes) {
+  Widget _buildPaymentMethodsSingle(List<PaymentMethodModel> methods) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tipe Pembayaran',
+            'Metode Pembayaran',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -700,10 +754,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             height: 70,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: paymentTypes.length,
+              itemCount: methods.length,
               itemBuilder: (context, index) {
-                final type = paymentTypes[index];
-                final isSelected = _selectedType?.id == type.id;
+                final method = methods[index];
+                final isSelected = _selectedMethod?.id == method.id;
 
                 return Container(
                   width: 100,
@@ -711,8 +765,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   child: GestureDetector(
                     onTap: () {
                       setState(() {
-                        _selectedType = type;
-                        _selectedMethod = null;
+                        _selectedMethod = method;
+                        _selectedType = null;
                         _selectedCashPreset = null;
                         _customCashController.clear();
                       });
@@ -736,13 +790,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            _getPaymentTypeIcon(type.id),
+                            _getPaymentMethodIcon(method.id),
                             size: 20,
                             color: isSelected ? Colors.white : Colors.grey[700],
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            type.name,
+                            method.name,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
@@ -767,7 +821,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   Widget _buildCashOptionsSingle() {
     final basis = _amountThisPaymentSingleMode;
-    final suggestions = _getCashSuggestions(basis);
+    final suggestions = PaymentHelper.getCashSuggestions(basis);
 
     return Expanded(
       child: Column(
@@ -836,20 +890,23 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  Widget _buildNonCashMethodsSingle(PaymentTypeModel type) {
-    final activeMethods = type.paymentMethods.where((m) => m.isActive).toList();
+  Widget _buildNonCashTypesSingle(PaymentMethodModel method) {
+    final activeTypes =
+        method.paymentTypes
+            .where((t) => t.isActive && !t.isDigital == false || true)
+            .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Metode ${type.name}',
+          'Channel ${method.name}',
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         Expanded(
           child: GridView.builder(
-            itemCount: activeMethods.length,
+            itemCount: activeTypes.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
               mainAxisSpacing: 8,
@@ -857,13 +914,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               childAspectRatio: 3.2,
             ),
             itemBuilder: (context, index) {
-              final method = activeMethods[index];
-              final isSelected = _selectedMethod?.id == method.id;
+              final type = activeTypes[index];
+              final isSelected = _selectedType?.id == type.id;
 
               return GestureDetector(
                 onTap: () {
                   setState(() {
-                    _selectedMethod = method;
+                    _selectedType = type;
                   });
                 },
                 child: AnimatedContainer(
@@ -886,7 +943,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      method.name,
+                      type.name,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 11,
@@ -927,20 +984,30 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   void _onPaySingleMode() {
+    if (_selectedMethod == null) return;
     final amount = _amountThisPaymentSingleMode;
     final tendered = _effectiveTenderedSingle ?? amount;
     final change = _changeSingleMode;
 
-    final payment = PaymentModel(
+    // final payment = PaymentModel(
+    //   orderId: widget.order.orderId,
+    //   method: _currentMethodNameSingle(),
+    //   paymentType: _selectedType?.typeCode,
+    //   amount: amount,
+    //   tenderedAmount: tendered,
+    //   changeAmount: change,
+    //   remainingAmount: 0,
+    //   status: 'settlement',
+    //   createdAt: DateTime.now(),
+    // );
+    final payment = PaymentHelper.buildPaymentModelForCard(
       orderId: widget.order.orderId,
-      method: _currentMethodNameSingle(),
-      paymentType: _selectedType?.id,
+      methodModel: _selectedMethod!,
+      typeModel: _selectedType, // bisa null kalau Cash polos
       amount: amount,
-      tenderedAmount: tendered,
-      changeAmount: change,
-      remainingAmount: 0,
-      status: 'settlement',
-      createdAt: DateTime.now(),
+      remainingAfter: _remaining,
+      tendered: tendered,
+      change: change,
     );
 
     setState(() {
@@ -961,7 +1028,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   // ======= PANEL KANAN: SPLIT PAYMENT =======
 
-  Widget _buildSplitPaymentPanel(List<PaymentTypeModel> activeTypes) {
+  Widget _buildSplitPaymentPanel(List<PaymentMethodModel> activeMethods) {
     return Column(
       children: [
         // Header + tombol tambah split
@@ -1015,7 +1082,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     itemCount: _splitCards.length,
                     itemBuilder: (context, index) {
                       final card = _splitCards[index];
-                      return _buildSplitCardItem(card, index, activeTypes);
+                      return _buildSplitCardItem(card, index, activeMethods);
                     },
                   ),
         ),
@@ -1040,12 +1107,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Widget _buildSplitCardItem(
     SplitCard card,
     int index,
-    List<PaymentTypeModel> activeTypes,
+    List<PaymentMethodModel> activeMethods,
   ) {
-    final controller =
+    final amountCtrl =
         _splitAmountControllers[card.id] ??
         TextEditingController(text: card.amount.toString());
-    _splitAmountControllers[card.id] = controller;
+    _splitAmountControllers[card.id] = amountCtrl;
+
+    final cashCtrl = _splitCashControllers[card.id] ?? TextEditingController();
+    _splitCashControllers[card.id] = cashCtrl;
 
     final canDelete =
         !card.isPaid && _splitCards.length > 2 && _unpaidSplitCards.length > 1;
@@ -1103,7 +1173,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             children: [
               Expanded(
                 child: TextField(
-                  controller: controller,
+                  controller: amountCtrl,
                   readOnly: card.isPaid,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
@@ -1145,10 +1215,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             height: 60,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: activeTypes.length,
+              itemCount: activeMethods.length,
               itemBuilder: (context, idx) {
-                final type = activeTypes[idx];
-                final isSelected = card.type?.id == type.id;
+                final method = activeMethods[idx];
+                final isSelected = card.method?.id == method.id;
 
                 return Container(
                   width: 90,
@@ -1162,9 +1232,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                 final i = _splitCards.indexOf(card);
                                 if (i == -1) return;
                                 _splitCards[i] = _splitCards[i].copyWith(
-                                  type: type,
-                                  method: null,
+                                  method: method,
+                                  type: null,
                                 );
+                                // kalau bukan cash, reset cash UI
+                                if (method.id != 'cash') {
+                                  _splitCashPresetSelected[card.id] = null;
+                                  cashCtrl.clear();
+                                }
                               });
                             },
                     child: AnimatedContainer(
@@ -1186,13 +1261,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            _getPaymentTypeIcon(type.id),
+                            _getPaymentMethodIcon(method.id),
                             size: 18,
                             color: isSelected ? Colors.white : Colors.grey[700],
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            type.name,
+                            method.name,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w500,
@@ -1211,8 +1286,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          // Metode / info jika cash
-          if (card.type != null) _buildSplitCardMethodSection(card),
+          // Metode / cash per card
+          if (card.method != null) _buildSplitCardTypeSection(card),
           const SizedBox(height: 8),
           // Tombol bayar
           SizedBox(
@@ -1243,25 +1318,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  Widget _buildSplitCardMethodSection(SplitCard card) {
-    if (card.type == null) {
+  Widget _buildSplitCardTypeSection(SplitCard card) {
+    if (card.method == null) {
       return const SizedBox.shrink();
     }
 
-    if (card.type!.id == 'cash') {
-      return Text(
-        'Pembayaran tunai (asumsi uang pas).',
-        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-      );
+    if (card.method!.id == 'cash') {
+      return _buildSplitCardCashOptions(card);
     }
 
-    final methods = card.type!.paymentMethods.where((m) => m.isActive).toList();
+    final types = card.method!.paymentTypes.where((m) => m.isActive).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Metode ${card.type!.name}',
+          'Metode ${card.method!.name}',
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 4),
@@ -1269,13 +1341,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           spacing: 6,
           runSpacing: 6,
           children:
-              methods.map((method) {
-                final isSelected = card.method?.id == method.id;
+              types.map((type) {
+                final isSelected = card.type?.id == type.id;
                 return ChoiceChip(
-                  label: Text(
-                    method.name,
-                    style: const TextStyle(fontSize: 11),
-                  ),
+                  label: Text(type.name, style: const TextStyle(fontSize: 11)),
                   selected: isSelected,
                   onSelected:
                       card.isPaid
@@ -1285,7 +1354,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               final idx = _splitCards.indexOf(card);
                               if (idx == -1) return;
                               _splitCards[idx] = _splitCards[idx].copyWith(
-                                method: method,
+                                type: type,
                               );
                             });
                           },
@@ -1301,10 +1370,90 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
+  // 🔹 Cash per split card
+  Widget _buildSplitCardCashOptions(SplitCard card) {
+    final basis = card.amount <= 0 ? 1000 : card.amount;
+    final suggestions = PaymentHelper.getCashSuggestions(basis);
+    final selectedPreset = _splitCashPresetSelected[card.id];
+    final cashCtrl = _splitCashControllers[card.id]!;
+
+    final change = _getChangeForCard(card);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Uang Diterima (Split #${_splitCards.indexOf(card) + 1})',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children:
+              suggestions.map((amount) {
+                final isSelected = selectedPreset == amount;
+                return ChoiceChip(
+                  label: Text(
+                    amount == card.amount ? 'Uang Pas' : formatRupiah(amount),
+                  ),
+                  selected: isSelected,
+                  onSelected:
+                      card.isPaid
+                          ? null
+                          : (_) {
+                            setState(() {
+                              _splitCashPresetSelected[card.id] = amount;
+                              cashCtrl.clear();
+                            });
+                          },
+                  selectedColor: const Color(0xFF2E7D4F),
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : Colors.grey[800],
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                );
+              }).toList(),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: cashCtrl,
+          readOnly: card.isPaid,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Nominal Lainnya',
+            hintText: 'Masukkan nominal',
+            prefixIcon: const Icon(Icons.payment),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+          ),
+          onTap: () {
+            if (card.isPaid) return;
+            setState(() {
+              _splitCashPresetSelected[card.id] = null;
+            });
+          },
+          onChanged: (_) {
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Kembalian: ${formatRupiah(change)}',
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+
   // ======= UTIL =======
 
-  IconData _getPaymentTypeIcon(String typeId) {
-    switch (typeId) {
+  IconData _getPaymentMethodIcon(String methodId) {
+    switch (methodId) {
       case 'cash':
         return Icons.money;
       case 'ewallet':
@@ -1313,24 +1462,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         return Icons.credit_card;
       case 'banktransfer':
         return Icons.account_balance;
+      case 'qris':
+        return Icons.qr_code_2;
       default:
         return Icons.payment;
     }
-  }
-
-  List<int> _getCashSuggestions(int basis) {
-    final rounded = ((basis / 1000).ceil()) * 1000;
-    final list =
-        <int>{
-          basis,
-          rounded + 5000,
-          rounded + 10000,
-          rounded + 20000,
-          50000,
-          100000,
-        }.toList();
-    list.sort();
-    return list;
   }
 
   BoxDecoration _boxWhite() {

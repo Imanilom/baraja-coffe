@@ -45,7 +45,7 @@ class HiveService {
     await Hive.openBox<MenuItemModel>('menuItemsBox');
     await Hive.openBox<BluetoothPrinterModel>('printers');
     await Hive.openBox<TaxAndServiceModel>('taxAndService');
-    await Hive.openBox<PaymentTypeModel>('paymentTypes');
+    await Hive.openBox<PaymentMethodModel>('paymentMethods');
     await Hive.openBox<Event>('eventsBox');
     await Hive.openBox<DeviceModel>('devices');
     // await Hive.openBox<DeviceModel>('loginDeviceBox');
@@ -57,8 +57,8 @@ class HiveService {
       Hive.box<MenuItemModel>('menuItemsBox');
   static Box<TaxAndServiceModel> get taxAndServiceBox =>
       Hive.box<TaxAndServiceModel>('taxAndService');
-  static Box<PaymentTypeModel> get paymentTypeBox =>
-      Hive.box<PaymentTypeModel>('paymentTypes');
+  static Box<PaymentMethodModel> get paymentMethodBox =>
+      Hive.box<PaymentMethodModel>('paymentMethods');
   static Box<Event> get eventBox => Hive.box<Event>('eventsBox');
   static Box<DeviceModel> get deviceBox => Hive.box<DeviceModel>('devices');
 
@@ -71,7 +71,7 @@ class HiveService {
     await userBox.clear();
     await menuItemsBox.clear();
     await taxAndServiceBox.clear();
-    await paymentTypeBox.clear();
+    await paymentMethodBox.clear();
     await eventBox.clear();
     await deviceBox.clear();
     // await loginDeviceBox.clear();
@@ -81,7 +81,7 @@ class HiveService {
   static Future<void> closeAllBoxes() async {
     await menuItemsBox.close();
     await taxAndServiceBox.close();
-    await paymentTypeBox.close();
+    await paymentMethodBox.close();
     await eventBox.close();
     await deviceBox.close();
     // await loginDeviceBox.close();
@@ -91,7 +91,7 @@ class HiveService {
   static bool hasData() {
     return menuItemsBox.isNotEmpty ||
         taxAndServiceBox.isNotEmpty ||
-        paymentTypeBox.isNotEmpty ||
+        paymentMethodBox.isNotEmpty ||
         eventBox.isNotEmpty ||
         deviceBox.isNotEmpty;
   }
@@ -101,7 +101,7 @@ class HiveService {
     return {
       'menuItemsBox': menuItemsBox.length,
       'taxAndService': taxAndServiceBox.length,
-      'paymentTypes': paymentTypeBox.length,
+      'paymentMethods': paymentMethodBox.length,
       'eventsBox': eventBox.length,
       'devices': deviceBox.length,
     };

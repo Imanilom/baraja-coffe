@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
@@ -292,16 +293,16 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Kirim data orderDetail ke backend
-  Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
+  Future<bool> submitOrder(WidgetRef ref) async {
     final cashier = await HiveService.getCashier();
 
     state = state!.copyWith(cashier: cashier);
-    print('statedtdt: $state');
+    // print('statedtdt: $state');
     if (state == null) return false;
 
     try {
-      final order = await OrderService().createOrder(state!, paymentData);
-      print('Order submitted: $order');
+      final order = await OrderService().createOrder(state!);
+      // print('Order submitted: $order');
 
       final orderDetails = ref.read(orderDetailProvider.notifier);
       orderDetails.addOrderIdToOrderDetail(order['orderId']);
@@ -312,11 +313,38 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         return true;
       }
     } catch (e) {
-      print('error apa? $e');
+      debugPrint('error apa? $e');
       return false;
     }
     return false; // Return false if state is null
   }
+
+  // TODO: boleh dihapus jika fungsi sama bisa
+  // Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
+  //   final cashier = await HiveService.getCashier();
+
+  //   state = state!.copyWith(cashier: cashier);
+  //   // print('statedtdt: $state');
+  //   if (state == null) return false;
+
+  //   try {
+  //     final order = await OrderService().createOrder(state!, paymentData);
+  //     // print('Order submitted: $order');
+
+  //     final orderDetails = ref.read(orderDetailProvider.notifier);
+  //     orderDetails.addOrderIdToOrderDetail(order['orderId']);
+  //     orderDetails.addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
+
+  //     if (order.isNotEmpty) {
+  //       //update menu items
+  //       return true;
+  //     }
+  //   } catch (e) {
+  //     debugPrint('error apa? $e');
+  //     return false;
+  //   }
+  //   return false; // Return false if state is null
+  // }
 
   Future<void> _recalculateAll() async {
     if (state == null || _isCalculating) return;

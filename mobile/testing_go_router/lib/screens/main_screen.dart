@@ -12,7 +12,7 @@ import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:kasirbaraja/providers/tax_and_service_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
-import 'package:kasirbaraja/repositories/payment_type_repository.dart';
+import 'package:kasirbaraja/repositories/payment_method_repository.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/screens/orders/order_screen.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
@@ -612,7 +612,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       await Future.wait([
         MenuItemRepository().getMenuItem(),
         TaxAndServiceRepository().getTaxAndServices(),
-        PaymentTypeRepository().getPaymentTypes(),
+        PaymentMethodRepository().getPaymentMethods(),
       ]);
 
       // (Opsional) refresh/invalidasi provider agar UI ambil data terbaru
