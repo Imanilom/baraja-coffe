@@ -655,7 +655,47 @@ const OrderSchema = new mongoose.Schema({
       type: Date,
       default: () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }))
     }
-  }]
+  }],
+  stockRolledBack: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  stockRollbackAt: {
+    type: Date,
+    default: null
+  },
+  stockRollbackDetails: [{
+    menuItemId: mongoose.Schema.Types.ObjectId,
+    name: String,
+    quantity: Number,
+    success: Boolean,
+    error: String
+  }],
+  tableReleased: {
+    type: Boolean,
+    default: false
+  },
+  tableReleasedAt: {
+    type: Date,
+    default: null
+  },
+  canceledBySystem: {
+    type: Boolean,
+    default: false
+  },
+  canceledAt: {
+    type: Date,
+    default: null
+  },
+  autoCompletedAt: {
+    type: Date,
+    default: null
+  },
+  autoCompletedReason: {
+    type: String,
+    default: null
+  },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -725,6 +765,8 @@ OrderSchema.index({ status: 1, createdAt: -1 });
 OrderSchema.index({ isOpenBill: 1, originalReservationId: 1 });
 OrderSchema.index({ reservation: 1 });
 OrderSchema.index({ createdAtWIB: -1 }); // Index untuk pencarian berdasarkan WIB
+OrderSchema.index({ stockRolledBack: 1, status: 1 }); // ✅ NEW INDEX
+OrderSchema.index({ tableReleased: 1, orderType: 1 });
 
 // Middleware untuk auto-sync table status ketika order dibuat/diupdate
 OrderSchema.post('save', async function (doc, next) {

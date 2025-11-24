@@ -53,7 +53,7 @@ export const orderWorker = new Worker('orderQueue', async (job) => {
       stack: err.stack,
       timestamp: new Date()
     });
-    
+
     // ✅ Tambahkan retry logic untuk transaction errors
     if (err.message.includes('transaction') || err.message.includes('session')) {
       if (job.attemptsMade < 3) {
@@ -61,12 +61,12 @@ export const orderWorker = new Worker('orderQueue', async (job) => {
         await new Promise(resolve => setTimeout(resolve, 1000 * job.attemptsMade));
       }
     }
-    
+
     throw err;
   }
 }, {
   connection,
-  concurrency: 3,
+  concurrency: 5,
   lockDuration: 30000
 });
 
