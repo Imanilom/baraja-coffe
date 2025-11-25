@@ -202,8 +202,8 @@ const startServer = async () => {
     // console.log('warning : Connected to MongoDB PROD ✅');
 
     setupStockCalibrationCron();
-    startAutoCancelScheduler();
-    // setupPaymentExpiryMonitor();
+    // startAutoCancelScheduler();
+    setupPaymentExpiryMonitor();
     // Jalankan sekali untuk generate secret
     // console.log('Webhook Secret:', generateWebhookSecret());
 

@@ -2,9 +2,8 @@ import express from 'express';
 import { verifyToken } from '../utils/verifyUser.js';
 import { employeeController } from '../controllers/hr/employee.controller.js';
 import { attendanceController } from '../controllers/hr/attendance.controller.js';
-
+import { SalaryController } from '../controllers/hr/salary.controller.js';
 import { fingerprintController } from '../controllers/hr/fingerprint.controller.js';
-
 
 const router = express.Router();
 
@@ -57,6 +56,37 @@ router.get('/attendance/summary', attendanceController.getAttendanceSummary);
 // Manual attendance correction
 router.put('/attendance/:id', attendanceController.updateAttendance);
 
+// ==================== SALARY ROUTES ====================
+
+// Calculate salary for specific employee
+router.post('/salaries/calculate', adminAccess, SalaryController.calculateSalary);
+
+// Calculate salary for all employees in period
+router.post('/salaries/calculate-all', adminAccess, SalaryController.calculateSalaryForAll);
+
+// Get salary by employee with pagination
+router.get('/salaries/employee/:employeeId', adminAccess, SalaryController.getSalaryByEmployee);
+
+// Get salary by period (month and year)
+router.get('/salaries/period', adminAccess, SalaryController.getSalaryByPeriod);
+
+// Get salary summary for period
+router.get('/salaries/summary', adminAccess, SalaryController.getSalarySummary);
+
+// Approve salary
+router.patch('/salaries/:id/approve', adminAccess, SalaryController.approveSalary);
+
+// Mark salary as paid
+router.patch('/salaries/:id/mark-paid', adminAccess, SalaryController.markAsPaid);
+
+// Update salary manually
+router.put('/salaries/:id', adminAccess, SalaryController.updateSalary);
+
+// Delete salary calculation
+router.delete('/salaries/:id', adminAccess, SalaryController.deleteSalary);
+
+// ==================== FINGERPRINT ROUTES ====================
+
 // Fingerprint Routes
 router.post('/fingerprints/register', fingerprintController.registerFingerprint);
 router.get('/fingerprints/employee/:employeeId', fingerprintController.getFingerprintsByEmployee);
@@ -82,6 +112,3 @@ router.get('/fingerprints/unmapped-raw', fingerprintController.getUnmappedFinger
 router.get('/fingerprints/with-employee', fingerprintController.getAllFingerprintsWithEmployee);
 
 export default router;
-
-
-
