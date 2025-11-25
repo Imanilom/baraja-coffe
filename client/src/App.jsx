@@ -171,6 +171,8 @@ import StockReconciliation from "./pages/stock_reconciliation";
 // HRD Routes
 import HRDashboard from "./pages/hr";
 import DeviceMenuManager from "./pages/menuondevice";
+import EventSalesManagement from "./pages/report/sales/event_sales";
+import ReportEvent from "./pages/event/report";
 
 
 export default function App() {
@@ -258,6 +260,7 @@ export default function App() {
                 <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
                 <Route path="outlet-sales" element={<OutletSales />} />
+                <Route path="event-sales" element={<EventSalesManagement />} />
 
                 {/* Operational */}
                 <Route path="operational/reconciliation" element={<Reconciliation />} />
@@ -337,6 +340,7 @@ export default function App() {
                 <Route path="event" element={<EventManagement />} />
                 <Route path="event/create-event" element={<CreateEvent />} />
                 <Route path="event/edit-event/:id" element={<UpdateEvent />} />
+                <Route path="event/report" element={<ReportEvent />} />
 
                 {/* Ticket */}
                 <Route path="ticket" element={<TicketManagement />} />

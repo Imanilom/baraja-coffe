@@ -91,7 +91,7 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
         try {
           const [outletsRes, productsRes, loyaltyLevelsRes] = await Promise.all([
             axios.get("/api/outlet"),
-            axios.get("/api/menu/menu-items"),
+            axios.get("/api/menu/all-menu-items-backoffice"),
             axios.get("/api/promotion/loyalty-levels"),
           ]);
 
