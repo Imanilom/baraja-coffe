@@ -323,7 +323,7 @@ class _DetailPrinterScreenState extends ConsumerState<DetailPrinterScreen> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _printer.paperSize,
+                            initialValue: _printer.paperSize,
                             items: const [
                               DropdownMenuItem(
                                 value: 'mm58',

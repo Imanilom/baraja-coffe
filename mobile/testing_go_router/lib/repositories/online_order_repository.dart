@@ -1,7 +1,6 @@
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/utils/extention.dart';
 // import 'package:barajapos/models/try/try_order_detail.model.dart';
 
 class OnlineOrderRepository {

@@ -1580,9 +1580,7 @@ class PrinterService {
         generator.row([
           PosColumn(
             text:
-                item.orderType != null
-                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType)
-                    : '',
+                OrderTypeExtension.orderTypeToShortJson(item.orderType),
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
@@ -2519,7 +2517,7 @@ class ThermalPrinters {
       // Sekarang buffer sudah growable
       bytes.addAll(generator.image(reDecoded, align: PosAlign.center));
       bytes.addAll(generator.feed(1));
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('❌ Error: $e');
       bytes.addAll(
         generator.text(
@@ -2582,7 +2580,7 @@ class ThermalPrinters {
       // Print
       bytes.addAll(generator.image(safeImage, align: PosAlign.center));
       bytes.addAll(generator.feed(1));
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('❌ Error: $e');
       bytes.addAll(
         generator.text(

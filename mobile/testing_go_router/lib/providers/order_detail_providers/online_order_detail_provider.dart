@@ -1,11 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
-import 'package:kasirbaraja/models/edit_order_ops.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,11 +12,6 @@ import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
-import 'dart:math';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/repositories/online_order_repository.dart';
-import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:collection/collection.dart';
 
 class OnlineOrderDetailProvider extends StateNotifier<OrderDetailModel?> {

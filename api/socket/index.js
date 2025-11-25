@@ -35,9 +35,9 @@ export default function socketHandler(io) {
                     device: deviceId,
                     isActive: true
                 })
-                .populate('device')
-                .populate('user')
-                .populate('outlet');
+                    .populate('device')
+                    .populate('user')
+                    .populate('outlet');
 
                 if (!session) {
                     throw new Error('Session tidak valid atau sudah logout');
@@ -70,7 +70,7 @@ export default function socketHandler(io) {
                 // Basic rooms
                 socket.join(session.role);
                 joinedRooms.push(session.role);
-                
+
                 socket.join(`outlet_${session.outlet._id}`);
                 joinedRooms.push(`outlet_${session.outlet._id}`);
 
@@ -84,7 +84,7 @@ export default function socketHandler(io) {
                         socket.join(areaRoom);
                         joinedRooms.push(areaRoom);
                         console.log(`📍 Device ${session.device.deviceName} joined area room: ${areaRoom}`);
-                        
+
                         // Join area group
                         const areaGroup = getAreaGroup(area);
                         if (areaGroup) {
@@ -151,7 +151,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Device session authentication error:', error);
-                
+
                 const response = {
                     success: false,
                     error: error.message
@@ -160,7 +160,7 @@ export default function socketHandler(io) {
                 if (typeof callback === 'function') {
                     callback(response);
                 }
-                
+
                 socket.disconnect();
             }
         });

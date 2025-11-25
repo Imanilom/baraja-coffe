@@ -1,5 +1,4 @@
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
@@ -9,16 +8,12 @@ import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
-import 'package:kasirbaraja/providers/auth_provider.dart';
-import 'package:kasirbaraja/providers/menu_item_provider.dart';
-import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 import 'package:collection/collection.dart';
-import 'package:kasirbaraja/utils/generate_order_id.dart';
 import 'package:uuid/uuid.dart';
 
 class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {

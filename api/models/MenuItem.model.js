@@ -18,7 +18,7 @@ const MenuItemSchema = new mongoose.Schema({
   },
   mainCategory: {
     type: String,
-    enum: ['makanan', 'minuman', 'instan', 'dessert', 'snack', 'event'],
+    enum: ['makanan', 'minuman', 'instan', 'dessert', 'snack', 'event', 'bazar'],
     default: 'makanan'
   },
   category: {
@@ -41,7 +41,7 @@ const MenuItemSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  
+
   // ✅ NEW: Event-specific fields
   event: {
     type: mongoose.Schema.Types.ObjectId,
@@ -115,7 +115,7 @@ MenuItemSchema.pre('save', async function (next) {
   if (this.isEventItem) {
     return next();
   }
-  
+
   if (this.isModified('toppings') || this.isModified('addons')) {
     const recipe = await mongoose.model('Recipe').findOne({ menuItemId: this._id });
     if (recipe) {

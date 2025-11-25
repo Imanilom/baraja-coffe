@@ -1,19 +1,14 @@
-import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
-import {
-    FaChevronRight,
-    FaPlus,
-} from "react-icons/fa";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import { FaChevronRight, FaPlus } from "react-icons/fa";
 import { useSelector } from "react-redux";
-import Header from "../../admin/header";
 import MessageAlert from "../../../components/messageAlert";
 import UserTable from "./table";
 
 const UserManagement = () => {
-    const navigate = useNavigate();
     const { currentUser } = useSelector((state) => state.user);
     const [alertMsg, setAlertMsg] = useState("");
+    const [activeTab, setActiveTab] = useState("staff");
 
     const customSelectStyles = {
         control: (provided, state) => ({
@@ -50,9 +45,27 @@ const UserManagement = () => {
         menuPortal: (base) => ({ ...base, zIndex: 9999 }),
     };
 
+    const tabs = [
+        {
+            id: "staff",
+            label: "Staff & Admin",
+            roles: "all",
+            exclude: ["cashier", "cashier junior", "cashier senior", "customer"] // exclude cashier & customer
+        },
+        {
+            id: "cashier",
+            label: "Cashier",
+            roles: ["cashier", "cashier junior", "cashier senior"]
+        },
+        {
+            id: "customer",
+            label: "Customer",
+            roles: ["customer"]
+        },
+    ];
+
     return (
         <div className="flex flex-col">
-
             <MessageAlert message={alertMsg} type="success" />
 
             {/* Breadcrumb */}
@@ -68,16 +81,41 @@ const UserManagement = () => {
                 <div className="flex items-center gap-3">
                     <Link
                         to="/admin/access-settings/user-create"
-                        className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+                        className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm hover:bg-[#003d1f] transition-colors"
                     >
                         <FaPlus /> Tambah
                     </Link>
                 </div>
             </div>
 
-            {/* Table */}
-            <UserTable currentUser={currentUser} customSelectStyles={customSelectStyles} />
+            {/* Tab Navigation */}
+            <div className="px-6 mb-4">
+                <div className="border-b border-gray-200">
+                    <div className="flex gap-1">
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
+                                        ? "border-green-900 text-green-900"
+                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                    }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
 
+            {/* Table berdasarkan tab aktif */}
+            <UserTable
+                currentUser={currentUser}
+                customSelectStyles={customSelectStyles}
+                roleGroup={activeTab}
+                allowedRoles={tabs.find(t => t.id === activeTab)?.roles || []}
+                excludeRoles={tabs.find(t => t.id === activeTab)?.exclude || []}
+            />
         </div>
     );
 };

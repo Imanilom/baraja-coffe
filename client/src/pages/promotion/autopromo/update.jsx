@@ -88,7 +88,7 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
                 try {
                     const [outletsRes, productsRes, loyaltyLevelsRes] = await Promise.all([
                         axios.get("/api/outlet"),
-                        axios.get("/api/menu/menu-items"),
+                        axios.get("/api/menu/all-menu-items-backoffice"),
                         axios.get("/api/promotion/loyalty-levels"),
                     ]);
 
@@ -139,7 +139,20 @@ const UpdateAutoPromo = ({ isOpen, onClose, onSuccess, promoData }) => {
             // Untuk bundling, pastikan bundleProducts adalah array
             if (promoData.promoType === "bundling" && promoData.conditions?.bundleProducts) {
                 normalizedConditions.bundleProducts = Array.isArray(promoData.conditions.bundleProducts)
-                    ? promoData.conditions.bundleProducts
+                    ? promoData.conditions.bundleProducts.map(bp => {
+                        // Extract product ID dari object atau string
+                        let productId = bp.product;
+                        if (typeof bp.product === 'object' && bp.product?._id) {
+                            productId = bp.product._id;
+                        }
+
+                        return {
+                            product: productId,
+                            quantity: bp.quantity || 1,
+                            discountType: bp.discountType || "fixed",
+                            discountValue: bp.discountValue || 0,
+                        };
+                    })
                     : [];
             }
 

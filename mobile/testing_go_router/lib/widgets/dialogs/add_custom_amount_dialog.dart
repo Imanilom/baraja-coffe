@@ -147,6 +147,8 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
 
   Widget _buildNameSection() {
     return _SectionCard(
+      padding: const EdgeInsets.all(8),
+      margin: const EdgeInsets.only(right: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 8,
@@ -208,6 +210,8 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
 
   Widget _buildAmountSection() {
     return _SectionCard(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.all(12),
       child: Column(
         spacing: 8,
         children: [
@@ -734,7 +738,11 @@ class _SectionCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
 
-  const _SectionCard({required this.child, this.padding, this.margin});
+  const _SectionCard({
+    required this.child,
+    required this.padding,
+    required this.margin,
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaChevronLeft, FaChevronRight, FaPencilAlt, FaReceipt, FaTrashAlt } from "react-icons/fa";
 import Select from "react-select";
 import CategoryTabs from "./filters/categorytabs";
@@ -43,15 +43,50 @@ export default function MenuTable({
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [newStatus, setNewStatus] = useState(null);
     const [selectedMenu, setSelectedMenu] = useState(null);
+    const [recipes, setRecipes] = useState([]);
+    const [loadingRecipes, setLoadingRecipes] = useState(true);
+
+    // Fetch recipes data
+    useEffect(() => {
+        const fetchRecipes = async () => {
+            try {
+                setLoadingRecipes(true);
+                const response = await axios.get('/api/product/recipes');
+
+                // Pastikan data yang disimpan adalah array
+                if (Array.isArray(response.data)) {
+                    setRecipes(response.data);
+                } else if (response.data && Array.isArray(response.data.data)) {
+                    setRecipes(response.data.data);
+                } else {
+                    console.warn("Recipe data is not an array:", response.data);
+                    setRecipes([]);
+                }
+            } catch (error) {
+                console.error("Error fetching recipes:", error);
+                setRecipes([]);
+            } finally {
+                setLoadingRecipes(false);
+            }
+        };
+
+        fetchRecipes();
+    }, []);
+
+    // Function to check if menu has recipe
+    const hasRecipe = (menuId) => {
+        // Pastikan recipes adalah array sebelum menggunakan .some()
+        if (!Array.isArray(recipes)) {
+            return false;
+        }
+        return recipes.some(recipe => recipe.menuItemId?._id === menuId);
+    };
 
     const handleUpdate = async (itemId, newStatus) => {
         try {
             setTimeout(async () => {
                 try {
                     await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
-                    // navigate("/admin/menu", {
-                    //     state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
-                    // });
                     navigate(window.location.pathname === "/admin/menu" ? "/admin/menu" : "/admin/event", {
                         state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
                     });
@@ -85,7 +120,7 @@ export default function MenuTable({
         return pages;
     };
 
-    if (loading) return <MenuSkeleton />;
+    if (loading || loadingRecipes) return <MenuSkeleton />;
 
     return (
         <>
@@ -158,6 +193,19 @@ export default function MenuTable({
 
             {/* Menu Table */}
             <div className="w-full px-6">
+                {/* Keterangan Status Resep */}
+                <div className="mb-3 flex items-center gap-4 text-sm">
+                    <span className="text-gray-600 font-medium">Keterangan:</span>
+                    <div className="flex items-center gap-2">
+                        <FaReceipt className="text-green-600" size={14} />
+                        <span className="text-gray-600">Sudah ada resep</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <FaReceipt className="text-yellow-500" size={14} />
+                        <span className="text-gray-600">Belum ada resep</span>
+                    </div>
+                </div>
+
                 <div className="overflow-auto border rounded-lg bg-white">
                     <table className="w-full table-auto text-gray-500">
                         <thead>
@@ -253,7 +301,6 @@ export default function MenuTable({
                                                     <input
                                                         type="checkbox"
                                                         checked={item.isActive}
-                                                        // onChange={() => handleUpdate(item.id, item.isActive)}
                                                         onChange={() => {
                                                             setSelectedMenu(item);
                                                             setNewStatus(!item.isActive);
@@ -277,17 +324,26 @@ export default function MenuTable({
                                         {/* Actions */}
                                         <td className="py-2 w-1/6">
                                             <div className="flex items-center justify-end space-x-3">
-                                                {/* Resep */}
-                                                <Link
-                                                    to={`/admin/menu-receipt/${item.id}`}
-                                                    className="p-2 rounded-md hover:bg-gray-100 text-gray-600"
-                                                    title="Kelola Resep"
-                                                >
-                                                    <FaReceipt size={16} />
-                                                </Link>
+                                                {/* Resep - dengan status warna */}
+                                                {hasRecipe(item.id) ? (
+                                                    <Link
+                                                        to={`/admin/menu-receipt/${item.id}`}
+                                                        className="p-2 rounded-md hover:bg-gray-100 text-green-600"
+                                                        title="Resep Tersedia - Klik untuk kelola"
+                                                    >
+                                                        <FaReceipt size={16} />
+                                                    </Link>
+                                                ) : (
+                                                    <Link
+                                                        to={`/admin/menu-receipt/${item.id}`}
+                                                        className="p-2 rounded-md hover:bg-gray-100 text-yellow-500"
+                                                        title="Belum Ada Resep - Klik untuk tambah"
+                                                    >
+                                                        <FaReceipt size={16} />
+                                                    </Link>
+                                                )}
 
                                                 {/* Edit */}
-
                                                 {location.pathname === '/admin/menu' ? (
                                                     <Link
                                                         to={`/admin/menu-update/${item.id}`}
@@ -324,29 +380,6 @@ export default function MenuTable({
                     </table>
                 </div>
             </div>
-
-            {/* Pagination Controls */}
-            {/* {totalPages > 1 && (
-                <div className="flex px-6 justify-between items-center mt-4 text-sm text-white">
-                    <button
-                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                        disabled={currentPage === 1}
-                        className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
-                    >
-                        <FaChevronLeft /> Sebelumnya
-                    </button>
-
-                    <div className="flex gap-2">{renderPageNumbers()}</div>
-
-                    <button
-                        onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                        className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
-                    >
-                        Selanjutnya <FaChevronRight />
-                    </button>
-                </div>
-            )} */}
 
             <div className="px-6">
                 <Paginated

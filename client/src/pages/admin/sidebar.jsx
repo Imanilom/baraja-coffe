@@ -108,6 +108,16 @@ const Sidebar = ({ isSidebarOpen }) => {
     }));
   };
 
+  // Helper function untuk cek apakah route exact match
+  const isExactMatch = (path) => {
+    return activeRoute === path;
+  };
+
+  // Helper function untuk cek apakah ada submenu yang active
+  const hasActiveSubmenu = (subMenuItems) => {
+    return subMenuItems?.some((sub) => activeRoute === sub.path);
+  };
+
   if (loading) {
     return (
       <div className={`h-screen bg-green-900 text-white fixed top-0 left-0 flex items-center justify-center transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-72" : "w-16"}`}>
@@ -138,11 +148,14 @@ const Sidebar = ({ isSidebarOpen }) => {
               {/* Items */}
               <ul className="space-y-1">
                 {section.items.map((item, index) => {
-                  const hasActiveSubRoute = item.subMenu?.some((sub) =>
-                    activeRoute.startsWith(sub.path)
-                  );
+                  // Cek apakah ada submenu yang active
+                  const hasActiveSubRoute = hasActiveSubmenu(item.subMenu);
                   const isSubMenuOpen = openMenus[item.name] ?? hasActiveSubRoute;
-                  const isActive = activeRoute.startsWith(item.path);
+
+                  // Untuk parent menu, hanya aktif jika exact match atau punya submenu yang active
+                  const isActive = item.subMenu
+                    ? hasActiveSubRoute // Parent hanya aktif jika ada submenu yang active
+                    : isExactMatch(item.path); // Menu biasa hanya aktif jika exact match
 
                   return (
                     <li key={index}>
@@ -153,7 +166,7 @@ const Sidebar = ({ isSidebarOpen }) => {
                             type="button"
                             onClick={() => toggleMenu(item.name)}
                             className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg font-medium transition
-                            ${isSubMenuOpen
+                            ${isActive
                                 ? "bg-green-100 text-green-900 font-semibold"
                                 : "text-white hover:bg-green-50 hover:text-green-900"
                               }`}
@@ -187,9 +200,8 @@ const Sidebar = ({ isSidebarOpen }) => {
                           {isSubMenuOpen && isSidebarOpen && (
                             <ul className="ml-3 border-l border-gray-200 space-y-1">
                               {item.subMenu.map((subItem, subIndex) => {
-                                const isSubActive = activeRoute.startsWith(
-                                  subItem.path
-                                );
+                                // Submenu hanya aktif jika exact match
+                                const isSubActive = isExactMatch(subItem.path);
                                 return (
                                   <li key={subIndex}>
                                     <Link
