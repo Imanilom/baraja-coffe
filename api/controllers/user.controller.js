@@ -109,6 +109,55 @@ export const updateUser = async (req, res, next) => {
   }
 };
 
+// Update user status (isActive)
+export const updateUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    // Validasi input
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isActive harus berupa boolean (true/false)'
+      });
+    }
+
+    // Cari dan update user
+    const user = await User.findByIdAndUpdate(
+      id,
+      { isActive: isActive },
+      {
+        new: true, // Return dokumen yang sudah diupdate
+        runValidators: true // Jalankan validasi schema
+      }
+    ).select('-password'); // Jangan return password
+
+    // Jika user tidak ditemukan
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Sukses
+    res.status(200).json({
+      success: true,
+      message: `User berhasil ${isActive ? 'diaktifkan' : 'dinonaktifkan'}`,
+      data: user
+    });
+
+  } catch (error) {
+    console.error('Error updating user status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengupdate status user',
+      error: error.message
+    });
+  }
+};
+
 // Delete User
 export const deleteUser = async (req, res, next) => {
   try {
@@ -470,7 +519,6 @@ export const getUserAuthType = async (req, res) => {
 export const createEmployee = async (req, res, next) => {
   try {
     const {
-      name,
       username,
       email,
       phone,
@@ -481,7 +529,7 @@ export const createEmployee = async (req, res, next) => {
     } = req.body;
 
     // Validasi wajib
-    if (!name || !username || !email || !role) {
+    if (!username || !email || !role) {
       return next(errorHandler(400, 'Name, username, email dan role wajib diisi'));
     }
 
@@ -500,7 +548,6 @@ export const createEmployee = async (req, res, next) => {
 
     // Buat user baru
     const newUser = new User({
-      name,
       username,
       email,
       phone,
