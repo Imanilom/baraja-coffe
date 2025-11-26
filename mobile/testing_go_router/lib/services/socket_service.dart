@@ -1,13 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/models/device.model.dart';
-import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/notification_service.dart';
-import 'package:kasirbaraja/services/order_history_service.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 // import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';

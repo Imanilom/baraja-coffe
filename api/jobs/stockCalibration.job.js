@@ -132,7 +132,7 @@ export const calibrateAllMenuStocks = async () => {
  */
 export const calibrateSingleMenuStock = async (menuItemId) => {
   return await retryWithBackoff(async () => {
-    // ✅ CRITICAL: Baca MenuItem dengan version
+    // ✅ Baca MenuItem dengan version
     const menuItem = await MenuItem.findById(menuItemId);
     if (!menuItem) {
       throw new Error('Menu item tidak ditemukan');
@@ -150,36 +150,87 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
       }
     }
 
-    // ✅ CRITICAL: Baca MenuStock dengan version
+    // ✅ Baca MenuStock dengan version
     let menuStock = await MenuStock.findOne({ menuItemId: menuItem._id });
     const menuStockVersion = menuStock?.__v;
 
     let manualStockReset = false;
     let previousManualStock = null;
 
+    // ✅ Hitung effective stock DULU sebelum cek skip
+    const effectiveStock = menuStock?.manualStock !== null && menuStock?.manualStock !== undefined
+      ? menuStock.manualStock
+      : calculatedStock;
+
+    // ✅ SELALU validasi & sync status aktivasi berdasarkan stok aktual
+    let statusChange = null;
+    const previousStatus = menuItem.isActive;
+
+    if (effectiveStock > 0 && !menuItem.isActive) {
+      menuItem.isActive = true;
+      statusChange = 'activated';
+      console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
+    } else if (effectiveStock <= 0 && menuItem.isActive) {
+      menuItem.isActive = false;
+      statusChange = 'deactivated';
+      console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
+    }
+
+    // Update availableStock
+    menuItem.availableStock = effectiveStock;
+
+    // ✅ CEK: Skip kalibrasi DETAIL jika manual adjustment baru, TAPI tetap update status
+    if (menuStock?.manualStock !== null &&
+      menuStock?.manualStock !== undefined &&
+      menuStock?.lastAdjustedAt) {
+
+      const manualUpdateAge = Date.now() - new Date(menuStock.lastAdjustedAt).getTime();
+
+      // Jika manual adjustment dalam 5 menit terakhir, skip kalibrasi detail
+      if (manualUpdateAge < 5 * 60 * 1000) {
+        console.log(`⏭️ Skip kalibrasi detail ${menuItem.name} - manual adjustment baru (${Math.round(manualUpdateAge / 1000)}s ago)`);
+
+        // ✅ TAPI tetap update MenuItem untuk sync status aktivasi
+        const menuItemUpdateResult = await MenuItem.findOneAndUpdate(
+          {
+            _id: menuItem._id,
+            __v: menuItemVersion
+          },
+          {
+            $set: {
+              availableStock: effectiveStock,
+              isActive: menuItem.isActive
+            },
+            $inc: { __v: 1 }
+          },
+          { new: true }
+        );
+
+        if (!menuItemUpdateResult) {
+          throw new Error('Version conflict: MenuItem was modified during status sync');
+        }
+
+        return {
+          success: true,
+          menuItemId: menuItem._id.toString(),
+          menuItemName: menuItem.name,
+          skipped: true,
+          reason: 'recent_manual_adjustment',
+          calculatedStock,
+          manualStock: menuStock.manualStock,
+          effectiveStock,
+          previousStatus,
+          currentStatus: menuItemUpdateResult.isActive,
+          statusChange,
+          statusSynced: true, // ✅ Status tetap di-sync
+          timestamp: new Date()
+        };
+      }
+    }
+
+    // ✅ Lanjutkan kalibrasi penuh jika tidak di-skip
     if (menuStock) {
       const previousStock = menuStock.currentStock;
-
-      // ✅ CEK: Jika manualStock baru saja diubah (version berbeda), SKIP update
-      if (menuStock.manualStock !== null &&
-        menuStock.manualStock !== undefined &&
-        menuStock.lastAdjustedAt) {
-
-        const manualUpdateAge = Date.now() - new Date(menuStock.lastAdjustedAt).getTime();
-
-        // Jika manual adjustment dalam 5 menit terakhir, SKIP kalkulasi otomatis
-        if (manualUpdateAge < 5 * 60 * 1000) {
-          console.log(`⏭️ Skip kalibrasi ${menuItem.name} - manual adjustment baru (${Math.round(manualUpdateAge / 1000)}s ago)`);
-          return {
-            success: true,
-            menuItemId: menuItem._id.toString(),
-            menuItemName: menuItem.name,
-            skipped: true,
-            reason: 'recent_manual_adjustment',
-            timestamp: new Date()
-          };
-        }
-      }
 
       // Reset manual stock yang minus
       if (menuStock.manualStock !== null &&
@@ -191,8 +242,7 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
         console.log(`🔄 Reset manual stock ${menuItem.name}: ${previousManualStock} → 0`);
       }
 
-      // ✅ OPTIMISTIC LOCKING: Update hanya jika version match
-      // Hanya update calculatedStock jika tidak ada manualStock
+      // Update hanya calculatedStock jika tidak ada manualStock
       if (menuStock.manualStock === null || menuStock.manualStock === undefined) {
         menuStock.calculatedStock = calculatedStock;
         menuStock.currentStock = calculatedStock;
@@ -204,11 +254,11 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
 
       menuStock.lastCalculatedAt = new Date();
 
-      // ✅ CRITICAL: Save dengan version check
+      // ✅ Save MenuStock dengan version check
       const updateResult = await MenuStock.findOneAndUpdate(
         {
           _id: menuStock._id,
-          __v: menuStockVersion  // ✅ Version check
+          __v: menuStockVersion
         },
         {
           $set: {
@@ -218,7 +268,7 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
             manualStock: menuStock.manualStock,
             lastCalculatedAt: menuStock.lastCalculatedAt
           },
-          $inc: { __v: 1 }  // ✅ Increment version
+          $inc: { __v: 1 }
         },
         { new: true }
       );
@@ -247,55 +297,18 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
       });
     }
 
-    // Hitung effective stock
-    const effectiveStock = menuStock.manualStock !== null ? menuStock.manualStock : menuStock.calculatedStock;
-
-    // Auto activate/deactivate berdasarkan stok
-    let statusChange = null;
-    const previousStatus = menuItem.isActive;
-
-    if (menuStock.manualStock !== null && menuStock.manualStock !== undefined) {
-      if (menuStock.manualStock < 1) {
-        if (menuItem.isActive) {
-          menuItem.isActive = false;
-          statusChange = 'deactivated';
-          console.log(`🔴 Nonaktifkan ${menuItem.name} - stok manual di bawah 1 (${menuStock.manualStock})`);
-        }
-      } else {
-        if (!menuItem.isActive) {
-          menuItem.isActive = true;
-          statusChange = 'activated';
-          console.log(`🟢 Aktifkan ${menuItem.name} - stok manual mencukupi (${menuStock.manualStock})`);
-        }
-      }
-    } else {
-      if (effectiveStock <= 0) {
-        if (menuItem.isActive) {
-          menuItem.isActive = false;
-          statusChange = 'deactivated';
-          console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
-        }
-      } else {
-        if (!menuItem.isActive) {
-          menuItem.isActive = true;
-          statusChange = 'activated';
-          console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
-        }
-      }
-    }
-
-    // ✅ OPTIMISTIC LOCKING: Update MenuItem dengan version check
+    // ✅ Update MenuItem dengan version check
     const menuItemUpdateResult = await MenuItem.findOneAndUpdate(
       {
         _id: menuItem._id,
-        __v: menuItemVersion  // ✅ Version check
+        __v: menuItemVersion
       },
       {
         $set: {
           availableStock: effectiveStock,
           isActive: menuItem.isActive
         },
-        $inc: { __v: 1 }  // ✅ Increment version
+        $inc: { __v: 1 }
       },
       { new: true }
     );

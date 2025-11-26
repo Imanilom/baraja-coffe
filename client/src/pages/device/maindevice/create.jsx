@@ -7,41 +7,43 @@ export default function DeviceCreateForm() {
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db', // Tailwind border-gray-300
+            borderColor: '#d1d5db',
             minHeight: '34px',
             fontSize: '13px',
-            color: '#6b7280', // text-gray-500
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
             '&:hover': {
-                borderColor: '#9ca3af', // Tailwind border-gray-400
+                borderColor: '#9ca3af',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-gray-500
+            color: '#6b7280',
         }),
         input: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-gray-500 for typed text
+            color: '#6b7280',
         }),
         placeholder: (provided) => ({
             ...provided,
-            color: '#9ca3af', // text-gray-400
+            color: '#9ca3af',
             fontSize: '13px',
         }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151', // gray-700
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
             cursor: 'pointer',
         }),
     };
+
     const [formData, setFormData] = useState({
         deviceId: '',
         outlet: '',
         deviceName: '',
         deviceType: 'tablet',
+        // parentDevice: '',
         location: '',
         assignedAreas: [],
         assignedTables: [],
@@ -52,7 +54,9 @@ export default function DeviceCreateForm() {
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [areas, setAreas] = useState([]);
     const [outlets, setOutlets] = useState([]);
+    const [devices, setDevices] = useState([]);
     const [loadingAreas, setLoadingAreas] = useState(false);
+    const [loadingDevices, setLoadingDevices] = useState(false);
     const [loading, setLoading] = useState(false);
     const [response, setResponse] = useState(null);
 
@@ -69,10 +73,10 @@ export default function DeviceCreateForm() {
         { value: 'both', label: 'Both', icon: null }
     ];
 
-    // Fetch areas from API
     useEffect(() => {
         fetchAreas();
         fetchOutlets();
+        fetchDevices();
     }, []);
 
     const fetchOutlets = async () => {
@@ -87,23 +91,39 @@ export default function DeviceCreateForm() {
                     : [];
 
             setOutlets(outletsData);
-            setError(null);
         } catch (err) {
             console.error("Error fetching outlets:", err);
-            setError("Failed to load outlets. Please try again later.");
             setOutlets([]);
         } finally {
             setLoading(false);
         }
     };
 
+    const fetchDevices = async () => {
+        setLoadingDevices(true);
+        try {
+            const response = await axios.get('/api/devices');
+
+            const devicesData = Array.isArray(response.data)
+                ? response.data
+                : (response.data && Array.isArray(response.data.data))
+                    ? response.data.data
+                    : [];
+
+            setDevices(devicesData);
+        } catch (err) {
+            console.error("Error fetching devices:", err);
+            setDevices([]);
+        } finally {
+            setLoadingDevices(false);
+        }
+    };
+
     const fetchAreas = async () => {
         setLoadingAreas(true);
         try {
-            // Simulasi API call
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            // Mock data sesuai struktur API
             const areaResponse = await axios.get("/api/areas");
             const areaData = areaResponse.data.data || [];
 
@@ -120,6 +140,14 @@ export default function DeviceCreateForm() {
         ...outlets.map((outlet) => ({
             value: outlet._id,
             label: outlet.name,
+        })),
+    ];
+
+    const deviceOptions = [
+        { value: "", label: "Tidak Ada (Device Utama)" },
+        ...devices.map((device) => ({
+            value: device._id,
+            label: `${device.deviceName} (${device.deviceId})`,
         })),
     ];
 
@@ -144,7 +172,6 @@ export default function DeviceCreateForm() {
         setFormData(prev => {
             const isSelected = prev.assignedAreas.includes(areaCode);
             if (isSelected) {
-                // Remove area and all its tables
                 const area = areas.find(a => a.area_code === areaCode);
                 const tablesToRemove = area?.tables.map(t => t.table_number) || [];
                 return {
@@ -170,7 +197,6 @@ export default function DeviceCreateForm() {
                     assignedTables: prev.assignedTables.filter(t => t !== tableNumber)
                 };
             } else {
-                // Auto-select area if not selected
                 const newAreas = prev.assignedAreas.includes(areaCode)
                     ? prev.assignedAreas
                     : [...prev.assignedAreas, areaCode];
@@ -192,13 +218,11 @@ export default function DeviceCreateForm() {
 
         setFormData(prev => {
             if (allSelected) {
-                // Deselect all tables in this area
                 return {
                     ...prev,
                     assignedTables: prev.assignedTables.filter(t => !allTableNumbers.includes(t))
                 };
             } else {
-                // Select all tables in this area
                 const newTables = [...prev.assignedTables];
                 allTableNumbers.forEach(tn => {
                     if (!newTables.includes(tn)) {
@@ -215,8 +239,6 @@ export default function DeviceCreateForm() {
             }
         });
     };
-
-    console.log(formData)
 
     const handleSubmit = async () => {
         if (!formData.deviceId || !tempSelectedOutlet || !formData.deviceName || !formData.location) {
@@ -235,6 +257,7 @@ export default function DeviceCreateForm() {
                 deviceId: formData.deviceId,
                 outlet: tempSelectedOutlet,
                 deviceName: formData.deviceName,
+                // parentDevice: formData.parentDevice,
                 deviceType: formData.deviceType,
                 location: formData.location,
                 assignedAreas: formData.assignedAreas,
@@ -243,44 +266,34 @@ export default function DeviceCreateForm() {
                 notes: formData.notes
             };
 
-            // ✅ LOG PAYLOAD SEBELUM DIKIRIM
             console.log('📤 Sending payload:', payload);
-            console.log('📤 Payload stringified:', JSON.stringify(payload, null, 2));
 
             const response = await axios.post("/api/devices", payload);
 
-            // ✅ LOG RESPONSE
-            console.log('✅ Response status:', response.status);
-            console.log('✅ Response data:', response.data);
-
-            // ❌ KESALAHAN: axios tidak punya property `ok`, itu property fetch()
-            // axios melempar error otomatis jika status >= 400
+            console.log('✅ Response:', response.data);
 
             setResponse({
                 success: true,
-                message: response.data.message || 'Device berhasil didaftarkan', // ← GANTI dari `result` ke `response.data`
-                data: response.data.data // ← GANTI dari `result` ke `response.data`
+                message: response.data.message || 'Device berhasil didaftarkan',
+                data: response.data.data
             });
 
-            // Reset form on success
             setFormData({
                 deviceId: '',
                 outlet: '',
                 deviceName: '',
                 deviceType: 'tablet',
+                // parentDevice: '',
                 location: '',
                 assignedAreas: [],
                 assignedTables: [],
                 orderTypes: ['both'],
                 notes: ''
             });
+            setTempSelectedOutlet("");
 
         } catch (error) {
-            // ✅ LOG ERROR LENGKAP
-            console.error('❌ Error object:', error);
-            console.error('❌ Error response:', error.response);
-            console.error('❌ Error response data:', error.response?.data);
-            console.error('❌ Error message:', error.message);
+            console.error('❌ Error:', error);
 
             setResponse({
                 success: false,
@@ -292,31 +305,10 @@ export default function DeviceCreateForm() {
         }
     };
 
-    // const response = await fetch('/api/devices', {
-    //     method: 'POST',
-    //     headers: {
-    //         'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify({
-    //         deviceId: formData.deviceId,
-    //         outlet: tempSelectedOutlet,
-    //         deviceName: formData.deviceName,
-    //         deviceType: formData.deviceType,
-    //         location: formData.location,
-    //         assignedAreas: formData.assignedAreas,
-    //         assignedTables: formData.assignedTables,
-    //         orderTypes: formData.orderTypes,
-    //         notes: formData.notes
-    //     })
-    // });
-
-    // const result = await response.json();
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-4 md:p-8">
             <div className="max-w-5xl mx-auto">
                 <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
-                    {/* Header */}
                     <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-6 md:p-8">
                         <div className="flex items-center gap-4">
                             <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
@@ -333,7 +325,6 @@ export default function DeviceCreateForm() {
                         </div>
                     </div>
 
-                    {/* Response Alert */}
                     {response && (
                         <div className={`mx-6 mt-6 p-4 rounded-xl border-2 ${response.success
                             ? 'bg-green-50 border-green-200'
@@ -346,8 +337,7 @@ export default function DeviceCreateForm() {
                                     <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                                 )}
                                 <div className="flex-1">
-                                    <p className={`font-semibold ${response.success ? 'text-green-900' : 'text-red-900'
-                                        }`}>
+                                    <p className={`font-semibold ${response.success ? 'text-green-900' : 'text-red-900'}`}>
                                         {response.message}
                                     </p>
                                     {response.data && (
@@ -360,9 +350,7 @@ export default function DeviceCreateForm() {
                         </div>
                     )}
 
-                    {/* Form */}
                     <div className="p-6 md:p-8 space-y-6">
-                        {/* Device ID & Name */}
                         <div className="grid md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -393,7 +381,28 @@ export default function DeviceCreateForm() {
                             </div>
                         </div>
 
-                        {/* Outlet & Location */}
+                        {/* <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Parent Device (Opsional)
+                            </label>
+                            <Select
+                                className="text-sm"
+                                classNamePrefix="react-select"
+                                placeholder="Pilih Parent Device"
+                                options={deviceOptions}
+                                isSearchable
+                                isLoading={loadingDevices}
+                                value={
+                                    deviceOptions.find((opt) => opt.value === formData.parentDevice) || deviceOptions[0]
+                                }
+                                onChange={(selected) => setFormData(prev => ({ ...prev, parentDevice: selected.value }))}
+                                styles={customSelectStyles}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                                Pilih device induk jika ini adalah device slave/child
+                            </p>
+                        </div> */}
+
                         <div className="grid md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -429,7 +438,6 @@ export default function DeviceCreateForm() {
                             </div>
                         </div>
 
-                        {/* Device Type Selection */}
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-3">
                                 Tipe Device <span className="text-red-500">*</span>
@@ -451,10 +459,8 @@ export default function DeviceCreateForm() {
                                             onChange={handleChange}
                                             className="sr-only"
                                         />
-                                        <Icon className={`w-6 h-6 mb-2 ${formData.deviceType === value ? 'text-blue-600' : 'text-gray-400'
-                                            }`} />
-                                        <span className={`text-sm font-medium ${formData.deviceType === value ? 'text-blue-700' : 'text-gray-600'
-                                            }`}>
+                                        <Icon className={`w-6 h-6 mb-2 ${formData.deviceType === value ? 'text-blue-600' : 'text-gray-400'}`} />
+                                        <span className={`text-sm font-medium ${formData.deviceType === value ? 'text-blue-700' : 'text-gray-600'}`}>
                                             {label}
                                         </span>
                                     </label>
@@ -462,7 +468,6 @@ export default function DeviceCreateForm() {
                             </div>
                         </div>
 
-                        {/* Order Types */}
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-3">
                                 Tipe Pesanan yang Ditangani
@@ -489,7 +494,6 @@ export default function DeviceCreateForm() {
                             </div>
                         </div>
 
-                        {/* Areas & Tables Selection */}
                         <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl p-6 border-2 border-slate-200">
                             <div className="flex items-center justify-between mb-4">
                                 <label className="text-sm font-semibold text-gray-700">
@@ -530,7 +534,6 @@ export default function DeviceCreateForm() {
                                                     : 'border-gray-200 bg-white'
                                                     }`}
                                             >
-                                                {/* Area Header */}
                                                 <div className="p-4 bg-gradient-to-r from-slate-50 to-slate-100 border-b">
                                                     <div className="flex items-center justify-between">
                                                         <label className="flex items-center gap-3 cursor-pointer flex-1">
@@ -570,7 +573,6 @@ export default function DeviceCreateForm() {
                                                     </div>
                                                 </div>
 
-                                                {/* Tables Grid */}
                                                 {area.tables && area.tables.length > 0 && (
                                                     <div className="p-4">
                                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
@@ -591,12 +593,10 @@ export default function DeviceCreateForm() {
                                                                             className="w-4 h-4 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
                                                                         />
                                                                         <div className="flex-1 min-w-0">
-                                                                            <div className={`text-sm font-bold truncate ${isTableSelected ? 'text-green-700' : 'text-gray-700'
-                                                                                }`}>
+                                                                            <div className={`text-sm font-bold truncate ${isTableSelected ? 'text-green-700' : 'text-gray-700'}`}>
                                                                                 {table.table_number}
                                                                             </div>
-                                                                            <div className={`text-xs ${isTableSelected ? 'text-green-600' : 'text-gray-500'
-                                                                                }`}>
+                                                                            <div className={`text-xs ${isTableSelected ? 'text-green-600' : 'text-gray-500'}`}>
                                                                                 {table.seats} org
                                                                             </div>
                                                                         </div>
@@ -612,7 +612,6 @@ export default function DeviceCreateForm() {
                                 </div>
                             )}
 
-                            {/* Summary */}
                             {(formData.assignedAreas.length > 0 || formData.assignedTables.length > 0) && (
                                 <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                     <div className="text-sm font-semibold text-blue-900 mb-2">Summary:</div>
@@ -625,7 +624,6 @@ export default function DeviceCreateForm() {
                             )}
                         </div>
 
-                        {/* Notes */}
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Catatan (Opsional)
@@ -640,7 +638,6 @@ export default function DeviceCreateForm() {
                             />
                         </div>
 
-                        {/* Submit Button */}
                         <div className="pt-4">
                             <button
                                 type="button"
@@ -661,7 +658,6 @@ export default function DeviceCreateForm() {
                     </div>
                 </div>
 
-                {/* Info Panel */}
                 <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -669,6 +665,7 @@ export default function DeviceCreateForm() {
                             <p className="font-semibold mb-1">Informasi Penting:</p>
                             <ul className="space-y-1 list-disc list-inside">
                                 <li>Device ID harus unik untuk setiap outlet</li>
+                                {/* <li>Parent Device digunakan untuk hierarchi device (opsional)</li> */}
                                 <li>Pilih area akan otomatis menampilkan daftar meja di area tersebut</li>
                                 <li>Pilih meja otomatis akan memilih area nya juga</li>
                                 <li>Device akan aktif secara default setelah registrasi</li>

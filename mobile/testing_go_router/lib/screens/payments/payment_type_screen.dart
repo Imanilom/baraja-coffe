@@ -4,15 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/payment_status.dart';
 import 'package:kasirbaraja/helper/payment_helper.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
+import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
-import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
+import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 
@@ -1054,6 +1054,28 @@ class PaymentMethodScreen extends ConsumerWidget {
       if (success && context.mounted) {
         final choosePaymentType = ref.watch(choosePaymentTypesProvider);
         print('choosePaymentType: $choosePaymentType');
+
+        // 🔹 Ambil order terbaru dari provider (sudah berisi items + payment)
+        final finalOrder = ref.read(orderDetailProvider);
+
+        // 🔹 Hanya kurangi stok jika BUKAN Down Payment (artinya transaksi benar2 keluar stok)
+        if (choosePaymentType != PaymentTypes.downPayment &&
+            finalOrder != null) {
+          try {
+            final menuRepo = MenuItemRepository();
+
+            // Kurangi stok di Hive sesuai qty yang dibeli
+            await menuRepo.decreaseLocalStockFromOrderItems(finalOrder.items);
+
+            // Refresh data menu di kasir supaya badge stok langsung update
+            ref.invalidate(reservationMenuItemProvider);
+
+            debugPrint('✅ Stok lokal berhasil dikurangi setelah transaksi');
+          } catch (e) {
+            debugPrint('⚠️ Gagal mengurangi stok lokal: $e');
+          }
+        }
+
         if (choosePaymentType != PaymentTypes.downPayment) {
           ref.invalidate(orderHistoryProvider);
           final savedPrinter = ref.read(savedPrintersProvider.notifier);
@@ -1061,17 +1083,19 @@ class PaymentMethodScreen extends ConsumerWidget {
         } else {
           ref.invalidate(pendingOrderProvider);
         }
-        context.goNamed(
-          'payment-success',
-          extra: {
-            'orderDetail': orderDetail,
-            'payment_method': paymentMethodName,
-            'amount': amountNow,
-            'change': change,
-            'outstanding': outstanding,
-            'is_down_payment': isDP,
-          },
-        );
+        if (context.mounted) {
+          context.goNamed(
+            'payment-success',
+            extra: {
+              'orderDetail': orderDetail,
+              'payment_method': paymentMethodName,
+              'amount': amountNow,
+              'change': change,
+              'outstanding': outstanding,
+              'is_down_payment': isDP,
+            },
+          );
+        }
       } else if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

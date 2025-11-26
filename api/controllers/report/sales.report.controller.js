@@ -38,9 +38,16 @@ class DailyProfitController {
         filter.outlet = outletId;
       }
 
-      // Get all orders for the date
+      // Get all orders for the date - modified populate to handle deleted menu items
       const orders = await Order.find(filter)
-        .populate('items.menuItem')
+        .populate({
+          path: 'items.menuItem',
+          model: 'MenuItem',
+          // Just get the name and price, don't fail if menuItem is deleted
+          select: 'name price isActive',
+          // This ensures that even if menuItem is deleted, the order won't fail
+          options: { allowNull: true }
+        })
         .lean();
 
       // Get all successful payments for these orders
@@ -92,9 +99,41 @@ class DailyProfitController {
           totalNetProfit += orderNetProfit;
           totalOrders++;
 
-          // Count items sold
+          // Count items sold and handle deleted menu items
           const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
           totalItemsSold += itemsCount;
+
+          // Process items with handling for deleted menu items
+          const processedItems = order.items.map(item => {
+            const menuItem = item.menuItem;
+            
+            // If menuItem is null or deleted, create a fallback object
+            if (!menuItem) {
+              return {
+                menuItem: {
+                  _id: null,
+                  name: 'Menu Item Deleted',
+                  price: item.price || 0,
+                  isActive: false
+                },
+                quantity: item.quantity,
+                price: item.price || 0,
+                notes: item.notes
+              };
+            }
+
+            return {
+              menuItem: {
+                _id: menuItem._id,
+                name: menuItem.name || 'Unknown Menu Item',
+                price: menuItem.price || item.price || 0,
+                isActive: menuItem.isActive !== false // Default to true if not specified
+              },
+              quantity: item.quantity,
+              price: item.price || menuItem.price || 0,
+              notes: item.notes
+            };
+          });
 
           orderDetails.push({
             order_id: order.order_id,
@@ -109,6 +148,7 @@ class DailyProfitController {
             netProfit: orderNetProfit,
             itemsCount: itemsCount,
             status: order.status,
+            items: processedItems, // Include processed items in response
             payments: orderPayments.map(p => ({
               method: p.method,
               amount: p.amount,
@@ -201,7 +241,16 @@ class DailyProfitController {
         filter.outlet = outletId;
       }
 
-      const orders = await Order.find(filter).lean();
+      // Modified to handle deleted menu items
+      const orders = await Order.find(filter)
+        .populate({
+          path: 'items.menuItem',
+          model: 'MenuItem',
+          select: 'name price isActive',
+          options: { allowNull: true }
+        })
+        .lean();
+
       const orderIds = orders.map(order => order.order_id);
       
       const payments = await Payment.find({
@@ -247,6 +296,7 @@ class DailyProfitController {
           dailyProfits[orderDate].totalNetProfit += orderNetProfit;
           dailyProfits[orderDate].totalOrders += 1;
           
+          // Count items - this will work even if menuItems are deleted
           const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
           dailyProfits[orderDate].totalItemsSold += itemsCount;
         }
@@ -307,15 +357,31 @@ class DailyProfitController {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - parseInt(days));
 
-      // Get daily profits for the period
-      req.query.startDate = startDate.toISOString().split('T')[0];
-      req.query.endDate = endDate.toISOString().split('T')[0];
-      if (outletId) req.query.outletId = outletId;
+      // Format dates for the query
+      const formattedStartDate = startDate.toISOString().split('T')[0];
+      const formattedEndDate = endDate.toISOString().split('T')[0];
 
-      const rangeResult = await this.getDailyProfitRange(req, res);
+      // Create mock request object for getDailyProfitRange
+      const mockReq = {
+        query: {
+          startDate: formattedStartDate,
+          endDate: formattedEndDate,
+          outletId: outletId
+        }
+      };
+
+      const mockRes = {
+        json: (data) => data,
+        status: () => mockRes
+      };
+
+      // Call getDailyProfitRange directly
+      const rangeResult = await this.getDailyProfitRange(mockReq, mockRes);
       
-      // If there was an error in getDailyProfitRange, it will be handled there
-      if (!rangeResult) return;
+      res.json({
+        success: true,
+        data: rangeResult
+      });
 
     } catch (error) {
       console.error('Error in getProfitDashboard:', error);

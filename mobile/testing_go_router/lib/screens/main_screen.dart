@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
+import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
@@ -85,6 +86,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
     final box = Hive.box('userBox');
     final cashier = box.get('cashier') as CashierModel;
+    final device = box.get('device') as DeviceModel;
 
     if (orderOnlineIndicator) {
       ScaffoldMessenger.of(
@@ -148,7 +150,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                       SizedBox(height: 8),
                       // Cashier Name
                       Text(
-                        '${cashier.username}', // Ganti dengan data kasir actual
+                        '${cashier.username} - ${device.deviceName}', // Ganti dengan data kasir actual
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,

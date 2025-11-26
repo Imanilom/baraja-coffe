@@ -4,7 +4,9 @@ import AttendanceManagement from "./AttendanceManagement";
 import FingerprintManagement from "./FingerprintManagement";
 import FingerprintActivityMonitor from "./FingerprintActivityMonitor";
 import DeviceManagement from "./DeviceManagement";
-import { FaUsers, FaCalendarAlt, FaFingerprint, FaChartBar, FaHistory} from "react-icons/fa";
+import SalaryManagement from "./SalaryManagement";
+
+import { FaUsers, FaCalendarAlt, FaFingerprint, FaChartBar, FaHistory, FaMoneyBillWave } from "react-icons/fa";
 
 const HRDashboard = () => {
     const [activeTab, setActiveTab] = useState("employees");
@@ -13,6 +15,7 @@ const HRDashboard = () => {
         { id: "employees", name: "Karyawan", icon: FaUsers },
         { id: "attendance", name: "Kehadiran", icon: FaCalendarAlt },
         { id: "fingerprint", name: "Fingerprint", icon: FaFingerprint },
+        { id: "salary", name: "Penggajian", icon: FaMoneyBillWave }, 
         { id: "activity-monitor", name: "Monitor Aktivitas", icon: FaHistory },
         { id: "device", name: "Devices", icon: FaHistory },
         { id: "reports", name: "Laporan", icon: FaChartBar }
@@ -24,6 +27,8 @@ const HRDashboard = () => {
                 return <EmployeeManagement />;
             case "attendance":
                 return <AttendanceManagement />;
+            case "salary":
+                return <SalaryManagement />;
             case "fingerprint":
                 return <FingerprintManagement />;
             case "activity-monitor":

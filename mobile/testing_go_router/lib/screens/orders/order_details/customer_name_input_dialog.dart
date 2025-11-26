@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/widgets/buttons/vertical_icon_text_button.dart';
 
 class CustomerNameInputDialog extends ConsumerStatefulWidget {
   final String? initialName;

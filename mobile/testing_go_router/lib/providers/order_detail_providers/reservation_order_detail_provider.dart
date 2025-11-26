@@ -1,14 +1,10 @@
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
-import 'package:kasirbaraja/providers/auth_provider.dart';
-import 'package:kasirbaraja/services/hive_service.dart';
-import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 import 'package:collection/collection.dart';

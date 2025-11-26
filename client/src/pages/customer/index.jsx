@@ -1,175 +1,230 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaUserFriends, FaFilter } from "react-icons/fa";
-import Datepicker from 'react-tailwindcss-datepicker';
+import { useSelector } from "react-redux";
+import {
+    FaSearch,
+    FaPencilAlt,
+    FaUsers,
+    FaTrophy,
+    FaUserPlus,
+    FaFileExport,
+    FaEllipsisV,
+    FaEnvelope,
+    FaPhone,
+    FaUser,
+    FaStickyNote,
+    FaStar,
+    FaToggleOn,
+    FaToggleOff
+} from "react-icons/fa";
 import * as XLSX from "xlsx";
 
-
 const CustomerManagement = () => {
+    const { currentUser } = useSelector((state) => state.user);
     const [customer, setCustomer] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
+    const [orders, setOrders] = useState([]);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
-    const [openDropdown, setOpenDropdown] = useState([]);
-
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
+    const [openDropdown, setOpenDropdown] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
-
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
-
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
-
-    // Fetch customer and outlets data
+    // Fetch customer and order data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
+                // Fetch customers
                 const customerResponse = await axios.get(`/api/user/staff`);
-                const customer = customerResponse.data.filter(
+                const customers = customerResponse.data.filter(
                     (user) => user.role?.name === "customer"
                 );
 
-                setCustomer(customer);
-                setFilteredData(customer); // Initialize filtered data with all customer
+                // Fetch orders
+                const orderResponse = await axios.get(`/api/orders`);
+                const ordersData = orderResponse.data.data ? orderResponse.data.data : orderResponse.data;
 
+                setCustomer(customers);
+                setOrders(ordersData);
+                setFilteredData(customers);
                 setError(null);
             } catch (err) {
                 console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
+                setError("Gagal memuat data. Silakan coba lagi.");
                 setCustomer([]);
+                setOrders([]);
                 setFilteredData([]);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchData();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+    // Calculate order count for each customer
+    const getCustomerOrderCount = (customerId, customerUsername) => {
+        return orders.filter(order => {
+            // Handle both cases:
+            // 1. order.user is ObjectId string: "507f1f77bcf86cd799439011"
+            // 2. order.user is username string: "ahmad"
+            const userId = typeof order.user === 'string' ? order.user : order.user?._id;
 
-    // Handle click outside dropdown to close
+            // Check if user matches by ID or username
+            return userId === customerId || userId === customerUsername;
+        }).length;
+    };
+
+    // Get most loyal customer
+    const getMostLoyalCustomer = () => {
+        if (customer.length === 0) return null;
+
+        let maxOrders = 0;
+        let loyalCustomer = null;
+
+        customer.forEach(cust => {
+            const orderCount = getCustomerOrderCount(cust._id, cust.username);
+            if (orderCount > maxOrders) {
+                maxOrders = orderCount;
+                loyalCustomer = cust;
+            }
+        });
+
+        return { customer: loyalCustomer, orderCount: maxOrders };
+    };
+
+    // Check if customer was created today
+    const isCreatedToday = (createdAt) => {
+        const today = new Date();
+        const createdDate = new Date(createdAt);
+
+        return (
+            createdDate.getDate() === today.getDate() &&
+            createdDate.getMonth() === today.getMonth() &&
+            createdDate.getFullYear() === today.getFullYear()
+        );
+    };
+
+    // Toggle active status
+    const toggleActiveStatus = async (customerId, currentStatus) => {
+        try {
+            await axios.put(
+                `/api/user/${customerId}`,
+                { isActive: !currentStatus },
+                {
+                    headers: {
+                        Authorization: `Bearer ${currentUser?.token}`
+                    }
+                }
+            );
+
+            // Update local state
+            setCustomer(prevCustomers =>
+                prevCustomers.map(cust =>
+                    cust._id === customerId
+                        ? { ...cust, isActive: !currentStatus }
+                        : cust
+                )
+            );
+            setOpenDropdown(null);
+        } catch (err) {
+            console.error("Error updating status:", err);
+            alert("Gagal mengubah status. Silakan coba lagi.");
+        }
+    };
+
+    // Filter data based on search
+    useEffect(() => {
+        if (tempSearch.trim() === "") {
+            setFilteredData(customer);
+        } else {
+            const filtered = customer.filter((item) =>
+                item.username?.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                item.email?.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                item.phone?.toLowerCase().includes(tempSearch.toLowerCase())
+            );
+            setFilteredData(filtered);
+        }
+        setCurrentPage(1);
+    }, [tempSearch, customer]);
+
+    // Handle click outside dropdown
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
+                setOpenDropdown(null);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-    };
-
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    // Calculate total pages based on filtered data
+    // Pagination
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    const paginatedData = filteredData.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
 
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    // Export current data to Excel
+    // Export to Excel
     const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
+        const dataToExport = filteredData.map(customer => ({
+            "Nama": customer.username || "-",
+            "Telepon": customer.phone || "-",
+            "Email": customer.email || "-",
+            "Tipe Pelanggan": customer.consumerType || "-",
+            "Total Order": getCustomerOrderCount(customer._id, customer.username),
+            "Catatan": customer.catatan || "-",
+        }));
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Data Pelanggan");
+        XLSX.writeFile(wb, "Data_Pelanggan.xlsx");
     };
 
+    // Get statistics
+    const totalCustomers = customer.length;
+    const newCustomersThisMonth = customer.filter(c => {
+        const date = new Date(c.createdAt);
+        const now = new Date();
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }).length;
 
-    // Show loading state
+    const loyalCustomerData = getMostLoyalCustomer();
+
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+            <div className="flex justify-center items-center h-screen bg-gray-50">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-green-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600 font-medium">Memuat data pelanggan...</p>
+                </div>
             </div>
         );
     }
 
-    // Show error state
     if (error) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            <div className="flex justify-center items-center h-screen bg-gray-50">
+                <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Terjadi Kesalahan</h3>
+                    <p className="text-gray-600 mb-6">{error}</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        className="bg-green-600 hover:bg-green-700 text-white font-medium px-6 py-3 rounded-lg transition-colors duration-200"
                     >
-                        Refresh
+                        Muat Ulang
                     </button>
                 </div>
             </div>
@@ -177,176 +232,304 @@ const CustomerManagement = () => {
     }
 
     return (
-        <div className="pb-[60px]">
-            {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Pelanggan</span>
-                </h1>
-                <div className="flex space-x-2">
-                    {/* <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Impor</button> */}
-                    <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
-                    <Link to="/admin/customer-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
+        <div className="min-h-screen bg-gray-50 pb-8">
+            {/* Header */}
+            <div className="bg-white border-b sticky top-0 z-10 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                    <FaUsers className="text-green-600 text-xl" />
+                                </div>
+                                Manajemen Pelanggan
+                            </h1>
+                            <p className="text-gray-600 mt-1">Kelola dan pantau data pelanggan Anda</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={exportToExcel}
+                                className="flex items-center gap-2 bg-white border-2 border-green-600 text-green-600 hover:bg-green-50 font-medium px-5 py-2.5 rounded-lg transition-all duration-200"
+                            >
+                                <FaFileExport />
+                                <span className="hidden sm:inline">Ekspor</span>
+                            </button>
+                            <Link
+                                to="/admin/customer-create"
+                                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2.5 rounded-lg transition-all duration-200 shadow-lg shadow-green-600/30"
+                            >
+                                <FaUserPlus />
+                                <span className="hidden sm:inline">Tambah Pelanggan</span>
+                            </Link>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="px-6">
-                <div className="flex flex-wrap gap-4 md:justify-between items-center py-3">
-                    <div className=""></div>
-                    <div className="flex flex-col md:w-1/5">
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Nama / Email"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
-                            />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Statistics Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-blue-100 text-sm font-medium mb-1">Total Pelanggan</p>
+                                <h3 className="text-4xl font-bold">{totalCustomers}</h3>
+                            </div>
+                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                                <FaUsers className="text-3xl" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-lg p-6 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-amber-100 text-sm font-medium mb-1">Pelanggan Loyal</p>
+                                {loyalCustomerData?.customer ? (
+                                    <>
+                                        <h3 className="text-2xl font-bold truncate">{loyalCustomerData.customer.username}</h3>
+                                        <p className="text-amber-100 text-xs mt-1">{loyalCustomerData.orderCount} order</p>
+                                    </>
+                                ) : (
+                                    <h3 className="text-xl font-bold">Belum ada data</h3>
+                                )}
+                            </div>
+                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                                <FaTrophy className="text-3xl" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-green-100 text-sm font-medium mb-1">Pelanggan Baru</p>
+                                <h3 className="text-4xl font-bold">{newCustomersThisMonth}</h3>
+                                <p className="text-green-100 text-xs mt-1">Bulan ini</p>
+                            </div>
+                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                                <FaUserPlus className="text-3xl" />
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="w-full border rounded mb-[15px] bg-gradient-to-r from-[#0F4F2A] via-[#1A6B3B] to-[#267C48] py-2">
-                    <div className="flex justify-between p-4 text-[14px]">
-                        <div className="">
-                            <label htmlFor="" className="uppercase text-[#999999]">Total Pelanggan</label>
-                            <h3 className="text-white font-semibold ">{customer.length}</h3>
-                        </div>
-                        <div className="">
-                            <label htmlFor="" className="uppercase text-[#999999]">Pelanggan Paling Loyal</label>
-                            <h3 className="text-white font-semibold underline decoration-dashed underline-offset-[5px]">staffdapur</h3>
-                        </div>
-                        <div className="">
-                            <label htmlFor="" className="uppercase text-[#999999]">Pelanggan Baru Bulan Ini</label>
-                            <h3 className="text-white font-semibold underline decoration-dashed underline-offset-[5px]">Belum ada Pelanggan</h3>
-                        </div>
+                {/* Search Bar */}
+                <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+                    <div className="relative max-w-md">
+                        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Cari nama, email, atau telepon..."
+                            value={tempSearch}
+                            onChange={(e) => setTempSearch(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-4 focus:ring-green-100 outline-none transition-all duration-200"
+                        />
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="rounded shadow-slate-200 bg-white shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Nama</th>
-                                <th className="px-4 py-3 font-normal">Telepon</th>
-                                <th className="px-4 py-3 font-normal">Email</th>
-                                <th className="px-4 py-3 font-normal">Tipe Pelanggan</th>
-                                <th className="px-4 py-3 font-normal">Catatan</th>
-                                <th className="px-4 py-3 font-normal"></th>
-                            </tr>
-                        </thead>
-                        {customer.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {customer.map((data, index) => {
-                                    try {
+                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        <div className="flex items-center gap-2">
+                                            <FaUser className="text-gray-400" />
+                                            Nama
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        <div className="flex items-center gap-2">
+                                            <FaPhone className="text-gray-400" />
+                                            Telepon
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        <div className="flex items-center gap-2">
+                                            <FaEnvelope className="text-gray-400" />
+                                            Email
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Tipe
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Total Order
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        <div className="flex items-center gap-2">
+                                            <FaStickyNote className="text-gray-400" />
+                                            Catatan
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Aksi
+                                    </th>
+                                </tr>
+                            </thead>
+                            {paginatedData.length > 0 ? (
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {paginatedData.map((data) => {
+                                        const orderCount = getCustomerOrderCount(data._id, data.username);
+                                        const isNewToday = isCreatedToday(data.createdAt);
+
                                         return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.username || "-"}
+                                            <tr key={data._id} className="hover:bg-gray-50 transition-colors duration-150">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center">
+                                                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-semibold mr-3">
+                                                            {data.username?.charAt(0).toUpperCase() || "?"}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-medium text-gray-900">{data.username || "-"}</span>
+                                                                {isNewToday && (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 animate-pulse">
+                                                                        <FaStar className="text-xs" />
+                                                                        Baru Hari Ini
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-6 py-4 whitespace-nowrap text-gray-600">
                                                     {data.phone || "-"}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-6 py-4 whitespace-nowrap text-gray-600">
                                                     {data.email || "-"}
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    {data.consumerType || "-"}
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                        {data.consumerType || "Regular"}
+                                                    </span>
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold text-sm">
+                                                            {orderCount}
+                                                        </span>
+                                                        {orderCount >= 10 && (
+                                                            <FaTrophy className="text-amber-500" title="Pelanggan Loyal" />
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${data.isActive !== false
+                                                        ? "bg-green-100 text-green-800"
+                                                        : "bg-red-100 text-red-800"
+                                                        }`}>
+                                                        {data.isActive !== false ? "Aktif" : "Tidak Aktif"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-600 max-w-xs truncate">
                                                     {data.catatan || "-"}
                                                 </td>
-                                                <td className="px-4 py-3">
-
-                                                    {/* Dropdown Menu */}
-                                                    <div className="relative text-right">
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <div className="relative inline-block" ref={openDropdown === data._id ? dropdownRef : null}>
                                                         <button
-                                                            className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
                                                             onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
+                                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-150"
                                                         >
-                                                            <span className="text-xl text-gray-200 hover:text-white">
-                                                                •••
-                                                            </span>
+                                                            <FaEllipsisV className="text-gray-600" />
                                                         </button>
                                                         {openDropdown === data._id && (
-                                                            <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
-                                                                <ul className="w-full">
-                                                                    <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                                                                        <FaPencilAlt size={18} />
-                                                                        <Link
-                                                                            to={`/admin/menu-update/${data._id}`}
-                                                                            className="block bg-transparent"
-                                                                        >
-                                                                            Edit
-                                                                        </Link>
-                                                                    </li>
-                                                                    <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                                                                        <FaTrash size={18} />
-                                                                        <button onClick={() => {
-                                                                            setItemToDelete(data._id);
-                                                                            setIsModalOpen(true);
-                                                                        }}>
-                                                                            Delete
-                                                                        </button>
-                                                                    </li>
-                                                                </ul>
+                                                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                                                                <Link
+                                                                    to={`/admin/customer-update/${data._id}`}
+                                                                    className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 rounded-t-lg"
+                                                                >
+                                                                    <FaPencilAlt className="text-blue-600" />
+                                                                    <span>Edit</span>
+                                                                </Link>
+                                                                <button
+                                                                    onClick={() => toggleActiveStatus(data._id, data.isActive)}
+                                                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 rounded-b-lg"
+                                                                >
+                                                                    {data.isActive !== false ? (
+                                                                        <>
+                                                                            <FaToggleOff className="text-red-600" />
+                                                                            <span>Nonaktifkan</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <FaToggleOn className="text-green-600" />
+                                                                            <span>Aktifkan</span>
+                                                                        </>
+                                                                    )}
+                                                                </button>
                                                             </div>
                                                         )}
                                                     </div>
                                                 </td>
                                             </tr>
                                         );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, customer);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering customer
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
-                                </tr>
-                            </tbody>
-                        )}
-                    </table>
-                </div>
-
-                {/* Pagination Controls */}
-                {/* {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        {totalPages > 1 && (
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Berikutnya
-                                </button>
-                            </div>
-                        )}
+                                    })}
+                                </tbody>
+                            ) : (
+                                <tbody>
+                                    <tr>
+                                        <td colSpan="8" className="px-6 py-16 text-center">
+                                            <div className="flex flex-col items-center justify-center text-gray-400">
+                                                <FaUsers className="text-6xl mb-4" />
+                                                <p className="text-lg font-medium">Tidak ada data pelanggan</p>
+                                                <p className="text-sm mt-1">Coba ubah filter pencarian Anda</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            )}
+                        </table>
                     </div>
-                )} */}
+
+                    {/* Pagination */}
+                    {paginatedData.length > 0 && totalPages > 1 && (
+                        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-gray-600">
+                                    Menampilkan <span className="font-semibold">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> -
+                                    <span className="font-semibold"> {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</span> dari
+                                    <span className="font-semibold"> {filteredData.length}</span> data
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors duration-200"
+                                    >
+                                        Sebelumnya
+                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        {[...Array(totalPages)].map((_, i) => (
+                                            <button
+                                                key={i + 1}
+                                                onClick={() => setCurrentPage(i + 1)}
+                                                className={`w-10 h-10 rounded-lg font-medium transition-colors duration-200 ${currentPage === i + 1
+                                                    ? "bg-green-600 text-white"
+                                                    : "bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                    }`}
+                                            >
+                                                {i + 1}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors duration-200"
+                                    >
+                                        Berikutnya
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

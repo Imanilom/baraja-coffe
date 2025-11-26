@@ -161,7 +161,7 @@ const Menu = () => {
     const matchOutlet =
       selectedOutlet === '' ||
       item.availableAt.some(outlet => outlet.name === selectedOutlet);
-    const matchCategory = selectedCategory === '' || item.category.name === selectedCategory;
+    const matchCategory = selectedCategory === '' || item.category?.name === selectedCategory;
     const matchStatus = selectedStatus === '' || item.isActive === selectedStatus;
     const matchWorkstation = selectedWorkstation === '' || item.workstation === selectedWorkstation;
 

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
-import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
@@ -150,8 +149,8 @@ class OrderListWidget extends ConsumerWidget {
                         ),
                         child: Center(
                           child: Text(
-                            order.user.isNotEmpty
-                                ? order.user[0].toUpperCase()
+                            order.user != null
+                                ? order.user![0].toUpperCase()
                                 : '?',
                             style: const TextStyle(
                               color: Colors.white,
@@ -190,7 +189,7 @@ class OrderListWidget extends ConsumerWidget {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  order.user,
+                                  order.user ?? 'Unknown',
                                   style: TextStyle(
                                     color: Colors.grey.shade600,
                                     fontSize: 13,

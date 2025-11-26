@@ -21,7 +21,7 @@ const CreateMenu = () => {
   const [categories, setCategories] = useState([]);
   // const [subCategories, setSubCategories] = useState([]);
 
-  const MainCategories = ['makanan', 'minuman', 'dessert', 'snack', 'event'];
+  const MainCategories = ['makanan', 'minuman', 'instan', 'dessert', 'snack', 'event', 'bazar'];
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [outlets, setOutlets] = useState([]);

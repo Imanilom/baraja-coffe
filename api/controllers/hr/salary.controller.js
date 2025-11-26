@@ -1,6 +1,7 @@
 import Salary from '../../models/model_hr/Salary.model.js';
 import Employee from '../../models/model_hr/Employee.model.js';
 import Attendance from '../../models/model_hr/Attendance.model.js';
+import HRSettings from '../../models/model_hr/HRSetting.model.js';
 
 export const SalaryController = {
   // Calculate salary for period
@@ -24,6 +25,12 @@ export const SalaryController = {
         return res.status(400).json({ message: 'Salary already calculated for this period' });
       }
 
+      // Get HR settings
+      const hrSettings = await HRSettings.findOne();
+      if (!hrSettings) {
+        return res.status(404).json({ message: 'HR Settings not found' });
+      }
+
       // Get attendance data for the period
       const startDate = new Date(year, month - 1, 1);
       const endDate = new Date(year, month, 0);
@@ -33,43 +40,79 @@ export const SalaryController = {
         date: { $gte: startDate, $lte: endDate }
       });
 
-      // Calculate totals
-      const totalWorkHours = attendanceRecords.reduce((sum, record) => sum + (record.workHours || 0), 0);
-      const totalOvertime = attendanceRecords.reduce((sum, record) => sum + (record.overtimeHours || 0), 0);
+      // Calculate attendance summary
+      const attendanceSummary = {
+        totalTappingDays: attendanceRecords.length,
+        fingerprintTappingDays: attendanceRecords.filter(record => record.fingerprintTapping).length,
+        sickDays: attendanceRecords.filter(record => record.status === 'sick').length,
+        permissionDays: attendanceRecords.filter(record => record.status === 'permission').length,
+        leaveDays: attendanceRecords.filter(record => record.status === 'leave').length,
+        businessTripDays: attendanceRecords.filter(record => record.status === 'business_trip').length,
+        totalWorkingDays: new Date(year, month, 0).getDate() // Total days in month
+      };
 
-      // Calculate earnings (you can customize this logic)
-      const dailyRate = employee.basicSalary / 30; // Assuming 30 days per month
-      const hourlyRate = dailyRate / 8; // Assuming 8 hours per day
-      const overtimeRate = hourlyRate * 1.5; // 1.5x for overtime
+      // Calculate rates
+      const prorataPerSession = employee.basicSalary / attendanceSummary.totalWorkingDays;
+      const overtimeRate = prorataPerSession / 8 * hrSettings.salaryCalculation.overtime1Rate;
 
-      const earnings = {
+      // Calculate earnings based on tapping system
+      const prorataSalary = prorataPerSession * attendanceSummary.fingerprintTappingDays;
+
+      // Calculate overtime
+      const totalOvertime1Hours = attendanceRecords.reduce((sum, record) => sum + (record.overtime1Hours || 0), 0);
+      const totalOvertime2Hours = attendanceRecords.reduce((sum, record) => sum + (record.overtime2Hours || 0), 0);
+      
+      const overtime1 = totalOvertime1Hours * overtimeRate;
+      const overtime2 = totalOvertime2Hours * overtimeRate * hrSettings.salaryCalculation.overtime2Rate;
+
+      // Calculate allowances
+      const totalEarnings = {
         basicSalary: employee.basicSalary,
-        attendanceAllowance: totalWorkHours * 10000, // Example allowance
-        overtime: totalOvertime * overtimeRate,
-        // Add other allowances as needed
+        prorataSalary: prorataSalary,
+        overtime1: overtime1,
+        overtime2: overtime2,
+        departmentalAllowance: employee.allowances.departmental || 0,
+        childcareAllowance: employee.allowances.childcare || 0,
+        transportAllowance: employee.allowances.transport || 0,
+        mealAllowance: employee.allowances.meal || 0,
+        otherAllowances: employee.allowances.other || 0,
+        totalEarnings: 0 // Will be calculated in pre-save middleware
       };
 
-      const totalEarnings = Object.values(earnings).reduce((sum, amount) => sum + amount, 0);
+      // Calculate BPJS deductions
+      const bpjsKesehatan = SalaryController.calculateBPJSKesehatan(
+        employee.basicSalary, 
+        hrSettings.bpjs.kesehatanRateEmployee, 
+        hrSettings.bpjs.maxSalaryBpjs
+      );
 
-      // Calculate deductions (you can customize this logic)
+      const bpjsKetenagakerjaan = SalaryController.calculateBPJSKetenagakerjaan(
+        employee.basicSalary, 
+        hrSettings.bpjs.ketenagakerjaanRateEmployee, 
+        hrSettings.bpjs.maxSalaryBpjs
+      );
+
+      // Calculate deductions
       const deductions = {
-        bpjsKesehatan: employee.basicSalary * 0.04, // 4%
-        bpjsKetenagakerjaan: employee.basicSalary * 0.03, // 3%
-        tax: this.calculateTax(employee.basicSalary), // Implement tax calculation
-        // Add other deductions as needed
+        bpjsKesehatan: bpjsKesehatan,
+        bpjsKetenagakerjaan: bpjsKetenagakerjaan,
+        humanError: hrSettings.deductions.humanErrorDeduction || 0,
+        absence: SalaryController.calculateAbsenceDeduction(employee.basicSalary, attendanceSummary),
+        loan: 0, // You can implement loan calculation
+        otherDeductions: 0,
+        totalDeductions: 0 // Will be calculated in pre-save middleware
       };
-
-      const totalDeductions = Object.values(deductions).reduce((sum, amount) => sum + amount, 0);
-      const netSalary = totalEarnings - totalDeductions;
 
       const salary = new Salary({
         employee: employeeId,
         period: { month, year },
-        earnings,
+        attendanceSummary,
+        earnings: totalEarnings,
         deductions,
-        totalEarnings,
-        totalDeductions,
-        netSalary,
+        calculationRates: {
+          prorataPerSession: prorataPerSession,
+          overtimeRate: overtimeRate
+        },
         status: 'calculated'
       });
 
@@ -85,6 +128,152 @@ export const SalaryController = {
     }
   },
 
+  // Calculate salary for all employees in period
+  calculateSalaryForAll: async (req, res) => {
+    try {
+      const { month, year } = req.body;
+
+      const employees = await Employee.find({ isActive: true });
+      const results = {
+        success: [],
+        failed: []
+      };
+
+      for (const employee of employees) {
+        try {
+          // Check if salary already exists
+          const existingSalary = await Salary.findOne({
+            employee: employee._id,
+            'period.month': month,
+            'period.year': year
+          });
+
+          if (existingSalary) {
+            results.failed.push({
+              employee: employee.employeeId,
+              name: employee.user?.name,
+              reason: 'Salary already calculated'
+            });
+            continue;
+          }
+
+          // Calculate salary using the same logic as calculateSalary
+          const salary = await SalaryController.calculateEmployeeSalary(employee, month, year);
+          results.success.push({
+            employee: employee.employeeId,
+            name: employee.user?.name,
+            salaryId: salary._id
+          });
+        } catch (error) {
+          results.failed.push({
+            employee: employee.employeeId,
+            name: employee.user?.name,
+            reason: error.message
+          });
+        }
+      }
+
+      res.json({
+        message: 'Salary calculation completed',
+        results
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+
+  // Helper function to calculate individual employee salary
+  calculateEmployeeSalary: async (employee, month, year) => {
+    const hrSettings = await HRSettings.findOne();
+    
+    // Get attendance data for the period
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const attendanceRecords = await Attendance.find({
+      employee: employee._id,
+      date: { $gte: startDate, $lte: endDate }
+    });
+
+    // Calculate attendance summary
+    const attendanceSummary = {
+      totalTappingDays: attendanceRecords.length,
+      fingerprintTappingDays: attendanceRecords.filter(record => record.fingerprintTapping).length,
+      sickDays: attendanceRecords.filter(record => record.status === 'sick').length,
+      permissionDays: attendanceRecords.filter(record => record.status === 'permission').length,
+      leaveDays: attendanceRecords.filter(record => record.status === 'leave').length,
+      businessTripDays: attendanceRecords.filter(record => record.status === 'business_trip').length,
+      totalWorkingDays: new Date(year, month, 0).getDate()
+    };
+
+    // Calculate rates
+    const prorataPerSession = employee.basicSalary / attendanceSummary.totalWorkingDays;
+    const overtimeRate = prorataPerSession / 8 * hrSettings.salaryCalculation.overtime1Rate;
+
+    // Calculate earnings
+    const prorataSalary = prorataPerSession * attendanceSummary.fingerprintTappingDays;
+
+    // Calculate overtime
+    const totalOvertime1Hours = attendanceRecords.reduce((sum, record) => sum + (record.overtime1Hours || 0), 0);
+    const totalOvertime2Hours = attendanceRecords.reduce((sum, record) => sum + (record.overtime2Hours || 0), 0);
+    
+    const overtime1 = totalOvertime1Hours * overtimeRate;
+    const overtime2 = totalOvertime2Hours * overtimeRate * hrSettings.salaryCalculation.overtime2Rate;
+
+    // Calculate earnings
+    const earnings = {
+      basicSalary: employee.basicSalary,
+      prorataSalary: prorataSalary,
+      overtime1: overtime1,
+      overtime2: overtime2,
+      departmentalAllowance: employee.allowances.departmental || 0,
+      childcareAllowance: employee.allowances.childcare || 0,
+      transportAllowance: employee.allowances.transport || 0,
+      mealAllowance: employee.allowances.meal || 0,
+      otherAllowances: employee.allowances.other || 0,
+      totalEarnings: 0
+    };
+
+    // Calculate deductions
+    const bpjsKesehatan = SalaryController.calculateBPJSKesehatan(
+      employee.basicSalary, 
+      hrSettings.bpjs.kesehatanRateEmployee, 
+      hrSettings.bpjs.maxSalaryBpjs
+    );
+
+    const bpjsKetenagakerjaan = SalaryController.calculateBPJSKetenagakerjaan(
+      employee.basicSalary, 
+      hrSettings.bpjs.ketenagakerjaanRateEmployee, 
+      hrSettings.bpjs.maxSalaryBpjs
+    );
+
+    const deductions = {
+      bpjsKesehatan: bpjsKesehatan,
+      bpjsKetenagakerjaan: bpjsKetenagakerjaan,
+      humanError: hrSettings.deductions.humanErrorDeduction || 0,
+      absence: SalaryController.calculateAbsenceDeduction(employee.basicSalary, attendanceSummary),
+      loan: 0,
+      otherDeductions: 0,
+      totalDeductions: 0
+    };
+
+    const salary = new Salary({
+      employee: employee._id,
+      period: { month, year },
+      attendanceSummary,
+      earnings,
+      deductions,
+      calculationRates: {
+        prorataPerSession: prorataPerSession,
+        overtimeRate: overtimeRate
+      },
+      status: 'calculated'
+    });
+
+    await salary.save();
+    return salary;
+  },
+
   // Approve salary
   approveSalary: async (req, res) => {
     try {
@@ -98,7 +287,7 @@ export const SalaryController = {
           approvedBy
         },
         { new: true }
-      ).populate('employee');
+      ).populate('employee approvedBy');
 
       if (!salary) {
         return res.status(404).json({ message: 'Salary record not found' });
@@ -155,7 +344,7 @@ export const SalaryController = {
       }
 
       const salaries = await Salary.find(filter)
-        .populate('employee paidBy')
+        .populate('employee paidBy approvedBy')
         .limit(limit * 1)
         .skip((page - 1) * limit)
         .sort({ 'period.year': -1, 'period.month': -1 });
@@ -183,9 +372,52 @@ export const SalaryController = {
         'period.year': parseInt(year)
       })
         .populate('employee')
-        .sort({ createdAt: -1 });
+        .sort({ 'employee.department': 1, 'employee.position': 1 });
 
-      res.json(salaries);
+      res.json({
+        data: salaries,
+        total: salaries.length
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+
+  // Get salary summary for period
+  getSalarySummary: async (req, res) => {
+    try {
+      const { month, year } = req.query;
+
+      const salaries = await Salary.find({
+        'period.month': parseInt(month),
+        'period.year': parseInt(year)
+      }).populate('employee');
+
+      const summary = {
+        totalEmployees: salaries.length,
+        totalGrossSalary: salaries.reduce((sum, salary) => sum + salary.grossSalary, 0),
+        totalNetSalary: salaries.reduce((sum, salary) => sum + salary.netSalary, 0),
+        totalDeductions: salaries.reduce((sum, salary) => sum + salary.deductions.totalDeductions, 0),
+        totalOvertime: salaries.reduce((sum, salary) => sum + salary.earnings.overtime1 + salary.earnings.overtime2, 0),
+        byDepartment: {}
+      };
+
+      // Group by department
+      salaries.forEach(salary => {
+        const dept = salary.employee.department;
+        if (!summary.byDepartment[dept]) {
+          summary.byDepartment[dept] = {
+            count: 0,
+            totalNetSalary: 0,
+            totalGrossSalary: 0
+          };
+        }
+        summary.byDepartment[dept].count++;
+        summary.byDepartment[dept].totalNetSalary += salary.netSalary;
+        summary.byDepartment[dept].totalGrossSalary += salary.grossSalary;
+      });
+
+      res.json(summary);
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
@@ -196,17 +428,6 @@ export const SalaryController = {
     try {
       const { id } = req.params;
       const updateData = req.body;
-
-      // Recalculate totals if earnings or deductions are updated
-      if (updateData.earnings || updateData.deductions) {
-        const salary = await Salary.findById(id);
-        const currentEarnings = { ...salary.earnings.toObject(), ...updateData.earnings };
-        const currentDeductions = { ...salary.deductions.toObject(), ...updateData.deductions };
-
-        updateData.totalEarnings = Object.values(currentEarnings).reduce((sum, amount) => sum + amount, 0);
-        updateData.totalDeductions = Object.values(currentDeductions).reduce((sum, amount) => sum + amount, 0);
-        updateData.netSalary = updateData.totalEarnings - updateData.totalDeductions;
-      }
 
       const salary = await Salary.findByIdAndUpdate(
         id,
@@ -227,20 +448,41 @@ export const SalaryController = {
     }
   },
 
-  // Helper function to calculate tax (simplified)
-  calculateTax: (basicSalary) => {
-    // Simplified tax calculation - adjust according to your country's tax rules
-    const annualSalary = basicSalary * 12;
-    let tax = 0;
+  // Delete salary calculation
+  deleteSalary: async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    if (annualSalary > 50000000) {
-      tax = annualSalary * 0.15; // 15% for high income
-    } else if (annualSalary > 25000000) {
-      tax = annualSalary * 0.10; // 10% for medium income
-    } else {
-      tax = annualSalary * 0.05; // 5% for low income
+      const salary = await Salary.findByIdAndDelete(id);
+
+      if (!salary) {
+        return res.status(404).json({ message: 'Salary record not found' });
+      }
+
+      res.json({
+        message: 'Salary calculation deleted successfully'
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
     }
+  },
 
-    return tax / 12; // Monthly tax
+  // Helper function to calculate BPJS Kesehatan
+  calculateBPJSKesehatan: (basicSalary, rate, maxSalary) => {
+    const baseSalary = Math.min(basicSalary, maxSalary);
+    return baseSalary * rate;
+  },
+
+  // Helper function to calculate BPJS Ketenagakerjaan
+  calculateBPJSKetenagakerjaan: (basicSalary, rate, maxSalary) => {
+    const baseSalary = Math.min(basicSalary, maxSalary);
+    return baseSalary * rate;
+  },
+
+  // Helper function to calculate absence deduction
+  calculateAbsenceDeduction: (basicSalary, attendanceSummary) => {
+    const absentDays = attendanceSummary.totalWorkingDays - attendanceSummary.totalTappingDays;
+    const dailyRate = basicSalary / attendanceSummary.totalWorkingDays;
+    return absentDays * dailyRate;
   }
 };

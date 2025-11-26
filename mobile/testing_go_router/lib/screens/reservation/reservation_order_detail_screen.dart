@@ -142,11 +142,7 @@ class ReservationOrderDetailScreen extends ConsumerWidget {
                 // nama pelanggan,
                 VerticalIconTextButton(
                   icon: Icons.person_rounded,
-                  label:
-                      (reservationOrderDetail?.user != "" &&
-                              reservationOrderDetail?.user != null)
-                          ? (reservationOrderDetail!.user)
-                          : 'Pelanggan',
+                  label: reservationOrderDetail?.user ?? 'Pelanggan',
                   color:
                       reservationOrderDetail?.user != "" &&
                               reservationOrderDetail?.user != null

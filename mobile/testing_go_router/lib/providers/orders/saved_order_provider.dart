@@ -2,7 +2,6 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
-import 'package:kasirbaraja/utils/generate_order_id.dart';
 
 class SavedOrderProvider extends StateNotifier<List<OrderDetailModel?>> {
   SavedOrderProvider() : super([]);
