@@ -58,8 +58,8 @@ const log = {
 const connectDB = async () => {
     try {
         // ✅ CRITICAL: Gunakan MONGO bukan MONGODB_URI (sesuai dengan .env Anda)
-        const mongoURI = process.env.MONGO || process.env.MONGODB_URI || process.env.MONGO_URI;
-
+        // const mongoURI = process.env.MONGO_PROD;
+        const mongoURI = process.env.MONGO;
         if (!mongoURI) {
             throw new Error('MONGO environment variable not found. Check .env file location.');
         }

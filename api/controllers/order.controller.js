@@ -6506,9 +6506,6 @@ export const testSocket = async (req, res) => {
 }
 async function _autoConfirmOrderInBackground(orderId) {
   try {
-    // Tunggu 2 detik untuk print sempat berjalan
-    await new Promise(r => setTimeout(r, 2000));
-
     const order = await Order.findOne({ order_id: orderId });
     if (!order) {
       console.warn(`⚠️ Order ${orderId} not found for auto-confirm`);
@@ -6728,9 +6725,12 @@ export const cashierCharge = async (req, res) => {
     session.endSession();
 
     console.log('✅ Payment created successfully');
-
+    await _autoConfirmOrderInBackground(order_id).catch(err => {
+      console.error('❌ Background auto-confirm failed:', err);
+    });
     // 🔥 CRITICAL: TRIGGER PRINT IMMEDIATELY SETELAH PAYMENT - TIDAK MENUNGGU APAPUN
     if (payment_type.toLowerCase() === 'cash') {
+
       // Jalankan di background tanpa await
       try {
         await triggerImmediatePrint({
@@ -6748,12 +6748,6 @@ export const cashierCharge = async (req, res) => {
       } catch (err) {
         console.error('❌ Print trigger error:', err);
       }
-
-      // 🔥 AUTO-CONFIRM IN BACKGROUND (non-blocking)
-      // Jangan await di sini, biarkan berjalan di background
-      _autoConfirmOrderInBackground(order_id).catch(err => {
-        console.error('❌ Background auto-confirm failed:', err);
-      });
     }
 
     return res.status(200).json({
