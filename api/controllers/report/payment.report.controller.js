@@ -1,5 +1,6 @@
 import { Order } from '../../models/order.model.js';
 import Payment from '../../models/Payment.model.js';
+import mongoose from 'mongoose';
 
 export const generateSalesReport = async (req, res) => {
   try {
@@ -43,12 +44,19 @@ export const generateSalesReport = async (req, res) => {
     // Get order_ids from payments
     const orderIds = payments.map(p => p.order_id).filter(id => id);
 
-    // Find orders yang completed
+    // Find orders yang completed dengan populate untuk handle deleted menu items
     const orders = await Order.find({
       order_id: { $in: orderIds },
       status: { $in: ['Completed'] },
       ...(outletId && { outlet: new mongoose.Types.ObjectId(outletId) })
-    });
+    })
+    .populate({
+      path: 'items.menuItem',
+      model: 'MenuItem',
+      select: 'name price isActive',
+      options: { allowNull: true }
+    })
+    .lean();
 
     // Create a map for quick order lookup
     const orderMap = new Map();
@@ -62,9 +70,40 @@ export const generateSalesReport = async (req, res) => {
         const order = orderMap.get(payment.order_id);
         if (!order) return null;
 
+        // Process items to handle deleted menu items
+        const processedItems = order.items.map(item => {
+          const menuItem = item.menuItem;
+          
+          // If menuItem is null or deleted, create a fallback object
+          if (!menuItem) {
+            return {
+              ...item,
+              menuItem: {
+                _id: null,
+                name: 'Menu Item Deleted',
+                price: item.price || 0,
+                isActive: false
+              }
+            };
+          }
+
+          return {
+            ...item,
+            menuItem: {
+              _id: menuItem._id,
+              name: menuItem.name || 'Unknown Menu Item',
+              price: menuItem.price || item.price || 0,
+              isActive: menuItem.isActive !== false
+            }
+          };
+        });
+
         return {
           ...payment.toObject(),
-          order_data: order // Attach order data
+          order_data: {
+            ...order,
+            items: processedItems // Replace with processed items
+          }
         };
       })
       .filter(payment => payment !== null && payment.order_data);
@@ -74,6 +113,9 @@ export const generateSalesReport = async (req, res) => {
 
     // Group by period (daily/weekly/monthly)
     const periodSummary = generatePeriodSummary(validPayments, groupBy);
+
+    // Calculate item sales breakdown dengan handling untuk deleted items
+    const itemSalesBreakdown = generateItemSalesBreakdown(validPayments);
 
     // Final report
     const finalReport = {
@@ -87,10 +129,13 @@ export const generateSalesReport = async (req, res) => {
         totalRevenue: validPayments.reduce((sum, payment) => sum + payment.amount, 0),
         totalTransactions: validPayments.length,
         totalOrders: [...new Set(validPayments.map(p => p.order_id))].length,
+        totalItemsSold: validPayments.reduce((sum, payment) => 
+          sum + payment.order_data.items.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0), 0),
         averageTransaction: validPayments.length > 0 ?
           validPayments.reduce((sum, payment) => sum + payment.amount, 0) / validPayments.length : 0
       },
       paymentMethods: paymentMethodBreakdown,
+      itemSales: itemSalesBreakdown,
       periodBreakdown: periodSummary,
       rawDataCount: validPayments.length
     };
@@ -110,6 +155,52 @@ export const generateSalesReport = async (req, res) => {
   }
 };
 
+// Helper function untuk breakdown item sales dengan handling deleted items
+const generateItemSalesBreakdown = (payments) => {
+  const itemMap = new Map();
+  
+  payments.forEach(payment => {
+    const order = payment.order_data;
+    
+    order.items.forEach(item => {
+      const menuItem = item.menuItem;
+      const itemId = menuItem?._id ? menuItem._id.toString() : 'deleted_' + Math.random().toString(36).substr(2, 9);
+      const itemName = menuItem?.name || 'Menu Item Deleted';
+      const itemPrice = item.price || menuItem?.price || 0;
+      const quantity = item.quantity || 0;
+      
+      if (!itemMap.has(itemId)) {
+        itemMap.set(itemId, {
+          itemId: itemId,
+          name: itemName,
+          price: itemPrice,
+          totalQuantity: 0,
+          totalRevenue: 0,
+          orders: new Set(),
+          isActive: menuItem?.isActive !== false
+        });
+      }
+      
+      const itemData = itemMap.get(itemId);
+      itemData.totalQuantity += quantity;
+      itemData.totalRevenue += itemPrice * quantity;
+      itemData.orders.add(payment.order_id);
+    });
+  });
+
+  // Convert to array and calculate additional metrics
+  const result = Array.from(itemMap.values()).map(itemData => ({
+    ...itemData,
+    totalOrders: itemData.orders.size,
+    averageQuantityPerOrder: itemData.totalOrders > 0 ? itemData.totalQuantity / itemData.totalOrders : 0,
+    percentageOfTotalRevenue: payments.reduce((sum, p) => sum + p.amount, 0) > 0 ?
+      (itemData.totalRevenue / payments.reduce((sum, p) => sum + p.amount, 0)) * 100 : 0
+  }));
+
+  // Sort by total revenue descending
+  return result.sort((a, b) => b.totalRevenue - a.totalRevenue);
+};
+
 // Helper function untuk breakdown payment method yang detail
 const generateDetailedPaymentMethodBreakdown = (payments) => {
   const paymentMethodMap = new Map();
@@ -126,8 +217,7 @@ const generateDetailedPaymentMethodBreakdown = (payments) => {
         transactionCount: 0,
         orderCount: new Set(),
         averageTransaction: 0,
-        percentageOfTotal: 0,
-        transactions: []
+        percentageOfTotal: 0
       });
     }
     
@@ -135,31 +225,20 @@ const generateDetailedPaymentMethodBreakdown = (payments) => {
     methodData.totalAmount += amount;
     methodData.transactionCount += 1;
     methodData.orderCount.add(orderId);
-    methodData.transactions.push({
-      order_id: orderId,
-      amount: amount,
-      paymentType: payment.paymentType,
-      transaction_time: payment.transaction_time,
-      settlement_time: payment.settlement_time
-    });
   });
 
   // Calculate totals for percentage
   const totalRevenue = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
   const totalTransactions = payments.length;
-  const totalOrders = new Set(payments.map(p => p.order_id)).size;
 
   // Convert Map to Array and calculate additional metrics
   const result = Array.from(paymentMethodMap.values()).map(methodData => {
     const orderCount = methodData.orderCount.size;
-    methodData.orderCount = orderCount; // Convert Set to count
+    methodData.orderCount = orderCount;
     methodData.averageTransaction = methodData.transactionCount > 0 ? 
       methodData.totalAmount / methodData.transactionCount : 0;
     methodData.percentageOfTotal = totalRevenue > 0 ? 
       (methodData.totalAmount / totalRevenue) * 100 : 0;
-    
-    // Remove detailed transactions from final output to reduce response size
-    delete methodData.transactions;
     
     return methodData;
   });
@@ -198,6 +277,7 @@ const generatePeriodSummary = (payments, groupBy) => {
         totalRevenue: 0,
         transactionCount: 0,
         orderCount: new Set(),
+        totalItemsSold: 0,
         paymentMethods: new Map()
       });
     }
@@ -208,6 +288,10 @@ const generatePeriodSummary = (payments, groupBy) => {
     periodData.totalRevenue += payment.amount || 0;
     periodData.transactionCount += 1;
     periodData.orderCount.add(payment.order_id);
+    
+    // Calculate items sold for this period
+    const itemsCount = payment.order_data.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    periodData.totalItemsSold += itemsCount;
     
     // Track payment methods within period
     if (!periodData.paymentMethods.has(method)) {
@@ -233,6 +317,9 @@ const generatePeriodSummary = (payments, groupBy) => {
     
     periodData.averageTransaction = periodData.transactionCount > 0 ?
       periodData.totalRevenue / periodData.transactionCount : 0;
+    
+    periodData.averageItemsPerOrder = periodData.orderCount > 0 ?
+      periodData.totalItemsSold / periodData.orderCount : 0;
     
     return periodData;
   }).sort((a, b) => a.period.localeCompare(b.period));
@@ -277,8 +364,50 @@ export const getPaymentMethodDetailReport = async (req, res) => {
       orderQuery.outlet = new mongoose.Types.ObjectId(outletId);
     }
 
-    const orders = await Order.find(orderQuery);
-    const orderMap = new Map(orders.map(order => [order.order_id, order]));
+    // Modified to handle deleted menu items
+    const orders = await Order.find(orderQuery)
+      .populate({
+        path: 'items.menuItem',
+        model: 'MenuItem',
+        select: 'name price isActive',
+        options: { allowNull: true }
+      })
+      .lean();
+
+    const orderMap = new Map();
+    orders.forEach(order => {
+      // Process items to handle deleted menu items
+      const processedItems = order.items.map(item => {
+        const menuItem = item.menuItem;
+        
+        if (!menuItem) {
+          return {
+            ...item,
+            menuItem: {
+              _id: null,
+              name: 'Menu Item Deleted',
+              price: item.price || 0,
+              isActive: false
+            }
+          };
+        }
+
+        return {
+          ...item,
+          menuItem: {
+            _id: menuItem._id,
+            name: menuItem.name || 'Unknown Menu Item',
+            price: menuItem.price || item.price || 0,
+            isActive: menuItem.isActive !== false
+          }
+        };
+      });
+
+      orderMap.set(order.order_id, {
+        ...order,
+        items: processedItems
+      });
+    });
 
     const validPayments = payments
       .map(payment => {
@@ -318,7 +447,8 @@ export const getPaymentMethodDetailReport = async (req, res) => {
           transaction_time: p.transaction_time,
           settlement_time: p.settlement_time,
           order_type: p.order_data?.orderType,
-          outlet: p.order_data?.outlet
+          outlet: p.order_data?.outlet,
+          items_count: p.order_data?.items?.length || 0
         }))
       };
     });
@@ -334,7 +464,9 @@ export const getPaymentMethodDetailReport = async (req, res) => {
           totalMethods: Object.keys(methodGroups).length,
           totalRevenue: validPayments.reduce((sum, p) => sum + p.amount, 0),
           totalTransactions: validPayments.length,
-          totalOrders: new Set(validPayments.map(p => p.order_id)).size
+          totalOrders: new Set(validPayments.map(p => p.order_id)).size,
+          totalItemsSold: validPayments.reduce((sum, p) => 
+            sum + (p.order_data?.items?.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0) || 0), 0)
         },
         paymentMethods: methodStats.sort((a, b) => b.totalAmount - a.totalAmount)
       }
@@ -342,6 +474,156 @@ export const getPaymentMethodDetailReport = async (req, res) => {
 
   } catch (error) {
     console.error('Error generating payment method detail report:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk mendapatkan detail transaksi - FIXED dengan handling deleted items
+export const getPaymentDetails = async (req, res) => {
+  try {
+    const {
+      startDate,
+      endDate,
+      outletId,
+      paymentMethod,
+      limit = 50,
+      page = 1
+    } = req.query;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const skip = (page - 1) * limit;
+
+    // Build match stage
+    const matchStage = {
+      createdAt: { $gte: start, $lte: end },
+      status: { $in: ['settlement', 'paid', 'capture'] }
+    };
+
+    if (paymentMethod && paymentMethod !== 'all') {
+      matchStage.method = new RegExp(paymentMethod, 'i');
+    }
+
+    const payments = await Payment.find(matchStage)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    // Get order_ids from payments
+    const orderIds = payments.map(p => p.order_id).filter(id => id);
+
+    // Find orders separately dengan handling deleted items
+    const orderMatch = outletId ? {
+      order_id: { $in: orderIds },
+      outlet: new mongoose.Types.ObjectId(outletId)
+    } : { order_id: { $in: orderIds } };
+
+    const orders = await Order.find(orderMatch)
+      .populate({
+        path: 'items.menuItem',
+        model: 'MenuItem',
+        select: 'name price isActive',
+        options: { allowNull: true }
+      })
+      .select('order_id user tableNumber orderType grandTotal outletName items')
+      .lean();
+
+    // Create order map dengan processed items
+    const orderMap = new Map();
+    orders.forEach(order => {
+      // Process items to handle deleted menu items
+      const processedItems = order.items.map(item => {
+        const menuItem = item.menuItem;
+        
+        if (!menuItem) {
+          return {
+            ...item,
+            menuItem: {
+              _id: null,
+              name: 'Menu Item Deleted',
+              price: item.price || 0,
+              isActive: false
+            }
+          };
+        }
+
+        return {
+          ...item,
+          menuItem: {
+            _id: menuItem._id,
+            name: menuItem.name || 'Unknown Menu Item',
+            price: menuItem.price || item.price || 0,
+            isActive: menuItem.isActive !== false
+          }
+        };
+      });
+
+      orderMap.set(order.order_id, {
+        ...order,
+        items: processedItems
+      });
+    });
+
+    // Combine payments with order data
+    const validPayments = payments.map(payment => {
+      const order = orderMap.get(payment.order_id);
+      return {
+        ...payment,
+        order_data: order
+      };
+    }).filter(payment => payment.order_data);
+
+    // Transform data untuk response
+    const transformedPayments = validPayments.map(payment => ({
+      id: payment._id,
+      order_id: payment.order_id,
+      transaction_id: payment.transaction_id,
+      method: payment.method,
+      paymentType: payment.paymentType,
+      amount: payment.amount,
+      status: payment.status,
+      createdAt: payment.createdAt,
+      orderDetails: {
+        user: payment.order_data?.user,
+        tableNumber: payment.order_data?.tableNumber,
+        orderType: payment.order_data?.orderType,
+        grandTotal: payment.order_data?.grandTotal,
+        outletName: payment.order_data?.outletName,
+        items: payment.order_data?.items?.map(item => ({
+          name: item.menuItem.name,
+          price: item.price,
+          quantity: item.quantity,
+          notes: item.notes,
+          isActive: item.menuItem.isActive
+        })) || []
+      },
+      paymentDetails: getPaymentSpecificDetails(payment)
+    }));
+
+    const total = await Payment.countDocuments(matchStage);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        payments: transformedPayments,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting payment details:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -401,113 +683,6 @@ const generateDynamicPaymentSummary = (payments) => {
   }));
 
   return result.sort((a, b) => b.totalAmount - a.totalAmount);
-};
-
-
-// Controller untuk mendapatkan detail transaksi - FIXED
-export const getPaymentDetails = async (req, res) => {
-  try {
-    const {
-      startDate,
-      endDate,
-      outletId,
-      paymentMethod,
-      limit = 50,
-      page = 1
-    } = req.query;
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-
-    const skip = (page - 1) * limit;
-
-    // Build match stage
-    const matchStage = {
-      createdAt: { $gte: start, $lte: end },
-      status: { $in: ['settlement', 'paid', 'capture'] }
-    };
-
-    if (paymentMethod && paymentMethod !== 'all') {
-      matchStage.method = new RegExp(paymentMethod, 'i');
-    }
-
-    const payments = await Payment.find(matchStage)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
-
-    // Get order_ids from payments
-    const orderIds = payments.map(p => p.order_id).filter(id => id);
-
-    // Find orders separately
-    const orderMatch = outletId ? {
-      order_id: { $in: orderIds },
-      outlet: new mongoose.Types.ObjectId(outletId)
-    } : { order_id: { $in: orderIds } };
-
-    const orders = await Order.find(orderMatch)
-      .select('order_id user tableNumber orderType grandTotal outletName')
-      .lean();
-
-    // Create order map
-    const orderMap = new Map();
-    orders.forEach(order => {
-      orderMap.set(order.order_id, order);
-    });
-
-    // Combine payments with order data
-    const validPayments = payments.map(payment => {
-      const order = orderMap.get(payment.order_id);
-      return {
-        ...payment,
-        order_data: order
-      };
-    }).filter(payment => payment.order_data);
-
-    // Transform data untuk response
-    const transformedPayments = validPayments.map(payment => ({
-      id: payment._id,
-      order_id: payment.order_id,
-      transaction_id: payment.transaction_id,
-      method: payment.method,
-      paymentType: payment.paymentType,
-      amount: payment.amount,
-      status: payment.status,
-      createdAt: payment.createdAt,
-      orderDetails: {
-        user: payment.order_data?.user,
-        tableNumber: payment.order_data?.tableNumber,
-        orderType: payment.order_data?.orderType,
-        grandTotal: payment.order_data?.grandTotal,
-        outletName: payment.order_data?.outletName
-      },
-      paymentDetails: getPaymentSpecificDetails(payment)
-    }));
-
-    const total = await Payment.countDocuments(matchStage);
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        payments: transformedPayments,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit)
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Error getting payment details:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
 };
 
 // Normalize payment method berdasarkan data yang ada
