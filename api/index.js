@@ -9,6 +9,7 @@ import { Server } from 'socket.io';
 import WebSocket from 'ws';
 import { initializeFirebase } from './config/firebase.js';
 import { setupStockCalibrationCron } from './jobs/stockCalibration.job.js';
+import { LockService } from './services/lock.service.js';
 import { startAutoCancelScheduler } from './jobs/orderCheker.job.js';
 // Routes imports...
 import userRoutes from './routes/user.route.js';
@@ -215,5 +216,7 @@ const startServer = async () => {
     process.exit(1); // stop process kalau gagal connect
   }
 };
+// Inisialisasi lock cleanup service saat startup
+LockService.startLockCleanupInterval();
 
 startServer();
