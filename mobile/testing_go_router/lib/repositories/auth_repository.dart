@@ -1,4 +1,3 @@
-import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 
 import '../models/user.model.dart';

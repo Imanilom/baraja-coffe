@@ -79,7 +79,7 @@ export function validateOrderData(data, source) {
     case 'Cashier': {
       if (!data.cashierId) throw new Error('Cashier ID is required for Cashier orders');
       if (!data.paymentMethod) throw new Error('Payment method is required for Cashier orders');
-
+      console.log('payment method check at cashier order', data.paymentMethod);
       // PERBAIKAN KRITIS: Hapus semua field delivery dari data cashier
       const {
         delivery_option,

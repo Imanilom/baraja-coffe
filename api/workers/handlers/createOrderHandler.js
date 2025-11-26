@@ -38,6 +38,8 @@ export async function createOrderHandler({
         delivery_option,
         recipient_data,
         cashierId,
+        paymentMethod,
+        device_id,
         ...cleanOrderData
       } = orderData;
 
@@ -51,7 +53,8 @@ export async function createOrderHandler({
         customAmountItemsCount: customAmountItems ? customAmountItems.length : 0,
         menuItemsCount: items ? items.length : 0,
         outletId,
-        customerId: customerId || 'none'
+        customerId: customerId || 'none',
+        paymentMethod
       });
 
       // Process order items dengan custom amount items terpisah
@@ -81,65 +84,69 @@ export async function createOrderHandler({
         taxesAndFees
       } = processed;
 
-        const formattedAppliedPromos = (promotions.appliedPromos || []).map(promo => ({
-          promoId: promo.promoId,
-          promoName: promo.promoName,
-          promoType: promo.promoType,
-          discount: promo.discount,
-          affectedItems: (promo.affectedItems || []).map(item => ({
-            menuItem: item.menuItem,
-            menuItemName: item.menuItemName,
-            quantity: item.quantity,
-            originalSubtotal: item.originalSubtotal,
-            discountAmount: item.discountAmount,
-            discountedSubtotal: item.discountedSubtotal,
-            discountPercentage: item.discountPercentage
-          })),
-          freeItems: (promo.freeItems || []).map(freeItem => ({
-            menuItem: freeItem.menuItem,
-            menuItemName: freeItem.menuItemName,
-            quantity: freeItem.quantity,
-            price: freeItem.price,
-            isFree: freeItem.isFree || true
-          }))
-        }));
+      const formattedAppliedPromos = (promotions.appliedPromos || []).map(promo => ({
+        promoId: promo.promoId,
+        promoName: promo.promoName,
+        promoType: promo.promoType,
+        discount: promo.discount,
+        affectedItems: (promo.affectedItems || []).map(item => ({
+          menuItem: item.menuItem,
+          menuItemName: item.menuItemName,
+          quantity: item.quantity,
+          originalSubtotal: item.originalSubtotal,
+          discountAmount: item.discountAmount,
+          discountedSubtotal: item.discountedSubtotal,
+          discountPercentage: item.discountPercentage
+        })),
+        freeItems: (promo.freeItems || []).map(freeItem => ({
+          menuItem: freeItem.menuItem,
+          menuItemName: freeItem.menuItemName,
+          quantity: freeItem.quantity,
+          price: freeItem.price,
+          isFree: freeItem.isFree || true
+        }))
+      }));
 
-        console.log('📊 Formatted Applied Promos:', {
-          count: formattedAppliedPromos.length,
-          promos: formattedAppliedPromos.map(p => ({
-            name: p.promoName,
-            discount: p.discount,
-            affectedItemsCount: p.affectedItems.length
-          }))
-        });
+      console.log('📊 Formatted Applied Promos:', {
+        count: formattedAppliedPromos.length,
+        promos: formattedAppliedPromos.map(p => ({
+          name: p.promoName,
+          discount: p.discount,
+          affectedItemsCount: p.affectedItems.length
+        }))
+      });
 
 
       // Determine initial status based on source and payment method
       let initialStatus = 'Pending';
+      let paymentMethodData = 'Cash';
       if (source === 'Cashier') {
         console.log('Source Cashier - isOpenBill:', isOpenBill);
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
+        paymentMethodData = paymentMethod;
       } else if (source === 'App' || source === 'Web') {
         const isCashPayment = paymentDetails?.method?.toLowerCase() === 'cash';
         initialStatus = isCashPayment ? 'Pending' : 'Waiting';
+        paymentMethodData = paymentDetails?.method;
       }
 
       console.log('Order Status Determination:', {
         source,
         initialStatus,
-        paymentMethod: paymentDetails?.method,
-        isOpenBill
+        paymentMethod: paymentMethodData,
+        isOpenBill,
+        paymentDetails
       });
 
       // Prepare base order data
-            const baseOrderData = {
+      const baseOrderData = {
         order_id: orderId,
         user: user || 'Customer',
         cashierId: cashierId || null,
         items: orderItems,
         customAmountItems: processedCustomAmountItems,
         status: initialStatus,
-        paymentMethod: (paymentDetails?.method || 'Cash'),
+        paymentMethod: (paymentMethodData || 'Cash'),
         orderType: orderType || 'Dine-In',
         tableNumber: tableNumber || '',
         type: type || 'Indoor',
@@ -190,6 +197,10 @@ export async function createOrderHandler({
 
       if (contact) {
         baseOrderData.contact = contact;
+      }
+
+      if (device_id) {
+        baseOrderData.device_id = device_id;
       }
 
       // Tambahkan loyalty data jika applied

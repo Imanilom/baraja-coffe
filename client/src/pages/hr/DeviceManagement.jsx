@@ -1,19 +1,39 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { 
     FaSync, 
     FaTrash, 
     FaInfoCircle, 
     FaExclamationTriangle,
-    FaCheckCircle
+    FaCheckCircle,
+    FaRadiation,
+    FaServer
 } from "react-icons/fa";
 
-const DeviceManagement = () => {
+const DeviceBufferManagement = () => {
+    const [devices, setDevices] = useState([]);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState("");
 
-    const handleClearBuffer = async () => {
-        if (!window.confirm("Apakah Anda yakin ingin membersihkan buffer device? Tindakan ini akan menghapus data historis yang belum terkirim.")) {
+    const fetchBufferStatus = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get('/api/adms/device/buffer-status');
+            setDevices(response.data.devices);
+        } catch (err) {
+            console.error("Error fetching buffer status:", err);
+            setMessage("Gagal memuat status device.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleForceClear = async (deviceIp = null) => {
+        if (!window.confirm(
+            deviceIp ? 
+            `Force clear buffer untuk device ${deviceIp}?` :
+            "Force clear buffer untuk semua device?"
+        )) {
             return;
         }
 
@@ -21,108 +41,165 @@ const DeviceManagement = () => {
         setMessage("");
         
         try {
-            const response = await axios.post('/api/attendance/device/clear-buffer', {
-                deviceId: 'X105'
+            const response = await axios.post('/api/adms/device/force-clear-buffer', {
+                deviceIp: deviceIp
             });
             
-            setMessage("Buffer berhasil dibersihkan. Device akan berhenti mengirim data historis.");
+            setMessage(response.data.message);
+            fetchBufferStatus(); // Refresh status
         } catch (err) {
-            console.error("Error clearing buffer:", err);
+            console.error("Error force clearing buffer:", err);
             setMessage("Gagal membersihkan buffer device.");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCheckStatus = async () => {
-        setLoading(true);
-        setMessage("");
+    useEffect(() => {
+        fetchBufferStatus();
         
-        try {
-            const response = await axios.get('/api/attendance/device/status?deviceId=X105');
-            const data = response.data;
-            
-            setMessage(`Status Device: ${data.status}. ${data.recommendation}`);
-        } catch (err) {
-            console.error("Error checking status:", err);
-            setMessage("Gagal memeriksa status device.");
-        } finally {
-            setLoading(false);
-        }
-    };
+        // Auto refresh every 30 seconds
+        const interval = setInterval(fetchBufferStatus, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-2 text-xl text-green-900 font-semibold">
-                    <FaInfoCircle />
-                    <span>Manajemen Device Fingerprint</span>
+                    <FaServer />
+                    <span>Device Buffer Management</span>
+                </div>
+                <button
+                    onClick={fetchBufferStatus}
+                    disabled={loading}
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
+                >
+                    <FaSync className={loading ? "animate-spin" : ""} />
+                    Refresh
+                </button>
+            </div>
+
+            {/* Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-white p-4 rounded-lg shadow border">
+                    <div className="text-2xl font-bold text-gray-900">{devices.length}</div>
+                    <div className="text-sm text-gray-600">Total Devices</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow border">
+                    <div className="text-2xl font-bold text-yellow-600">
+                        {devices.filter(d => d.isStuckInLoop).length}
+                    </div>
+                    <div className="text-sm text-gray-600">Stuck in Loop</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow border">
+                    <div className="text-2xl font-bold text-blue-600">
+                        {devices.reduce((sum, d) => sum + d.requestCount, 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Total Requests</div>
                 </div>
             </div>
 
-            {/* Alert */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <div className="flex items-center">
-                    <FaExclamationTriangle className="h-5 w-5 text-yellow-600 mr-2" />
-                    <div>
-                        <h3 className="text-sm font-medium text-yellow-800">
-                            Device Mengirim Data Historis Berulang
-                        </h3>
-                        <p className="text-sm text-yellow-700 mt-1">
-                            Device terus mengirim data dari tahun 2022. Disarankan untuk membersihkan buffer device.
-                        </p>
+            {/* Device List */}
+            <div className="space-y-4">
+                {devices.map(device => (
+                    <div key={device.deviceIp} className={`bg-white rounded-lg shadow border p-4 ${
+                        device.isStuckInLoop ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}>
+                        <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center space-x-3">
+                                <FaServer className={`h-6 w-6 ${
+                                    device.isStuckInLoop ? 'text-red-500' : 'text-green-500'
+                                }`} />
+                                <div>
+                                    <div className="font-semibold text-gray-900">
+                                        {device.deviceIp}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                        Requests: {device.requestCount} | Historical: {device.historicalCount}
+                                    </div>
+                                </div>
+                            </div>
+                            {device.isStuckInLoop && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <FaRadiation className="mr-1" />
+                                    STUCK
+                                </span>
+                            )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                            <div>
+                                <span className="text-gray-500">First Seen:</span>
+                                <div className="font-medium">{new Date(device.firstSeen).toLocaleTimeString()}</div>
+                            </div>
+                            <div>
+                                <span className="text-gray-500">Last Request:</span>
+                                <div className="font-medium">{new Date(device.lastRequest).toLocaleTimeString()}</div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between items-center">
+                            <div className="text-sm text-gray-600">
+                                {device.recommendation}
+                            </div>
+                            <button
+                                onClick={() => handleForceClear(device.deviceIp)}
+                                disabled={loading}
+                                className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:opacity-50"
+                            >
+                                <FaTrash className="inline mr-1" />
+                                Force Clear
+                            </button>
+                        </div>
                     </div>
-                </div>
+                ))}
             </div>
 
-            {/* Action Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div className="bg-white p-6 rounded-lg shadow border">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Status Device</h3>
-                        <FaInfoCircle className="h-6 w-6 text-blue-500" />
-                    </div>
-                    <p className="text-sm text-gray-600 mb-4">
-                        Periksa status koneksi dan buffer device fingerprint.
+            {devices.length === 0 && !loading && (
+                <div className="text-center py-12">
+                    <FaServer className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">Tidak ada device aktif</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Device akan muncul ketika mengirim data ke sistem
                     </p>
-                    <button
-                        onClick={handleCheckStatus}
-                        disabled={loading}
-                        className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                        <FaSync className="inline mr-2" />
-                        {loading ? 'Memeriksa...' : 'Periksa Status'}
-                    </button>
                 </div>
+            )}
 
-                <div className="bg-white p-6 rounded-lg shadow border">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Bersihkan Buffer</h3>
-                        <FaTrash className="h-6 w-6 text-red-500" />
+            {/* Global Actions */}
+            {devices.length > 0 && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Global Actions</h3>
+                    <div className="flex space-x-3">
+                        <button
+                            onClick={() => handleForceClear()}
+                            disabled={loading}
+                            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50"
+                        >
+                            <FaTrash className="inline mr-2" />
+                            Force Clear All Devices
+                        </button>
+                        <button
+                            onClick={fetchBufferStatus}
+                            disabled={loading}
+                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            <FaSync className="inline mr-2" />
+                            Refresh Status
+                        </button>
                     </div>
-                    <p className="text-sm text-gray-600 mb-4">
-                        Hapus data historis dari buffer device untuk menghentikan pengiriman berulang.
-                    </p>
-                    <button
-                        onClick={handleClearBuffer}
-                        disabled={loading}
-                        className="w-full bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 disabled:opacity-50"
-                    >
-                        <FaTrash className="inline mr-2" />
-                        {loading ? 'Membersihkan...' : 'Bersihkan Buffer'}
-                    </button>
                 </div>
-            </div>
+            )}
 
             {/* Message */}
             {message && (
-                <div className={`p-4 rounded-lg ${
-                    message.includes('berhasil') || message.includes('Status') 
-                    ? 'bg-green-50 border border-green-200 text-green-800'
-                    : 'bg-red-50 border border-red-200 text-red-800'
+                <div className={`mt-4 p-4 rounded-lg ${
+                    message.includes('berhasil') ? 
+                    'bg-green-50 border border-green-200 text-green-800' : 
+                    'bg-red-50 border border-red-200 text-red-800'
                 }`}>
                     <div className="flex items-center">
-                        {message.includes('berhasil') || message.includes('Status') ? (
+                        {message.includes('berhasil') ? (
                             <FaCheckCircle className="h-5 w-5 mr-2" />
                         ) : (
                             <FaExclamationTriangle className="h-5 w-5 mr-2" />
@@ -131,20 +208,8 @@ const DeviceManagement = () => {
                     </div>
                 </div>
             )}
-
-            {/* Recommendations */}
-            <div className="bg-white p-6 rounded-lg shadow border mt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Rekomendasi</h3>
-                <ul className="list-disc list-inside space-y-2 text-sm text-gray-600">
-                    <li>Reset device fingerprint melalui antarmuka device</li>
-                    <li>Pastikan tanggal dan waktu device sudah sesuai</li>
-                    <li>Clear semua data transaksi historis dari device</li>
-                    <li>Restart device setelah melakukan clear buffer</li>
-                    <li>Hubungi technical support device jika masalah berlanjut</li>
-                </ul>
-            </div>
         </div>
     );
 };
 
-export default DeviceManagement;
+export default DeviceBufferManagement;  

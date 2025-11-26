@@ -26,7 +26,7 @@ class PendingOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   Future<bool> submitPendingOrder() async {
     final cashier = await HiveService.getCashier();
     //update cashier id di order detail model
-    state = state!.copyWith(cashierId: cashier!.id);
+    state = state!.copyWith(cashier: cashier);
     if (state == null) return false;
     try {
       // final order = await OrderService().createOrder(state!);

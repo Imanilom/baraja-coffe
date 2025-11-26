@@ -2,9 +2,8 @@ import express from 'express';
 import { verifyToken } from '../utils/verifyUser.js';
 import { employeeController } from '../controllers/hr/employee.controller.js';
 import { attendanceController } from '../controllers/hr/attendance.controller.js';
-
+import { SalaryController } from '../controllers/hr/salary.controller.js';
 import { fingerprintController } from '../controllers/hr/fingerprint.controller.js';
-
 
 const router = express.Router();
 
@@ -57,37 +56,59 @@ router.get('/attendance/summary', attendanceController.getAttendanceSummary);
 // Manual attendance correction
 router.put('/attendance/:id', attendanceController.updateAttendance);
 
-// Register fingerprint
+// ==================== SALARY ROUTES ====================
+
+// Calculate salary for specific employee
+router.post('/salaries/calculate', adminAccess, SalaryController.calculateSalary);
+
+// Calculate salary for all employees in period
+router.post('/salaries/calculate-all', adminAccess, SalaryController.calculateSalaryForAll);
+
+// Get salary by employee with pagination
+router.get('/salaries/employee/:employeeId', adminAccess, SalaryController.getSalaryByEmployee);
+
+// Get salary by period (month and year)
+router.get('/salaries/period', adminAccess, SalaryController.getSalaryByPeriod);
+
+// Get salary summary for period
+router.get('/salaries/summary', adminAccess, SalaryController.getSalarySummary);
+
+// Approve salary
+router.patch('/salaries/:id/approve', adminAccess, SalaryController.approveSalary);
+
+// Mark salary as paid
+router.patch('/salaries/:id/mark-paid', adminAccess, SalaryController.markAsPaid);
+
+// Update salary manually
+router.put('/salaries/:id', adminAccess, SalaryController.updateSalary);
+
+// Delete salary calculation
+router.delete('/salaries/:id', adminAccess, SalaryController.deleteSalary);
+
+// ==================== FINGERPRINT ROUTES ====================
+
+// Fingerprint Routes
 router.post('/fingerprints/register', fingerprintController.registerFingerprint);
-
-// Get fingerprints by employee
 router.get('/fingerprints/employee/:employeeId', fingerprintController.getFingerprintsByEmployee);
-
-// Get fingerprint by device user ID
 router.get('/fingerprints/device-user/:deviceUserId', fingerprintController.getFingerprintByDeviceUserId);
-
-// Verify fingerprint
 router.post('/fingerprints/verify', fingerprintController.verifyFingerprint);
-
-// Update device user ID
 router.put('/fingerprints/:id/device-user', fingerprintController.updateDeviceUserId);
-
-// Sync with device
 router.post('/fingerprints/sync', fingerprintController.syncWithDevice);
-
-// Bulk sync with device
 router.post('/fingerprints/bulk-sync', fingerprintController.bulkSyncWithDevice);
-
-// Get all device users
 router.get('/fingerprints/device-users', fingerprintController.getAllDeviceUsers);
-
-// Delete fingerprint
 router.delete('/fingerprints/:id', fingerprintController.deleteFingerprint);
-
-// Deactivate fingerprint
 router.patch('/fingerprints/:id/deactivate', fingerprintController.deactivateFingerprint);
+router.patch('/fingerprints/:id/reactivate', fingerprintController.reactivateFingerprint);
+
+// Device User ID based operations
+router.patch('/fingerprints/device-user/:deviceUserId/deactivate', fingerprintController.deactivateFingerprintByDeviceUser);
+router.patch('/fingerprints/device-user/:deviceUserId/reactivate', fingerprintController.reactivateFingerprintByDeviceUser);
+
+// Raw fingerprint mapping routes
+router.post('/fingerprints/map-raw', fingerprintController.mapRawFingerprint);
+router.post('/fingerprints/auto-map', fingerprintController.autoMapFingerprint);
+router.post('/fingerprints/bulk-auto-map', fingerprintController.bulkAutoMapFingerprints);
+router.get('/fingerprints/unmapped-raw', fingerprintController.getUnmappedFingerprintsWithActivity);
+router.get('/fingerprints/with-employee', fingerprintController.getAllFingerprintsWithEmployee);
 
 export default router;
-
-
-

@@ -38,7 +38,7 @@ export async function processOrderItems({
       }
 
       const [menuItem, recipe] = await Promise.all([
-        MenuItem.findById(item.id).session(session),
+        MenuItem.findById(item.id).populate('category').session(session),
         Recipe.findOne({ menuItemId: item.id }).session(session),
       ]);
 
@@ -70,6 +70,9 @@ export async function processOrderItems({
       const subtotal = itemPrice * item.quantity;
       totalBeforeDiscount += subtotal;
 
+      // Check if item belongs to Bazar category
+      const isBazarCategory = await checkBazarCategory(menuItem.category, session);
+
       orderItems.push({
         menuItem: item.id,
         menuItemName: menuItem.name,
@@ -81,6 +84,7 @@ export async function processOrderItems({
         notes: item.notes || '',
         isPrinted: false,
         dineType: item.dineType || 'Dine-In',
+        isBazarCategory // Flag untuk menandai item dari kategori Bazar
       });
     }
   }
@@ -181,7 +185,7 @@ export async function processOrderItems({
     }
   }
 
-  // APPLY TAX SETELAH SEMUA DISKON
+  // APPLY TAX SETELAH SEMUA DISKON - dengan pengecualian untuk kategori Bazar
   const taxResult = await calculateTaxesAndServices(
     outlet,
     promotionResults.totalAfterAllDiscounts,
@@ -217,7 +221,8 @@ export async function processOrderItems({
 
     // Breakdown
     taxCalculationMethod: 'ALL_DISCOUNTS_BEFORE_TAX',
-    note: 'Semua diskon (auto promo, manual promo, voucher) diterapkan sebelum tax'
+    note: 'Semua diskon (auto promo, manual promo, voucher) diterapkan sebelum tax',
+    bazarItemsExcludedFromTax: taxResult.bazarItemsExcluded
   });
 
   return {
@@ -258,7 +263,8 @@ export async function processOrderItems({
       isApplied: false
     },
     taxesAndFees: taxResult.taxAndServiceDetails,
-    taxCalculationMethod: 'ALL_DISCOUNTS_BEFORE_TAX'
+    taxCalculationMethod: 'ALL_DISCOUNTS_BEFORE_TAX',
+    bazarItemsExcluded: taxResult.bazarItemsExcluded
   };
 }
 
@@ -399,7 +405,25 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
 }
 
 /**
- * Calculates taxes and service fees for an order (SEKARANG termasuk custom amount)
+ * NEW FUNCTION: Check if category is Bazar category
+ */
+async function checkBazarCategory(categoryId, session) {
+  if (!categoryId) return false;
+
+  try {
+    const Category = mongoose.model('Category'); // Sesuaikan dengan model Category Anda
+    const category = await Category.findById(categoryId).session(session);
+    
+    // Check if category name is "Bazar" or if it's the specific Bazar category
+    return category && (category.name === 'Bazar' || category._id.toString() === '691ab44b8c10cbe7789d7a03');
+  } catch (error) {
+    console.error('Error checking Bazar category:', error);
+    return false;
+  }
+}
+
+/**
+ * MODIFIED: Calculates taxes and services for an order dengan pengecualian untuk kategori Bazar
  */
 export async function calculateTaxesAndServices(outlet, taxableAmount, orderItems, customAmountItems = []) {
   const taxesAndServices = await TaxAndService.find({
@@ -410,6 +434,8 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
   const taxAndServiceDetails = [];
   let totalTax = 0;
   let totalServiceFee = 0;
+  let bazarItemsExcluded = 0;
+  let bazarItemsAmount = 0;
 
   console.log('🧮 TAX CALCULATION:', {
     taxableAmount,
@@ -418,15 +444,30 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
     taxRulesCount: taxesAndServices.length
   });
 
-  for (const charge of taxesAndServices) {
-    let applicableAmount = taxableAmount;
+  // Hitung total amount untuk items Bazar (tidak kena pajak)
+  const nonBazarItems = orderItems.filter(item => !item.isBazarCategory);
+  const bazarItems = orderItems.filter(item => item.isBazarCategory);
+  
+  bazarItemsExcluded = bazarItems.length;
+  bazarItemsAmount = bazarItems.reduce((total, item) => total + (item.subtotal || 0), 0);
 
-    // Jika ada specific menu items, hitung berdasarkan items tersebut
+  console.log('🏪 BAZAR ITEMS EXCLUSION:', {
+    totalItems: orderItems.length,
+    bazarItemsCount: bazarItemsExcluded,
+    bazarItemsAmount,
+    nonBazarItemsCount: nonBazarItems.length,
+    nonBazarItemsAmount: nonBazarItems.reduce((total, item) => total + (item.subtotal || 0), 0)
+  });
+
+  for (const charge of taxesAndServices) {
+    let applicableAmount = taxableAmount - bazarItemsAmount; // Exclude Bazar items from tax calculation
+
+    // Jika ada specific menu items, hitung berdasarkan non-Bazar items tersebut
     if (charge.appliesToMenuItems?.length > 0) {
       applicableAmount = 0;
 
-      // Hitung dari regular items
-      for (const item of orderItems) {
+      // Hitung dari regular items (hanya non-Bazar)
+      for (const item of nonBazarItems) {
         if (charge.appliesToMenuItems.some(menuId =>
           menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
         )) {
@@ -452,7 +493,8 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
         amount: taxAmount,
         percentage: charge.percentage,
         appliesTo: charge.appliesToMenuItems?.length > 0 ? 'specific_items' : 'all_items',
-        applicableAmount
+        applicableAmount,
+        bazarItemsExcluded: bazarItemsExcluded
       });
     } else if (charge.type === 'service') {
       const feeAmount = charge.fixedFee
@@ -470,7 +512,8 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
           ? { fixedFee: charge.fixedFee }
           : { percentage: charge.percentage }),
         appliesTo: charge.appliesToMenuItems?.length > 0 ? 'specific_items' : 'all_items',
-        applicableAmount
+        applicableAmount,
+        bazarItemsExcluded: bazarItemsExcluded
       });
     }
   }
@@ -479,13 +522,17 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
     totalTax,
     totalServiceFee,
     taxAndServiceDetailsCount: taxAndServiceDetails.length,
-    taxableAmount
+    taxableAmount,
+    bazarItemsExcluded,
+    bazarItemsAmount,
+    note: 'Bazar items excluded from tax and service charge calculation'
   });
 
   return {
     taxAndServiceDetails,
     totalTax,
-    totalServiceFee
+    totalServiceFee,
+    bazarItemsExcluded
   };
 }
 

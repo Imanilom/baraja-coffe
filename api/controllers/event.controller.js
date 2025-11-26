@@ -147,12 +147,15 @@ export async function deleteEvent(req, res) {
 // Register for free event
 export async function registerFreeEvent(req, res) {
     try {
-        const { eventId } = req.params;
-        const { fullName, email, phone, notes } = req.body;
+        const { id } = req.params;
+        const { fullName, email, phone, gender, currentCity, notes } = req.body;
 
-        const event = await Event.findById(eventId);
+        const event = await Event.findById(id);
         if (!event) {
-            return res.status(404).json({ success: false, message: 'Event not found' });
+            return res.status(404).json({
+                success: false,
+                message: 'Event not found'
+            });
         }
 
         if (!event.isFreeEvent) {
@@ -181,27 +184,40 @@ export async function registerFreeEvent(req, res) {
             });
         }
 
+        // ✅ Generate booking code
+        const bookingCode = event.generateBookingCode();
+
         // Add registration
         event.freeRegistrations.push({
+            bookingCode,
             fullName,
             email,
             phone,
-            notes
+            gender,
+            currentCity,
+            notes,
+            checkInStatus: 'pending'
         });
 
         await event.save();
+
+        // TODO: Send email with booking code
 
         res.json({
             success: true,
             message: 'Successfully registered for the event',
             data: {
+                bookingCode,
                 registrationId: event.freeRegistrations[event.freeRegistrations.length - 1]._id,
                 event: event.name,
                 date: event.date
             }
         });
     } catch (err) {
-        res.status(400).json({ success: false, message: err.message });
+        res.status(400).json({
+            success: false,
+            message: err.message
+        });
     }
 }
 
@@ -438,5 +454,170 @@ export async function getAvailableEvents(req, res) {
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
+    }
+}
+
+// Check-in dengan booking code
+export async function checkInAttendee(req, res) {
+    try {
+        const { eventId } = req.params;
+        const { bookingCode, checkInBy } = req.body;
+
+        if (!bookingCode) {
+            return res.status(400).json({
+                success: false,
+                message: 'Booking code is required'
+            });
+        }
+
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({
+                success: false,
+                message: 'Event not found'
+            });
+        }
+
+        // Find registration by booking code
+        const registration = event.freeRegistrations.find(
+            reg => reg.bookingCode === bookingCode.toUpperCase()
+        );
+
+        if (!registration) {
+            return res.status(404).json({
+                success: false,
+                message: 'Booking code not found'
+            });
+        }
+
+        // Check if already checked in
+        if (registration.checkInStatus === 'checked-in') {
+            return res.status(400).json({
+                success: false,
+                message: 'Already checked in',
+                data: {
+                    checkInTime: registration.checkInTime,
+                    attendee: {
+                        name: registration.fullName,
+                        email: registration.email
+                    }
+                }
+            });
+        }
+
+        // Update check-in status
+        registration.checkInStatus = 'checked-in';
+        registration.checkInTime = new Date();
+        registration.checkInBy = checkInBy || 'Staff';
+
+        await event.save();
+
+        res.json({
+            success: true,
+            message: 'Check-in successful',
+            data: {
+                bookingCode: registration.bookingCode,
+                attendee: {
+                    name: registration.fullName,
+                    email: registration.email,
+                    phone: registration.phone,
+                    gender: registration.gender,
+                    city: registration.currentCity
+                },
+                checkInTime: registration.checkInTime,
+                checkInBy: registration.checkInBy
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
+    }
+}
+
+// Get check-in statistics
+export async function getCheckInStats(req, res) {
+    try {
+        const { eventId } = req.params;
+
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({
+                success: false,
+                message: 'Event not found'
+            });
+        }
+
+        const totalRegistrations = event.freeRegistrations.length;
+        const checkedIn = event.freeRegistrations.filter(
+            reg => reg.checkInStatus === 'checked-in'
+        ).length;
+        const pending = totalRegistrations - checkedIn;
+
+        res.json({
+            success: true,
+            data: {
+                totalRegistrations,
+                checkedIn,
+                pending,
+                checkInRate: totalRegistrations > 0
+                    ? ((checkedIn / totalRegistrations) * 100).toFixed(2)
+                    : 0
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
+    }
+}
+
+// Get attendee list
+export async function getAttendeeList(req, res) {
+    try {
+        const { eventId } = req.params;
+        const { status } = req.query; // 'all', 'checked-in', 'pending'
+
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({
+                success: false,
+                message: 'Event not found'
+            });
+        }
+
+        let attendees = event.freeRegistrations;
+
+        if (status && status !== 'all') {
+            attendees = attendees.filter(reg => reg.checkInStatus === status);
+        }
+
+        const formattedAttendees = attendees.map(reg => ({
+            bookingCode: reg.bookingCode,
+            fullName: reg.fullName,
+            email: reg.email,
+            phone: reg.phone,
+            gender: reg.gender,
+            currentCity: reg.currentCity,
+            registrationDate: reg.registrationDate,
+            checkInStatus: reg.checkInStatus,
+            checkInTime: reg.checkInTime,
+            checkInBy: reg.checkInBy
+        }));
+
+        res.json({
+            success: true,
+            data: formattedAttendees
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
     }
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaBook, FaShoppingBag, FaStore, FaFileInvoiceDollar, FaSignal, FaTag, FaClock, FaTabletAlt, FaAddressCard, FaWallet, FaRegCreditCard } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaBook, FaShoppingBag, FaStore, FaFileInvoiceDollar, FaSignal, FaTag, FaClock, FaTabletAlt, FaAddressCard, FaWallet, FaRegCreditCard, FaTicketAlt } from "react-icons/fa";
 
 const SalesMenu = () => {
     return (
@@ -153,6 +153,16 @@ const SalesMenu = () => {
                         <div className="flex items-center space-x-2">
                             <FaFileInvoiceDollar className='' size={24} />
                             <h2 className="font-semibold">Status Transaksi</h2>
+                        </div>
+                    </Link>
+
+                    <Link
+                        to="/admin/event-sales"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
+                    >
+                        <div className="flex items-center space-x-2">
+                            <FaTicketAlt className='' size={24} />
+                            <h2 className="font-semibold">Event</h2>
                         </div>
                     </Link>
                 </div>

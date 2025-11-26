@@ -6,7 +6,6 @@ import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provid
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/repositories/payment_type_repository.dart';
 import 'package:kasirbaraja/models/payments/process_payment_request.dart';
-import 'package:kasirbaraja/services/order_service.dart';
 
 final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((
   ref,

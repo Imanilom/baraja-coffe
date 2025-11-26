@@ -1,5 +1,4 @@
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
@@ -9,14 +8,12 @@ import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
-import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 import 'package:collection/collection.dart';
-import 'package:kasirbaraja/utils/generate_order_id.dart';
 import 'package:uuid/uuid.dart';
 
 class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
@@ -298,7 +295,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
     final cashier = await HiveService.getCashier();
 
-    state = state!.copyWith(cashierId: cashier!.id);
+    state = state!.copyWith(cashier: cashier);
     print('statedtdt: $state');
     if (state == null) return false;
 
@@ -311,6 +308,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       orderDetails.addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
 
       if (order.isNotEmpty) {
+        //update menu items
         return true;
       }
     } catch (e) {
@@ -332,30 +330,34 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
               .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
               .toList();
 
-      // 2. Hitung total from order items
-      final totalFromItems = updatedItems.fold(
+      // 2. Hitung total dari order items
+      final totalFromItems = updatedItems.fold<int>(
         0,
         (sum, item) => sum + item.subtotal,
       );
 
-      // 3. Hitung total from custom amounts
-      final totalFromCustomAmounts = (state!.customAmountItems ?? []).fold(
+      // 3. Hitung total dari custom amounts
+      final totalFromCustomAmounts = (state!.customAmountItems ?? []).fold<int>(
         0,
         (sum, item) => sum + (item.amount ?? 0),
       );
 
-      // 4. Total before discount = items + custom amounts
+      // 4. Total sebelum diskon = items + custom amounts
       final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
 
-      // 5. Hitung total after discount
+      // 5. Hitung total setelah diskon
       final discountAmount = state!.discounts?.totalDiscount ?? 0;
       final totalAfterDiscount = totalBeforeDiscount - discountAmount;
 
-      // 6. Hitung tax dan service (jika ada outlet ID)
+      // 6. Hitung tax dan service
       int totalTax = 0;
       int totalServiceFee = 0;
 
-      if (totalAfterDiscount > 0) {
+      // 🔹 Cek dulu: apakah order ini full kategori BAZAR?
+      final isBazaarOrder = _isBazaarOrder(updatedItems);
+
+      if (totalAfterDiscount > 0 && !isBazaarOrder) {
+        // 💰 Mode normal → tetap hitung tax & service
         try {
           final result = await _taxAndServiceRepository.calculateOrderTotals(
             totalAfterDiscount,
@@ -364,6 +366,13 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
           totalServiceFee = result.serviceAmount;
         } catch (e) {
           print('Error calculating tax and service: $e');
+        }
+      } else {
+        // 🧾 Mode BAZAR → tanpa tax & service
+        totalTax = 0;
+        totalServiceFee = 0;
+        if (isBazaarOrder) {
+          print('Order ini kategori BAZAR → TANPA tax & service');
         }
       }
 
@@ -385,6 +394,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       print('- Total from custom amounts: $totalFromCustomAmounts');
       print('- Before discount: $totalBeforeDiscount');
       print('- After discount: $totalAfterDiscount');
+      print('- Is bazaar order: $isBazaarOrder');
       print('- Tax: $totalTax');
       print('- Service: $totalServiceFee');
       print('- Grand total: $grandTotal');
@@ -394,6 +404,81 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       _isCalculating = false;
     }
   }
+
+  // Future<void> _recalculateAll() async {
+  //   if (state == null || _isCalculating) return;
+
+  //   _isCalculating = true;
+
+  //   try {
+  //     // 1. Update subtotal setiap item
+  //     final updatedItems =
+  //         state!.items
+  //             .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
+  //             .toList();
+
+  //     // 2. Hitung total from order items
+  //     final totalFromItems = updatedItems.fold(
+  //       0,
+  //       (sum, item) => sum + item.subtotal,
+  //     );
+
+  //     // 3. Hitung total from custom amounts
+  //     final totalFromCustomAmounts = (state!.customAmountItems ?? []).fold(
+  //       0,
+  //       (sum, item) => sum + (item.amount ?? 0),
+  //     );
+
+  //     // 4. Total before discount = items + custom amounts
+  //     final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
+
+  //     // 5. Hitung total after discount
+  //     final discountAmount = state!.discounts?.totalDiscount ?? 0;
+  //     final totalAfterDiscount = totalBeforeDiscount - discountAmount;
+
+  //     // 6. Hitung tax dan service (jika ada outlet ID)
+  //     int totalTax = 0;
+  //     int totalServiceFee = 0;
+
+  //     if (totalAfterDiscount > 0) {
+  //       try {
+  //         final result = await _taxAndServiceRepository.calculateOrderTotals(
+  //           totalAfterDiscount,
+  //         );
+  //         totalTax = result.taxAmount;
+  //         totalServiceFee = result.serviceAmount;
+  //       } catch (e) {
+  //         print('Error calculating tax and service: $e');
+  //       }
+  //     }
+
+  //     // 7. Hitung grand total
+  //     final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
+
+  //     // 8. Update state sekali saja
+  //     state = state!.copyWith(
+  //       items: updatedItems,
+  //       totalBeforeDiscount: totalBeforeDiscount,
+  //       totalAfterDiscount: totalAfterDiscount,
+  //       totalTax: totalTax,
+  //       totalServiceFee: totalServiceFee,
+  //       grandTotal: grandTotal,
+  //     );
+
+  //     print('Calculation completed:');
+  //     print('- Total from items: $totalFromItems');
+  //     print('- Total from custom amounts: $totalFromCustomAmounts');
+  //     print('- Before discount: $totalBeforeDiscount');
+  //     print('- After discount: $totalAfterDiscount');
+  //     print('- Tax: $totalTax');
+  //     print('- Service: $totalServiceFee');
+  //     print('- Grand total: $grandTotal');
+  //   } catch (e) {
+  //     print('Error in recalculation: $e');
+  //   } finally {
+  //     _isCalculating = false;
+  //   }
+  // }
 
   //add orderId to orderDetail
   void addOrderIdToOrderDetail(String orderId) {
@@ -478,6 +563,19 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     _recalculateAll();
 
     print('Custom amount berhasil dihapus');
+  }
+
+  bool _isBazaarOrder(List<OrderItemModel> items) {
+    if (items.isEmpty) return false;
+
+    return items.every((item) {
+      // ✏️ SESUAIKAN FIELD INI dengan punya kamu:
+      // misal: item.menuItem.categoryName, item.menuItem.mainCategory, dll.
+      // final category = item.menuItem.category?.toLowerCase();
+      final mainCategory = item.menuItem.mainCategory?.toLowerCase();
+
+      return mainCategory == 'bazar';
+    });
   }
 }
 

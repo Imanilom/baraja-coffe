@@ -1,65 +1,61 @@
 import mongoose from 'mongoose';
 
 const TappingSchema = new mongoose.Schema({
-  // Data dari ESP device
   deviceId: {
     type: String,
     required: true
   },
   noid: {
-    type: Number, // noid finger dari device
+    type: Number,
     required: true
   },
   tapTime: {
-    type: Date, // waktu tap dari device
+    type: Date,
     required: true
   },
   verifyMode: {
-    type: String, // fingerprint, password, card, etc
+    type: String,
     default: 'fingerprint'
   },
   
-  // Data setelah diproses server
-  user: {
+  // Data mapping
+  employee: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null // akan diisi setelah mapping
+    ref: 'Employee',
+    default: null
   },
   tapType: {
     type: String,
     enum: ['in', 'out', 'auto'],
-    default: 'auto' // auto detect in/out
+    default: 'auto'
   },
+  
+  // Status processing
   status: {
     type: String,
-    enum: ['pending', 'processed', 'error'],
+    enum: ['pending', 'processed', 'error', 'duplicate'],
     default: 'pending'
   },
-  errorMessage: {
-    type: String,
-    default: null
-  },
+  errorMessage: String,
   
-  // Metadata device
-  deviceTime: {
-    type: String, // waktu asli dari device (string)
-    default: null
-  },
-  batteryLevel: {
-    type: Number, // level baterai device
-    default: null
-  },
-  signalStrength: {
-    type: Number, // strength sinyal WiFi/GSM
-    default: null
-  },
+  // Metadata
+  deviceTime: String,
+  batteryLevel: Number,
+  signalStrength: Number,
   
   // Log processing
-  processedAt: {
-    type: Date,
+  processedAt: Date,
+  attendanceRecord: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Attendance',
     default: null
   }
+
 }, { timestamps: true });
+
+// Index untuk performa query
+TappingSchema.index({ employee: 1, tapTime: 1 });
+TappingSchema.index({ deviceId: 1, noid: 1, tapTime: 1 });
 
 const Tapping = mongoose.model('Tapping', TappingSchema);
 export default Tapping;

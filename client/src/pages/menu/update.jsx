@@ -53,7 +53,7 @@ const UpdateMenu = () => {
   };
   const { id } = useParams(); // Get the menu item ID from the URL
   const [title, setTitle] = useState([]);
-  const MainCategories = ['makanan', 'minuman', 'dessert', 'snack'];
+  const MainCategories = ['makanan', 'minuman', 'instan', 'dessert', 'snack', 'bazar'];
   const [formData, setFormData] = useState({
     name: "",
     price: 0,

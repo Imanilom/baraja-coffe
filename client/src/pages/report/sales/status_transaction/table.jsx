@@ -43,6 +43,22 @@ const TypeTransactionTable = ({
         }
     };
 
+    // Helper function untuk styling badge payment status
+    const getPaymentStatusBadgeClass = (status) => {
+        switch (status) {
+            case "settlement":
+            case "paid":
+                return "bg-green-100 text-green-800";
+            case "pending":
+                return "bg-yellow-100 text-yellow-800";
+            case "failed":
+            case "expired":
+                return "bg-red-100 text-red-800";
+            default:
+                return "bg-gray-100 text-gray-800";
+        }
+    };
+
     return (
         <>
             <div className="flex flex-wrap gap-4 md:justify-between items-center px-6 py-3">
@@ -107,6 +123,7 @@ const TypeTransactionTable = ({
                                 <th className="px-4 py-3 font-semibold w-3/12">Produk</th>
                                 <th className="px-4 py-3 font-semibold w-1/12">Tipe Penjualan</th>
                                 <th className="px-4 py-3 font-semibold w-1/12">Status</th>
+                                <th className="px-4 py-3 font-semibold w-1/12">Pembayaran</th>
                                 <th className="px-4 py-3 font-semibold w-2/12 text-right">Total</th>
                             </tr>
                         </thead>
@@ -120,6 +137,9 @@ const TypeTransactionTable = ({
                                         const cashier = product?.cashierId || {};
                                         const orderType = product?.orderType || {};
                                         const status = product?.status || "N/A";
+                                        const paymentStatus = product?.paymentDetails?.status || "-";
+                                        const paymentMethod = product?.actualPaymentMethod || "-";
+
                                         let menuNames = [];
                                         let totalSubtotal = 0;
 
@@ -146,6 +166,13 @@ const TypeTransactionTable = ({
                                                         {status}
                                                     </span>
                                                 </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="font-medium">
+                                                            {paymentMethod}
+                                                        </span>
+                                                    </div>
+                                                </td>
                                                 <td className="px-4 py-3 text-right">
                                                     {product.grandTotal.toLocaleString() || ""}
                                                 </td>
@@ -155,7 +182,7 @@ const TypeTransactionTable = ({
                                         console.error(`Error rendering product ${index}:`, err, product);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="7" className="px-4 py-3 text-red-500">
+                                                <td colSpan="8" className="px-4 py-3 text-red-500">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -166,14 +193,14 @@ const TypeTransactionTable = ({
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={8}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
 
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="px-4 py-2" colSpan="5">
+                                <td className="px-4 py-2" colSpan="6">
                                     Grand Total
                                 </td>
                                 <td className="px-2 py-2 text-right rounded" colSpan="2">

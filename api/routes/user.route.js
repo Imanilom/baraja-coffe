@@ -15,7 +15,8 @@ import {
   getAllEmployees,
   updateUserProfile,
   changeUserPassword,
-  getUserAuthType
+  getUserAuthType,
+  updateUserStatus
 } from '../controllers/user.controller.js';
 import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
@@ -34,6 +35,9 @@ router.get('/getUSerById/:id', authMiddleware, getUSerById);
 
 // Update user (user sendiri atau admin)
 router.put('/update/:id', authMiddleware, updateUser);
+
+// update Status
+router.put('/:id', authMiddleware, updateUserStatus);
 
 // Hapus user (user sendiri atau admin)
 router.delete('/delete/:id', verifyToken(["customer", "admin", "superadmin"]), deleteUser);

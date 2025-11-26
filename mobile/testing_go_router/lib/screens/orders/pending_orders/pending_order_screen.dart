@@ -1,15 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/enums/order_status.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/models/try/activity_model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
-import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
-import 'package:kasirbaraja/services/order_history_service.dart';
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart';
-import 'package:kasirbaraja/utils/format_rupiah.dart';
 
-import '../../../widgets/scanner/qrscanner.dart';
 import 'package:kasirbaraja/screens/orders/pending_orders/widgets/order_list_widget.dart';
 import 'package:kasirbaraja/screens/orders/pending_orders/widgets/order_detail_widget.dart';
 import 'package:kasirbaraja/screens/orders/pending_orders/widgets/payment_details_widget.dart';
