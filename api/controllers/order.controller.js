@@ -2341,6 +2341,7 @@ const confirmOrderHelper = async (orderId) => {
 
 export const createUnifiedOrder = async (req, res) => {
   let orderId = null;
+  let lockAcquired = false;
 
   try {
     const {
@@ -2369,23 +2370,90 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // Generate order ID early for locking
+    // Generate order ID early untuk locking
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
     } else {
-      orderId = `${source.toUpperCase()}-${Date.now()}`;
+      // Tambah random component untuk uniqueness
+      orderId = `${source.toUpperCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     }
 
     console.log('🔒 Attempting to create order with atomic lock:', {
       orderId,
       source,
       outletId,
-      tableNumber,
-      paymentDetails
+      tableNumber
     });
 
-    // Execute dengan atomic lock untuk mencegah race condition
+    // PRE-CHECK: Cek order existence SEBELUM lock (optimization)
+    const existingOrderCheck = await Order.findOne({
+      order_id: orderId,
+      outletId: outletId
+    });
+
+    if (existingOrderCheck) {
+      console.log('🔄 Order already exists, returning existing order:', {
+        orderId,
+        status: existingOrderCheck.status
+      });
+      
+      try {
+        const result = await confirmOrderHelper(orderId);
+        return res.status(200).json({
+          status: 'Completed',
+          orderId: orderId,
+          message: 'Order already exists and confirmed',
+          order: result.order
+        });
+      } catch (confirmError) {
+        return res.status(200).json({
+          success: false,
+          error: `Order exists but confirmation failed: ${confirmError.message}`,
+          orderId: orderId,
+          existingOrder: true
+        });
+      }
+    }
+
+    // Execute dengan atomic lock yang diperbaiki
     const result = await LockUtil.withOrderLock(orderId, async () => {
+      lockAcquired = true;
+      
+      // DOUBLE-CHECK: Cek order existence dalam lock (safety net)
+      const existingOrderInLock = await Order.findOne({
+        order_id: orderId,
+        outletId: outletId
+      });
+
+      if (existingOrderInLock) {
+        console.log('🔄 Order created by another process during lock acquisition:', {
+          orderId,
+          existingOrderId: existingOrderInLock._id
+        });
+
+        try {
+          const result = await confirmOrderHelper(orderId);
+          return {
+            type: 'existing_order',
+            data: {
+              status: 'Completed',
+              orderId: orderId,
+              message: 'Order processed by another process',
+              order: result.order
+            }
+          };
+        } catch (confirmError) {
+          return {
+            type: 'existing_order_error', 
+            data: {
+              success: false,
+              error: `Order exists but confirmation failed: ${confirmError.message}`,
+              orderId: orderId
+            }
+          };
+        }
+      }
+
       // ✅ SEMUA LOGIC ORDER CREATION DI DALAM LOCK
 
       // Cek jam buka/tutup outlet 
@@ -2429,46 +2497,7 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
 
-      // Check if order already exists (double-check dalam lock)
-      const existingOrder = await Order.findOne({
-        order_id: orderId,
-        outletId: outletId
-      });
-
-      if (existingOrder) {
-        console.log('🔄 Order already exists in the database, confirming order...', {
-          orderId,
-          existingOrderId: existingOrder._id,
-          existingStatus: existingOrder.status
-        });
-
-        try {
-          const result = await confirmOrderHelper(orderId);
-          return {
-            type: 'existing_order',
-            data: {
-              status: 'Completed',
-              orderId: orderId,
-              message: 'Cashier order processed and paid',
-              order: result.order
-            }
-          };
-        } catch (confirmError) {
-          console.error('❌ Failed to confirm existing order:', confirmError);
-
-          // PERBAIKAN: Jangan langsung throw, beri fallback
-          return {
-            type: 'existing_order_error',
-            data: {
-              success: false,
-              error: `Failed to confirm order: ${confirmError.message}`,
-              orderId: orderId
-            }
-          };
-        }
-      }
-
-      // PERBAIKAN: Handle customAmountItems dengan benar
+      // Handle customAmountItems dengan benar
       let finalCustomAmountItems = [];
 
       // Hanya tambahkan customAmountItems jika ada dan tidak kosong
@@ -2480,7 +2509,7 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
 
-      // HITUNG custom amount otomatis HANYA JIKA tidak ada customAmountItems manual
+      // Hitung custom amount otomatis HANYA JIKA tidak ada customAmountItems manual
       if (paymentDetails && paymentDetails.amount && req.body.items && finalCustomAmountItems.length === 0) {
         // Hitung total order dari items saja (tanpa custom amount)
         const orderTotalFromItems = req.body.items.reduce((total, item) => {
@@ -2572,7 +2601,7 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
 
-      // PERBAIKAN: Buat order langsung tanpa queue untuk menghindari timing issue
+      // Buat order langsung tanpa queue untuk menghindari timing issue
       console.log('🔄 Creating order directly without queue...');
 
       try {
@@ -2613,13 +2642,13 @@ export const createUnifiedOrder = async (req, res) => {
           grandTotal: orderResult.grandTotal
         };
 
-        // PERBAIKAN: Cari order yang baru dibuat untuk memastikan ada di database
+        // Cari order yang baru dibuat untuk memastikan ada di database
         const newOrder = await Order.findOne({ order_id: orderId });
         if (!newOrder) {
           throw new Error(`Order ${orderId} not found after creation`);
         }
 
-        // Helper function yang lebih flexible
+        // Helper function yang lebih flexible untuk cashier payment
         const processCashierPayment = async (orderId, paymentDetails, baseResponse, result) => {
           const chargeRequest = {
             body: {
@@ -2752,7 +2781,7 @@ export const createUnifiedOrder = async (req, res) => {
               }
             };
           } else {
-            // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
+            // Validasi amount sebelum kirim ke Midtrans
             if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
               throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
             }
@@ -2793,7 +2822,7 @@ export const createUnifiedOrder = async (req, res) => {
         }
 
         if (source === 'Web') {
-          // PERBAIKAN: Gunakan newOrder yang sudah dicari sebelumnya
+          // Gunakan newOrder yang sudah dicari sebelumnya
           const paymentData = {
             order_id: newOrder.order_id,
             payment_code: generatePaymentCode(),
@@ -2834,14 +2863,14 @@ export const createUnifiedOrder = async (req, res) => {
               }
             };
           } else {
-            // PERBAIKAN: Urutan parameter yang benar untuk Web
+            // Urutan parameter yang benar untuk Web
             const customerData = {
               name: user || 'Customer',
               email: contact?.email || 'example@mail.com',
               phone: contact?.phone || '081234567890'
             };
 
-            // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
+            // Validasi amount sebelum kirim ke Midtrans
             console.log('Payment details for Midtrans SNAP:', {
               orderId,
               amount: validated.paymentDetails?.amount,
@@ -2854,7 +2883,7 @@ export const createUnifiedOrder = async (req, res) => {
               throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
             }
 
-            // PERBAIKAN: Urutan parameter yang benar
+            // Urutan parameter yang benar
             const midtransRes = await createMidtransSnapTransaction(
               orderId,
               Number(validated.paymentDetails.amount),
@@ -2887,10 +2916,10 @@ export const createUnifiedOrder = async (req, res) => {
         throw directError;
       }
     }, {
-      owner: `order-${source}-${process.pid}`,
-      ttlMs: 60000, // 60 seconds lock
-      retryDelayMs: 200,
-      maxRetries: 15
+      owner: `order-${source}-${process.pid}-${Date.now()}`,
+      ttlMs: 30000, // 30 seconds lock (dikurangi)
+      retryDelayMs: 300, // Tambah delay
+      maxRetries: 5 // Kurangi retries
     });
 
     // Handle different response types dari lock function
@@ -2911,11 +2940,12 @@ export const createUnifiedOrder = async (req, res) => {
     console.error('Error in createUnifiedOrder:', err);
 
     // Specific error handling untuk lock-related errors
-    if (err.message.includes('Failed to acquire lock')) {
+    if (err.message.includes('Failed to acquire lock') || err.message.includes('Lock busy')) {
       return res.status(429).json({
         success: false,
-        error: 'Order sedang diproses, silakan coba lagi dalam beberapa saat',
-        orderId: orderId
+        error: 'System sedang sibuk memproses pesanan lain, silakan coba lagi dalam 5 detik',
+        orderId: orderId,
+        retryAfter: 5
       });
     }
 
@@ -2937,13 +2967,16 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
+    // Return orderId bahkan dalam error untuk tracking
     return res.status(400).json({
       success: false,
       error: err.message,
-      orderId: orderId
+      orderId: orderId,
+      retrySuggested: true
     });
   }
 };
+
 
 const calculateCustomAmount = (paymentAmount, orderTotalFromItems) => {
   // Validasi input

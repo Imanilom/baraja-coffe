@@ -7,7 +7,12 @@ import {
   addItemToOpenBill,
   removeItemFromOpenBill,
   closeOpenBill,
-  cancelOpenBill
+  cancelOpenBill,
+  addCustomAmountToOpenBill,
+  updateCustomAmountInOpenBill,
+  removeCustomAmountFromOpenBill,
+  getCustomAmountFromOpenBill
+
 } from '../controllers/openBill.controller.js';
 
 const router = express.Router();
@@ -31,6 +36,10 @@ router.route('/open-bills/:id/close')
 router.route('/open-bills/:id/cancel')
   .post(cancelOpenBill);
 
+router.post('/open-bills/:id/custom-amount', addCustomAmountToOpenBill);
+router.put('/open-bills/:id/custom-amount/:customAmountId', updateCustomAmountInOpenBill);
+router.delete('/open-bills/:id/custom-amount/:customAmountId', removeCustomAmountFromOpenBill);
+router.get('/open-bills/:id/custom-amount/:customAmountId', getCustomAmountFromOpenBill);
 
 // Reservation routes
 router.post('/', reservationController.createReservation);
