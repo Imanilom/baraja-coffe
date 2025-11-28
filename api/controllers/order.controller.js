@@ -2355,11 +2355,12 @@ export const createUnifiedOrder = async (req, res) => {
       delivery_option,
       recipient_data,
       customAmountItems,
-      paymentDetails,
+      paymentDetails, // Bisa array untuk split payment atau object untuk single payment
       user,
       contact,
       cashierId,
-      device_id
+      device_id,
+      isSplitPayment = false
     } = req.body;
 
     // Validasi outletId
@@ -2382,7 +2383,9 @@ export const createUnifiedOrder = async (req, res) => {
       orderId,
       source,
       outletId,
-      tableNumber
+      tableNumber,
+      isSplitPayment,
+      paymentDetailsType: Array.isArray(paymentDetails) ? 'array' : 'object'
     });
 
     // PRE-CHECK: Cek order existence SEBELUM lock (optimization)
@@ -2526,7 +2529,8 @@ export const createUnifiedOrder = async (req, res) => {
 
       const validated = validateOrderData({
         ...req.body,
-        customAmountItems: finalCustomAmountItems
+        customAmountItems: finalCustomAmountItems,
+        isSplitPayment: isSplitPayment
       }, source);
 
       validated.outletId = outletId;
@@ -2613,13 +2617,15 @@ export const createUnifiedOrder = async (req, res) => {
           isOpenBill: validated.isOpenBill,
           isReservation: orderType === 'reservation',
           requiresDelivery: source === 'App' && delivery_option === 'delivery',
-          recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null
+          recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null,
+          paymentDetails: paymentDetails // Kirim paymentDetails ke handler
         });
 
         console.log('✅ Order created successfully:', {
           orderId,
           orderNumber: orderResult.orderNumber,
-          grandTotal: orderResult.grandTotal
+          grandTotal: orderResult.grandTotal,
+          isSplitPayment: orderResult.isSplitPayment
         });
 
         // Broadcast setelah order berhasil dibuat
@@ -2629,7 +2635,8 @@ export const createUnifiedOrder = async (req, res) => {
           source,
           outletId,
           paymentDetails: validated.paymentDetails,
-          hasCustomAmountItems: finalCustomAmountItems.length > 0
+          hasCustomAmountItems: finalCustomAmountItems.length > 0,
+          isSplitPayment: orderResult.isSplitPayment
         });
 
         // Base response
@@ -2639,7 +2646,8 @@ export const createUnifiedOrder = async (req, res) => {
           hasCustomAmountItems: finalCustomAmountItems.length > 0,
           customAmountItems: finalCustomAmountItems,
           orderNumber: orderResult.orderNumber,
-          grandTotal: orderResult.grandTotal
+          grandTotal: orderResult.grandTotal,
+          isSplitPayment: orderResult.isSplitPayment
         };
 
         // Cari order yang baru dibuat untuk memastikan ada di database
@@ -2648,43 +2656,111 @@ export const createUnifiedOrder = async (req, res) => {
           throw new Error(`Order ${orderId} not found after creation`);
         }
 
-        // Helper function yang lebih flexible untuk cashier payment
+        // Helper function yang lebih flexible untuk cashier payment - SUPPORT SPLIT PAYMENT
         const processCashierPayment = async (orderId, paymentDetails, baseResponse, result) => {
-          const chargeRequest = {
-            body: {
-              // Ambil dari paymentDetails atau gunakan default
-              payment_type: paymentDetails?.payment_type || 'Cash',
-              order_id: orderId,
-              gross_amount: paymentDetails?.gross_amount || 0,
-              is_down_payment: paymentDetails?.is_down_payment || false,
-              down_payment_amount: paymentDetails?.down_payment_amount,
-              remaining_payment: paymentDetails?.remaining_payment,
-              tendered_amount: paymentDetails?.tendered_amount,
-              change_amount: paymentDetails?.change_amount,
-            }
-          };
+          // Handle split payment
+          if (Array.isArray(paymentDetails)) {
+            console.log('Processing split payment for order:', {
+              orderId,
+              paymentCount: paymentDetails.length,
+              payments: paymentDetails.map(p => ({
+                method: p.method,
+                amount: p.amount,
+                status: p.status
+              }))
+            });
 
-          return new Promise((resolve, reject) => {
-            const mockRes = {
-              status: (code) => ({
-                json: (data) => {
-                  if (code === 200 && data.success) {
-                    resolve(data);
-                  } else {
-                    reject(new Error(data.message || 'Payment failed'));
-                  }
+            // Untuk split payment, kita proses semua pembayaran
+            const paymentResults = [];
+            for (const payment of paymentDetails) {
+              const chargeRequest = {
+                body: {
+                  payment_type: payment.method || 'Cash',
+                  order_id: orderId,
+                  gross_amount: payment.amount || 0,
+                  is_down_payment: false,
+                  tendered_amount: payment.tenderedAmount || payment.amount,
+                  change_amount: payment.changeAmount || 0,
+                  is_split_payment: true,
+                  split_payment_index: paymentResults.length
                 }
-              })
+              };
+
+              try {
+                const paymentResult = await new Promise((resolve, reject) => {
+                  const mockRes = {
+                    status: (code) => ({
+                      json: (data) => {
+                        if (code === 200 && data.success) {
+                          resolve(data);
+                        } else {
+                          reject(new Error(data.message || 'Payment failed'));
+                        }
+                      }
+                    })
+                  };
+
+                  cashierCharge(chargeRequest, mockRes).catch(reject);
+                });
+
+                paymentResults.push({
+                  method: payment.method,
+                  amount: payment.amount,
+                  status: paymentResult.data?.payment_status || 'completed',
+                  transactionId: paymentResult.data?.transaction_id
+                });
+              } catch (paymentError) {
+                console.error(`Split payment failed for ${payment.method}:`, paymentError);
+                throw new Error(`Split payment failed for ${payment.method}: ${paymentError.message}`);
+              }
+            }
+
+            return {
+              success: true,
+              data: {
+                payment_status: 'completed',
+                is_split_payment: true,
+                payments: paymentResults,
+                total_paid: paymentResults.reduce((sum, p) => sum + p.amount, 0)
+              }
+            };
+          } else {
+            // Single payment (legacy)
+            const chargeRequest = {
+              body: {
+                payment_type: paymentDetails?.method || 'Cash',
+                order_id: orderId,
+                gross_amount: paymentDetails?.amount || 0,
+                is_down_payment: paymentDetails?.is_down_payment || false,
+                down_payment_amount: paymentDetails?.down_payment_amount,
+                remaining_payment: paymentDetails?.remaining_payment,
+                tendered_amount: paymentDetails?.tendered_amount,
+                change_amount: paymentDetails?.change_amount,
+              }
             };
 
-            cashierCharge(chargeRequest, mockRes).catch(reject);
-          });
+            return new Promise((resolve, reject) => {
+              const mockRes = {
+                status: (code) => ({
+                  json: (data) => {
+                    if (code === 200 && data.success) {
+                      resolve(data);
+                    } else {
+                      reject(new Error(data.message || 'Payment failed'));
+                    }
+                  }
+                })
+              };
+
+              cashierCharge(chargeRequest, mockRes).catch(reject);
+            });
+          }
         };
 
         // Handle payment based on source
         if (source === 'Cashier') {
           try {
-            // Langsung pakai req.body tanpa mapping
+            // Langsung pakai req.body.paymentDetails (bisa array atau object)
             const paymentResult = await processCashierPayment(
               orderId,
               req.body.paymentDetails,
@@ -2697,7 +2773,8 @@ export const createUnifiedOrder = async (req, res) => {
               tableNumber,
               orderData: validated,
               outletId,
-              hasCustomAmountItems: finalCustomAmountItems.length > 0
+              hasCustomAmountItems: finalCustomAmountItems.length > 0,
+              isSplitPayment: Array.isArray(req.body.paymentDetails)
             });
 
             return {
@@ -2705,7 +2782,9 @@ export const createUnifiedOrder = async (req, res) => {
               data: {
                 ...baseResponse,
                 status: 'Completed',
-                message: 'Cashier order processed and paid',
+                message: Array.isArray(req.body.paymentDetails) 
+                  ? 'Cashier order processed with split payment' 
+                  : 'Cashier order processed and paid',
                 paymentData: paymentResult.data,
                 paymentStatus: paymentResult.data.payment_status,
                 ...(orderResult.loyalty?.isApplied && {
@@ -2724,6 +2803,7 @@ export const createUnifiedOrder = async (req, res) => {
           }
         }
 
+        // Handle untuk App dan Web (tetap seperti sebelumnya)
         if (source === 'App') {
           let deliveryResult = null;
           if (delivery_option === 'delivery' && recipient_data) {
