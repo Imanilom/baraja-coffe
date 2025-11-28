@@ -1,9 +1,9 @@
-import { Order } from '../../models/Order.model.js';
+import { Order } from '../../models/order.model.js';
 import Payment from '../../models/Payment.model.js';
-import { 
-  processOrderItems, 
-  getSafeMenuItemData, 
-  getProductSummaryFromOrders 
+import {
+  processOrderItems,
+  getSafeMenuItemData,
+  getProductSummaryFromOrders
 } from '../../utils/menuItemHelper.js';
 
 class DailyProfitController {
@@ -13,7 +13,7 @@ class DailyProfitController {
   async getDailyProfit(req, res) {
     try {
       const { date, outletId, includeDeleted = 'true' } = req.query;
-      
+
       if (!date) {
         return res.status(400).json({
           success: false,
@@ -25,7 +25,7 @@ class DailyProfitController {
       const targetDate = new Date(date);
       const startDate = new Date(targetDate);
       startDate.setHours(0, 0, 0, 0);
-      
+
       const endDate = new Date(targetDate);
       endDate.setHours(23, 59, 59, 999);
 
@@ -84,10 +84,10 @@ class DailyProfitController {
           const orderRevenue = order.grandTotal || 0;
           const orderTax = order.totalTax || 0;
           const orderServiceFee = order.totalServiceFee || 0;
-          const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) + 
-                               (order.discounts?.manualDiscount || 0) + 
-                               (order.discounts?.voucherDiscount || 0);
-          
+          const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) +
+            (order.discounts?.manualDiscount || 0) +
+            (order.discounts?.voucherDiscount || 0);
+
           const orderNetProfit = orderRevenue - orderDiscounts;
 
           totalRevenue += orderRevenue;
@@ -105,8 +105,8 @@ class DailyProfitController {
           const processedItems = processOrderItems(order.items);
 
           // Filter items berdasarkan includeDeleted parameter
-          const filteredItems = includeDeleted === 'true' 
-            ? processedItems 
+          const filteredItems = includeDeleted === 'true'
+            ? processedItems
             : processedItems.filter(item => !item.isMenuDeleted);
 
           orderDetails.push({
@@ -195,7 +195,7 @@ class DailyProfitController {
   async getProductSalesReport(req, res) {
     try {
       const { startDate, endDate, outletId, includeDeleted = 'true' } = req.query;
-      
+
       if (!startDate || !endDate) {
         return res.status(400).json({
           success: false,
@@ -220,10 +220,10 @@ class DailyProfitController {
 
       // Get product summary menggunakan helper yang aman
       const productSummary = getProductSummaryFromOrders(orders);
-      
+
       // Filter berdasarkan includeDeleted parameter
-      const filteredProducts = includeDeleted === 'true' 
-        ? productSummary 
+      const filteredProducts = includeDeleted === 'true'
+        ? productSummary
         : productSummary.filter(product => !product.isDeleted);
 
       // Sort by total revenue descending
@@ -264,7 +264,7 @@ class DailyProfitController {
   async getDailyProfitRange(req, res) {
     try {
       const { startDate, endDate, outletId } = req.query;
-      
+
       if (!startDate || !endDate) {
         return res.status(400).json({
           success: false,
@@ -293,7 +293,7 @@ class DailyProfitController {
       const orders = await Order.find(filter).lean();
 
       const orderIds = orders.map(order => order.order_id);
-      
+
       const payments = await Payment.find({
         order_id: { $in: orderIds },
         status: 'settlement'
@@ -318,9 +318,9 @@ class DailyProfitController {
         if (totalPaid > 0) {
           const orderDate = order.createdAtWIB.toISOString().split('T')[0];
           const orderRevenue = order.grandTotal || 0;
-          const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) + 
-                               (order.discounts?.manualDiscount || 0) + 
-                               (order.discounts?.voucherDiscount || 0);
+          const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) +
+            (order.discounts?.manualDiscount || 0) +
+            (order.discounts?.voucherDiscount || 0);
           const orderNetProfit = orderRevenue - orderDiscounts;
 
           if (!dailyProfits[orderDate]) {
@@ -336,7 +336,7 @@ class DailyProfitController {
           dailyProfits[orderDate].totalRevenue += orderRevenue;
           dailyProfits[orderDate].totalNetProfit += orderNetProfit;
           dailyProfits[orderDate].totalOrders += 1;
-          
+
           // Count items - ini akan bekerja bahkan jika menuItems dihapus
           const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
           dailyProfits[orderDate].totalItemsSold += itemsCount;
@@ -344,7 +344,7 @@ class DailyProfitController {
       });
 
       // Convert to array and sort by date
-      const result = Object.values(dailyProfits).sort((a, b) => 
+      const result = Object.values(dailyProfits).sort((a, b) =>
         new Date(a.date) - new Date(b.date)
       );
 
@@ -369,10 +369,10 @@ class DailyProfitController {
   async getTodayProfit(req, res) {
     try {
       const { outletId, includeDeleted } = req.query;
-      
+
       const today = new Date();
       const todayString = today.toISOString().split('T')[0];
-      
+
       // Create mock request object
       const mockReq = {
         query: {
@@ -381,7 +381,7 @@ class DailyProfitController {
           includeDeleted: includeDeleted
         }
       };
-      
+
       return this.getDailyProfit(mockReq, res);
     } catch (error) {
       console.error('Error in getTodayProfit:', error);
@@ -399,7 +399,7 @@ class DailyProfitController {
   async getOrderDetailReport(req, res) {
     try {
       const { orderId } = req.params;
-      
+
       if (!orderId) {
         return res.status(400).json({
           success: false,
@@ -418,7 +418,7 @@ class DailyProfitController {
       }
 
       // Get payments for this order
-      const payments = await Payment.find({ 
+      const payments = await Payment.find({
         order_id: orderId,
         status: 'settlement'
       }).lean();
@@ -435,22 +435,22 @@ class DailyProfitController {
         status: order.status,
         tableNumber: order.tableNumber,
         outlet: order.outlet,
-        
+
         // Financial details
         revenue: order.grandTotal || 0,
         tax: order.totalTax || 0,
         serviceFee: order.totalServiceFee || 0,
-        discounts: (order.discounts?.autoPromoDiscount || 0) + 
-                  (order.discounts?.manualDiscount || 0) + 
-                  (order.discounts?.voucherDiscount || 0),
-        netProfit: (order.grandTotal || 0) - 
-                  ((order.discounts?.autoPromoDiscount || 0) + 
-                   (order.discounts?.manualDiscount || 0) + 
-                   (order.discounts?.voucherDiscount || 0)),
-        
+        discounts: (order.discounts?.autoPromoDiscount || 0) +
+          (order.discounts?.manualDiscount || 0) +
+          (order.discounts?.voucherDiscount || 0),
+        netProfit: (order.grandTotal || 0) -
+          ((order.discounts?.autoPromoDiscount || 0) +
+            (order.discounts?.manualDiscount || 0) +
+            (order.discounts?.voucherDiscount || 0)),
+
         // Processed items
         items: processedItems,
-        
+
         // Payments
         payments: payments.map(p => ({
           method: p.method,
@@ -458,7 +458,7 @@ class DailyProfitController {
           status: p.status,
           paymentDate: p.paymentDate
         })),
-        
+
         // Metadata
         metadata: {
           totalItems: processedItems.length,
@@ -488,7 +488,7 @@ class DailyProfitController {
   async getProfitDashboard(req, res) {
     try {
       const { outletId, days = 7 } = req.query;
-      
+
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - parseInt(days));
@@ -512,7 +512,7 @@ class DailyProfitController {
 
       const orders = await Order.find(filter).lean();
       const orderIds = orders.map(order => order.order_id);
-      
+
       const payments = await Payment.find({
         order_id: { $in: orderIds },
         status: 'settlement'
@@ -540,14 +540,14 @@ class DailyProfitController {
         if (totalPaid > 0) {
           const orderDate = order.createdAtWIB.toISOString().split('T')[0];
           const orderRevenue = order.grandTotal || 0;
-          const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) + 
-                               (order.discounts?.manualDiscount || 0) + 
-                               (order.discounts?.voucherDiscount || 0);
+          const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) +
+            (order.discounts?.manualDiscount || 0) +
+            (order.discounts?.voucherDiscount || 0);
           const orderNetProfit = orderRevenue - orderDiscounts;
 
           totalRevenue += orderNetProfit;
           totalOrders += 1;
-          
+
           // Count items
           const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
           totalItemsSold += itemsCount;
@@ -567,7 +567,7 @@ class DailyProfitController {
         }
       });
 
-      const dailyDataArray = Object.values(dailyData).sort((a, b) => 
+      const dailyDataArray = Object.values(dailyData).sort((a, b) =>
         new Date(a.date) - new Date(b.date)
       );
 
