@@ -168,32 +168,40 @@ export async function createOrderHandler({
 
       // Prepare payments array untuk split payment
       let payments = [];
-      
+
       if (isSplitPayment && Array.isArray(orderPaymentDetails)) {
-        // Validasi: Pastikan total payment tidak melebihi grandTotal + toleransi
-        const paymentTolerance = 1000; // Toleransi Rp 1000
-        
-        if (totalPaymentAmount > (effectiveOrderTotal + paymentTolerance)) {
-          console.warn('Total payment amount exceeds effective order total:', {
-            totalPaymentAmount,
-            effectiveOrderTotal,
-            difference: totalPaymentAmount - effectiveOrderTotal
-          });
-        }
+        console.log('Processing split payment in createOrderHandler:', {
+          paymentCount: orderPaymentDetails.length,
+          totalAmount: orderPaymentDetails.reduce((sum, p) => sum + (p.amount || 0), 0),
+          payments: orderPaymentDetails.map(p => ({
+            method: p.method,
+            amount: p.amount,
+            status: p.status
+          }))
+        });
 
         // Process split payment details
         payments = orderPaymentDetails.map((payment, index) => {
+          const paymentStatus = mapPaymentStatus(payment.status || 'completed');
+          
+          console.log(`Creating payment ${index + 1}:`, {
+            method: payment.method,
+            amount: payment.amount,
+            status: paymentStatus,
+            originalStatus: payment.status
+          });
+
           const paymentData = {
             paymentMethod: payment.method,
             amount: payment.amount,
-            status: mapPaymentStatus(payment.status || 'completed'),
+            status: paymentStatus,
             processedBy: cashierId,
             processedAt: new Date(),
             notes: `Split payment ${index + 1} of ${orderPaymentDetails.length}`
           };
 
           // Tambahkan payment details berdasarkan metode
-          if (payment.method === 'Cash') {
+          if (payment.method === 'Cash' || payment.method === 'cash') {
             paymentData.paymentDetails = {
               cashTendered: payment.tenderedAmount || payment.amount,
               change: payment.changeAmount || 0
@@ -203,21 +211,20 @@ export async function createOrderHandler({
               transactionId: payment.transactionId || `QRIS-${orderId}-${index}`,
               ewallets: payment.ewallets || 'Other'
             };
-          } else if (payment.method === 'Debit') {
+          } else if (payment.method === 'Debit' || payment.method === 'Card') {
             paymentData.paymentDetails = {
-              cardType: 'Debit',
+              cardType: payment.method,
               cardLast4: payment.cardLast4 || '',
-              cardTransactionId: payment.transactionId || `DEBIT-${orderId}-${index}`
+              cardTransactionId: payment.transactionId || `${payment.method}-${orderId}-${index}`
             };
           }
 
           return paymentData;
         });
 
-        console.log('Processed split payments:', {
+        console.log('Final payments array:', {
           count: payments.length,
           totalAmount: payments.reduce((sum, p) => sum + p.amount, 0),
-          effectiveOrderTotal,
           payments: payments.map(p => ({
             method: p.paymentMethod,
             amount: p.amount,
@@ -237,7 +244,6 @@ export async function createOrderHandler({
           processedAt: new Date()
         }];
       }
-
       // Prepare base order data
       const baseOrderData = {
         order_id: orderId,
