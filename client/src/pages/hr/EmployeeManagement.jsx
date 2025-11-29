@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { 
-    FaUsers, 
-    FaChevronRight, 
-    FaSearch, 
-    FaEdit, 
-    FaTrash, 
+import {
+    FaUsers,
+    FaChevronRight,
+    FaSearch,
+    FaEdit,
+    FaTrash,
     FaPlus,
     FaEye,
     FaMoneyBillWave,
@@ -37,7 +37,7 @@ const EmployeeManagement = () => {
         npwp: "",
         bpjsKesehatan: "",
         bpjsKetenagakerjaan: "",
-        
+
         // Employment Information
         position: "",
         department: "",
@@ -46,14 +46,14 @@ const EmployeeManagement = () => {
         employmentType: "fulltime",
         basicSalary: 0,
         supervisor: "",
-        
+
         // Bank Account
         bankAccount: {
             bankName: "",
             accountNumber: "",
             accountHolder: ""
         },
-        
+
         // Allowances
         allowances: {
             departmental: 0,
@@ -106,9 +106,9 @@ const EmployeeManagement = () => {
 
             setEmployees(employeesRes.data.data || employeesRes.data);
             setSupervisors(employeesRes.data.data || employeesRes.data);
-            
-            const usersData = Array.isArray(usersRes.data) 
-                ? usersRes.data 
+
+            const usersData = Array.isArray(usersRes.data)
+                ? usersRes.data
                 : usersRes.data?.data || [];
             setUsers(usersData);
 
@@ -250,17 +250,22 @@ const EmployeeManagement = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (!validateForm()) {
             alert("Harap lengkapi semua data yang wajib diisi!");
             return;
         }
 
+        const payload = {
+            ...formData,
+            userId: formData.user, // ← Tambahkan ini
+        };
+
         try {
             if (selectedEmployee) {
-                await axios.put(`/api/hr/employees/${selectedEmployee._id}`, formData);
+                await axios.put(`/api/hr/employees/${selectedEmployee._id}`, payload);
             } else {
-                await axios.post('/api/hr/employees', formData);
+                await axios.post('/api/hr/employees', payload);
             }
             setShowModal(false);
             resetForm();
@@ -497,11 +502,10 @@ const EmployeeManagement = () => {
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-900">{employee.department}</td>
                                 <td className="px-6 py-4">
-                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                        employee.isActive 
-                                            ? 'bg-green-100 text-green-800' 
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${employee.isActive
+                                            ? 'bg-green-100 text-green-800'
                                             : 'bg-red-100 text-red-800'
-                                    }`}>
+                                        }`}>
                                         {employee.isActive ? 'Aktif' : 'Nonaktif'}
                                     </span>
                                 </td>
@@ -538,7 +542,7 @@ const EmployeeManagement = () => {
                             <h3 className="text-lg font-semibold mb-4">
                                 {selectedEmployee ? 'Edit Karyawan' : 'Tambah Karyawan'}
                             </h3>
-                            
+
                             {/* Tab Navigation */}
                             <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
                                 {tabs.map((tab) => {
@@ -548,11 +552,10 @@ const EmployeeManagement = () => {
                                             key={tab.id}
                                             type="button"
                                             onClick={() => setActiveTab(tab.id)}
-                                            className={`flex items-center gap-2 px-6 py-3 font-medium transition-all whitespace-nowrap ${
-                                                activeTab === tab.id
+                                            className={`flex items-center gap-2 px-6 py-3 font-medium transition-all whitespace-nowrap ${activeTab === tab.id
                                                     ? 'text-[#005429] border-b-2 border-[#005429]'
                                                     : 'text-gray-600 hover:text-gray-800'
-                                            }`}
+                                                }`}
                                         >
                                             <Icon className="text-lg" />
                                             {tab.label}
@@ -574,9 +577,8 @@ const EmployeeManagement = () => {
                                                     name="user"
                                                     value={formData.user}
                                                     onChange={handleInputChange}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.user ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.user ? 'border-red-500' : ''
+                                                        }`}
                                                     required
                                                 >
                                                     <option value="">Pilih User</option>
@@ -599,9 +601,8 @@ const EmployeeManagement = () => {
                                                     name="employeeId"
                                                     value={formData.employeeId}
                                                     onChange={handleInputChange}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.employeeId ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.employeeId ? 'border-red-500' : ''
+                                                        }`}
                                                     required
                                                 />
                                                 {formErrors.employeeId && (
@@ -617,9 +618,8 @@ const EmployeeManagement = () => {
                                                     name="nik"
                                                     value={formData.nik}
                                                     onChange={handleInputChange}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.nik ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.nik ? 'border-red-500' : ''
+                                                        }`}
                                                     required
                                                     maxLength="16"
                                                 />
@@ -636,9 +636,8 @@ const EmployeeManagement = () => {
                                                     name="npwp"
                                                     value={formData.npwp}
                                                     onChange={handleInputChange}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.npwp ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.npwp ? 'border-red-500' : ''
+                                                        }`}
                                                     maxLength="15"
                                                 />
                                                 {formErrors.npwp && (
@@ -686,9 +685,8 @@ const EmployeeManagement = () => {
                                                     name="position"
                                                     value={formData.position}
                                                     onChange={handleInputChange}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.position ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.position ? 'border-red-500' : ''
+                                                        }`}
                                                     required
                                                 />
                                                 {formErrors.position && (
@@ -703,9 +701,8 @@ const EmployeeManagement = () => {
                                                     name="department"
                                                     value={formData.department}
                                                     onChange={handleInputChange}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.department ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.department ? 'border-red-500' : ''
+                                                        }`}
                                                     required
                                                 >
                                                     <option value="">Pilih Departemen</option>
@@ -726,9 +723,8 @@ const EmployeeManagement = () => {
                                                     name="joinDate"
                                                     value={formData.joinDate}
                                                     onChange={handleInputChange}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.joinDate ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.joinDate ? 'border-red-500' : ''
+                                                        }`}
                                                     required
                                                 />
                                                 {formErrors.joinDate && (
@@ -780,9 +776,8 @@ const EmployeeManagement = () => {
                                                     name="basicSalary"
                                                     value={formData.basicSalary}
                                                     onChange={handleInputChange}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.basicSalary ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.basicSalary ? 'border-red-500' : ''
+                                                        }`}
                                                     required
                                                     min="0"
                                                 />
@@ -829,9 +824,8 @@ const EmployeeManagement = () => {
                                                     type="text"
                                                     value={formData.bankAccount.bankName}
                                                     onChange={(e) => handleNestedChange('bankAccount', 'bankName', e.target.value)}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.bankName ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.bankName ? 'border-red-500' : ''
+                                                        }`}
                                                 />
                                                 {formErrors.bankName && (
                                                     <p className="text-red-500 text-xs mt-1">{formErrors.bankName}</p>
@@ -845,9 +839,8 @@ const EmployeeManagement = () => {
                                                     type="text"
                                                     value={formData.bankAccount.accountNumber}
                                                     onChange={(e) => handleNestedChange('bankAccount', 'accountNumber', e.target.value)}
-                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${
-                                                        formErrors.accountNumber ? 'border-red-500' : ''
-                                                    }`}
+                                                    className={`mt-1 block w-full border rounded px-3 py-2 text-sm ${formErrors.accountNumber ? 'border-red-500' : ''
+                                                        }`}
                                                 />
                                                 {formErrors.accountNumber && (
                                                     <p className="text-red-500 text-xs mt-1">{formErrors.accountNumber}</p>
