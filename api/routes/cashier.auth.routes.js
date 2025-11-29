@@ -6,35 +6,36 @@ import { DeviceSession } from '../models/DeviceSession.model.js';
 import User from "../models/user.model.js";
 import { Outlet } from '../models/Outlet.model.js';
 import { authMiddleware, getUseroutlet } from '../utils/verifyUser.js';
-import { Mongoose } from 'mongoose';
 import Role from '../models/Role.model.js';
 
 const router = express.Router();
 
-// ✅ STEP 1: LOGIN ADMIN OUTLET
+// ✅ Constants untuk konsistensi
+const ALLOWED_ROLES = ['cashier senior', 'cashier junior', 'bar depan', 'bar belakang', 'kasir', 'pelayan'];
+
+// ✅ Helper function untuk mendapatkan outlet ID
+const getOutletId = async (userId) => {
+  try {
+    return await getUseroutlet(userId);
+  } catch (error) {
+    console.error('Error getting outlet:', error);
+    throw new Error('Failed to get outlet information');
+  }
+};
+
+// ✅ STEP 1: LOGIN ADMIN OUTLET (Tetap sama)
 router.post('/login-outlet', async (req, res) => {
   try {
     const { email, password, outletCode } = req.body;
 
-    // Cari user
     const user = await User.findOne({ email }).select('+password');
-    if (!user) {
+    if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({
         success: false,
         message: 'Email atau password salah'
       });
     }
 
-    // Verify password 
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Email atau password salah'
-      });
-    }
-
-    // Cari outlet berdasarkan code
     const outlet = await Outlet.findOne({ code: outletCode });
     if (!outlet) {
       return res.status(404).json({
@@ -43,8 +44,11 @@ router.post('/login-outlet', async (req, res) => {
       });
     }
 
-    // Cek apakah user memiliki akses ke outlet ini
-    const hasAccess = user.outlet.includes(outlet._id) || user.role === 'admin';
+    // Cek akses user ke outlet - sesuaikan dengan struktur model Anda
+    const hasAccess = user.outlets?.includes(outlet._id) || 
+                     user.outlet?.some(o => o.outletId.equals(outlet._id)) || 
+                     user.role === 'admin';
+    
     if (!hasAccess) {
       return res.status(403).json({
         success: false,
@@ -52,7 +56,6 @@ router.post('/login-outlet', async (req, res) => {
       });
     }
 
-    // Generate token
     const token = jwt.sign(
       {
         userId: user._id,
@@ -70,7 +73,7 @@ router.post('/login-outlet', async (req, res) => {
         token,
         user: {
           id: user._id,
-          name: user.name,
+          name: user.name || user.username,
           email: user.email,
           role: user.role
         },
@@ -92,60 +95,67 @@ router.post('/login-outlet', async (req, res) => {
   }
 });
 
-// ✅ STEP 2: GET AVAILABLE DEVICES FOR OUTLET
-// ✅ STEP 2: GET AVAILABLE DEVICES FOR OUTLET
+// ✅ STEP 2: GET AVAILABLE DEVICES FOR OUTLET (Diperbaiki)
 router.get('/devices-all', authMiddleware, async (req, res) => {
   try {
-    const { id } = req.user;
-    const outletId = await getUseroutlet(id);
-    console.log("outlet id:", outletId);
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User tidak terautentikasi'
+      });
+    }
+
+    const outletId = await getOutletId(userId);
+    console.log("Outlet ID:", outletId);
 
     const devices = await Device.find({
       outlet: outletId,
       isActive: true
     })
-      .select('deviceId outlet deviceName deviceType location assignedAreas assignedTables orderTypes isOnline')
-      .sort({ deviceName: 1 });
+    .select('deviceId outlet deviceName deviceType location assignedAreas assignedTables orderTypes isOnline lastActivity')
+    .sort({ deviceName: 1 })
+    .lean();
 
-    console.log('devices found:', devices.length);
+    console.log('Devices found:', devices.length);
 
-    // Cek session aktif untuk setiap device
-    const devicesWithStatus = await Promise.all(
-      devices.map(async (device) => {
-        const activeSession = await DeviceSession.findOne({
-          device: device._id,
-          isActive: true
-        }).populate('user', 'name email');
+    // Get active sessions untuk semua device sekaligus (lebih efisien)
+    const deviceIds = devices.map(device => device._id);
+    const activeSessions = await DeviceSession.find({
+      device: { $in: deviceIds },
+      isActive: true
+    })
+    .populate('user', 'name username email')
+    .populate('role', 'name')
+    .lean();
 
-        console.log("active session", activeSession);
+    // Create session map untuk lookup yang cepat
+    const sessionMap = new Map();
+    activeSessions.forEach(session => {
+      sessionMap.set(session.device.toString(), session);
+    });
 
-        // Handle null user safely
-        let currentUser = null;
-        if (activeSession && activeSession.user) {
-          currentUser = {
-            id: activeSession.user._id,
-            name: activeSession.user.name,
-            email: activeSession.user.email,
-            loginTime: activeSession.loginTime
-          };
-        } else if (activeSession) {
-          // Session exists but user is null - handle this case
-          console.warn(`Active session found for device ${device.deviceId} but user is null`);
-          currentUser = {
-            id: null,
-            name: 'Unknown User',
-            email: null,
-            loginTime: activeSession.loginTime
-          };
-        }
-
-        return {
-          ...device.toObject(),
-          currentUser: currentUser,
-          isAvailable: !activeSession // Available jika tidak ada session aktif
+    const devicesWithStatus = devices.map(device => {
+      const activeSession = sessionMap.get(device._id.toString());
+      
+      let currentUser = null;
+      if (activeSession && activeSession.user) {
+        currentUser = {
+          id: activeSession.user._id,
+          name: activeSession.user.name || activeSession.user.username,
+          email: activeSession.user.email,
+          role: activeSession.role?.name,
+          loginTime: activeSession.loginTime
         };
-      })
-    );
+      }
+
+      return {
+        ...device,
+        currentUser,
+        isAvailable: !activeSession,
+        sessionId: activeSession?._id
+      };
+    });
 
     res.json({
       success: true,
@@ -163,26 +173,41 @@ router.get('/devices-all', authMiddleware, async (req, res) => {
   }
 });
 
-// ✅ STEP 3: GET AVAILABLE CASHIERS FOR DEVICE
+// ✅ STEP 3: GET AVAILABLE CASHIERS FOR DEVICE (Diperbaiki)
 router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const userId = req.user?._id || req.user?.id; // antisipasi keduanya
+    const userId = req.user?.id || req.user?._id;
 
-    const outletId = await getUseroutlet(userId); // pastikan ini mengembalikan ObjectId / bisa di-cast
-    // validasi device milik outlet
-    const device = await Device.findOne({ _id: deviceId, outlet: outletId });
-    if (!device) {
-      return res.status(404).json({ success: false, message: 'Device tidak ditemukan' });
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User tidak terautentikasi'
+      });
     }
 
-    // 1) Ambil roleId dari nama role
-    const targetRoleNames = ['cashier senior', 'cashier junior', 'bar depan', 'bar belakang'];
-    const roles = await Role.find({ name: { $in: targetRoleNames } }).select('_id name');
-    const roleIds = roles.map(r => r._id);
-    console.log(roleIds);
+    const outletId = await getOutletId(userId);
 
-    // Safety: kalau roles kosong, langsung return empty
+    // Validasi device
+    const device = await Device.findOne({ 
+      _id: deviceId, 
+      outlet: outletId 
+    }).select('deviceName location assignedAreas assignedTables orderTypes');
+    
+    if (!device) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Device tidak ditemukan' 
+      });
+    }
+
+    // Dapatkan roles yang diizinkan
+    const allowedRoles = await Role.find({ 
+      name: { $in: ALLOWED_ROLES } 
+    }).select('_id name');
+    
+    const roleIds = allowedRoles.map(role => role._id);
+    
     if (roleIds.length === 0) {
       return res.json({
         success: true,
@@ -191,46 +216,57 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
             id: device._id,
             deviceName: device.deviceName,
             location: device.location,
-            assignedAreas: device.assignedAreas
+            assignedAreas: device.assignedAreas,
+            assignedTables: device.assignedTables
           },
           cashiers: []
         }
       });
     }
 
-    // 2) Query user: outlet.outletId (bukan 'outlets'), role pakai ObjectId
+    // Cari cashiers - sesuaikan dengan struktur model User Anda
     const cashiers = await User.find({
-      'outlet.outletId': outletId,
+      $or: [
+        { outlets: outletId },
+        { 'outlet.outletId': outletId }
+      ],
       role: { $in: roleIds },
       isActive: true
     })
-      .select('username email phone role profilePicture password cashierType')
-      .sort({ name: 1 })
-      .lean(); // pakai lean untuk performa
-    console.log(cashiers);
-    // 3) Tandai kasir yg sedang login di device lain
-    const cashiersWithStatus = await Promise.all(
-      cashiers.map(async (cashier) => {
-        const activeSession = await DeviceSession.findOne({
-          user: cashier._id,
-          isActive: true
-        })
-          .populate('device', 'deviceName location')
-          .lean();
+    .select('name username email phone role profilePicture cashierType')
+    .populate('role', 'name')
+    .sort({ name: 1 })
+    .lean();
 
-        return {
-          ...cashier,
-          isLoggedIn: !!activeSession,
-          currentDevice: activeSession
-            ? {
-              deviceName: activeSession.device?.deviceName,
-              location: activeSession.device?.location,
-              loginTime: activeSession.loginTime,
-            }
-            : null,
-        };
-      })
-    );
+    // Dapatkan session aktif untuk semua cashiers sekaligus
+    const cashierIds = cashiers.map(cashier => cashier._id);
+    const activeSessions = await DeviceSession.find({
+      user: { $in: cashierIds },
+      isActive: true
+    })
+    .populate('device', 'deviceName location')
+    .lean();
+
+    const sessionMap = new Map();
+    activeSessions.forEach(session => {
+      sessionMap.set(session.user.toString(), session);
+    });
+
+    const cashiersWithStatus = cashiers.map(cashier => {
+      const activeSession = sessionMap.get(cashier._id.toString());
+      
+      return {
+        ...cashier,
+        roleName: cashier.role?.name,
+        isLoggedIn: !!activeSession,
+        currentDevice: activeSession ? {
+          deviceId: activeSession.device?._id,
+          deviceName: activeSession.device?.deviceName,
+          location: activeSession.device?.location,
+          loginTime: activeSession.loginTime,
+        } : null
+      };
+    });
 
     return res.json({
       success: true,
@@ -239,12 +275,13 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
           id: device._id,
           deviceName: device.deviceName,
           location: device.location,
-          assignedAreas: device.assignedAreas
+          assignedAreas: device.assignedAreas,
+          assignedTables: device.assignedTables
         },
-        // cashiers: cashiers
         cashiers: cashiersWithStatus
       }
     });
+
   } catch (error) {
     console.error('Get available cashiers error:', error);
     res.status(500).json({
@@ -255,15 +292,21 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
   }
 });
 
-// ✅ STEP 4: LOGIN CASHIER TO DEVICE
+// ✅ STEP 4: LOGIN CASHIER TO DEVICE (Diperbaiki)
 router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    // const { cashierId, role } = req.body;
     const { cashierId } = req.body;
-    const userId = req.user?._id || req.user?.id; // antisipasi keduanya
+    const userId = req.user?.id || req.user?._id;
 
-    const outletId = await getUseroutlet(userId); // pastikan ini mengembalikan ObjectId / bisa di-cast
+    if (!userId || !cashierId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Data yang diperlukan tidak lengkap'
+      });
+    }
+
+    const outletId = await getOutletId(userId);
 
     // Verifikasi device
     const device = await Device.findOne({
@@ -281,10 +324,12 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
     // Verifikasi cashier
     const cashier = await User.findOne({
       _id: cashierId,
-      //mencari outletId pada array outlet
-      'outlet.outletId': outletId,
-      // role: { $in: ['cashier_senior', 'cashier_junior', 'bar_depan', 'bar_belakang'] }
-    });
+      $or: [
+        { outlets: outletId },
+        { 'outlet.outletId': outletId }
+      ],
+      isActive: true
+    }).populate('role', 'name');
 
     if (!cashier) {
       return res.status(404).json({
@@ -294,28 +339,30 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
     }
 
     // Cek apakah device sedang digunakan
-    const existingSession = await DeviceSession.findOne({
+    const existingDeviceSession = await DeviceSession.findOne({
       device: deviceId,
       isActive: true
     });
 
-    if (existingSession) {
+    if (existingDeviceSession) {
+      const currentUser = await User.findById(existingDeviceSession.user).select('name username');
       return res.status(400).json({
         success: false,
-        message: `Device sedang digunakan oleh ${existingSession.user.username}`
+        message: `Device sedang digunakan oleh ${currentUser?.name || currentUser?.username || 'Unknown User'}`
       });
     }
 
-    // Cek apakah cashier sudah login di device lain
+    // Cek apakah cashier sudah login di device lain (opsional - bisa dihapus jika ingin multi-device)
     const cashierActiveSession = await DeviceSession.findOne({
       user: cashierId,
       isActive: true
     });
 
     if (cashierActiveSession) {
+      const currentDevice = await Device.findById(cashierActiveSession.device).select('deviceName');
       return res.status(400).json({
         success: false,
-        message: `Kasir sudah login di device lain`
+        message: `Kasir sudah login di device ${currentDevice?.deviceName || 'lain'}`
       });
     }
 
@@ -325,9 +372,9 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
       user: cashierId,
       outlet: outletId,
       role: cashier.role,
-      socketId: '', // Akan diupdate ketika socket connect
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent'),
+      socketId: '',
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent') || '',
       loginTime: new Date(),
       isActive: true
     });
@@ -336,28 +383,37 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
 
     // Update device status
     device.isOnline = true;
+    device.lastActivity = new Date();
     await device.save();
 
     // Populate data untuk response
-    await deviceSession.populate('user', 'username email role');
-    await deviceSession.populate('device', 'deviceName location');
+    await deviceSession.populate([
+      { path: 'user', select: 'name username email' },
+      { path: 'device', select: 'deviceName location' },
+      { path: 'role', select: 'name' }
+    ]);
 
     res.json({
       success: true,
-      message: `Kasir ${cashier.username} berhasil login ke ${device.deviceName}`,
+      message: `Kasir ${cashier.name || cashier.username} berhasil login ke ${device.deviceName}`,
       data: {
-        session: deviceSession,
+        session: {
+          id: deviceSession._id,
+          loginTime: deviceSession.loginTime,
+          device: deviceSession.device,
+          user: deviceSession.user,
+          role: deviceSession.role
+        },
         device: {
           id: device._id,
           deviceName: device.deviceName,
-          location: device.location,
-          assignedAreas: device.assignedAreas
+          location: device.location
         },
         cashier: {
           id: cashier._id,
-          name: cashier.username,
+          name: cashier.name || cashier.username,
           email: cashier.email,
-          role: cashier.role
+          role: cashier.role?.name
         }
       }
     });
@@ -372,22 +428,30 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
   }
 });
 
-// ✅ STEP 5: LOGOUT CASHIER FROM DEVICE
+// ✅ STEP 5: LOGOUT CASHIER FROM DEVICE (Diperbaiki)
 router.post('/devices/:deviceId/logout', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const userId = req.user?._id || req.user?.id; // antisipasi keduanya
+    const { sessionId, force = false } = req.body; // Tambahkan force logout option
+    const userId = req.user?.id || req.user?._id;
 
-    const outletId = await getUseroutlet(userId); // pastikan ini mengembalikan ObjectId / bisa di-cast
-
-    //
+    const outletId = await getOutletId(userId);
 
     // Cari session aktif
-    const activeSession = await DeviceSession.findOne({
+    const sessionFilter = {
       device: deviceId,
       outlet: outletId,
       isActive: true
-    });
+    };
+
+    // Jika sessionId diberikan, logout session spesifik
+    if (sessionId) {
+      sessionFilter._id = sessionId;
+    }
+
+    const activeSession = await DeviceSession.findOne(sessionFilter)
+      .populate('user', 'name username')
+      .populate('device', 'deviceName');
 
     if (!activeSession) {
       return res.status(404).json({
@@ -399,29 +463,39 @@ router.post('/devices/:deviceId/logout', authMiddleware, async (req, res) => {
     // Update session
     activeSession.isActive = false;
     activeSession.logoutTime = new Date();
+    activeSession.logoutReason = force ? 'forced_by_admin' : 'manual_logout';
     await activeSession.save();
 
-    // Update device status
-    await Device.findByIdAndUpdate(deviceId, {
-      isOnline: false,
-      socketId: null
+    // Update device status - hanya set offline jika tidak ada session aktif lainnya
+    const otherActiveSessions = await DeviceSession.countDocuments({
+      device: deviceId,
+      isActive: true
     });
+
+    if (otherActiveSessions === 0) {
+      await Device.findByIdAndUpdate(deviceId, {
+        isOnline: false,
+        socketId: null
+      });
+    }
 
     // Emit logout event via socket
     const io = req.app.get('io');
     if (io && activeSession.socketId) {
       io.to(activeSession.socketId).emit('force_logout', {
-        reason: 'Logged out by admin',
+        reason: force ? 'Logged out by admin' : 'Session ended',
         timestamp: new Date()
       });
     }
 
     res.json({
       success: true,
-      message: 'Logout berhasil',
+      message: `Logout berhasil untuk ${activeSession.user?.name || activeSession.user?.username}`,
       data: {
         sessionId: activeSession._id,
         deviceId: deviceId,
+        deviceName: activeSession.device?.deviceName,
+        userName: activeSession.user?.name || activeSession.user?.username,
         logoutTime: activeSession.logoutTime
       }
     });
@@ -436,23 +510,38 @@ router.post('/devices/:deviceId/logout', authMiddleware, async (req, res) => {
   }
 });
 
-// ✅ GET ACTIVE SESSIONS
+// ✅ GET ACTIVE SESSIONS (Diperbaiki)
 router.get('/sessions/active', authMiddleware, async (req, res) => {
   try {
-    const { outletId } = req.user;
+    const userId = req.user?.id || req.user?._id;
+    const outletId = await getOutletId(userId);
 
     const activeSessions = await DeviceSession.find({
       outlet: outletId,
       isActive: true
     })
-      .populate('device', 'deviceName location')
-      .populate('user', 'name email role')
-      .sort({ loginTime: -1 });
+    .populate('device', 'deviceName location deviceType')
+    .populate('user', 'name username email')
+    .populate('role', 'name')
+    .sort({ loginTime: -1 })
+    .lean();
+
+    // Format response
+    const formattedSessions = activeSessions.map(session => ({
+      id: session._id,
+      loginTime: session.loginTime,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+      device: session.device,
+      user: session.user,
+      role: session.role?.name,
+      duration: Math.floor((new Date() - new Date(session.loginTime)) / 1000 / 60) // dalam menit
+    }));
 
     res.json({
       success: true,
-      data: activeSessions,
-      total: activeSessions.length
+      data: formattedSessions,
+      total: formattedSessions.length
     });
 
   } catch (error) {
@@ -460,6 +549,84 @@ router.get('/sessions/active', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Gagal mengambil data session aktif',
+      error: error.message
+    });
+  }
+});
+
+// ✅ FORCE LOGOUT USER FROM ALL DEVICES
+router.post('/sessions/force-logout/:userId', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const adminId = req.user?.id || req.user?._id;
+    const outletId = await getOutletId(adminId);
+
+    // Cari semua session aktif user
+    const activeSessions = await DeviceSession.find({
+      user: userId,
+      outlet: outletId,
+      isActive: true
+    }).populate('device', 'deviceName');
+
+    if (activeSessions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tidak ada session aktif untuk user ini'
+      });
+    }
+
+    // Logout semua session
+    const sessionIds = activeSessions.map(session => session._id);
+    await DeviceSession.updateMany(
+      { _id: { $in: sessionIds } },
+      { 
+        isActive: false, 
+        logoutTime: new Date(),
+        logoutReason: 'forced_by_admin' 
+      }
+    );
+
+    // Update device status
+    const deviceIds = activeSessions.map(session => session.device._id);
+    for (const deviceId of deviceIds) {
+      const otherSessions = await DeviceSession.countDocuments({
+        device: deviceId,
+        isActive: true
+      });
+      
+      if (otherSessions === 0) {
+        await Device.findByIdAndUpdate(deviceId, {
+          isOnline: false,
+          socketId: null
+        });
+      }
+    }
+
+    // Emit socket events
+    const io = req.app.get('io');
+    activeSessions.forEach(session => {
+      if (io && session.socketId) {
+        io.to(session.socketId).emit('force_logout', {
+          reason: 'Logged out by admin',
+          timestamp: new Date()
+        });
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Berhasil logout ${activeSessions.length} session`,
+      data: {
+        loggedOutSessions: activeSessions.length,
+        devices: activeSessions.map(session => session.device.deviceName)
+      }
+    });
+
+  } catch (error) {
+    console.error('Force logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal force logout',
       error: error.message
     });
   }

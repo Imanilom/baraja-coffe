@@ -3,106 +3,416 @@ import Attendance from '../../models/model_hr/Attendance.model.js';
 import Employee from '../../models/model_hr/Employee.model.js';
 import RawFingerprint from '../../models/model_hr/RawFingerprint.model.js';
 
-// Cache untuk mencegah processing data yang sama berulang
-const processedCache = new Map();
-const CACHE_TTL = 60000; // 1 menit
+// Track device buffer status dan processed records
+const deviceBufferStatus = new Map();
+const processedRecords = new Map();
+const employeeCache = new Map(); // Cache employee lookup
+const fingerprintMappingCache = new Map(); // Cache fingerprint mapping
+
+// Rate limiting per device
+const deviceRateLimiter = new Map();
+
+// Setup periodic cleanup (setiap 5 menit)
+let cleanupInterval;
+if (!cleanupInterval) {
+  cleanupInterval = setInterval(() => {
+    try {
+      cleanupDeviceStatus();
+      cleanupProcessedRecords();
+      cleanupCaches();
+    } catch (error) {
+      console.error('Cleanup error:', error.message);
+    }
+  }, 5 * 60 * 1000); // 5 menit
+}
 
 export const handleADMSUpload = async (req, res) => {
+  const startTime = Date.now();
+  let deviceIp;
+  
   try {
     const raw = req.body;
-    console.log("Raw body received, length:", raw.length);
+    deviceIp = req.ip || req.connection.remoteAddress;
     
-    // Handle empty data (heartbeat)
+    // Rate limiting check
+    if (isRateLimited(deviceIp)) {
+      console.log(`⚠️ Device ${deviceIp} rate limited`);
+      return res.status(200).send('OK');
+    }
+
+    // Quick validation
     if (!raw || !raw.trim()) {
       return res.status(200).send('OK');
     }
 
-    // Handle OPLOG messages (device operation log)
     if (raw.startsWith('OPLOG')) {
-      console.log("OPLOG message received and ignored");
       return res.status(200).send('OK');
     }
 
-    // Check cache untuk mencegah processing data yang sama
-    const cacheKey = raw.substring(0, 100); // Ambil bagian awal sebagai key
-    if (processedCache.has(cacheKey)) {
-      console.log("Skipping duplicate request (cached)");
-      return res.status(200).json({ message: 'Duplicate request ignored' });
-    }
-
-    // Set cache
-    processedCache.set(cacheKey, true);
-    setTimeout(() => processedCache.delete(cacheKey), CACHE_TTL);
+    const deviceKey = `device_${deviceIp}`;
+    const currentTime = Date.now();
+    
+    // Initialize or update device status
+    const deviceStatus = getOrCreateDeviceStatus(deviceKey, currentTime);
 
     const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-    const results = [];
-
-    console.log(`Processing ${lines.length} lines from device`);
+    
+    // Limit processing untuk mencegah overload
+    const maxLines = 100;
+    const linesToProcess = lines.slice(0, maxLines);
+    
+    if (lines.length > maxLines) {
+      console.log(`⚠️ Device ${deviceIp} sent ${lines.length} lines, processing only ${maxLines}`);
+    }
 
     let processedCount = 0;
     let skippedCount = 0;
+    let duplicateCount = 0;
+    let hasHistoricalData = false;
 
-    for (const line of lines) {
-      const parsed = parseADMSData(line);
-      if (!parsed) {
-        skippedCount++;
-        continue;
+    // Process records dengan Promise.all untuk parallel processing
+    const processingPromises = linesToProcess.map(async (line) => {
+      try {
+        const parsed = parseADMSData(line);
+        if (!parsed) return { type: 'skipped' };
+
+        const recordId = `${parsed.pin}_${parsed.timestamp}`;
+        
+        // Check duplicate
+        if (processedRecords.has(recordId)) {
+          const recordTime = processedRecords.get(recordId);
+          if (currentTime - recordTime < 300000) {
+            deviceStatus.duplicateCount++;
+            return { type: 'duplicate', data: parsed };
+          }
+        }
+
+        // Check historical
+        const recordDate = new Date(parsed.timestamp);
+        const daysDiff = Math.floor((Date.now() - recordDate) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff > 30) {
+          deviceStatus.historicalCount++;
+          return { type: 'historical', data: parsed, daysOld: daysDiff };
+        }
+
+        // Mark as processed
+        processedRecords.set(recordId, currentTime);
+
+        // Process in background (non-blocking)
+        setImmediate(async () => {
+          try {
+            await processFingerprintRecord(parsed);
+          } catch (error) {
+            console.error(`Background processing error for PIN ${parsed.pin}:`, error.message);
+          }
+        });
+
+        return { type: 'processed', data: parsed };
+      } catch (error) {
+        return { type: 'error', error: error.message };
       }
-
-      const result = await processFingerprintRecord(parsed);
-      results.push(result);
-      
-      if (result.status === 'historical_ignored') {
-        skippedCount++;
-      } else {
-        processedCount++;
-      }
-    }
-
-    console.log(`Processing completed: ${processedCount} processed, ${skippedCount} skipped`);
-
-    // Jika semua data di-skip (historical), kirim response khusus ke device
-    if (processedCount === 0 && skippedCount > 0) {
-      console.log("All data is historical, sending clear signal to device");
-      return res.status(200).send('OK: CLEAR'); // Signal untuk device clear buffer
-    }
-
-    return res.status(200).json({ 
-      message: 'Logs processed', 
-      processed: processedCount,
-      skipped: skippedCount,
-      results 
     });
 
+    // Wait for all parsing (but not DB operations)
+    const results = await Promise.all(processingPromises);
+
+    // Count results
+    results.forEach(result => {
+      switch (result.type) {
+        case 'processed':
+          processedCount++;
+          break;
+        case 'historical':
+          hasHistoricalData = true;
+          skippedCount++;
+          break;
+        case 'duplicate':
+          duplicateCount++;
+          skippedCount++;
+          break;
+        case 'skipped':
+        case 'error':
+          skippedCount++;
+          break;
+      }
+    });
+
+    // Determine response
+    let responseMessage = 'OK';
+    const timeWindow = currentTime - deviceStatus.firstSeen;
+    
+    const isStuckInLoop = (
+      deviceStatus.duplicateCount > 10 || 
+      (deviceStatus.historicalCount > 15 && timeWindow < 120000) ||
+      (deviceStatus.requestCount > 20 && processedCount === 0 && skippedCount > 0)
+    );
+
+    if (isStuckInLoop) {
+      console.log(`🚨 Device ${deviceIp} STUCK! Sending CLEAR (req:${deviceStatus.requestCount}, dup:${deviceStatus.duplicateCount}, hist:${deviceStatus.historicalCount})`);
+      responseMessage = 'C';
+      deviceStatus.clearSent = true;
+      deviceStatus.lastClearTime = currentTime;
+      deviceStatus.historicalCount = 0;
+      deviceStatus.duplicateCount = 0;
+      
+    } else if (hasHistoricalData && deviceStatus.historicalCount > 8) {
+      console.log(`⚠️ Device ${deviceIp} sending historical data (count: ${deviceStatus.historicalCount})`);
+      responseMessage = 'C';
+      deviceStatus.clearSent = true;
+      deviceStatus.lastClearTime = currentTime;
+      
+    } else if (duplicateCount > 3 && deviceStatus.duplicateCount > 5) {
+      console.log(`🔄 Device ${deviceIp} sending duplicates (count: ${deviceStatus.duplicateCount})`);
+      responseMessage = 'C';
+      deviceStatus.clearSent = true;
+      deviceStatus.lastClearTime = currentTime;
+    }
+
+    // Log summary only for important events
+    const processingTime = Date.now() - startTime;
+    if (processingTime > 100 || responseMessage === 'C') {
+      console.log(`📊 ${deviceIp}: ${processedCount}✓ ${skippedCount}⊘ ${duplicateCount}⨯ (${processingTime}ms) → ${responseMessage}`);
+    }
+
+    res.set({
+      'Content-Type': 'text/plain',
+      'Connection': 'close',
+      'Cache-Control': 'no-cache'
+    });
+    
+    return res.send(responseMessage);
+
   } catch (error) {
-    console.error("Error in handleADMSUpload:", error);
-    return res.status(500).json({ message: error.message });
+    const processingTime = Date.now() - startTime;
+    console.error(`❌ Error handling ${deviceIp} (${processingTime}ms):`, error.message);
+    
+    res.set('Content-Type', 'text/plain');
+    return res.send('OK');
   }
 };
 
+// Helper: Get or create device status
+const getOrCreateDeviceStatus = (deviceKey, currentTime) => {
+  if (!deviceBufferStatus.has(deviceKey)) {
+    deviceBufferStatus.set(deviceKey, {
+      firstSeen: currentTime,
+      requestCount: 0,
+      historicalCount: 0,
+      duplicateCount: 0,
+      lastRequest: currentTime,
+      clearSent: false,
+      lastClearTime: null
+    });
+  }
+  
+  const status = deviceBufferStatus.get(deviceKey);
+  status.requestCount++;
+  status.lastRequest = currentTime;
+  
+  return status;
+};
+
+// Helper: Rate limiting
+const isRateLimited = (deviceIp) => {
+  const now = Date.now();
+  const limit = 50; // max 50 requests per minute
+  const window = 60000; // 1 minute
+  
+  if (!deviceRateLimiter.has(deviceIp)) {
+    deviceRateLimiter.set(deviceIp, []);
+  }
+  
+  const requests = deviceRateLimiter.get(deviceIp);
+  
+  // Remove old requests
+  const validRequests = requests.filter(time => now - time < window);
+  deviceRateLimiter.set(deviceIp, validRequests);
+  
+  if (validRequests.length >= limit) {
+    return true;
+  }
+  
+  validRequests.push(now);
+  return false;
+};
+
+// Clean up device status cache
+const cleanupDeviceStatus = () => {
+  const currentTime = Date.now();
+  const tenMinutesAgo = currentTime - (10 * 60 * 1000);
+  let cleaned = 0;
+  
+  for (const [key, status] of deviceBufferStatus.entries()) {
+    if (status.lastRequest < tenMinutesAgo) {
+      deviceBufferStatus.delete(key);
+      cleaned++;
+    }
+  }
+  
+  if (cleaned > 0) {
+    console.log(`🧹 Cleaned ${cleaned} device status entries`);
+  }
+};
+
+// Clean up processed records cache
+const cleanupProcessedRecords = () => {
+  const currentTime = Date.now();
+  const fiveMinutesAgo = currentTime - (5 * 60 * 1000);
+  let cleaned = 0;
+  
+  for (const [recordId, timestamp] of processedRecords.entries()) {
+    if (timestamp < fiveMinutesAgo) {
+      processedRecords.delete(recordId);
+      cleaned++;
+    }
+  }
+  
+  // Limit cache size
+  if (processedRecords.size > 1000) {
+    const sortedRecords = Array.from(processedRecords.entries())
+      .sort((a, b) => a[1] - b[1]);
+    
+    const toDelete = sortedRecords.slice(0, sortedRecords.length - 500);
+    toDelete.forEach(([recordId]) => processedRecords.delete(recordId));
+    cleaned += toDelete.length;
+  }
+  
+  if (cleaned > 0) {
+    console.log(`🧹 Cleaned ${cleaned} processed records`);
+  }
+};
+
+// Clean up caches
+const cleanupCaches = () => {
+  const now = Date.now();
+  let cleaned = 0;
+  
+  // Clear employee cache older than 10 minutes
+  if (employeeCache.size > 100) {
+    employeeCache.clear();
+    cleaned += employeeCache.size;
+  }
+  
+  // Clear fingerprint mapping cache older than 10 minutes
+  if (fingerprintMappingCache.size > 100) {
+    fingerprintMappingCache.clear();
+    cleaned += fingerprintMappingCache.size;
+  }
+  
+  // Clear rate limiter
+  const oneHourAgo = now - (60 * 60 * 1000);
+  for (const [ip, requests] of deviceRateLimiter.entries()) {
+    const validRequests = requests.filter(time => now - time < 60000);
+    if (validRequests.length === 0) {
+      deviceRateLimiter.delete(ip);
+      cleaned++;
+    } else {
+      deviceRateLimiter.set(ip, validRequests);
+    }
+  }
+  
+  if (cleaned > 0) {
+    console.log(`🧹 Cleaned ${cleaned} cache entries`);
+  }
+};
+
+// Manual force clear
+export const forceClearDeviceBuffer = async (req, res) => {
+  try {
+    const { deviceIp } = req.body;
+    
+    if (deviceIp) {
+      const deviceKey = `device_${deviceIp}`;
+      deviceBufferStatus.delete(deviceKey);
+      deviceRateLimiter.delete(deviceIp);
+      console.log(`🛠️ Cleared buffer for device: ${deviceIp}`);
+    } else {
+      deviceBufferStatus.clear();
+      processedRecords.clear();
+      employeeCache.clear();
+      fingerprintMappingCache.clear();
+      deviceRateLimiter.clear();
+      console.log("🧹 Cleared all caches and buffers");
+    }
+    
+    res.json({
+      success: true,
+      message: 'Device buffer cleared',
+      clearedDevices: deviceIp ? [deviceIp] : 'all'
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get device buffer status
+export const getDeviceBufferStatus = async (req, res) => {
+  try {
+    const devices = [];
+    
+    for (const [key, status] of deviceBufferStatus.entries()) {
+      const deviceIp = key.replace('device_', '');
+      const timeWindow = Date.now() - status.firstSeen;
+      const isStuck = (
+        status.duplicateCount > 10 || 
+        (status.historicalCount > 15 && timeWindow < 120000) ||
+        (status.requestCount > 20 && status.historicalCount > 0)
+      );
+      
+      devices.push({
+        deviceIp,
+        requestCount: status.requestCount,
+        historicalCount: status.historicalCount,
+        duplicateCount: status.duplicateCount,
+        firstSeen: new Date(status.firstSeen).toISOString(),
+        lastRequest: new Date(status.lastRequest).toISOString(),
+        clearSent: status.clearSent,
+        lastClearTime: status.lastClearTime ? new Date(status.lastClearTime).toISOString() : null,
+        isStuckInLoop: isStuck,
+        uptime: Math.floor(timeWindow / 1000) + 's'
+      });
+    }
+    
+    res.json({
+      success: true,
+      totalDevices: devices.length,
+      cacheStats: {
+        processedRecords: processedRecords.size,
+        employeeCache: employeeCache.size,
+        fingerprintCache: fingerprintMappingCache.size,
+        rateLimiter: deviceRateLimiter.size
+      },
+      devices
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Parse function
 export const parseADMSData = (line) => {
-  // Format: "4    2022-08-26 12:53:54     0       1               0       0"
   const format1 = /^(\d+)\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$/;
   
   const match = line.match(format1);
-  if (!match) {
-    return null;
-  }
+  if (!match) return null;
 
   const pin = match[1];
   const timestamp = match[2];
   const statusCode = parseInt(match[3]);
   
-  // Convert status code to checkIn/checkOut
-  let status = 'checkIn';
-  if (statusCode === 1 || statusCode === 4) {
-    status = 'checkOut';
-  }
-  
   return {
     pin,
     timestamp,
-    status,
+    status: (statusCode === 1 || statusCode === 4) ? 'checkOut' : 'checkIn',
     statusCode,
     verifyMethod: match[4],
     workCode: match[5]
@@ -113,98 +423,77 @@ export const processFingerprintRecord = async (parsedData) => {
   try {
     const { pin, timestamp, status } = parsedData;
 
-    // Filter data historis yang terlalu lama (lebih dari 30 hari)
+    // Check historical
     const recordDate = new Date(timestamp);
-    const currentDate = new Date();
-    const daysDiff = Math.floor((currentDate - recordDate) / (1000 * 60 * 60 * 24));
+    const daysDiff = Math.floor((Date.now() - recordDate) / (1000 * 60 * 60 * 24));
     
     if (daysDiff > 30) {
-      return { 
-        pin, 
-        status: 'historical_ignored', 
-        message: `Historical data ignored (${daysDiff} days old)`,
-        timestamp,
-        daysOld: daysDiff
-      };
+      return { pin, status: 'historical_ignored', daysOld: daysDiff };
     }
 
-    // Cari employee berdasarkan PIN (employeeId)
-    const employee = await Employee.findOne({ employeeId: pin });
+    // Check employee cache first
+    let employee = employeeCache.get(pin);
     
     if (!employee) {
-      console.log(`Employee not found for PIN: ${pin}, saving as raw data`);
-      return await saveRawFingerprintRecord(pin, timestamp, status);
+      employee = await Employee.findOne({ employeeId: pin }).lean();
+      if (employee) {
+        employeeCache.set(pin, employee);
+      }
     }
-
-    // Jika employee ditemukan, cek apakah fingerprint sudah dipetakan
-    const isFingerprintMapped = await checkFingerprintMapping(pin);
     
-    if (!isFingerprintMapped) {
-      console.log(`Fingerprint not mapped for PIN: ${pin}, saving as raw data`);
+    if (!employee) {
       return await saveRawFingerprintRecord(pin, timestamp, status);
     }
 
-    console.log(`Fingerprint mapped for PIN: ${pin}, saving to attendance`);
+    // Check fingerprint mapping cache
+    const cacheKey = `fp_${pin}`;
+    let isMapped = fingerprintMappingCache.get(cacheKey);
+    
+    if (isMapped === undefined) {
+      isMapped = await checkFingerprintMapping(pin);
+      fingerprintMappingCache.set(cacheKey, isMapped);
+    }
+    
+    if (!isMapped) {
+      return await saveRawFingerprintRecord(pin, timestamp, status);
+    }
+
     return await saveAttendanceRecord(employee, timestamp, status);
 
   } catch (error) {
-    console.error('Error processing fingerprint record:', error);
-    return { 
-      pin: parsedData.pin, 
-      error: error.message,
-      timestamp: parsedData.timestamp 
-    };
+    console.error(`Error processing PIN ${parsedData.pin}:`, error.message);
+    return { pin: parsedData.pin, error: error.message };
   }
 };
-
 
 export const saveRawFingerprintRecord = async (pin, timestamp, status) => {
   try {
     const deviceUserId = `USER_${pin}`;
-    const username = `Employee_${pin}`;
+    const recordDate = new Date(timestamp);
     
-    // Cek apakah raw data sudah ada untuk PIN ini
     const existingRaw = await RawFingerprint.findOne({ 
       deviceUserId,
       isMapped: false 
-    });
-
-    const now = new Date();
-    const recordDate = new Date(timestamp);
+    }).lean();
 
     if (existingRaw) {
-      // Update hanya jika data lebih baru
-      if (recordDate > existingRaw.lastActivity) {
-        existingRaw.lastActivity = recordDate;
-        existingRaw.lastStatus = status;
-        await existingRaw.save();
-        
-        console.log(`Updated raw fingerprint for PIN: ${pin}`);
-        
-        return { 
-          pin, 
-          status: 'raw_updated', 
-          message: 'Raw fingerprint data updated',
-          mapped: false,
-          timestamp 
-        };
-      } else {
-        console.log(`Duplicate raw data for PIN: ${pin}, ignoring`);
-        return { 
-          pin, 
-          status: 'raw_duplicate', 
-          message: 'Duplicate raw data ignored',
-          mapped: false,
-          timestamp 
-        };
+      if (recordDate > new Date(existingRaw.lastActivity)) {
+        await RawFingerprint.updateOne(
+          { _id: existingRaw._id },
+          { 
+            lastActivity: recordDate,
+            lastStatus: status 
+          }
+        );
+        return { pin, status: 'raw_updated', mapped: false };
       }
+      return { pin, status: 'raw_duplicate', mapped: false };
     }
 
-    // Simpan data fingerprint baru sebagai raw data
-    const rawFingerprint = new RawFingerprint({
+    await RawFingerprint.create({
       deviceId: 'X105',
       deviceUserId,
-      username,
+      username: `Employee_${pin}`,
       fingerprintData: `FP_${pin}_${Date.now()}`,
       fingerprintIndex: 0,
       lastActivity: recordDate,
@@ -212,26 +501,11 @@ export const saveRawFingerprintRecord = async (pin, timestamp, status) => {
       isMapped: false
     });
 
-    await rawFingerprint.save();
-
-    console.log(`Saved new raw fingerprint for PIN: ${pin}`);
-
-    return { 
-      pin, 
-      status: 'raw_saved', 
-      message: 'Fingerprint saved as raw data (not mapped to employee)',
-      mapped: false,
-      rawFingerprintId: rawFingerprint._id,
-      timestamp 
-    };
+    return { pin, status: 'raw_saved', mapped: false };
 
   } catch (error) {
-    console.error('Error saving raw fingerprint:', error);
-    return { 
-      pin, 
-      error: 'Failed to save raw fingerprint data',
-      timestamp 
-    };
+    console.error(`Error saving raw FP for PIN ${pin}:`, error.message);
+    return { pin, error: 'Failed to save raw fingerprint' };
   }
 };
 
@@ -241,52 +515,37 @@ export const saveAttendanceRecord = async (employee, timestamp, status) => {
     const dateOnly = new Date(recordDate);
     dateOnly.setHours(0, 0, 0, 0);
 
+    const updateField = status === 'checkIn' ? 'checkIn' : 'checkOut';
+
     const existing = await Attendance.findOne({ 
       employee: employee._id, 
       date: dateOnly 
-    });
+    }).lean();
 
-    const updateField = status === 'checkIn' ? 'checkIn' : 'checkOut';
-
-    // Cek duplikasi dengan toleransi 2 menit
+    // Check duplicate
     if (existing?.[updateField]?.time) {
       const existingTime = new Date(existing[updateField].time);
-      const newTime = recordDate;
-      const timeDiff = Math.abs(newTime - existingTime) / (1000 * 60); // difference in minutes
+      const timeDiff = Math.abs(recordDate - existingTime) / (1000 * 60);
       
       if (timeDiff < 2) {
-        console.log(`Duplicate ${status} for employee ${employee.employeeId}, ignoring`);
-        return { 
-          pin: employee.employeeId, 
-          status: 'duplicate_ignored',
-          mapped: true,
-          timestamp 
-        };
+        return { pin: employee.employeeId, status: 'duplicate_ignored', mapped: true };
       }
     }
 
     if (existing) {
-      // Update existing record
-      await Attendance.findByIdAndUpdate(existing._id, {
-        [updateField]: {
-          time: recordDate,
-          device: 'X105',
-          type: 'fingerprint'
+      await Attendance.updateOne(
+        { _id: existing._id },
+        { 
+          [updateField]: {
+            time: recordDate,
+            device: 'X105',
+            type: 'fingerprint'
+          }
         }
-      });
-      
-      console.log(`Updated ${status} for employee ${employee.employeeId}`);
-      
-      return { 
-        pin: employee.employeeId, 
-        status: 'attendance_updated',
-        mapped: true,
-        employee: employee.user?.username,
-        timestamp 
-      };
+      );
+      return { pin: employee.employeeId, status: 'attendance_updated', mapped: true };
     }
 
-    // Create new record
     await Attendance.create({
       employee: employee._id,
       date: dateOnly,
@@ -297,48 +556,31 @@ export const saveAttendanceRecord = async (employee, timestamp, status) => {
       }
     });
 
-    console.log(`Created new ${status} for employee ${employee.employeeId}`);
-
-    return { 
-      pin: employee.employeeId, 
-      status: 'attendance_created',
-      mapped: true,
-      employee: employee.user?.username,
-      timestamp 
-    };
+    return { pin: employee.employeeId, status: 'attendance_created', mapped: true };
 
   } catch (error) {
-    console.error('Error saving attendance record:', error);
-    return { 
-      pin: employee.employeeId, 
-      error: 'Failed to save attendance record',
-      mapped: true,
-      timestamp 
-    };
+    console.error(`Error saving attendance for ${employee.employeeId}:`, error.message);
+    return { pin: employee.employeeId, error: 'Failed to save attendance' };
   }
 };
 
 export const checkFingerprintMapping = async (pin) => {
   try {
     const deviceUserId = `USER_${pin}`;
-    
-    const rawFingerprint = await RawFingerprint.findOne({ 
+    const count = await RawFingerprint.countDocuments({ 
       deviceUserId,
       isMapped: true 
     });
-
-    return !!rawFingerprint;
+    return count > 0;
   } catch (error) {
-    console.error('Error checking fingerprint mapping:', error);
     return false;
   }
 };
 
-// Fungsi untuk membersihkan data test/historical
 export const cleanupHistoricalData = async (req, res) => {
   try {
     const cutoffDate = new Date();
-    cutoffDate.setFullYear(cutoffDate.getFullYear() - 1); // 1 tahun yang lalu
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - 1);
     
     const result = await RawFingerprint.deleteMany({
       lastActivity: { $lt: cutoffDate },
@@ -358,10 +600,9 @@ export const cleanupHistoricalData = async (req, res) => {
   }
 };
 
-// Fungsi tambahan untuk mendapatkan log aktivitas fingerprint
 export const getFingerprintActivityLog = async (req, res) => {
   try {
-    const { startDate, endDate, showMapped } = req.query;
+    const { startDate, endDate, showMapped, limit = 100 } = req.query;
     
     const filter = {};
     
@@ -377,8 +618,10 @@ export const getFingerprintActivityLog = async (req, res) => {
     }
 
     const activities = await RawFingerprint.find(filter)
-      .populate('mappedToEmployee')
-      .sort({ lastActivity: -1 });
+      .populate('mappedToEmployee', 'employeeId user')
+      .sort({ lastActivity: -1 })
+      .limit(parseInt(limit))
+      .lean();
 
     res.json({
       success: true,
@@ -394,18 +637,13 @@ export const getFingerprintActivityLog = async (req, res) => {
   }
 };
 
-// controllers/hr/device.controller.js
 export const clearDeviceBuffer = async (req, res) => {
   try {
     const { deviceId } = req.body;
+    console.log(`Sending clear command to device: ${deviceId}`);
     
-    // Simulasi perintah clear buffer ke device
-    // Dalam implementasi nyata, ini akan mengirim command ke device
-    console.log(`Sending clear buffer command to device: ${deviceId}`);
-    
-    // Return response yang membuat device clear buffer-nya
     res.set('Content-Type', 'text/plain');
-    res.send(`OK: CLEAR BUFFER\nDevice: ${deviceId}\nTime: ${new Date().toISOString()}`);
+    res.send('C');
     
   } catch (error) {
     res.status(500).json({ 
@@ -419,14 +657,18 @@ export const getDeviceStatus = async (req, res) => {
   try {
     const { deviceId } = req.query;
     
-    // Return status device
     res.json({
       success: true,
       deviceId: deviceId || 'X105',
       status: 'connected',
       lastCommunication: new Date(),
-      bufferSize: 0, // Asumsi buffer sudah clear
-      recommendation: 'Device is sending historical data repeatedly. Consider resetting device or clearing buffer.'
+      bufferSize: 0,
+      cacheSize: {
+        devices: deviceBufferStatus.size,
+        records: processedRecords.size,
+        employees: employeeCache.size,
+        fingerprints: fingerprintMappingCache.size
+      }
     });
     
   } catch (error) {

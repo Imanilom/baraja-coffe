@@ -12,7 +12,8 @@ export async function createOrderHandler({
   isOpenBill,
   isReservation,
   requiresDelivery,
-  recipientData
+  recipientData,
+  paymentDetails // Tambahkan parameter paymentDetails
 }) {
   let session;
   try {
@@ -28,7 +29,7 @@ export async function createOrderHandler({
         voucherCode,
         customerType,
         items = [],
-        paymentDetails,
+        paymentDetails: orderPaymentDetails,
         tableNumber,
         type,
         user,
@@ -54,7 +55,9 @@ export async function createOrderHandler({
         menuItemsCount: items ? items.length : 0,
         outletId,
         customerId: customerId || 'none',
-        paymentMethod
+        paymentMethod,
+        isSplitPayment,
+        paymentDetailsType: Array.isArray(orderPaymentDetails) ? 'array' : 'object'
       });
 
       // Process order items dengan custom amount items terpisah
@@ -116,18 +119,25 @@ export async function createOrderHandler({
         }))
       });
 
-
       // Determine initial status based on source and payment method
       let initialStatus = 'Pending';
       let paymentMethodData = 'Cash';
+      
+      // Handle split payment status determination
       if (source === 'Cashier') {
         console.log('Source Cashier - isOpenBill:', isOpenBill);
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
-        paymentMethodData = paymentMethod;
+        
+        // Untuk split payment, gunakan metode pertama atau 'Multiple'
+        if (Array.isArray(orderPaymentDetails) && orderPaymentDetails.length > 0) {
+          paymentMethodData = orderPaymentDetails[0].method || 'Multiple';
+        } else {
+          paymentMethodData = paymentMethod || 'Cash';
+        }
       } else if (source === 'App' || source === 'Web') {
-        const isCashPayment = paymentDetails?.method?.toLowerCase() === 'cash';
+        const isCashPayment = orderPaymentDetails?.method?.toLowerCase() === 'cash';
         initialStatus = isCashPayment ? 'Pending' : 'Waiting';
-        paymentMethodData = paymentDetails?.method;
+        paymentMethodData = orderPaymentDetails?.method;
       }
 
       console.log('Order Status Determination:', {
@@ -135,8 +145,65 @@ export async function createOrderHandler({
         initialStatus,
         paymentMethod: paymentMethodData,
         isOpenBill,
-        paymentDetails
+        isSplitPayment,
+        paymentDetails: orderPaymentDetails
       });
+
+      // Prepare payments array untuk split payment
+      let payments = [];
+      
+      if (isSplitPayment && Array.isArray(orderPaymentDetails)) {
+        // Process split payment details
+        payments = orderPaymentDetails.map((payment, index) => {
+          const paymentData = {
+            paymentMethod: payment.method,
+            amount: payment.amount,
+            status: mapPaymentStatus(payment.status),
+            processedBy: cashierId,
+            processedAt: new Date(),
+            notes: `Split payment ${index + 1} of ${orderPaymentDetails.length}`
+          };
+
+          // Tambahkan payment details berdasarkan metode
+          if (payment.method === 'Cash') {
+            paymentData.paymentDetails = {
+              cashTendered: payment.tenderedAmount || payment.amount,
+              change: payment.changeAmount || 0
+            };
+          } else if (payment.method === 'QRIS') {
+            paymentData.paymentDetails = {
+              transactionId: payment.transactionId || `QRIS-${orderId}-${index}`,
+              ewallets: payment.ewallets || 'Other'
+            };
+          } else if (payment.method === 'Debit') {
+            paymentData.paymentDetails = {
+              cardType: 'Debit',
+              cardLast4: payment.cardLast4 || '',
+              cardTransactionId: payment.transactionId || `DEBIT-${orderId}-${index}`
+            };
+          }
+
+          return paymentData;
+        });
+
+        console.log('Processed split payments:', {
+          count: payments.length,
+          payments: payments.map(p => ({
+            method: p.paymentMethod,
+            amount: p.amount,
+            status: p.status
+          }))
+        });
+      } else {
+        // Single payment (legacy)
+        payments = [{
+          paymentMethod: paymentMethodData,
+          amount: totals.grandTotal,
+          status: 'completed',
+          processedBy: cashierId,
+          processedAt: new Date()
+        }];
+      }
 
       // Prepare base order data
       const baseOrderData = {
@@ -146,7 +213,8 @@ export async function createOrderHandler({
         items: orderItems,
         customAmountItems: processedCustomAmountItems,
         status: initialStatus,
-        paymentMethod: (paymentMethodData || 'Cash'),
+        payments: payments, // Gunakan array payments
+        paymentMethod: paymentMethodData, // Legacy field untuk kompatibilitas
         orderType: orderType || 'Dine-In',
         tableNumber: tableNumber || '',
         type: type || 'Indoor',
@@ -160,6 +228,8 @@ export async function createOrderHandler({
         grandTotal: totals.grandTotal,
         source: source,
         isOpenBill: isOpenBill || false,
+        isSplitPayment: isSplitPayment, // Tambahkan field isSplitPayment
+        splitPaymentStatus: calculateSplitPaymentStatus(payments, totals.grandTotal),
         discounts: {
           autoPromoDiscount: discounts.autoPromoDiscount || 0,
           manualDiscount: discounts.manualDiscount || 0,
@@ -168,13 +238,11 @@ export async function createOrderHandler({
           customAmountDiscount: discounts.customAmountDiscount || 0,
           total: discounts.total || 0
         },
-        // PERBAIKAN: Gunakan formattedAppliedPromos
         appliedPromos: formattedAppliedPromos,
         appliedManualPromo: promotions.appliedManualPromo || null,
         appliedVoucher: promotions.appliedVoucher || null,
         taxAndServiceDetails: taxesAndFees || [],
         notes: notes || '',
-        isSplitPayment: isSplitPayment || false,
         currentBatch: 1,
         deliveryStatus: "false",
         deliveryProvider: "false",
@@ -188,7 +256,6 @@ export async function createOrderHandler({
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-
 
       // Tambahkan customer data jika ada
       if (customerId) {
@@ -268,7 +335,10 @@ export async function createOrderHandler({
         grandTotal: baseOrderData.grandTotal,
         discounts: baseOrderData.discounts,
         deliveryStatus: baseOrderData.deliveryStatus,
-        isOpenBill: baseOrderData.isOpenBill
+        isOpenBill: baseOrderData.isOpenBill,
+        isSplitPayment: baseOrderData.isSplitPayment,
+        splitPaymentStatus: baseOrderData.splitPaymentStatus,
+        paymentsCount: baseOrderData.payments.length
       });
 
       // Validasi data required
@@ -315,6 +385,9 @@ export async function createOrderHandler({
         grandTotal: newOrder.grandTotal,
         discounts: newOrder.discounts,
         source: newOrder.source,
+        isSplitPayment: newOrder.isSplitPayment,
+        splitPaymentStatus: newOrder.splitPaymentStatus,
+        paymentsCount: newOrder.payments.length,
         createdAt: newOrder.createdAt
       });
 
@@ -326,6 +399,7 @@ export async function createOrderHandler({
         customAmountItems: processedCustomAmountItems,
         totals: totals,
         loyalty: loyalty,
+        isSplitPayment: isSplitPayment,
         orderData: baseOrderData
       };
     }, session);
@@ -345,7 +419,9 @@ export async function createOrderHandler({
       status: verifiedOrder.status,
       grandTotal: verifiedOrder.grandTotal,
       itemsCount: verifiedOrder.items.length,
-      customAmountItemsCount: verifiedOrder.customAmountItems.length
+      customAmountItemsCount: verifiedOrder.customAmountItems.length,
+      isSplitPayment: verifiedOrder.isSplitPayment,
+      splitPaymentStatus: verifiedOrder.splitPaymentStatus
     });
 
     // Enqueue inventory update setelah transaction selesai
@@ -364,6 +440,7 @@ export async function createOrderHandler({
       grandTotal: orderResult.totals.grandTotal,
       loyalty: orderResult.loyalty,
       hasCustomAmountItems: orderResult.customAmountItems && orderResult.customAmountItems.length > 0,
+      isSplitPayment: orderResult.isSplitPayment,
       orderStatus: verifiedOrder.status,
       orderId: verifiedOrder._id
     };
@@ -377,7 +454,8 @@ export async function createOrderHandler({
       orderType: orderData?.orderType,
       hasCustomAmountItems: orderData?.customAmountItems?.length > 0,
       outletId: orderData?.outletId,
-      tableNumber: orderData?.tableNumber
+      tableNumber: orderData?.tableNumber,
+      isSplitPayment: orderData?.isSplitPayment
     });
 
     if (err.message.includes('Failed to process order items')) {
@@ -406,6 +484,39 @@ export async function createOrderHandler({
       await session.endSession();
       console.log('MongoDB session ended');
     }
+  }
+}
+
+// Helper function untuk map payment status
+function mapPaymentStatus(status) {
+  const statusMap = {
+    'partial': 'pending',
+    'settlement': 'completed',
+    'pending': 'pending',
+    'completed': 'completed',
+    'failed': 'failed'
+  };
+  return statusMap[status] || 'pending';
+}
+
+// Helper function untuk calculate split payment status
+function calculateSplitPaymentStatus(payments, grandTotal) {
+  if (!payments || payments.length === 0) {
+    return 'not_started';
+  }
+
+  const totalPaid = payments
+    .filter(p => p.status === 'completed')
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  if (totalPaid === 0) {
+    return 'not_started';
+  } else if (totalPaid < grandTotal) {
+    return 'partial';
+  } else if (totalPaid === grandTotal) {
+    return 'completed';
+  } else {
+    return 'overpaid';
   }
 }
 

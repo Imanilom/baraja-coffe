@@ -30,6 +30,11 @@ export default function socketHandler(io) {
 
                 console.log(`🔐 Device session authentication: ${sessionId}, Device: ${deviceId}`);
 
+                if (!sessionId || !deviceId) {
+                    throw new Error('Session ID dan Device ID diperlukan');
+                }
+
+                // Validasi session dengan transaction-like approach
                 const session = await DeviceSession.findOne({
                     _id: sessionId,
                     device: deviceId,
@@ -37,80 +42,70 @@ export default function socketHandler(io) {
                 })
                     .populate('device')
                     .populate('user')
-                    .populate('outlet');
+                    .populate('outlet')
+                    .populate('role');
 
                 if (!session) {
                     throw new Error('Session tidak valid atau sudah logout');
                 }
 
-                // Update session & device
-                session.socketId = socket.id;
-                await session.save();
-                await Device.findByIdAndUpdate(deviceId, {
-                    socketId: socket.id,
-                    isOnline: true
+                // Cek jika device sudah memiliki session aktif dengan socket berbeda
+                const existingSocketSession = await DeviceSession.findOne({
+                    device: deviceId,
+                    isActive: true,
+                    socketId: { $exists: true, $ne: '' }
                 });
 
-                // Register device
+                if (existingSocketSession && existingSocketSession.socketId !== socket.id) {
+                    console.warn(`⚠️ Device ${deviceId} sudah memiliki session aktif: ${existingSocketSession.socketId}`);
+                    
+                    // Force logout session sebelumnya
+                    await DeviceSession.findByIdAndUpdate(existingSocketSession._id, {
+                        isActive: false,
+                        logoutTime: new Date(),
+                        logoutReason: 'replaced_by_new_session'
+                    });
+
+                    // Emit force logout ke socket sebelumnya
+                    if (existingSocketSession.socketId) {
+                        io.to(existingSocketSession.socketId).emit('force_logout', {
+                            reason: 'Session digantikan oleh login baru',
+                            timestamp: new Date()
+                        });
+                    }
+                }
+
+                // Update session & device
+                session.socketId = socket.id;
+                session.lastActivity = new Date();
+                session.loginTime = session.loginTime || new Date(); // Set loginTime jika belum ada
+                await session.save();
+
+                await Device.findByIdAndUpdate(deviceId, {
+                    socketId: socket.id,
+                    isOnline: true,
+                    lastActivity: new Date()
+                });
+
+                // Register device ke socket management
                 const deviceData = {
                     deviceId: session.device.deviceId,
                     outletId: session.outlet._id,
-                    role: session.role,
+                    role: session.role?.name || session.role,
                     location: session.device.location,
                     deviceName: session.device.deviceName,
                     assignedAreas: session.device.assignedAreas,
                     assignedTables: session.device.assignedTables,
-                    orderTypes: session.device.orderTypes
+                    orderTypes: session.device.orderTypes,
+                    sessionId: session._id
                 };
+                
                 await socketManagement.registerDevice(socket, deviceData);
 
-                // ✅ ✅ ✅ PERBAIKAN: AUTO-JOIN AREAS YANG BENAR
-                const joinedRooms = [];
+                // ✅ ENHANCED AUTO-JOIN ROOMS
+                const joinedRooms = await joinRelevantRooms(socket, session);
 
-                // Basic rooms
-                socket.join(session.role);
-                joinedRooms.push(session.role);
-
-                socket.join(`outlet_${session.outlet._id}`);
-                joinedRooms.push(`outlet_${session.outlet._id}`);
-
-                socket.join('cashier_room');
-                joinedRooms.push('cashier_room');
-
-                // ✅ AUTO-JOIN AREA ROOMS BERDASARKAN assignedAreas
-                if (session.device.assignedAreas && session.device.assignedAreas.length > 0) {
-                    session.device.assignedAreas.forEach(area => {
-                        const areaRoom = `area_${area}`;
-                        socket.join(areaRoom);
-                        joinedRooms.push(areaRoom);
-                        console.log(`📍 Device ${session.device.deviceName} joined area room: ${areaRoom}`);
-
-                        // Join area group
-                        const areaGroup = getAreaGroup(area);
-                        if (areaGroup) {
-                            socket.join(areaGroup);
-                            joinedRooms.push(areaGroup);
-                            console.log(`📍 Device ${session.device.deviceName} joined area group: ${areaGroup}`);
-                        }
-                    });
-                }
-
-                // Role-specific rooms
-                if (session.role.includes('bar')) {
-                    const barType = session.role.includes('depan') ? 'depan' : 'belakang';
-                    socket.join(`bar_${barType}`);
-                    joinedRooms.push(`bar_${barType}`);
-                    console.log(`🍹 Joined bar room: bar_${barType}`);
-                }
-
-                if (session.role.includes('kitchen')) {
-                    socket.join('kitchen_room');
-                    socket.join(`kitchen_${session.outlet._id}`);
-                    joinedRooms.push('kitchen_room', `kitchen_${session.outlet._id}`);
-                    console.log(`👨‍🍳 Joined kitchen rooms`);
-                }
-
-                console.log(`✅ Device authenticated: ${session.device.deviceName} - ${session.user.name} (${session.role})`);
+                console.log(`✅ Device authenticated: ${session.device.deviceName} - ${session.user.name} (${session.role?.name || session.role})`);
                 console.log(`📍 Total joined rooms: ${joinedRooms.length}`);
 
                 const response = {
@@ -120,11 +115,11 @@ export default function socketHandler(io) {
                         user: session.user,
                         device: session.device,
                         outlet: session.outlet,
-                        role: session.role
+                        role: session.role?.name || session.role
                     },
                     device: {
                         deviceName: session.device.deviceName,
-                        role: session.role,
+                        role: session.role?.name || session.role,
                         assignedAreas: session.device.assignedAreas,
                         assignedTables: session.device.assignedTables,
                         orderTypes: session.device.orderTypes,
@@ -143,9 +138,10 @@ export default function socketHandler(io) {
                     deviceId: session.device._id,
                     deviceName: session.device.deviceName,
                     userName: session.user.name,
-                    role: session.role,
+                    role: session.role?.name || session.role,
                     socketId: socket.id,
                     assignedAreas: session.device.assignedAreas,
+                    sessionId: session._id,
                     timestamp: new Date()
                 });
 
@@ -162,6 +158,56 @@ export default function socketHandler(io) {
                 }
 
                 socket.disconnect();
+            }
+        });
+
+         // ✅ SESSION HEARTBEAT
+        socket.on('session_heartbeat', async (data, callback) => {
+            try {
+                const { sessionId, deviceId } = data;
+
+                if (!sessionId || !deviceId) {
+                    throw new Error('Session ID dan Device ID diperlukan');
+                }
+
+                // Update session last activity
+                const session = await DeviceSession.findOneAndUpdate(
+                    {
+                        _id: sessionId,
+                        device: deviceId,
+                        isActive: true
+                    },
+                    {
+                        lastActivity: new Date()
+                    },
+                    { new: true }
+                );
+
+                if (!session) {
+                    throw new Error('Session tidak ditemukan atau tidak aktif');
+                }
+
+                // Update device last activity
+                await Device.findByIdAndUpdate(deviceId, {
+                    lastActivity: new Date()
+                });
+
+                if (typeof callback === 'function') {
+                    callback({
+                        success: true,
+                        lastActivity: session.lastActivity
+                    });
+                }
+
+            } catch (error) {
+                console.error('Session heartbeat error:', error);
+                
+                if (typeof callback === 'function') {
+                    callback({
+                        success: false,
+                        error: error.message
+                    });
+                }
             }
         });
 
@@ -232,6 +278,135 @@ export default function socketHandler(io) {
                 }
             }
         });
+
+        socket.on('validate_session', async (data, callback) => {
+            try {
+                const { sessionId, deviceId } = data;
+
+                const session = await DeviceSession.findOne({
+                    _id: sessionId,
+                    device: deviceId,
+                    isActive: true
+                })
+                    .populate('device')
+                    .populate('user')
+                    .populate('outlet')
+                    .populate('role');
+
+                if (!session) {
+                    throw new Error('Session tidak valid');
+                }
+
+                // Cek jika session expired (lebih dari 8 jam)
+                const sessionAge = Date.now() - new Date(session.loginTime).getTime();
+                const maxSessionAge = 8 * 60 * 60 * 1000; // 8 jam
+
+                if (sessionAge > maxSessionAge) {
+                    // Auto logout session expired
+                    await DeviceSession.findByIdAndUpdate(sessionId, {
+                        isActive: false,
+                        logoutTime: new Date(),
+                        logoutReason: 'session_expired'
+                    });
+
+                    await Device.findByIdAndUpdate(deviceId, {
+                        isOnline: false,
+                        socketId: null
+                    });
+
+                    throw new Error('Session telah expired');
+                }
+
+                const response = {
+                    success: true,
+                    session: {
+                        id: session._id,
+                        user: session.user,
+                        device: session.device,
+                        outlet: session.outlet,
+                        role: session.role?.name || session.role,
+                        loginTime: session.loginTime,
+                        lastActivity: session.lastActivity
+                    },
+                    isValid: true
+                };
+
+                if (typeof callback === 'function') {
+                    callback(response);
+                }
+
+            } catch (error) {
+                console.error('Validate session error:', error);
+
+                if (typeof callback === 'function') {
+                    callback({
+                        success: false,
+                        error: error.message,
+                        isValid: false
+                    });
+                }
+            }
+        });
+
+          // ✅ MANUAL SESSION LOGOUT
+        socket.on('session_logout', async (data, callback) => {
+            try {
+                const { sessionId, deviceId, reason = 'manual_logout' } = data;
+
+                const session = await DeviceSession.findOne({
+                    _id: sessionId,
+                    device: deviceId,
+                    isActive: true
+                });
+
+                if (!session) {
+                    throw new Error('Session tidak ditemukan atau sudah logout');
+                }
+
+                // Update session
+                session.isActive = false;
+                session.logoutTime = new Date();
+                session.logoutReason = reason;
+                await session.save();
+
+                // Update device
+                await Device.findByIdAndUpdate(deviceId, {
+                    isOnline: false,
+                    socketId: null
+                });
+
+                // Hapus dari socket management
+                socketManagement.handleDisconnection(socket.id);
+
+                // Leave semua rooms
+                await leaveAllRooms(socket);
+
+                const response = {
+                    success: true,
+                    message: 'Session logout berhasil',
+                    sessionId: session._id,
+                    logoutTime: session.logoutTime
+                };
+
+                if (typeof callback === 'function') {
+                    callback(response);
+                }
+
+                // Disconnect socket
+                socket.disconnect();
+
+            } catch (error) {
+                console.error('Session logout error:', error);
+
+                if (typeof callback === 'function') {
+                    callback({
+                        success: false,
+                        error: error.message
+                    });
+                }
+            }
+        });
+
 
         // 🔹 Join room for specific order
         socket.on('join_order_room', (orderId, callback) => {
@@ -683,12 +858,13 @@ export default function socketHandler(io) {
             }
         });
 
+        // ✅ UPDATE DEVICE ASSIGNMENT (Real-time update)
         socket.on('update_device_assignment', async (data, callback) => {
             try {
                 const { deviceId, assignedAreas, assignedTables, orderTypes } = data;
 
                 const updatedDevice = await Device.findOneAndUpdate(
-                    { deviceId },
+                    { _id: deviceId },
                     {
                         assignedAreas,
                         assignedTables,
@@ -697,12 +873,27 @@ export default function socketHandler(io) {
                     { new: true }
                 );
 
+                if (!updatedDevice) {
+                    throw new Error('Device tidak ditemukan');
+                }
+
                 // Update in-memory data jika device sedang connected
                 for (const [socketId, device] of socketManagement.connectedDevices.entries()) {
-                    if (device.deviceId === deviceId) {
+                    if (device.deviceId === updatedDevice.deviceId) {
                         device.assignedAreas = assignedAreas;
                         device.assignedTables = assignedTables;
                         device.orderTypes = orderTypes;
+                        
+                        // Re-join rooms berdasarkan assignment baru
+                        const session = await DeviceSession.findOne({
+                            device: deviceId,
+                            isActive: true,
+                            socketId: socketId
+                        }).populate('role');
+
+                        if (session) {
+                            await joinRelevantRooms(io.sockets.sockets.get(socketId), session);
+                        }
                         break;
                     }
                 }
@@ -717,6 +908,15 @@ export default function socketHandler(io) {
                     callback(response);
                 }
 
+                // Notify device tentang update assignment
+                socket.to(`device_${deviceId}`).emit('device_assignment_updated', {
+                    deviceId,
+                    assignedAreas,
+                    assignedTables,
+                    orderTypes,
+                    timestamp: new Date()
+                });
+
             } catch (error) {
                 console.error('Error updating device assignment:', error);
 
@@ -726,25 +926,31 @@ export default function socketHandler(io) {
             }
         });
 
-        // ✅ FORCE LOGOUT FROM DEVICE
+         // ✅ FORCE LOGOUT FROM DEVICE 
         socket.on('force_logout_device', async (data, callback) => {
             try {
-                const { deviceId, reason } = data;
+                const { deviceId, reason = 'forced_by_admin' } = data;
 
-                // Cari session aktif untuk device
-                const activeSession = await DeviceSession.findOne({
+                // Cari semua session aktif untuk device
+                const activeSessions = await DeviceSession.find({
                     device: deviceId,
                     isActive: true
                 }).populate('device').populate('user');
 
-                if (!activeSession) {
+                if (activeSessions.length === 0) {
                     throw new Error('Tidak ada session aktif untuk device ini');
                 }
 
-                // Update session
-                activeSession.isActive = false;
-                activeSession.logoutTime = new Date();
-                await activeSession.save();
+                // Update semua session
+                const sessionIds = activeSessions.map(session => session._id);
+                await DeviceSession.updateMany(
+                    { _id: { $in: sessionIds } },
+                    {
+                        isActive: false,
+                        logoutTime: new Date(),
+                        logoutReason: reason
+                    }
+                );
 
                 // Update device
                 await Device.findByIdAndUpdate(deviceId, {
@@ -752,24 +958,27 @@ export default function socketHandler(io) {
                     socketId: null
                 });
 
-                // Emit force logout ke device
-                if (activeSession.socketId) {
-                    io.to(activeSession.socketId).emit('force_logout', {
-                        reason: reason || 'Logged out by admin',
-                        timestamp: new Date()
-                    });
-                }
+                // Emit force logout ke semua socket terkait
+                activeSessions.forEach(session => {
+                    if (session.socketId) {
+                        io.to(session.socketId).emit('force_logout', {
+                            reason: reason,
+                            timestamp: new Date(),
+                            initiatedBy: 'admin'
+                        });
 
-                // Hapus dari socket management
-                socketManagement.handleDisconnection(activeSession.socketId);
+                        // Hapus dari socket management
+                        socketManagement.handleDisconnection(session.socketId);
+                    }
+                });
 
                 const response = {
                     success: true,
-                    message: `Device ${activeSession.device.deviceName} berhasil di logout`,
+                    message: `Device ${activeSessions[0].device.deviceName} berhasil di logout`,
                     data: {
-                        deviceName: activeSession.device.deviceName,
-                        userName: activeSession.user.name,
-                        logoutTime: activeSession.logoutTime
+                        deviceName: activeSessions[0].device.deviceName,
+                        loggedOutSessions: activeSessions.length,
+                        logoutTime: new Date()
                     }
                 };
 
@@ -786,71 +995,128 @@ export default function socketHandler(io) {
             }
         });
 
+   // ✅ GET DEVICE SESSION INFO
+        socket.on('get_device_session', async (data, callback) => {
+            try {
+                const { deviceId } = data;
+
+                const sessions = await DeviceSession.find({
+                    device: deviceId,
+                    isActive: true
+                })
+                    .populate('user', 'name username email')
+                    .populate('role', 'name')
+                    .sort({ loginTime: -1 });
+
+                const response = {
+                    success: true,
+                    sessions: sessions.map(session => ({
+                        id: session._id,
+                        user: session.user,
+                        role: session.role,
+                        loginTime: session.loginTime,
+                        lastActivity: session.lastActivity,
+                        socketId: session.socketId,
+                        ipAddress: session.ipAddress
+                    })),
+                    total: sessions.length
+                };
+
+                if (typeof callback === 'function') {
+                    callback(response);
+                }
+
+            } catch (error) {
+                console.error('Get device session error:', error);
+
+                if (typeof callback === 'function') {
+                    callback({
+                        success: false,
+                        error: error.message
+                    });
+                }
+            }
+        });
+
         // Leave room
         socket.on('leave_room', (roomName) => {
             socket.leave(roomName);
             console.log(`Client ${socket.id} left room: ${roomName}`);
         });
 
-        socket.on('device:leaveAll', (cb) => {
+        socket.on('device:leaveAll', async (cb) => {
             try {
-                // Lepas semua room kecuali room pribadi socket.id
-                for (const room of socket.rooms) {
-                    if (room !== socket.id) socket.leave(room);
-                }
+                await leaveAllRooms(socket);
                 cb?.({ ok: true });
             } catch (e) {
+                console.error('Leave all rooms error:', e);
                 cb?.({ ok: false, error: e?.message });
             }
         });
 
         socket.on('leave_area_room', (tableCode) => {
+            const areaRoom = `area_${tableCode}`;
             const group = getAreaGroup(tableCode);
+            
+            socket.leave(areaRoom);
             if (group) {
                 socket.leave(group);
-                console.log(`Device ${socket.id} left area ${areaRoom} and group ${group}`);
-            } else {
-                console.log('Area room not found');
             }
+            console.log(`Device ${socket.id} left area ${areaRoom} and group ${group}`);
         });
 
-        // ✅ HANDLE DISCONNECTION
-        socket.on('disconnect', async () => {
-            console.log('❌ Client disconnected:', socket.id);
+       socket.on('disconnect', async (reason) => {
+            console.log('❌ Client disconnected:', socket.id, 'Reason:', reason);
             clearInterval(pingInterval);
 
             try {
                 // Cari session berdasarkan socketId
-                const session = await DeviceSession.findOne({
+                const sessions = await DeviceSession.find({
                     socketId: socket.id,
                     isActive: true
                 });
 
-                if (session) {
-                    // Update session
-                    session.isActive = false;
-                    session.logoutTime = new Date();
-                    await session.save();
+                if (sessions.length > 0) {
+                    for (const session of sessions) {
+                        // Update session
+                        session.isActive = false;
+                        session.logoutTime = new Date();
+                        session.logoutReason = `socket_disconnect_${reason}`;
+                        await session.save();
 
-                    // Update device
-                    await Device.findByIdAndUpdate(session.device, {
-                        isOnline: false,
-                        socketId: null
-                    });
+                        // Update device - hanya set offline jika tidak ada session aktif lainnya
+                        const otherSessions = await DeviceSession.countDocuments({
+                            device: session.device,
+                            isActive: true,
+                            socketId: { $exists: true, $ne: '' }
+                        });
 
-                    console.log(`❌ Device session ended: ${socket.id} - User: ${session.user.name}`);
+                        if (otherSessions === 0) {
+                            await Device.findByIdAndUpdate(session.device, {
+                                isOnline: false,
+                                socketId: null
+                            });
+                        }
 
-                    // Broadcast device offline status
-                    socket.to(`outlet_${session.outlet}`).emit('device_offline', {
-                        deviceId: session.device,
-                        socketId: socket.id,
-                        userName: session.user.name,
-                        timestamp: new Date()
-                    });
+                        console.log(`❌ Device session ended: ${socket.id} - User: ${session.user?.name || 'Unknown'}`);
+
+                        // Broadcast device offline status
+                        socket.to(`outlet_${session.outlet}`).emit('device_offline', {
+                            deviceId: session.device,
+                            socketId: socket.id,
+                            userName: session.user?.name || 'Unknown',
+                            sessionId: session._id,
+                            timestamp: new Date(),
+                            reason: reason
+                        });
+                    }
                 }
 
                 // Handle disconnection di socket management
                 socketManagement.handleDisconnection(socket.id);
+
+                // Leave semua rooms
+                await leaveAllRooms(socket);
 
             } catch (error) {
                 console.error('Disconnection handling error:', error);
@@ -859,6 +1125,96 @@ export default function socketHandler(io) {
     });
 
     // === Helper Functions ===
+
+    const joinRelevantRooms = async (socket, session) => {
+        const joinedRooms = [];
+        const roleName = session.role?.name || session.role;
+
+        try {
+            // Basic rooms
+            const basicRooms = [
+                roleName,
+                `outlet_${session.outlet._id}`,
+                'cashier_room',
+                `device_${session.device._id}`,
+                `session_${session._id}`
+            ];
+
+            basicRooms.forEach(room => {
+                socket.join(room);
+                joinedRooms.push(room);
+            });
+
+            // ✅ AUTO-JOIN AREA ROOMS BERDASARKAN assignedAreas
+            if (session.device.assignedAreas && session.device.assignedAreas.length > 0) {
+                session.device.assignedAreas.forEach(area => {
+                    const areaRoom = `area_${area}`;
+                    socket.join(areaRoom);
+                    joinedRooms.push(areaRoom);
+
+                    // Join area group
+                    const areaGroup = getAreaGroup(area);
+                    if (areaGroup) {
+                        socket.join(areaGroup);
+                        joinedRooms.push(areaGroup);
+                    }
+                });
+            }
+
+            // Role-specific rooms
+            if (roleName.includes('bar')) {
+                const barType = roleName.includes('depan') ? 'depan' : 'belakang';
+                const barRoom = `bar_${barType}`;
+                socket.join(barRoom);
+                joinedRooms.push(barRoom);
+            }
+
+            if (roleName.includes('kitchen')) {
+                const kitchenRooms = [
+                    'kitchen_room',
+                    `kitchen_${session.outlet._id}`
+                ];
+                kitchenRooms.forEach(room => {
+                    socket.join(room);
+                    joinedRooms.push(room);
+                });
+            }
+
+            // Join assigned tables
+            if (session.device.assignedTables && session.device.assignedTables.length > 0) {
+                session.device.assignedTables.forEach(table => {
+                    const tableRoom = `table_${table}`;
+                    socket.join(tableRoom);
+                    joinedRooms.push(tableRoom);
+                });
+            }
+
+            console.log(`📍 Device ${session.device.deviceName} joined ${joinedRooms.length} rooms`);
+            return joinedRooms;
+
+        } catch (error) {
+            console.error('Error joining rooms:', error);
+            return joinedRooms;
+        }
+    };
+
+    // ✅ LEAVE ALL ROOMS FUNCTION
+    const leaveAllRooms = async (socket) => {
+        try {
+            const rooms = Array.from(socket.rooms);
+            
+            for (const room of rooms) {
+                if (room !== socket.id) {
+                    socket.leave(room);
+                }
+            }
+            
+            console.log(`📍 Device ${socket.id} left all rooms`);
+        } catch (error) {
+            console.error('Error leaving rooms:', error);
+        }
+    };
+
 
     // ✅ AREA-SPECIFIC NOTIFICATION
     const notifyAreaSpecificUpdate = (orderId, status, updatedBy, tableNumber = null) => {
@@ -936,6 +1292,66 @@ export default function socketHandler(io) {
         return await socketManagement.broadcastOrder(orderData);
     };
 
+      // ✅ SESSION CLEANUP TASK (Run periodically)
+    const cleanupExpiredSessions = async () => {
+        try {
+            const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
+            
+            const expiredSessions = await DeviceSession.find({
+                isActive: true,
+                lastActivity: { $lt: eightHoursAgo }
+            });
+
+            if (expiredSessions.length > 0) {
+                console.log(`🧹 Cleaning up ${expiredSessions.length} expired sessions`);
+                
+                const sessionIds = expiredSessions.map(session => session._id);
+                const deviceIds = [...new Set(expiredSessions.map(session => session.device))];
+
+                // Update sessions
+                await DeviceSession.updateMany(
+                    { _id: { $in: sessionIds } },
+                    {
+                        isActive: false,
+                        logoutTime: new Date(),
+                        logoutReason: 'auto_cleanup_expired'
+                    }
+                );
+
+                // Update devices
+                for (const deviceId of deviceIds) {
+                    const activeSessions = await DeviceSession.countDocuments({
+                        device: deviceId,
+                        isActive: true
+                    });
+
+                    if (activeSessions === 0) {
+                        await Device.findByIdAndUpdate(deviceId, {
+                            isOnline: false,
+                            socketId: null
+                        });
+                    }
+                }
+
+                // Emit cleanup events
+                expiredSessions.forEach(session => {
+                    if (session.socketId) {
+                        io.to(session.socketId).emit('force_logout', {
+                            reason: 'Session expired (auto cleanup)',
+                            timestamp: new Date()
+                        });
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Session cleanup error:', error);
+        }
+    };
+
+    // Run cleanup every hour
+    setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
+
+
     // ✅ GET ACTIVE SESSIONS
     const getActiveSessions = async (outletId = null) => {
         try {
@@ -960,7 +1376,22 @@ export default function socketHandler(io) {
         broadcastOrderStatusChange,
         broadcastPaymentUpdate,
         broadcastOrderWithClassification,
-        getActiveSessions,
+        getActiveSessions: async (outletId = null) => {
+            try {
+                let filter = { isActive: true };
+                if (outletId) filter.outlet = outletId;
+
+                return await DeviceSession.find(filter)
+                    .populate('device')
+                    .populate('user')
+                    .populate('outlet')
+                    .populate('role')
+                    .sort({ loginTime: -1 });
+            } catch (error) {
+                console.error('Get active sessions error:', error);
+                return [];
+            }
+        },
         io
     };
 }

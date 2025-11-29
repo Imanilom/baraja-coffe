@@ -2341,6 +2341,7 @@ const confirmOrderHelper = async (orderId) => {
 
 export const createUnifiedOrder = async (req, res) => {
   let orderId = null;
+  let lockAcquired = false;
 
   try {
     const {
@@ -2354,11 +2355,12 @@ export const createUnifiedOrder = async (req, res) => {
       delivery_option,
       recipient_data,
       customAmountItems,
-      paymentDetails,
+      paymentDetails, // Bisa array untuk split payment atau object untuk single payment
       user,
       contact,
       cashierId,
-      device_id
+      device_id,
+      isSplitPayment = false
     } = req.body;
 
     // Validasi outletId
@@ -2369,11 +2371,12 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // Generate order ID early for locking
+    // Generate order ID early untuk locking
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
     } else {
-      orderId = `${source.toUpperCase()}-${Date.now()}`;
+      // Tambah random component untuk uniqueness
+      orderId = `${source.toUpperCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     }
 
     console.log('🔒 Attempting to create order with atomic lock:', {
@@ -2381,11 +2384,79 @@ export const createUnifiedOrder = async (req, res) => {
       source,
       outletId,
       tableNumber,
-      paymentDetails
+      isSplitPayment,
+      paymentDetailsType: Array.isArray(paymentDetails) ? 'array' : 'object'
     });
 
-    // Execute dengan atomic lock untuk mencegah race condition
+    // PRE-CHECK: Cek order existence SEBELUM lock (optimization)
+    const existingOrderCheck = await Order.findOne({
+      order_id: orderId,
+      outletId: outletId
+    });
+
+    if (existingOrderCheck) {
+      console.log('🔄 Order already exists, returning existing order:', {
+        orderId,
+        status: existingOrderCheck.status
+      });
+      
+      try {
+        const result = await confirmOrderHelper(orderId);
+        return res.status(200).json({
+          status: 'Completed',
+          orderId: orderId,
+          message: 'Order already exists and confirmed',
+          order: result.order
+        });
+      } catch (confirmError) {
+        return res.status(200).json({
+          success: false,
+          error: `Order exists but confirmation failed: ${confirmError.message}`,
+          orderId: orderId,
+          existingOrder: true
+        });
+      }
+    }
+
+    // Execute dengan atomic lock yang diperbaiki
     const result = await LockUtil.withOrderLock(orderId, async () => {
+      lockAcquired = true;
+      
+      // DOUBLE-CHECK: Cek order existence dalam lock (safety net)
+      const existingOrderInLock = await Order.findOne({
+        order_id: orderId,
+        outletId: outletId
+      });
+
+      if (existingOrderInLock) {
+        console.log('🔄 Order created by another process during lock acquisition:', {
+          orderId,
+          existingOrderId: existingOrderInLock._id
+        });
+
+        try {
+          const result = await confirmOrderHelper(orderId);
+          return {
+            type: 'existing_order',
+            data: {
+              status: 'Completed',
+              orderId: orderId,
+              message: 'Order processed by another process',
+              order: result.order
+            }
+          };
+        } catch (confirmError) {
+          return {
+            type: 'existing_order_error', 
+            data: {
+              success: false,
+              error: `Order exists but confirmation failed: ${confirmError.message}`,
+              orderId: orderId
+            }
+          };
+        }
+      }
+
       // ✅ SEMUA LOGIC ORDER CREATION DI DALAM LOCK
 
       // Cek jam buka/tutup outlet 
@@ -2429,46 +2500,7 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
 
-      // Check if order already exists (double-check dalam lock)
-      const existingOrder = await Order.findOne({
-        order_id: orderId,
-        outletId: outletId
-      });
-
-      if (existingOrder) {
-        console.log('🔄 Order already exists in the database, confirming order...', {
-          orderId,
-          existingOrderId: existingOrder._id,
-          existingStatus: existingOrder.status
-        });
-
-        try {
-          const result = await confirmOrderHelper(orderId);
-          return {
-            type: 'existing_order',
-            data: {
-              status: 'Completed',
-              orderId: orderId,
-              message: 'Cashier order processed and paid',
-              order: result.order
-            }
-          };
-        } catch (confirmError) {
-          console.error('❌ Failed to confirm existing order:', confirmError);
-
-          // PERBAIKAN: Jangan langsung throw, beri fallback
-          return {
-            type: 'existing_order_error',
-            data: {
-              success: false,
-              error: `Failed to confirm order: ${confirmError.message}`,
-              orderId: orderId
-            }
-          };
-        }
-      }
-
-      // PERBAIKAN: Handle customAmountItems dengan benar
+      // Handle customAmountItems dengan benar
       let finalCustomAmountItems = [];
 
       // Hanya tambahkan customAmountItems jika ada dan tidak kosong
@@ -2480,7 +2512,7 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
 
-      // HITUNG custom amount otomatis HANYA JIKA tidak ada customAmountItems manual
+      // Hitung custom amount otomatis HANYA JIKA tidak ada customAmountItems manual
       if (paymentDetails && paymentDetails.amount && req.body.items && finalCustomAmountItems.length === 0) {
         // Hitung total order dari items saja (tanpa custom amount)
         const orderTotalFromItems = req.body.items.reduce((total, item) => {
@@ -2497,7 +2529,8 @@ export const createUnifiedOrder = async (req, res) => {
 
       const validated = validateOrderData({
         ...req.body,
-        customAmountItems: finalCustomAmountItems
+        customAmountItems: finalCustomAmountItems,
+        isSplitPayment: isSplitPayment
       }, source);
 
       validated.outletId = outletId;
@@ -2572,7 +2605,7 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
 
-      // PERBAIKAN: Buat order langsung tanpa queue untuk menghindari timing issue
+      // Buat order langsung tanpa queue untuk menghindari timing issue
       console.log('🔄 Creating order directly without queue...');
 
       try {
@@ -2584,13 +2617,15 @@ export const createUnifiedOrder = async (req, res) => {
           isOpenBill: validated.isOpenBill,
           isReservation: orderType === 'reservation',
           requiresDelivery: source === 'App' && delivery_option === 'delivery',
-          recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null
+          recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null,
+          paymentDetails: paymentDetails // Kirim paymentDetails ke handler
         });
 
         console.log('✅ Order created successfully:', {
           orderId,
           orderNumber: orderResult.orderNumber,
-          grandTotal: orderResult.grandTotal
+          grandTotal: orderResult.grandTotal,
+          isSplitPayment: orderResult.isSplitPayment
         });
 
         // Broadcast setelah order berhasil dibuat
@@ -2600,7 +2635,8 @@ export const createUnifiedOrder = async (req, res) => {
           source,
           outletId,
           paymentDetails: validated.paymentDetails,
-          hasCustomAmountItems: finalCustomAmountItems.length > 0
+          hasCustomAmountItems: finalCustomAmountItems.length > 0,
+          isSplitPayment: orderResult.isSplitPayment
         });
 
         // Base response
@@ -2610,52 +2646,121 @@ export const createUnifiedOrder = async (req, res) => {
           hasCustomAmountItems: finalCustomAmountItems.length > 0,
           customAmountItems: finalCustomAmountItems,
           orderNumber: orderResult.orderNumber,
-          grandTotal: orderResult.grandTotal
+          grandTotal: orderResult.grandTotal,
+          isSplitPayment: orderResult.isSplitPayment
         };
 
-        // PERBAIKAN: Cari order yang baru dibuat untuk memastikan ada di database
+        // Cari order yang baru dibuat untuk memastikan ada di database
         const newOrder = await Order.findOne({ order_id: orderId });
         if (!newOrder) {
           throw new Error(`Order ${orderId} not found after creation`);
         }
 
-        // Helper function yang lebih flexible
+        // Helper function yang lebih flexible untuk cashier payment - SUPPORT SPLIT PAYMENT
         const processCashierPayment = async (orderId, paymentDetails, baseResponse, result) => {
-          const chargeRequest = {
-            body: {
-              // Ambil dari paymentDetails atau gunakan default
-              payment_type: paymentDetails?.payment_type || 'Cash',
-              order_id: orderId,
-              gross_amount: paymentDetails?.gross_amount || 0,
-              is_down_payment: paymentDetails?.is_down_payment || false,
-              down_payment_amount: paymentDetails?.down_payment_amount,
-              remaining_payment: paymentDetails?.remaining_payment,
-              tendered_amount: paymentDetails?.tendered_amount,
-              change_amount: paymentDetails?.change_amount,
-            }
-          };
+          // Handle split payment
+          if (Array.isArray(paymentDetails)) {
+            console.log('Processing split payment for order:', {
+              orderId,
+              paymentCount: paymentDetails.length,
+              payments: paymentDetails.map(p => ({
+                method: p.method,
+                amount: p.amount,
+                status: p.status
+              }))
+            });
 
-          return new Promise((resolve, reject) => {
-            const mockRes = {
-              status: (code) => ({
-                json: (data) => {
-                  if (code === 200 && data.success) {
-                    resolve(data);
-                  } else {
-                    reject(new Error(data.message || 'Payment failed'));
-                  }
+            // Untuk split payment, kita proses semua pembayaran
+            const paymentResults = [];
+            for (const payment of paymentDetails) {
+              const chargeRequest = {
+                body: {
+                  payment_type: payment.method || 'Cash',
+                  order_id: orderId,
+                  gross_amount: payment.amount || 0,
+                  is_down_payment: false,
+                  tendered_amount: payment.tenderedAmount || payment.amount,
+                  change_amount: payment.changeAmount || 0,
+                  is_split_payment: true,
+                  split_payment_index: paymentResults.length
                 }
-              })
+              };
+
+              try {
+                const paymentResult = await new Promise((resolve, reject) => {
+                  const mockRes = {
+                    status: (code) => ({
+                      json: (data) => {
+                        if (code === 200 && data.success) {
+                          resolve(data);
+                        } else {
+                          reject(new Error(data.message || 'Payment failed'));
+                        }
+                      }
+                    })
+                  };
+
+                  cashierCharge(chargeRequest, mockRes).catch(reject);
+                });
+
+                paymentResults.push({
+                  method: payment.method,
+                  amount: payment.amount,
+                  status: paymentResult.data?.payment_status || 'completed',
+                  transactionId: paymentResult.data?.transaction_id
+                });
+              } catch (paymentError) {
+                console.error(`Split payment failed for ${payment.method}:`, paymentError);
+                throw new Error(`Split payment failed for ${payment.method}: ${paymentError.message}`);
+              }
+            }
+
+            return {
+              success: true,
+              data: {
+                payment_status: 'completed',
+                is_split_payment: true,
+                payments: paymentResults,
+                total_paid: paymentResults.reduce((sum, p) => sum + p.amount, 0)
+              }
+            };
+          } else {
+            // Single payment (legacy)
+            const chargeRequest = {
+              body: {
+                payment_type: paymentDetails?.method || 'Cash',
+                order_id: orderId,
+                gross_amount: paymentDetails?.amount || 0,
+                is_down_payment: paymentDetails?.is_down_payment || false,
+                down_payment_amount: paymentDetails?.down_payment_amount,
+                remaining_payment: paymentDetails?.remaining_payment,
+                tendered_amount: paymentDetails?.tendered_amount,
+                change_amount: paymentDetails?.change_amount,
+              }
             };
 
-            cashierCharge(chargeRequest, mockRes).catch(reject);
-          });
+            return new Promise((resolve, reject) => {
+              const mockRes = {
+                status: (code) => ({
+                  json: (data) => {
+                    if (code === 200 && data.success) {
+                      resolve(data);
+                    } else {
+                      reject(new Error(data.message || 'Payment failed'));
+                    }
+                  }
+                })
+              };
+
+              cashierCharge(chargeRequest, mockRes).catch(reject);
+            });
+          }
         };
 
         // Handle payment based on source
         if (source === 'Cashier') {
           try {
-            // Langsung pakai req.body tanpa mapping
+            // Langsung pakai req.body.paymentDetails (bisa array atau object)
             const paymentResult = await processCashierPayment(
               orderId,
               req.body.paymentDetails,
@@ -2668,7 +2773,8 @@ export const createUnifiedOrder = async (req, res) => {
               tableNumber,
               orderData: validated,
               outletId,
-              hasCustomAmountItems: finalCustomAmountItems.length > 0
+              hasCustomAmountItems: finalCustomAmountItems.length > 0,
+              isSplitPayment: Array.isArray(req.body.paymentDetails)
             });
 
             return {
@@ -2676,7 +2782,9 @@ export const createUnifiedOrder = async (req, res) => {
               data: {
                 ...baseResponse,
                 status: 'Completed',
-                message: 'Cashier order processed and paid',
+                message: Array.isArray(req.body.paymentDetails) 
+                  ? 'Cashier order processed with split payment' 
+                  : 'Cashier order processed and paid',
                 paymentData: paymentResult.data,
                 paymentStatus: paymentResult.data.payment_status,
                 ...(orderResult.loyalty?.isApplied && {
@@ -2695,6 +2803,7 @@ export const createUnifiedOrder = async (req, res) => {
           }
         }
 
+        // Handle untuk App dan Web (tetap seperti sebelumnya)
         if (source === 'App') {
           let deliveryResult = null;
           if (delivery_option === 'delivery' && recipient_data) {
@@ -2752,7 +2861,7 @@ export const createUnifiedOrder = async (req, res) => {
               }
             };
           } else {
-            // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
+            // Validasi amount sebelum kirim ke Midtrans
             if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
               throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
             }
@@ -2793,7 +2902,7 @@ export const createUnifiedOrder = async (req, res) => {
         }
 
         if (source === 'Web') {
-          // PERBAIKAN: Gunakan newOrder yang sudah dicari sebelumnya
+          // Gunakan newOrder yang sudah dicari sebelumnya
           const paymentData = {
             order_id: newOrder.order_id,
             payment_code: generatePaymentCode(),
@@ -2834,14 +2943,14 @@ export const createUnifiedOrder = async (req, res) => {
               }
             };
           } else {
-            // PERBAIKAN: Urutan parameter yang benar untuk Web
+            // Urutan parameter yang benar untuk Web
             const customerData = {
               name: user || 'Customer',
               email: contact?.email || 'example@mail.com',
               phone: contact?.phone || '081234567890'
             };
 
-            // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
+            // Validasi amount sebelum kirim ke Midtrans
             console.log('Payment details for Midtrans SNAP:', {
               orderId,
               amount: validated.paymentDetails?.amount,
@@ -2854,7 +2963,7 @@ export const createUnifiedOrder = async (req, res) => {
               throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
             }
 
-            // PERBAIKAN: Urutan parameter yang benar
+            // Urutan parameter yang benar
             const midtransRes = await createMidtransSnapTransaction(
               orderId,
               Number(validated.paymentDetails.amount),
@@ -2887,10 +2996,10 @@ export const createUnifiedOrder = async (req, res) => {
         throw directError;
       }
     }, {
-      owner: `order-${source}-${process.pid}`,
-      ttlMs: 60000, // 60 seconds lock
-      retryDelayMs: 200,
-      maxRetries: 15
+      owner: `order-${source}-${process.pid}-${Date.now()}`,
+      ttlMs: 30000, // 30 seconds lock (dikurangi)
+      retryDelayMs: 300, // Tambah delay
+      maxRetries: 5 // Kurangi retries
     });
 
     // Handle different response types dari lock function
@@ -2911,11 +3020,12 @@ export const createUnifiedOrder = async (req, res) => {
     console.error('Error in createUnifiedOrder:', err);
 
     // Specific error handling untuk lock-related errors
-    if (err.message.includes('Failed to acquire lock')) {
+    if (err.message.includes('Failed to acquire lock') || err.message.includes('Lock busy')) {
       return res.status(429).json({
         success: false,
-        error: 'Order sedang diproses, silakan coba lagi dalam beberapa saat',
-        orderId: orderId
+        error: 'System sedang sibuk memproses pesanan lain, silakan coba lagi dalam 5 detik',
+        orderId: orderId,
+        retryAfter: 5
       });
     }
 
@@ -2937,13 +3047,16 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
+    // Return orderId bahkan dalam error untuk tracking
     return res.status(400).json({
       success: false,
       error: err.message,
-      orderId: orderId
+      orderId: orderId,
+      retrySuggested: true
     });
   }
 };
+
 
 const calculateCustomAmount = (paymentAmount, orderTotalFromItems) => {
   // Validasi input
@@ -6473,9 +6586,6 @@ export const testSocket = async (req, res) => {
 }
 async function _autoConfirmOrderInBackground(orderId) {
   try {
-    // Tunggu 2 detik untuk print sempat berjalan
-    await new Promise(r => setTimeout(r, 2000));
-
     const order = await Order.findOne({ order_id: orderId });
     if (!order) {
       console.warn(`⚠️ Order ${orderId} not found for auto-confirm`);
@@ -6695,9 +6805,12 @@ export const cashierCharge = async (req, res) => {
     session.endSession();
 
     console.log('✅ Payment created successfully');
-
+    await _autoConfirmOrderInBackground(order_id).catch(err => {
+      console.error('❌ Background auto-confirm failed:', err);
+    });
     // 🔥 CRITICAL: TRIGGER PRINT IMMEDIATELY SETELAH PAYMENT - TIDAK MENUNGGU APAPUN
     if (payment_type.toLowerCase() === 'cash') {
+
       // Jalankan di background tanpa await
       try {
         await triggerImmediatePrint({
@@ -6715,12 +6828,6 @@ export const cashierCharge = async (req, res) => {
       } catch (err) {
         console.error('❌ Print trigger error:', err);
       }
-
-      // 🔥 AUTO-CONFIRM IN BACKGROUND (non-blocking)
-      // Jangan await di sini, biarkan berjalan di background
-      _autoConfirmOrderInBackground(order_id).catch(err => {
-        console.error('❌ Background auto-confirm failed:', err);
-      });
     }
 
     return res.status(200).json({

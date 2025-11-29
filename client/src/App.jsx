@@ -173,6 +173,7 @@ import HRDashboard from "./pages/hr";
 import DeviceMenuManager from "./pages/menuondevice";
 import EventSalesManagement from "./pages/report/sales/event_sales";
 import ReportEvent from "./pages/event/report";
+import UpdateCustomer from "./pages/customer/update";
 
 
 export default function App() {
@@ -317,6 +318,7 @@ export default function App() {
                 {/* Customer */}
                 <Route path="customers" element={<CustomerManagement />} />
                 <Route path="customer-create" element={<CreateCustomer />} />
+                <Route path="customer-update/:id" element={<UpdateCustomer />} />
 
                 {/* Device */}
                 <Route path="billing/device" element={<DeviceManagement />} />

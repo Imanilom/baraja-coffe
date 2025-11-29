@@ -31,6 +31,84 @@ export const listStaff = async (req, res, next) => {
 };
 
 // Update user
+// export const updateUser = async (req, res, next) => {
+//   try {
+//     const user = await User.findById(req.params.id);
+//     if (!user) return next(errorHandler(404, 'User not found'));
+
+//     // Otorisasi
+//     if (req.user.id !== req.params.id && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+//       return next(errorHandler(401, 'Unauthorized'));
+//     }
+
+//     // Validasi password
+//     if (req.body.password) {
+//       req.body.password = bcryptjs.hashSync(req.body.password, 10);
+//     }
+
+//     const updateFields = {};
+
+//     // Field untuk semua user
+//     if (req.body.username) updateFields.username = req.body.username;
+//     if (req.body.email) updateFields.email = req.body.email;
+//     if (req.body.phone) updateFields.phone = req.body.phone;
+//     if (req.body.profilePicture) updateFields.profilePicture = req.body.profilePicture;
+//     if (req.body.password) updateFields.password = req.body.password;
+//     if ("isActive" in req.body) updateFields.isActive = req.body.isActive;
+
+//     // Hanya Admin yang bisa mengubah role dan outlet
+//     if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+//       if (req.body.role) updateFields.role = req.body.role;
+//       if (req.body.cashierType) updateFields.cashierType = req.body.cashierType;
+
+//       // Format outlet untuk admin (jika ada)
+//       if (req.body.outlet) {
+//         const formattedOutlets = req.body.outlet.map(id => ({
+//           outletId: mongoose.Types.ObjectId(id)
+//         }));
+//         updateFields.outlet = formattedOutlets;
+//       }
+//     }
+
+//     // Update user
+//     const updatedUser = await User.findByIdAndUpdate(
+//       req.params.id,
+//       { $set: updateFields },
+//       { new: true }
+//     )
+//       .select('-password')
+//       .populate('role', 'name permissions')
+//       .populate('outlet.outletId', 'name address city contactNumber openTime closeTime');
+
+//     // ✅ PERBAIKAN: Handle user tanpa outlet
+//     const formattedUser = {
+//       ...updatedUser._doc,
+//       // Hanya format outlet jika user memiliki outlet
+//       outlet: updatedUser.outlet && updatedUser.outlet.length > 0
+//         ? updatedUser.outlet.map(outletItem => ({
+//           _id: outletItem.outletId?._id,
+//           name: outletItem.outletId?.name,
+//           address: outletItem.outletId?.address,
+//           city: outletItem.outletId?.city,
+//           contactNumber: outletItem.outletId?.contactNumber,
+//           openTime: outletItem.outletId?.openTime,
+//           closeTime: outletItem.outletId?.closeTime
+//         }))
+//         : [] // Return empty array jika tidak ada outlet
+//     };
+
+//     console.log("🔍 DEBUG updateUser - Formatted user:", {
+//       hasOutlet: formattedUser.outlet.length > 0,
+//       outletCount: formattedUser.outlet.length,
+//       userRole: formattedUser.role?.name
+//     });
+
+//     res.status(200).json(formattedUser);
+//   } catch (error) {
+//     next(errorHandler(500, error.message));
+//   }
+// };
+
 export const updateUser = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
@@ -56,6 +134,31 @@ export const updateUser = async (req, res, next) => {
     if (req.body.password) updateFields.password = req.body.password;
     if ("isActive" in req.body) updateFields.isActive = req.body.isActive;
 
+    // Handle address - pastikan selalu array
+    if (req.body.address !== undefined) {
+      if (Array.isArray(req.body.address)) {
+        // Jika sudah array, filter yang kosong
+        updateFields.address = req.body.address.filter(addr =>
+          addr && typeof addr === 'string' && addr.trim() !== ''
+        );
+      } else if (typeof req.body.address === 'string' && req.body.address.trim()) {
+        // Jika string, convert ke array
+        updateFields.address = [req.body.address.trim()];
+      } else {
+        // Jika null/undefined/empty, set empty array
+        updateFields.address = [];
+      }
+
+      console.log("🔍 Address will be updated:", updateFields.address);
+    }
+
+    // Handle field lainnya untuk customer/user
+    if (req.body.kode) updateFields.kode = req.body.kode;
+    if (req.body.notes) updateFields.notes = req.body.notes;
+    if (req.body.catatan) updateFields.catatan = req.body.catatan;
+    if (req.body.sex) updateFields.sex = req.body.sex;
+    if (req.body.consumerType) updateFields.consumerType = req.body.consumerType;
+
     // Hanya Admin yang bisa mengubah role dan outlet
     if (req.user.role === 'admin' || req.user.role === 'superadmin') {
       if (req.body.role) updateFields.role = req.body.role;
@@ -69,6 +172,12 @@ export const updateUser = async (req, res, next) => {
         updateFields.outlet = formattedOutlets;
       }
     }
+
+    console.log("🔍 DEBUG updateUser - Update fields:", {
+      hasAddress: !!updateFields.address,
+      addressCount: updateFields.address?.length || 0,
+      addressData: updateFields.address
+    });
 
     // Update user
     const updatedUser = await User.findByIdAndUpdate(
@@ -100,12 +209,63 @@ export const updateUser = async (req, res, next) => {
     console.log("🔍 DEBUG updateUser - Formatted user:", {
       hasOutlet: formattedUser.outlet.length > 0,
       outletCount: formattedUser.outlet.length,
-      userRole: formattedUser.role?.name
+      userRole: formattedUser.role?.name,
+      hasAddress: !!formattedUser.address,
+      addressCount: formattedUser.address?.length || 0
     });
 
     res.status(200).json(formattedUser);
   } catch (error) {
     next(errorHandler(500, error.message));
+  }
+};
+
+// Update user status (isActive)
+export const updateUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    // Validasi input
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isActive harus berupa boolean (true/false)'
+      });
+    }
+
+    // Cari dan update user
+    const user = await User.findByIdAndUpdate(
+      id,
+      { isActive: isActive },
+      {
+        new: true, // Return dokumen yang sudah diupdate
+        runValidators: true // Jalankan validasi schema
+      }
+    ).select('-password'); // Jangan return password
+
+    // Jika user tidak ditemukan
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Sukses
+    res.status(200).json({
+      success: true,
+      message: `User berhasil ${isActive ? 'diaktifkan' : 'dinonaktifkan'}`,
+      data: user
+    });
+
+  } catch (error) {
+    console.error('Error updating user status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengupdate status user',
+      error: error.message
+    });
   }
 };
 
@@ -470,10 +630,10 @@ export const getUserAuthType = async (req, res) => {
 export const createEmployee = async (req, res, next) => {
   try {
     const {
-      name,
       username,
       email,
       phone,
+      address,
       password,
       role,
       cashierType,
@@ -481,7 +641,7 @@ export const createEmployee = async (req, res, next) => {
     } = req.body;
 
     // Validasi wajib
-    if (!name || !username || !email || !role) {
+    if (!username || !email || !role) {
       return next(errorHandler(400, 'Name, username, email dan role wajib diisi'));
     }
 
@@ -500,10 +660,10 @@ export const createEmployee = async (req, res, next) => {
 
     // Buat user baru
     const newUser = new User({
-      name,
       username,
       email,
       phone,
+      address,
       password: hashedPassword,
       role,
       cashierType: role === 'cashier' ? cashierType : null,
@@ -523,6 +683,7 @@ export const createEmployee = async (req, res, next) => {
       name: populatedUser.name,
       username: populatedUser.username,
       email: populatedUser.email,
+      address: populatedUser.address,
       role: populatedUser.role,
       cashierType: populatedUser.cashierType,
       outlet: populatedUser.outlet?.map(outletItem => ({
