@@ -2680,6 +2680,7 @@ export const createUnifiedOrder = async (req, res) => {
             });
 
             const paymentResults = [];
+            
             for (const [index, payment] of paymentDetails.entries()) {
               // Validasi payment amount
               if (!payment.amount || payment.amount <= 0) {
@@ -2694,8 +2695,8 @@ export const createUnifiedOrder = async (req, res) => {
                   is_down_payment: false,
                   tendered_amount: payment.tenderedAmount || payment.amount,
                   change_amount: payment.changeAmount || 0,
-                  is_split_payment: true,
-                  split_payment_index: index
+                  is_split_payment: true, // Tandai sebagai split payment
+                  split_payment_index: index // Kirim index payment
                 }
               };
 
@@ -2723,6 +2724,13 @@ export const createUnifiedOrder = async (req, res) => {
                   transactionId: paymentResult.data?.transaction_id,
                   index: index
                 });
+
+                console.log(`Split payment ${index} processed:`, {
+                  method: payment.method,
+                  amount: payment.amount,
+                  status: paymentResult.data?.payment_status
+                });
+
               } catch (paymentError) {
                 console.error(`Split payment failed for ${payment.method}:`, paymentError);
                 throw new Error(`Split payment failed for ${payment.method}: ${paymentError.message}`);
@@ -2735,7 +2743,8 @@ export const createUnifiedOrder = async (req, res) => {
                 payment_status: 'completed',
                 is_split_payment: true,
                 payments: paymentResults,
-                total_paid: paymentResults.reduce((sum, p) => sum + p.amount, 0)
+                total_paid: paymentResults.reduce((sum, p) => sum + p.amount, 0),
+                payment_count: paymentResults.length
               }
             };
           } else {
@@ -2749,7 +2758,8 @@ export const createUnifiedOrder = async (req, res) => {
                 down_payment_amount: paymentDetails?.down_payment_amount,
                 remaining_payment: paymentDetails?.remaining_payment,
                 tendered_amount: paymentDetails?.tendered_amount,
-                change_amount: paymentDetails?.change_amount
+                change_amount: paymentDetails?.change_amount,
+                is_split_payment: false
               }
             };
 
@@ -2791,25 +2801,28 @@ export const createUnifiedOrder = async (req, res) => {
               isSplitPayment: Array.isArray(validatedPaymentDetails)
             });
 
-            return {
-              type: 'cashier_order',
-              data: {
-                ...baseResponse,
-                status: 'Completed',
-                message: Array.isArray(validatedPaymentDetails) 
-                  ? 'Cashier order processed with split payment' 
-                  : 'Cashier order processed and paid',
-                paymentData: paymentResult.data,
-                paymentStatus: paymentResult.data.payment_status,
-                ...(orderResult.loyalty?.isApplied && {
-                  loyalty: {
-                    pointsEarned: orderResult.loyalty.pointsEarned,
-                    pointsUsed: orderResult.loyalty.pointsUsed,
-                    discountAmount: orderResult.loyalty.discountAmount
-                  }
-                })
-              }
-            };
+        // Di response handling, tambahkan informasi split payment:
+          return {
+            type: 'cashier_order',
+            data: {
+              ...baseResponse,
+              status: 'Completed',
+              message: Array.isArray(validatedPaymentDetails) 
+                ? `Cashier order processed with ${validatedPaymentDetails.length} split payments` 
+                : 'Cashier order processed and paid',
+              paymentData: paymentResult.data,
+              paymentStatus: paymentResult.data.payment_status,
+              isSplitPayment: Array.isArray(validatedPaymentDetails),
+              paymentCount: Array.isArray(validatedPaymentDetails) ? validatedPaymentDetails.length : 1,
+              ...(orderResult.loyalty?.isApplied && {
+                loyalty: {
+                  pointsEarned: orderResult.loyalty.pointsEarned,
+                  pointsUsed: orderResult.loyalty.pointsUsed,
+                  discountAmount: orderResult.loyalty.discountAmount
+                }
+              })
+            }
+          };
 
           } catch (paymentError) {
             console.error('Cashier payment failed:', paymentError);
@@ -6647,255 +6660,162 @@ async function _autoConfirmOrderInBackground(orderId) {
   }
 }
 export const cashierCharge = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const {
       payment_type,
       order_id,
       gross_amount,
-      is_down_payment,
+      is_down_payment = false,
       down_payment_amount,
+      remaining_payment,
       tendered_amount,
       change_amount,
+      is_split_payment = false,
+      split_payment_index = 0
     } = req.body;
 
-    if (!order_id) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ success: false, message: 'Order ID is required' });
-    }
+    console.log('Cashier Charge - Processing Payment:', {
+      order_id,
+      payment_type,
+      gross_amount,
+      is_down_payment,
+      is_split_payment,
+      split_payment_index,
+      tendered_amount,
+      change_amount
+    });
 
-    if (typeof gross_amount !== 'number' || isNaN(gross_amount) || gross_amount < 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ success: false, message: 'gross_amount must be a valid number ≥ 0' });
-    }
-
-    const order = await Order.findOne({ order_id }).session(session);
+    // Cari order
+    const order = await Order.findOne({ order_id });
     if (!order) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({ success: false, message: 'Order not found' });
-    }
-
-    const orderTotal = Number(order.grandTotal ?? gross_amount ?? 0);
-    const existingPayments = await Payment.find({ order_id }).session(session);
-
-    const hasSettledDP = existingPayments.some(p => p.paymentType === 'Down Payment' && (p.status === 'settlement' || p.status === 'paid'));
-    const hasPendingFinal = existingPayments.some(p => p.paymentType === 'Final Payment' && p.status === 'pending');
-
-    if (is_down_payment === true && (hasSettledDP || hasPendingFinal)) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(409).json({
+      return res.status(404).json({
         success: false,
-        message: 'Down Payment already exists or pending Final Payment is present for this order'
+        message: 'Order tidak ditemukan'
       });
     }
 
-    // === MODE DP → buat 2 payment (DP settled + Final pending) ===
-    if (is_down_payment === true) {
-      const dpAmount = Number(down_payment_amount ?? gross_amount ?? 0);
-      if (dpAmount <= 0) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ success: false, message: 'Down Payment amount must be > 0' });
-      }
-      if (dpAmount >= orderTotal) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ success: false, message: 'Down Payment must be less than total order' });
-      }
-
-      const remaining = Math.max(0, orderTotal - dpAmount);
-      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      const merchantId = 'G711879663';
-
-      const dpPayment = new Payment({
-        payment_code: generatePaymentCode(),
-        transaction_id: generateTransactionId(),
+    // Untuk split payment, update payment yang spesifik
+    if (is_split_payment && order.isSplitPayment) {
+      console.log('Processing split payment update:', {
         order_id,
-        method: payment_type,
-        status: 'settlement',
-        paymentType: 'Down Payment',
-        amount: dpAmount,
-        totalAmount: orderTotal,
-        remainingAmount: 0,
-        relatedPaymentId: null,
-        fraud_status: 'accept',
-        transaction_time: nowStr,
-        currency: 'IDR',
-        merchant_id: merchantId,
-        paidAt: new Date(),
-        tendered_amount: tendered_amount,
-        change_amount: change_amount
+        split_payment_index,
+        currentPayments: order.payments.length
       });
 
-      const savedDP = await dpPayment.save({ session });
+      if (split_payment_index >= order.payments.length) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid split payment index: ${split_payment_index}`
+        });
+      }
 
-      const finalPayment = new Payment({
-        payment_code: generatePaymentCode(),
-        transaction_id: generateTransactionId(),
+      // Update payment spesifik
+      order.payments[split_payment_index].status = 'completed';
+      order.payments[split_payment_index].processedAt = new Date();
+      
+      if (order.payments[split_payment_index].paymentMethod === 'Cash') {
+        order.payments[split_payment_index].paymentDetails = {
+          cashTendered: tendered_amount || gross_amount,
+          change: change_amount || 0
+        };
+      }
+
+      await order.save();
+
+      console.log('Split payment updated successfully:', {
         order_id,
-        method: payment_type,
-        status: 'pending',
-        paymentType: 'Final Payment',
-        amount: remaining,
-        totalAmount: orderTotal,
-        remainingAmount: 0,
-        relatedPaymentId: savedDP._id,
-        fraud_status: 'accept',
-        transaction_time: nowStr,
-        currency: 'IDR',
-        merchant_id: merchantId,
+        split_payment_index,
+        method: order.payments[split_payment_index].paymentMethod,
+        amount: order.payments[split_payment_index].amount,
+        status: order.payments[split_payment_index].status
       });
 
-      const savedFinal = await finalPayment.save({ session });
-
-      await Order.updateOne(
-        { order_id },
-        { $set: { "items.$[].payment_id": savedDP._id } },
-        { session }
-      );
-
-      await session.commitTransaction();
-      session.endSession();
-
-      return res.status(200).json({
-        success: true,
-        message: 'Down Payment created and remaining Final Payment scheduled',
-        data: {
-          order_id,
-          totalAmount: orderTotal,
-          payments: [
-            {
-              role: 'down_payment',
-              _id: savedDP._id,
-              transaction_id: savedDP.transaction_id,
-              status: savedDP.status,
-              paymentType: savedDP.paymentType,
-              amount: savedDP.amount,
-              remainingAmount: savedDP.remainingAmount,
-              relatedPaymentId: savedDP.relatedPaymentId,
-              createdAt: savedDP.createdAt,
-              updatedAt: savedDP.updatedAt,
-            },
-            {
-              role: 'final_payment',
-              _id: savedFinal._id,
-              transaction_id: savedFinal.transaction_id,
-              status: savedFinal.status,
-              paymentType: savedFinal.paymentType,
-              amount: savedFinal.amount,
-              remainingAmount: savedFinal.remainingAmount,
-              relatedPaymentId: savedFinal.relatedPaymentId,
-              createdAt: savedFinal.createdAt,
-              updatedAt: savedFinal.updatedAt,
-            },
-          ],
-        },
-      });
+    } else {
+      // Legacy single payment processing
+      if (order.payments && order.payments.length > 0) {
+        order.payments[0].status = 'completed';
+        order.payments[0].processedAt = new Date();
+        
+        if (order.payments[0].paymentMethod === 'Cash') {
+          order.payments[0].paymentDetails = {
+            cashTendered: tendered_amount || gross_amount,
+            change: change_amount || 0
+          };
+        }
+        
+        await order.save();
+      }
     }
 
-    // === MODE NON-DP (Full langsung atau pelunasan tanpa DP) ===
-    const amount = Math.min(Number(gross_amount ?? 0), orderTotal);
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    // Reload order untuk mendapatkan data terbaru
+    const updatedOrder = await Order.findOne({ order_id });
+    
+    // Hitung total paid
+    const totalPaid = updatedOrder.payments
+      .filter(p => p.status === 'completed')
+      .reduce((sum, p) => sum + p.amount, 0);
 
-    const paymentDoc = new Payment({
+    const paymentStatus = totalPaid >= updatedOrder.grandTotal ? 'settlement' : 'partial';
+
+    // Buat record di collection Payment
+    const paymentData = {
+      order_id: order_id,
       payment_code: generatePaymentCode(),
       transaction_id: generateTransactionId(),
-      order_id,
       method: payment_type,
-      status: 'settlement',
-      paymentType: 'Full',
-      amount: orderTotal,
-      totalAmount: orderTotal,
-      remainingAmount: 0,
-      relatedPaymentId: null,
+      status: paymentStatus,
+      paymentType: is_down_payment ? 'Down Payment' : 'Full',
+      amount: gross_amount,
+      totalAmount: updatedOrder.grandTotal,
+      remainingAmount: Math.max(0, updatedOrder.grandTotal - totalPaid),
+      tendered_amount: tendered_amount || gross_amount,
+      change_amount: change_amount || 0,
       fraud_status: 'accept',
-      transaction_time: nowStr,
-      currency: 'IDR',
-      merchant_id: 'G055993835',
+      transaction_time: new Date().toLocaleString('id-ID'),
       paidAt: new Date(),
-      tendered_amount: tendered_amount,
-      change_amount: change_amount
+      currency: "IDR",
+      merchant_id: "G055993835"
+    };
+
+    const payment = await Payment.create(paymentData);
+
+    console.log('Payment record created:', {
+      payment_id: payment._id,
+      order_id,
+      status: paymentStatus,
+      amount: gross_amount,
+      remainingAmount: payment.remainingAmount,
+      is_split_payment,
+      split_payment_index
     });
-
-    const saved = await paymentDoc.save({ session });
-
-    await Order.updateOne(
-      { order_id },
-      { $set: { "items.$[].payment_id": saved._id } },
-      { session }
-    );
-
-    const fullyPaid = amount >= orderTotal;
-    if (fullyPaid) {
-      order.status = order.orderType === 'Reservation' ? 'Finished' : 'Waiting';
-      await order.save({ session });
-    }
-
-    await session.commitTransaction();
-    session.endSession();
-
-    console.log('✅ Payment created successfully');
-    await _autoConfirmOrderInBackground(order_id).catch(err => {
-      console.error('❌ Background auto-confirm failed:', err);
-    });
-    // 🔥 CRITICAL: TRIGGER PRINT IMMEDIATELY SETELAH PAYMENT - TIDAK MENUNGGU APAPUN
-    if (payment_type.toLowerCase() === 'cash') {
-
-      // Jalankan di background tanpa await
-      try {
-        await triggerImmediatePrint({
-          orderId: order_id,
-          tableNumber: order.tableNumber,
-          orderData: {
-            items: order.items || [],
-            orderType: order.orderType,
-            paymentMethod: payment_type
-          },
-          outletId: order.outlet,
-          source: 'Cashier'
-        });
-        console.log(`✅ [PAYMENT] Print triggered immediately for ${order_id}`);
-      } catch (err) {
-        console.error('❌ Print trigger error:', err);
-      }
-    }
 
     return res.status(200).json({
       success: true,
-      message: 'Payment created',
-      paymentStatus: fullyPaid ? 'settlement' : 'partial',
+      message: is_split_payment ? 
+        `Split payment ${split_payment_index + 1} processed successfully` : 
+        'Payment processed successfully',
       data: {
-        order_id,
-        totalAmount: orderTotal,
-        payments: [{
-          role: 'full_payment',
-          _id: saved._id,
-          transaction_id: saved.transaction_id,
-          status: saved.status,
-          paymentType: saved.paymentType,
-          amount: saved.amount,
-          remainingAmount: saved.remainingAmount,
-          relatedPaymentId: saved.relatedPaymentId,
-          createdAt: saved.createdAt,
-          updatedAt: saved.updatedAt,
-        }]
+        payment_status: paymentStatus,
+        transaction_id: payment.transaction_id,
+        order_id: order_id,
+        total_paid: totalPaid,
+        grand_total: updatedOrder.grandTotal,
+        remaining_balance: Math.max(0, updatedOrder.grandTotal - totalPaid),
+        is_split_payment: is_split_payment,
+        split_payment_index: split_payment_index,
+        payments: updatedOrder.payments.map(p => ({
+          method: p.paymentMethod,
+          amount: p.amount,
+          status: p.status
+        }))
       }
     });
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error('cashierCharge error:', error);
+    console.error('Error in cashierCharge:', error);
     return res.status(500).json({
       success: false,
-      message: 'Payment failed',
-      error: error.message || String(error),
+      message: `Payment processing failed: ${error.message}`
     });
   }
 };
