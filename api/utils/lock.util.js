@@ -71,6 +71,18 @@ export class LockUtil {
     }
   }
 
+  static async withOrderLock(orderId, fn, options = {}) {
+    const resource = `order:${orderId}`;
+    return await LockUtil.withLock(resource, fn, {
+      owner: `order-process-${process.pid}-${Date.now()}`,
+      ttlMs: 30000,
+      retryDelayMs: 300,
+      maxRetries: 5,
+      ...options
+    });
+  }
+
+
   /**
    * Execute function with reservation-specific lock
    */
