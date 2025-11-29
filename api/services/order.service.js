@@ -9,7 +9,6 @@ import mongoose from 'mongoose';
 /**
  * Processes order items including pricing calculations and promotions
  */
-
 export async function processOrderItems({
   items,
   outlet,
@@ -84,25 +83,36 @@ export async function processOrderItems({
         notes: item.notes || '',
         isPrinted: false,
         dineType: item.dineType || 'Dine-In',
-        isBazarCategory // Flag untuk menandai item dari kategori Bazar
+        isBazarCategory
       });
     }
   }
 
-  // Process custom amount items
+  // Process custom amount items - HANYA YANG DARI REQUEST
   let customAmountItemsData = [];
   let totalCustomAmount = 0;
 
   if (customAmountItems && Array.isArray(customAmountItems)) {
     customAmountItemsData = customAmountItems.map(item => ({
-      amount: item.amount,
+      amount: Number(item.amount) || 0,
       name: item.name || 'Penyesuaian Pembayaran',
       description: item.description || 'Penyesuaian jumlah pembayaran',
       dineType: item.dineType || 'Dine-In',
-      appliedAt: new Date()
+      appliedAt: new Date(),
+      isAutoCalculated: false // ⚠️ TANDAI BAHWA INI MANUAL, BUKAN AUTO
     }));
 
     totalCustomAmount = customAmountItemsData.reduce((total, item) => total + item.amount, 0);
+    
+    console.log('Custom Amount Items Processed:', {
+      count: customAmountItemsData.length,
+      totalCustomAmount,
+      items: customAmountItemsData.map(item => ({
+        amount: item.amount,
+        name: item.name,
+        isAutoCalculated: item.isAutoCalculated
+      }))
+    });
   }
 
   // Gabungkan total menu items dan custom amount
@@ -139,6 +149,8 @@ export async function processOrderItems({
   const totalAfterLoyaltyDiscount = Math.max(0, combinedTotalBeforeDiscount - loyaltyDiscount);
 
   console.log('🎯 PRE-PROMO CALCULATION:', {
+    menuItemsTotal: totalBeforeDiscount,
+    customAmountTotal: totalCustomAmount,
     combinedTotalBeforeDiscount,
     loyaltyDiscount,
     totalAfterLoyaltyDiscount
@@ -222,7 +234,8 @@ export async function processOrderItems({
     // Breakdown
     taxCalculationMethod: 'ALL_DISCOUNTS_BEFORE_TAX',
     note: 'Semua diskon (auto promo, manual promo, voucher) diterapkan sebelum tax',
-    bazarItemsExcludedFromTax: taxResult.bazarItemsExcluded
+    bazarItemsExcludedFromTax: taxResult.bazarItemsExcluded,
+    hasCustomAmountItems: customAmountItemsData.length > 0
   });
 
   return {
@@ -269,7 +282,7 @@ export async function processOrderItems({
 }
 
 /**
- * PROSES BARU: Semua diskon diterapkan SEBELUM tax
+ * PROSES SEMUA DISKON SEBELUM TAX
  */
 export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderType, voucherCode, customerType, totalBeforeDiscount, source, customAmountItems }) {
   const canUsePromo = source === 'app' || source === 'cashier' || source === 'Cashier';
@@ -278,7 +291,8 @@ export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderTy
     source,
     canUsePromo,
     hasVoucher: !!voucherCode,
-    totalBeforeDiscount
+    totalBeforeDiscount,
+    hasCustomAmountItems: customAmountItems && customAmountItems.length > 0
   });
 
   // 1. APPLY AUTO PROMO
@@ -304,19 +318,12 @@ export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderTy
   const totalAfterAllDiscounts = Math.max(0, totalBeforeDiscount - totalAllDiscounts);
 
   console.log('📊 ALL DISCOUNTS APPLICATION:', {
-    // Sebelum diskon
     totalBeforeDiscount,
-
-    // Breakdown diskon
     autoPromoDiscount,
     manualDiscount,
     voucherDiscount,
     totalAllDiscounts,
-
-    // Setelah semua diskon
     totalAfterAllDiscounts,
-
-    // Urutan aplikasi
     calculationSteps: [
       `1. Harga awal: ${totalBeforeDiscount}`,
       `2. Setelah auto promo: ${totalBeforeDiscount - autoPromoDiscount}`,
@@ -326,16 +333,11 @@ export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderTy
   });
 
   return {
-    // Discount amounts
     autoPromoDiscount,
     manualDiscount,
     voucherDiscount,
     totalAllDiscounts,
-
-    // Total setelah semua diskon
     totalAfterAllDiscounts,
-
-    // Promotion details
     appliedPromos: autoPromoResult.appliedPromos,
     appliedPromo: manualPromoResult.appliedPromo,
     voucher: voucherResult.voucher
@@ -373,18 +375,15 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
       console.warn(`Addon ${addon.id} not found in menu item ${menuItem._id}`);
       continue;
     }
-    console.log('addon options asdasdasda', addon.options);
 
     if (addon.options?.length > 0) {
       for (const option of addon.options) {
-        console.log('option asdasdasd', option);
         const optionInfo = addonInfo.options.find(o => o._id.toString() === option.id);
         if (!optionInfo) {
           console.warn(`Addon option ${option.id} not found in addon ${addonInfo.name}`);
           continue;
         }
 
-        console.log('optionsss asdasdasd', optionInfo);
         addons.push({
           id: addon.id,
           name: `${addonInfo.name}`,
@@ -396,8 +395,6 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
           }]
         });
 
-        console.log('asdasda addons asdasdasd', addons);
-
         addPriceCallback(optionInfo.price || 0);
       }
     }
@@ -405,16 +402,15 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
 }
 
 /**
- * NEW FUNCTION: Check if category is Bazar category
+ * Check if category is Bazar category
  */
 async function checkBazarCategory(categoryId, session) {
   if (!categoryId) return false;
 
   try {
-    const Category = mongoose.model('Category'); // Sesuaikan dengan model Category Anda
+    const Category = mongoose.model('Category');
     const category = await Category.findById(categoryId).session(session);
     
-    // Check if category name is "Bazar" or if it's the specific Bazar category
     return category && (category.name === 'Bazar' || category._id.toString() === '691ab44b8c10cbe7789d7a03');
   } catch (error) {
     console.error('Error checking Bazar category:', error);
@@ -423,7 +419,7 @@ async function checkBazarCategory(categoryId, session) {
 }
 
 /**
- * MODIFIED: Calculates taxes and services for an order dengan pengecualian untuk kategori Bazar
+ * Calculates taxes and services for an order dengan pengecualian untuk kategori Bazar
  */
 export async function calculateTaxesAndServices(outlet, taxableAmount, orderItems, customAmountItems = []) {
   const taxesAndServices = await TaxAndService.find({
@@ -477,7 +473,6 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
 
       // Hitung dari custom amount items (jika applicable)
       for (const customItem of customAmountItems) {
-        // Asumsikan custom amount items applicable untuk semua tax rules
         applicableAmount += customItem.amount || 0;
       }
     }
@@ -537,19 +532,27 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
 }
 
 /**
- * Utility function untuk calculate custom amount automatically
+ * ⚠️ PERBAIKAN: Utility function untuk calculate custom amount automatically - HANYA JIKA DIPERLUKAN
  */
-export function calculateCustomAmount(paidAmount, orderTotal) {
-  const difference = paidAmount - orderTotal;
-
-  if (difference <= 0) {
-    return []; // Tidak perlu custom amount, return empty array
+export function calculateCustomAmount(paidAmount, orderTotal, existingCustomAmountItems = []) {
+  // Jika sudah ada custom amount items manual, jangan hitung otomatis
+  if (existingCustomAmountItems && existingCustomAmountItems.length > 0) {
+    console.log('Manual custom amount items detected, skipping auto calculation');
+    return existingCustomAmountItems;
   }
 
-  return [{
-    amount: difference,
-    name: 'Penyesuaian Pembayaran',
-    description: `Kelebihan pembayaran sebesar Rp ${difference.toLocaleString('id-ID')}`,
-    dineType: 'Dine-In'
-  }];
+  const difference = paidAmount - orderTotal;
+
+  // Hanya buat custom amount jika ada kelebihan pembayaran yang signifikan
+  if (difference > 100) {
+    return [{
+      amount: difference,
+      name: 'Penyesuaian Pembayaran',
+      description: `Kelebihan pembayaran sebesar Rp ${difference.toLocaleString('id-ID')}`,
+      dineType: 'Dine-In',
+      isAutoCalculated: true
+    }];
+  }
+
+  return [];
 }

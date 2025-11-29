@@ -14,7 +14,12 @@ export function validateAndNormalizePaymentDetails(paymentDetails, isSplitPaymen
       throw new Error('Payment details array cannot be empty');
     }
 
-    // Validasi setiap payment
+    // Validasi: Total amount harus positif
+    const totalAmount = paymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    if (totalAmount <= 0) {
+      throw new Error('Total payment amount must be greater than 0');
+    }
+
     const validatedPayments = paymentDetails.map((payment, index) => {
       if (!payment.method) {
         throw new Error(`Payment method is required for payment ${index + 1}`);
@@ -24,7 +29,6 @@ export function validateAndNormalizePaymentDetails(paymentDetails, isSplitPaymen
         throw new Error(`Payment amount must be greater than 0 for payment ${index + 1}`);
       }
 
-      // Set default values
       return {
         method: payment.method,
         amount: Number(payment.amount),
@@ -32,25 +36,28 @@ export function validateAndNormalizePaymentDetails(paymentDetails, isSplitPaymen
         tenderedAmount: payment.tenderedAmount || payment.amount,
         changeAmount: payment.changeAmount || 0,
         transactionId: payment.transactionId || null,
-        notes: payment.notes || `Payment ${index + 1}`
+        notes: payment.notes || `Payment ${index + 1}`,
+        index: index
       };
     });
 
     console.log('Normalized split payment details:', {
       paymentCount: validatedPayments.length,
       totalAmount: validatedPayments.reduce((sum, p) => sum + p.amount, 0),
-      methods: validatedPayments.map(p => p.method)
+      methods: validatedPayments.map(p => p.method),
+      isSplitPayment
     });
 
     return validatedPayments;
   }
 
-  // Jika object (backward compatibility), konversi ke array dengan satu element
+  // Jika object (backward compatibility)
   if (typeof paymentDetails === 'object') {
     console.log('Converting legacy payment details to array format:', {
       method: paymentDetails.method,
       amount: paymentDetails.amount,
-      source
+      source,
+      isSplitPayment
     });
 
     const singlePayment = {
@@ -60,14 +67,9 @@ export function validateAndNormalizePaymentDetails(paymentDetails, isSplitPaymen
       tenderedAmount: paymentDetails.tenderedAmount || paymentDetails.amount || 0,
       changeAmount: paymentDetails.changeAmount || 0,
       transactionId: paymentDetails.transactionId || null,
-      notes: paymentDetails.notes || 'Single payment'
+      notes: paymentDetails.notes || 'Single payment',
+      index: 0
     };
-
-    // Untuk backward compatibility, jika isSplitPayment true tapi formatnya object,
-    // kita anggap sebagai single payment dan log warning
-    if (isSplitPayment) {
-      console.warn('isSplitPayment is true but paymentDetails is object format. Converting to single payment array.');
-    }
 
     return [singlePayment];
   }
@@ -96,4 +98,44 @@ export function isPaymentCompleted(paymentDetails, grandTotal) {
   
   const totalPaid = calculateTotalPaymentAmount(paymentDetails);
   return totalPaid >= grandTotal;
+}
+
+/**
+ * Validates payment details against order total
+ */
+export function validatePaymentAgainstOrder(paymentDetails, orderTotal, customAmountItems = []) {
+  if (!paymentDetails) {
+    return { isValid: false, error: 'Payment details required' };
+  }
+
+  const totalPayment = calculateTotalPaymentAmount(paymentDetails);
+  const totalCustomAmount = customAmountItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const effectiveOrderTotal = orderTotal + totalCustomAmount;
+
+  console.log('Payment Validation:', {
+    totalPayment,
+    orderTotal,
+    totalCustomAmount,
+    effectiveOrderTotal,
+    difference: totalPayment - effectiveOrderTotal
+  });
+
+  // Toleransi untuk rounding errors
+  const tolerance = 1000;
+  
+  if (Math.abs(totalPayment - effectiveOrderTotal) > tolerance) {
+    return {
+      isValid: false,
+      error: `Payment total (${totalPayment}) doesn't match order total (${effectiveOrderTotal})`,
+      totalPayment,
+      effectiveOrderTotal,
+      difference: totalPayment - effectiveOrderTotal
+    };
+  }
+
+  return {
+    isValid: true,
+    totalPayment,
+    effectiveOrderTotal
+  };
 }
