@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-    FaUserPlus,
+    FaUserEdit,
     FaUser,
     FaPhone,
     FaEnvelope,
@@ -20,7 +20,8 @@ import {
 import axios from "axios";
 import { useSelector } from "react-redux";
 
-const CreateCustomer = () => {
+const EditCustomer = () => {
+    const { id } = useParams();
     const { currentUser } = useSelector((state) => state.user);
     const cities = [
         "Jakarta", "Bandung", "Surabaya", "Medan", "Semarang",
@@ -29,22 +30,74 @@ const CreateCustomer = () => {
     ];
 
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
     const [formData, setFormData] = useState({
         username: "",
         phone: "",
+        member: "",
         email: "",
         date: "",
-        role: "68c249f748edd83e0ba3d5d6", // ObjectId role customer
+        role: "68c249f748edd83e0ba3d5d6",
         address: [], // Array of addresses
-        city: "",
-        kode: "",
         notes: "",
-        sex: "man"
+        sex: "man",
+        isActive: true
     });
 
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [currentAddress, setCurrentAddress] = useState(""); // Temporary address input
+
+    // Fetch customer data
+    useEffect(() => {
+        const fetchCustomer = async () => {
+            try {
+                const response = await axios.get(
+                    `/api/user/getUSerById/${id}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${currentUser?.token}`
+                        }
+                    }
+                );
+
+                const customer = response.data;
+
+                // Format date if exists
+                const formattedDate = customer.date
+                    ? new Date(customer.date).toISOString().split('T')[0]
+                    : "";
+
+                // Handle address - ensure it's an array
+                const addressArray = Array.isArray(customer.address)
+                    ? customer.address
+                    : customer.address
+                        ? [customer.address]
+                        : [];
+
+                setFormData({
+                    _id: customer._id || "",
+                    username: customer.username || "",
+                    phone: customer.phone || "",
+                    member: customer.member || "",
+                    email: customer.email || "",
+                    date: formattedDate,
+                    address: addressArray,
+                    notes: customer.notes || customer.catatan || "",
+                    sex: customer.sex || "man",
+                    isActive: customer.isActive || "",
+                });
+
+                setLoading(false);
+            } catch (err) {
+                console.error('Error fetching customer:', err);
+                alert("Gagal memuat data pelanggan.");
+                navigate("/admin/customers");
+            }
+        };
+
+        fetchCustomer();
+    }, [id, currentUser, navigate]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -108,27 +161,48 @@ const CreateCustomer = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await axios.post(
-                '/api/user/create',
-                formData,
+            // Pastikan address dikirim sebagai array yang valid
+            const dataToSend = {
+                ...formData,
+                address: formData.address.filter(addr => addr && addr.trim())
+            };
+
+            console.log("📤 Data being sent:", dataToSend); // Debug log
+
+            const response = await axios.put(
+                `/api/user/update/${id}`,
+                dataToSend,
                 {
                     headers: {
-                        Authorization: `Bearer ${currentUser?.token}`
+                        Authorization: `Bearer ${currentUser?.token}`,
+                        'Content-Type': 'application/json' // Tambahkan ini
                     }
                 }
             );
 
-            console.log("Customer created:", response.data);
-            alert("Pelanggan berhasil ditambahkan!");
+            console.log("✅ Customer updated:", response.data);
+            alert("Pelanggan berhasil diperbarui!");
             navigate("/admin/customers");
         } catch (err) {
-            console.error('Error adding customer:', err);
-            const errorMessage = err.response?.data?.message || "Gagal menambahkan pelanggan. Silakan coba lagi.";
+            console.error('❌ Error updating customer:', err);
+            console.error('Error response:', err.response?.data); // Debug log
+            const errorMessage = err.response?.data?.message || "Gagal memperbarui pelanggan. Silakan coba lagi.";
             alert(errorMessage);
         } finally {
             setIsSubmitting(false);
         }
     };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-screen bg-gray-50">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-green-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600 font-medium">Memuat data pelanggan...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -144,12 +218,12 @@ const CreateCustomer = () => {
                         </Link>
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                                    <FaUserPlus className="text-green-600 text-lg" />
+                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <FaUserEdit className="text-blue-600 text-lg" />
                                 </div>
-                                Tambah Pelanggan Baru
+                                Edit Pelanggan
                             </h1>
-                            <p className="text-gray-600 mt-1 text-sm">Isi formulir di bawah untuk menambahkan pelanggan baru</p>
+                            <p className="text-gray-600 mt-1 text-sm">Perbarui informasi pelanggan</p>
                         </div>
                     </div>
                 </div>
@@ -251,7 +325,7 @@ const CreateCustomer = () => {
                             </div>
 
                             {/* Member ID */}
-                            {/* <div className="grid md:grid-cols-3 gap-4 items-start">
+                            <div className="grid md:grid-cols-3 gap-4 items-start">
                                 <label className="text-sm font-medium text-gray-700 flex items-center gap-2 md:pt-3">
                                     <FaIdCard className="text-gray-400" />
                                     Member ID
@@ -260,13 +334,14 @@ const CreateCustomer = () => {
                                     <input
                                         type="text"
                                         name="member"
-                                        value={formData.member}
+                                        value={formData._id}
                                         onChange={handleInputChange}
-                                        placeholder="ID Member otomatis (opsional)"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg outline-none focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
+                                        placeholder="ID Member (opsional)"
+                                        className="w-full px-4 py-3 border-2 bg-gray-100 text-slate-400 border-gray-200 rounded-lg outline-none focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
+                                        disabled
                                     />
                                 </div>
-                            </div> */}
+                            </div>
                         </div>
                     </div>
 
@@ -316,6 +391,7 @@ const CreateCustomer = () => {
                         </div>
                     </div> */}
 
+                    {/* Informasi Alamat */}
                     <div className="bg-white rounded-xl shadow-md overflow-hidden">
                         <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4">
                             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -348,6 +424,7 @@ const CreateCustomer = () => {
                                         </div>
                                     )}
 
+                                    {/* Add new address */}
                                     <div className="flex gap-2">
                                         <textarea
                                             value={currentAddress}
@@ -371,58 +448,8 @@ const CreateCustomer = () => {
                                     </p>
                                 </div>
                             </div>
-
-                            {/* <div className="grid md:grid-cols-3 gap-4 items-start">
-                                <label className="text-sm font-medium text-gray-700 flex items-center gap-2 md:pt-3">
-                                    <FaCity className="text-gray-400" />
-                                    Kota & Kode Pos
-                                </label>
-                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <select
-                                        name="city"
-                                        value={formData.city}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg outline-none focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
-                                    >
-                                        <option value="">-- Pilih Kota --</option>
-                                        {cities.map((city, index) => (
-                                            <option key={index} value={city}>
-                                                {city}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <input
-                                        type="text"
-                                        name="kode"
-                                        value={formData.kode}
-                                        onChange={handleInputChange}
-                                        placeholder="Kode Pos"
-                                        maxLength="5"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg outline-none focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
-                                    />
-                                </div>
-                            </div> */}
                         </div>
                     </div>
-
-                    {/* <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                        <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-4">
-                            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                                <FaStickyNote />
-                                Catatan Tambahan
-                            </h2>
-                        </div>
-                        <div className="p-6">
-                            <textarea
-                                name="notes"
-                                value={formData.notes}
-                                onChange={handleInputChange}
-                                placeholder="Tambahkan catatan atau informasi penting tentang pelanggan ini..."
-                                rows="4"
-                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg outline-none focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200 resize-none"
-                            />
-                        </div>
-                    </div> */}
 
                     {/* Action Buttons */}
                     <div className="bg-white rounded-xl shadow-md p-6 sticky bottom-0">
@@ -441,7 +468,7 @@ const CreateCustomer = () => {
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium px-6 py-3 rounded-lg transition-all duration-200 shadow-lg shadow-green-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-all duration-200 shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -451,7 +478,7 @@ const CreateCustomer = () => {
                                     ) : (
                                         <>
                                             <FaSave />
-                                            Simpan Pelanggan
+                                            Update Pelanggan
                                         </>
                                     )}
                                 </button>
@@ -464,4 +491,4 @@ const CreateCustomer = () => {
     );
 };
 
-export default CreateCustomer;
+export default EditCustomer;

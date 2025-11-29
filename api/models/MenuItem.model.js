@@ -101,7 +101,7 @@ const MenuItemSchema = new mongoose.Schema({
   ],
   workstation: {
     type: String,
-    enum: ['kitchen', 'bar'],
+    enum: ['kitchen', 'bar' ],
   },
   isActive: {
     type: Boolean,

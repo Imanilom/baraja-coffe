@@ -170,6 +170,10 @@ import StockReconciliation from "./pages/stock_reconciliation";
 
 // HRD Routes
 import HRDashboard from "./pages/hr";
+import DeviceMenuManager from "./pages/menuondevice";
+import EventSalesManagement from "./pages/report/sales/event_sales";
+import ReportEvent from "./pages/event/report";
+import UpdateCustomer from "./pages/customer/update";
 
 
 export default function App() {
@@ -207,6 +211,9 @@ export default function App() {
                 <Route path="subcategory-create" element={<AddSubCategory />} />
                 <Route path="manage-stock/:id" element={<ManageStock />} />
                 <Route path="manage-price-and-selling-status/:id" element={<PriceSellingStatusManagement />} />
+
+                {/* Menu On Device */}
+                <Route path="menu-on-device" element={<DeviceMenuManager />} />
 
                 {/* Table */}
                 <Route path="table-management" element={<Table />} />
@@ -254,6 +261,7 @@ export default function App() {
                 <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
                 <Route path="outlet-sales" element={<OutletSales />} />
+                <Route path="event-sales" element={<EventSalesManagement />} />
 
                 {/* Operational */}
                 <Route path="operational/reconciliation" element={<Reconciliation />} />
@@ -265,7 +273,7 @@ export default function App() {
                 <Route path="operational/table" element={<TableManagement />} />
 
                 {/* HR */}
-                 <Route path="hrdDashboard" element={<HRDashboard />} />
+                <Route path="hrdDashboard" element={<HRDashboard />} />
 
                 {/* Profit */}
                 <Route path="tax-revenue" element={<TaxRevenueManagement />} />
@@ -310,6 +318,7 @@ export default function App() {
                 {/* Customer */}
                 <Route path="customers" element={<CustomerManagement />} />
                 <Route path="customer-create" element={<CreateCustomer />} />
+                <Route path="customer-update/:id" element={<UpdateCustomer />} />
 
                 {/* Device */}
                 <Route path="billing/device" element={<DeviceManagement />} />
@@ -333,6 +342,7 @@ export default function App() {
                 <Route path="event" element={<EventManagement />} />
                 <Route path="event/create-event" element={<CreateEvent />} />
                 <Route path="event/edit-event/:id" element={<UpdateEvent />} />
+                <Route path="event/report" element={<ReportEvent />} />
 
                 {/* Ticket */}
                 <Route path="ticket" element={<TicketManagement />} />

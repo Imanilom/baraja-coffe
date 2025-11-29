@@ -1,15 +1,8 @@
-// services/lock.service.js
 import Lock from '../models/Lock.model.js';
 
 export class LockService {
   /**
-   * Acquire a distributed lock
-   * @param {string} resource - Resource identifier to lock
-   * @param {string} owner - Owner identifier
-   * @param {number} ttlMs - Time to live in milliseconds (default: 30 seconds)
-   * @param {number} retryDelayMs - Retry delay in milliseconds (default: 100ms)
-   * @param {number} maxRetries - Maximum retry attempts (default: 10)
-   * @returns {Promise<boolean>} - True if lock acquired, false otherwise
+   * Acquire a distributed lock dengan retry mechanism
    */
   static async acquireLock(resource, owner, ttlMs = 30000, retryDelayMs = 100, maxRetries = 10) {
     const lockId = `lock:${resource}`;
@@ -18,99 +11,87 @@ export class LockService {
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        // Try to create lock document
-        const lock = await Lock.findOneAndUpdate(
-          { _id: lockId },
-          { 
-            $setOnInsert: {
+        // Cek lock existing
+        const existingLock = await Lock.findById(lockId);
+        
+        if (existingLock) {
+          // Cek jika lock sudah expired
+          if (existingLock.expiresAt < now) {
+            // Hapus lock yang expired dan buat baru
+            await Lock.findByIdAndDelete(lockId);
+            
+            // Buat lock baru
+            const newLock = await Lock.create({
               _id: lockId,
               lockedAt: now,
               expiresAt: expiresAt,
               owner: owner
-            }
-          },
-          {
-            upsert: true,
-            new: true,
-            runValidators: true
-          }
-        );
-
-        // If document was created (upsert), we got the lock
-        if (lock) {
-          console.log(`🔒 Lock acquired for resource: ${resource}`, {
-            owner,
-            lockedAt: lock.lockedAt,
-            expiresAt: lock.expiresAt,
-            attempt: attempt + 1
-          });
-          return true;
-        }
-
-        // Check if existing lock has expired
-        const existingLock = await Lock.findById(lockId);
-        if (existingLock && existingLock.expiresAt < now) {
-          // Lock expired, try to take it over
-          const takenOver = await Lock.findOneAndUpdate(
-            { 
-              _id: lockId,
-              expiresAt: { $lt: now }
-            },
-            {
-              $set: {
-                lockedAt: now,
-                expiresAt: expiresAt,
-                owner: owner
-              }
-            }
-          );
-
-          if (takenOver) {
-            console.log(`🔒 Expired lock taken over for resource: ${resource}`, {
+            });
+            
+            console.log(`🔒 Expired lock taken over for: ${resource}`, {
               previousOwner: existingLock.owner,
               newOwner: owner,
               attempt: attempt + 1
             });
             return true;
+          } else {
+            // Lock masih aktif, tunggu dan coba lagi
+            if (attempt < maxRetries - 1) {
+              const waitTime = retryDelayMs * (attempt + 1);
+              console.log(`⏳ Lock busy, waiting ${waitTime}ms for: ${resource}`, {
+                currentOwner: existingLock.owner,
+                attempt: attempt + 1,
+                maxRetries
+              });
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              continue;
+            }
+          }
+        } else {
+          // Tidak ada lock, buat baru
+          try {
+            const newLock = await Lock.create({
+              _id: lockId,
+              lockedAt: now,
+              expiresAt: expiresAt,
+              owner: owner
+            });
+            
+            console.log(`🔒 Lock acquired for: ${resource}`, {
+              owner,
+              lockedAt: newLock.lockedAt,
+              expiresAt: newLock.expiresAt,
+              attempt: attempt + 1
+            });
+            return true;
+          } catch (createError) {
+            // Handle duplicate key error - race condition saat create
+            if (createError.code === 11000) {
+              if (attempt < maxRetries - 1) {
+                await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+                continue;
+              }
+            }
+            throw createError;
           }
         }
-
-        // Lock is held by someone else, wait and retry
-        if (attempt < maxRetries - 1) {
-          console.log(`⏳ Waiting for lock on resource: ${resource}`, {
-            owner,
-            attempt: attempt + 1,
-            maxRetries,
-            retryDelayMs
-          });
-          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-        }
-
       } catch (error) {
-        // Handle duplicate key error (lock already exists)
-        if (error.code === 11000) {
-          if (attempt < maxRetries - 1) {
-            await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-            continue;
-          }
-        }
         console.error(`❌ Error acquiring lock for ${resource}:`, error);
+        
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+          continue;
+        }
         return false;
       }
     }
 
-    console.log(`❌ Failed to acquire lock for resource: ${resource} after ${maxRetries} attempts`, {
-      owner,
-      maxRetries
-    });
+    console.log(`❌ Failed to acquire lock for: ${resource} after ${maxRetries} attempts`);
     return false;
   }
 
   /**
-   * Release a distributed lock
-   * @param {string} resource - Resource identifier
-   * @param {string} owner - Owner identifier (must match to release)
-   * @returns {Promise<boolean>} - True if lock released, false otherwise
+   * Release lock dengan error handling yang lebih baik
    */
   static async releaseLock(resource, owner) {
     const lockId = `lock:${resource}`;
@@ -118,19 +99,31 @@ export class LockService {
     try {
       const result = await Lock.findOneAndDelete({
         _id: lockId,
-        owner: owner
+        owner: owner // Hanya hapus jika owner match
       });
 
       if (result) {
-        console.log(`🔓 Lock released for resource: ${resource}`, {
+        console.log(`🔓 Lock released for: ${resource}`, {
           owner,
           lockDuration: Date.now() - result.lockedAt.getTime()
         });
         return true;
       } else {
-        console.warn(`⚠️ Failed to release lock for resource: ${resource} - lock not found or owner mismatch`, {
-          owner
-        });
+        // Cek jika lock sudah diambil alih atau expired
+        const currentLock = await Lock.findById(lockId);
+        if (!currentLock) {
+          console.log(`🔓 Lock already released for: ${resource}`);
+          return true;
+        }
+        
+        if (currentLock.owner !== owner) {
+          console.warn(`⚠️ Cannot release lock - owned by different process:`, {
+            resource,
+            expectedOwner: owner,
+            actualOwner: currentLock.owner
+          });
+        }
+        
         return false;
       }
     } catch (error) {
@@ -141,8 +134,6 @@ export class LockService {
 
   /**
    * Check if a lock exists and is valid
-   * @param {string} resource - Resource identifier
-   * @returns {Promise<boolean>} - True if lock exists and is valid
    */
   static async isLocked(resource) {
     const lockId = `lock:${resource}`;
@@ -162,7 +153,6 @@ export class LockService {
 
   /**
    * Clean up expired locks
-   * @returns {Promise<number>} - Number of expired locks removed
    */
   static async cleanupExpiredLocks() {
     const now = new Date();
@@ -181,5 +171,24 @@ export class LockService {
       console.error('❌ Error cleaning up expired locks:', error);
       return 0;
     }
+  }
+
+  /**
+   * Background cleanup service
+   */
+  static startLockCleanupInterval() {
+    // Clean up expired locks every 5 minutes
+    setInterval(async () => {
+      try {
+        const cleanedCount = await LockService.cleanupExpiredLocks();
+        if (cleanedCount > 0) {
+          console.log(`🧹 Background cleanup: Removed ${cleanedCount} expired locks`);
+        }
+      } catch (error) {
+        console.error('Background lock cleanup error:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    console.log('🔄 Lock cleanup service started');
   }
 }

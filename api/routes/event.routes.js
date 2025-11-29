@@ -12,7 +12,10 @@ import {
     getMenuItems,
     getEventMenuItems,
     getMenuItemById,
-    getAvailableEvents
+    getAvailableEvents,
+    checkInAttendee,
+    getCheckInStats,
+    getAttendeeList
 } from '../controllers/event.controller.js';
 
 const router = express.Router();
@@ -28,6 +31,11 @@ router.delete('/:id', deleteEvent);
 router.post('/:id/register', registerFreeEvent);
 router.get('/:id/registrations', getEventRegistrations);
 router.patch('/status/update', updateEventStatus);
+
+// Check-in routes
+router.post('/:eventId/checkin', checkInAttendee);
+router.get('/:eventId/checkin/stats', getCheckInStats);
+router.get('/:eventId/attendees', getAttendeeList);
 
 // Menu Items Routes (with Event support)
 router.get('/menu-items', getMenuItems);
