@@ -181,8 +181,17 @@ export async function createOrderHandler({
               cardLast4: payment.cardLast4 || '',
               cardTransactionId: payment.transactionId || `DEBIT-${orderId}-${index}`
             };
+          } else {
+            // Untuk backward compatibility - handle single payment object atau array dengan 1 element
+            const effectivePayment = Array.isArray(paymentDetails) ? paymentDetails[0] : paymentDetails;
+            payments = [{
+              paymentMethod: effectivePayment?.method || paymentMethodData,
+              amount: effectivePayment?.amount || totals.grandTotal,
+              status: 'completed',
+              processedBy: cashierId,
+              processedAt: new Date()
+            }];
           }
-
           return paymentData;
         });
 
