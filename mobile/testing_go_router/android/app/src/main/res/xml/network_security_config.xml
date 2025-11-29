@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <!-- Izinkan cleartext khusus domain kamu -->
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="true">app.barajacoffee.site</domain>
+    <!-- ganti dengan domain kamu; boleh pakai root domain jika socket di sana -->
+  </domain-config>
+</network-security-config>
