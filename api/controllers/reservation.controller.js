@@ -793,78 +793,116 @@ export const createReservationWithOrder = async (req, res) => {
   }
 };
 
-// Helper function untuk generate reservation code yang aman dengan LOCK
+// Helper function untuk generate reservation code yang aman dengan LOCK - FIXED
 const generateReservationCode = async (session) => {
   const today = new Date();
   const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
   
-  // Gunakan atomic operation untuk sequence
-  const counterDoc = await Reservation.findOneAndUpdate(
-    {
-      createdAt: {
-        $gte: new Date(today.setHours(0, 0, 0, 0)),
-        $lt: new Date(today.setHours(23, 59, 59, 999))
+  try {
+    // Gunakan atomic operation untuk sequence dengan error handling
+    const counterDoc = await Reservation.findOneAndUpdate(
+      {
+        createdAt: {
+          $gte: new Date(today.setHours(0, 0, 0, 0)),
+          $lt: new Date(today.setHours(23, 59, 59, 999))
+        }
+      },
+      { $inc: { _tempSequence: 1 } },
+      {
+        session,
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: { _tempSequence: 1 },
+        returnDocument: 'after'
       }
-    },
-    { $inc: { _tempSequence: 1 } },
-    {
-      session,
-      new: true,
-      upsert: true,
-      setDefaultsOnInsert: { _tempSequence: 1 }
-    }
-  );
+    );
 
-  const sequence = counterDoc._tempSequence;
-  return `RSV-${dateString}-${sequence.toString().padStart(3, '0')}`;
+    // Pastikan counterDoc ada dan memiliki _tempSequence
+    if (!counterDoc) {
+      throw new Error('Failed to generate reservation sequence');
+    }
+
+    const sequence = counterDoc._tempSequence;
+    
+    // Validasi sequence adalah number yang valid
+    if (typeof sequence !== 'number' || isNaN(sequence)) {
+      throw new Error('Invalid sequence generated');
+    }
+
+    return `RSV-${dateString}-${sequence.toString().padStart(3, '0')}`;
+  } catch (error) {
+    console.error('❌ Error generating reservation code:', error);
+    
+    // Fallback: gunakan timestamp sebagai backup
+    const fallbackSequence = Date.now().toString().slice(-3);
+    return `RSV-${dateString}-${fallbackSequence}`;
+  }
 };
 
-// Helper function untuk mendapatkan sequence order berikutnya dengan LOCK
+// Helper function untuk mendapatkan sequence order berikutnya dengan LOCK - FIXED
 const getNextOrderSequence = async (session) => {
   const today = new Date();
-  const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
   
-  const counterDoc = await Order.findOneAndUpdate(
-    {
-      createdAt: {
-        $gte: new Date(today.setHours(0, 0, 0, 0)),
-        $lt: new Date(today.setHours(23, 59, 59, 999))
+  try {
+    const counterDoc = await Order.findOneAndUpdate(
+      {
+        createdAt: {
+          $gte: new Date(today.setHours(0, 0, 0, 0)),
+          $lt: new Date(today.setHours(23, 59, 59, 999))
+        }
+      },
+      { $inc: { _tempSequence: 1 } },
+      {
+        session,
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: { _tempSequence: 1 },
+        returnDocument: 'after'
       }
-    },
-    { $inc: { _tempSequence: 1 } },
-    {
-      session,
-      new: true,
-      upsert: true,
-      setDefaultsOnInsert: { _tempSequence: 1 }
-    }
-  );
+    );
 
-  return counterDoc._tempSequence;
+    if (!counterDoc || typeof counterDoc._tempSequence !== 'number') {
+      throw new Error('Failed to generate order sequence');
+    }
+
+    return counterDoc._tempSequence;
+  } catch (error) {
+    console.error('❌ Error generating order sequence:', error);
+    return Math.floor(Math.random() * 100) + 1; // Fallback random
+  }
 };
 
-// Helper function untuk mendapatkan sequence payment berikutnya dengan LOCK
+// Helper function untuk mendapatkan sequence payment berikutnya dengan LOCK - FIXED
 const getNextPaymentSequence = async (session) => {
   const today = new Date();
-  const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
   
-  const counterDoc = await Payment.findOneAndUpdate(
-    {
-      createdAt: {
-        $gte: new Date(today.setHours(0, 0, 0, 0)),
-        $lt: new Date(today.setHours(23, 59, 59, 999))
+  try {
+    const counterDoc = await Payment.findOneAndUpdate(
+      {
+        createdAt: {
+          $gte: new Date(today.setHours(0, 0, 0, 0)),
+          $lt: new Date(today.setHours(23, 59, 59, 999))
+        }
+      },
+      { $inc: { _tempSequence: 1 } },
+      {
+        session,
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: { _tempSequence: 1 },
+        returnDocument: 'after'
       }
-    },
-    { $inc: { _tempSequence: 1 } },
-    {
-      session,
-      new: true,
-      upsert: true,
-      setDefaultsOnInsert: { _tempSequence: 1 }
-    }
-  );
+    );
 
-  return counterDoc._tempSequence;
+    if (!counterDoc || typeof counterDoc._tempSequence !== 'number') {
+      throw new Error('Failed to generate payment sequence');
+    }
+
+    return counterDoc._tempSequence;
+  } catch (error) {
+    console.error('❌ Error generating payment sequence:', error);
+    return Math.floor(Math.random() * 100) + 1; // Fallback random
+  }
 };
 
 // Get all reservations
