@@ -48,6 +48,7 @@ class HiveService {
     await Hive.openBox<PaymentMethodModel>('paymentMethods');
     await Hive.openBox<Event>('eventsBox');
     await Hive.openBox<DeviceModel>('devices');
+    await Hive.openBox<OrderDetailModel>('offlineOrdersBox');
     // await Hive.openBox<DeviceModel>('loginDeviceBox');
   }
 
@@ -61,6 +62,8 @@ class HiveService {
       Hive.box<PaymentMethodModel>('paymentMethods');
   static Box<Event> get eventBox => Hive.box<Event>('eventsBox');
   static Box<DeviceModel> get deviceBox => Hive.box<DeviceModel>('devices');
+  static Box<OrderDetailModel> get offlineOrdersBox =>
+      Hive.box<OrderDetailModel>('offlineOrdersBox');
 
   //login device box
   // static Box<DeviceModel> get loginDeviceBox =>
@@ -74,6 +77,7 @@ class HiveService {
     await paymentMethodBox.clear();
     await eventBox.clear();
     await deviceBox.clear();
+    await offlineOrdersBox.clear();
     // await loginDeviceBox.clear();
   }
 
@@ -84,6 +88,7 @@ class HiveService {
     await paymentMethodBox.close();
     await eventBox.close();
     await deviceBox.close();
+    await offlineOrdersBox.close();
     // await loginDeviceBox.close();
   }
 

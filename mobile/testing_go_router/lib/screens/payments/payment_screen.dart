@@ -1,11 +1,17 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:kasirbaraja/helper/offline_order_id_generator.dart';
 
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 // Provider tipe pembayaran yang sudah kamu punya
@@ -19,6 +25,8 @@ import 'package:kasirbaraja/helper/payment_helper.dart';
 /// - single: tanpa split, 1x bayar langsung lunas
 /// - split : beberapa pembayaran (multi card)
 enum PaymentMode { single, split }
+
+enum SubmitStatus { idle, submitting, success, failed }
 
 /// Representasi 1 card split payment di UI
 class SplitCard {
@@ -75,6 +83,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   // ======= SINGLE PAYMENT STATE =======
   PaymentMethodModel? _selectedMethod;
   PaymentTypeModel? _selectedType;
+  SubmitStatus _submitStatus = SubmitStatus.idle;
+  String? _submitErrorMessage;
 
   int? _selectedCashPreset;
   final TextEditingController _customCashController = TextEditingController();
@@ -96,7 +106,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     // Ambil payments awal dari order (kalau belum ada, pakai list kosong)
     _payments = List<PaymentModel>.from(
-      (widget.order.payments ?? <PaymentModel>[]),
+      (widget.order.payments.isNotEmpty
+          ? widget.order.payments
+          : <PaymentModel>[]),
     );
   }
 
@@ -181,6 +193,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   List<SplitCard> get _unpaidSplitCards =>
       _splitCards.where((c) => !c.isPaid).toList();
+
+  bool _isCardCash(SplitCard card) {
+    return card.method?.id.toLowerCase() == 'cash';
+  }
 
   bool get _isSplitPlanValid {
     if (_unpaidSplitCards.isEmpty) {
@@ -363,7 +379,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   // 🔹 tendered per split card (cash)
   int? _getTenderedForCard(SplitCard card) {
-    if (card.type?.id != 'cash') return null;
+    if (!_isCardCash(card)) return null;
+
     final preset = _splitCashPresetSelected[card.id];
     if (preset != null) return preset;
 
@@ -376,27 +393,34 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   int _getChangeForCard(SplitCard card) {
-    if (card.type?.id != 'cash') return 0;
+    if (!_isCardCash(card)) return 0;
     final tendered = _getTenderedForCard(card) ?? 0;
     final change = tendered - card.amount;
     return change > 0 ? change : 0;
   }
 
   bool _canPaySplitCard(SplitCard card) {
+    debugPrint('--- canPaySplitCard #${card.id} ---');
+    debugPrint(
+      'amount=${card.amount}, remaining=$_remaining, isPaid=${card.isPaid}',
+    );
+    debugPrint('method=${card.method?.id}, type=${card.type?.id}');
+    debugPrint('isCash=${_isCardCash(card)}');
+    debugPrint('plannedValid=$_isSplitPlanValid');
+
     if (!_isSplitPlanValid) return false;
     if (card.isPaid) return false;
     if (card.amount <= 0) return false;
     if (card.amount > _remaining) return false;
 
-    if (card.type == null) return false;
-
-    if (card.type!.id == 'cash') {
+    if (_isCardCash(card)) {
       final tendered = _getTenderedForCard(card);
       if (tendered == null) return false;
       if (tendered < card.amount) return false;
       return true;
     } else {
-      return card.method != null;
+      // non-cash: butuh method + type (channel bank/etc)
+      return card.method != null && card.type != null;
     }
   }
 
@@ -411,8 +435,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     final payment = PaymentHelper.buildPaymentModelForCard(
       orderId: widget.order.orderId,
-      methodModel: _selectedMethod!,
-      typeModel: _selectedType,
+      methodModel: card.method!,
+      typeModel: _isCardCash(card) ? null : card.type,
       amount: amount,
       remainingAfter: remainingAfter,
       tendered: tendered,
@@ -443,15 +467,132 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
   }
 
-  void _finishOrderToBackend() {
-    //TODO: kirim ke backend
-    final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
-    // 1. Sync _payments ke OrderDetailProvider / OrderDetailModel
-    orderDetailNotifier.setPayments(_payments);
-    // 2. Panggil service utk kirim ke backend (unified-order / process-payment)
-    orderDetailNotifier.submitOrder(ref);
-    debugPrint(
-      'Selesaikan order. TotalPaid=$_totalPaid, Payments=${_payments.length}',
+  Future<void> _finishOrderToBackend() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    if (_submitStatus == SubmitStatus.submitting) return;
+
+    setState(() {
+      _submitStatus = SubmitStatus.submitting;
+      _submitErrorMessage = null;
+    });
+
+    final notifier = ref.read(orderDetailProvider.notifier);
+    notifier.setPayments(_payments);
+
+    try {
+      final result = await notifier.submitOrder(ref);
+      // idealnya submitOrder balikin sesuatu: success / response
+
+      // SUCCESS → baru:
+      // - tutup halaman
+      // - navigate ke struk / history
+      // if (!mounted) return;
+      debugPrint('result submitOrder: $result');
+      if (result && context.mounted) {
+        setState(() {
+          _submitStatus = SubmitStatus.success;
+        });
+        ref.invalidate(orderHistoryProvider);
+        final savedPrinter = ref.read(savedPrintersProvider.notifier);
+        savedPrinter.printToPrinter(
+          orderDetail: widget.order,
+          printType: 'all',
+        );
+
+        if (mounted) {
+          context.goNamed(
+            'payment-success',
+            extra: {'orderDetail': ref.read(orderDetailProvider)},
+          );
+        }
+      }
+    } on DioException catch (e) {
+      // ERROR dari backend / jaringan
+      if (mounted) Navigator.pop(context);
+      final msg = _mapDioErrorToMessage(e);
+      _showSubmitFailedDialog(msg);
+      setState(() {
+        _submitStatus = SubmitStatus.failed;
+        _submitErrorMessage = e.toString();
+      });
+    } catch (e) {
+      //pop context
+      if (mounted) Navigator.pop(context);
+      _showSubmitFailedDialog('Terjadi kesalahan tak terduga: $e');
+      setState(() {
+        _submitStatus = SubmitStatus.failed;
+        _submitErrorMessage = e.toString();
+      });
+    } finally {
+      //pop context
+      // if (mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _createOfflineOrder({
+    required int tableNumber,
+    required String deviceName,
+    required OrderDetailModel draftOrder,
+  }) async {
+    // buka box untuk order offline (sesuaikan nama box kamu)
+    final box = Hive.box<OrderDetailModel>('offlineOrdersBox');
+
+    // kumpulkan order_id yang sudah ada di lokal
+    final existingIds =
+        box.values
+            .where((o) => o.orderId != null)
+            .map((o) => o.orderId!)
+            .toList();
+
+    // generate ID offline
+    final orderId = await OfflineOrderIdGenerator.generate(
+      tableNumber: tableNumber,
+      deviceName: deviceName,
+      existingOrderIds: existingIds,
+    );
+
+    final offlineOrder = draftOrder.copyWith(
+      orderId: orderId,
+      // misal kamu punya flag isOffline / isSynced
+      // isOffline: true,
+      // isSynced: false,
+    );
+
+    // simpan ke Hive
+    await box.put(orderId, offlineOrder);
+
+    // lanjut:
+    // - print struk pakai orderId ini
+    // - kirim ke kitchen/bar (kalau kamu mau local-only pas offline)
+  }
+
+  String _mapDioErrorToMessage(DioException e) {
+    final status = e.response?.statusCode;
+    if (status != null && status >= 400 && status < 500) {
+      return 'Gagal menyimpan transaksi. Data tidak valid atau sudah diproses sebelumnya.';
+    }
+    return 'Gagal mengirim transaksi ke server. Periksa koneksi dan coba lagi.';
+  }
+
+  void _showSubmitFailedDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Gagal Menyelesaikan Transaksi'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -537,6 +678,66 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               ? _buildSinglePaymentPanel(activeMethods)
                               : _buildSplitPaymentPanel(activeMethods),
                     ),
+                    if (_submitStatus == SubmitStatus.failed)
+                      Container(
+                        margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: Colors.red,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Gagal mengirim order ke server',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                  if (_submitErrorMessage != null)
+                                    Text(
+                                      _submitErrorMessage!,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.black87,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed:
+                                  _submitStatus == SubmitStatus.submitting
+                                      ? null
+                                      : _finishOrderToBackend,
+                              child: const Text(
+                                'Try Again',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),

@@ -27,7 +27,7 @@ class OrderService {
         'start create order...request body: ${createOrderRequest(orderDetail)}',
       );
 
-      return {'orderId': '', 'orderNumber': '', 'paymentStatus': 'settlement'};
+      // return {'orderId': '', 'orderNumber': '', 'paymentStatus': 'settlement'};
 
       Response response = await _dio.post(
         '/api/unified-order',
@@ -447,6 +447,8 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
             'remainingAmount': payment.remainingAmount,
             'tenderedAmount': payment.tenderedAmount,
             'changeAmount': payment.changeAmount,
+            'vaNumbers': payment.vaNumbers?.toList() ?? [],
+            'actions': payment.actions?.toList() ?? [],
           };
         }).toList(),
   };

@@ -314,7 +314,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       }
     } catch (e) {
       debugPrint('error apa? $e');
-      return false;
+      // return false;
+      rethrow;
     }
     return false; // Return false if state is null
   }
