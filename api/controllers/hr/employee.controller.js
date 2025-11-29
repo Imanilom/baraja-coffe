@@ -2,102 +2,140 @@ import Employee from '../../models/model_hr/Employee.model.js';
 import User from '../../models/user.model.js';
 
 export const employeeController = {
-  // Create new employee
+  // Create new employee - FIXED
   createEmployee: async (req, res) => {
     try {
       const {
-        userId,
+        userId, // menerima userId dari frontend
         employeeId,
         nik,
-        npwp,
-        bpjsKesehatan,
-        bpjsKetenagakerjaan,
+        npwp = '',
+        bpjsKesehatan = '',
+        bpjsKetenagakerjaan = '',
         position,
         department,
         joinDate,
-        employmentStatus,
-        employmentType,
+        employmentStatus = 'probation',
+        employmentType = 'fulltime',
         basicSalary,
-        bankAccount,
-        supervisor,
-        // New fields for deductions and allowances
+        supervisor = null,
+        bankAccount = {},
         deductions = {},
         allowances = {}
       } = req.body;
 
+      console.log('Received data:', req.body); // Debug log
+
+      // Validasi input wajib
+      if (!userId || !employeeId || !nik || !position || !department || !joinDate || !basicSalary) {
+        return res.status(400).json({ 
+          message: 'Semua field wajib harus diisi',
+          required: ['userId', 'employeeId', 'nik', 'position', 'department', 'joinDate', 'basicSalary']
+        });
+      }
+
       // Check if user exists
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({ message: 'User not found' });
+        return res.status(404).json({ message: 'User tidak ditemukan' });
       }
 
       // Check if employee already exists for this user
       const existingEmployee = await Employee.findOne({ user: userId });
       if (existingEmployee) {
-        return res.status(400).json({ message: 'Employee already exists for this user' });
+        return res.status(400).json({ message: 'Employee sudah ada untuk user ini' });
       }
 
       // Check if employeeId or NIK already exists
       const existingEmployeeId = await Employee.findOne({ employeeId });
       if (existingEmployeeId) {
-        return res.status(400).json({ message: 'Employee ID already exists' });
+        return res.status(400).json({ message: 'Employee ID sudah digunakan' });
       }
 
       const existingNIK = await Employee.findOne({ nik });
       if (existingNIK) {
-        return res.status(400).json({ message: 'NIK already exists' });
+        return res.status(400).json({ message: 'NIK sudah digunakan' });
       }
 
-      const employee = new Employee({
+      // Create employee object dengan data yang sudah divalidasi
+      const employeeData = {
         user: userId,
-        employeeId,
-        nik,
-        npwp,
-        bpjsKesehatan,
-        bpjsKetenagakerjaan,
-        position,
-        department,
-        joinDate,
+        employeeId: employeeId.trim(),
+        nik: nik.trim(),
+        npwp: npwp?.trim() || '',
+        bpjsKesehatan: bpjsKesehatan?.trim() || '',
+        bpjsKetenagakerjaan: bpjsKetenagakerjaan?.trim() || '',
+        position: position.trim(),
+        department: department.trim(),
+        joinDate: new Date(joinDate),
         employmentStatus,
         employmentType,
-        basicSalary,
-        bankAccount,
-        supervisor,
-        // Include new fields
+        basicSalary: Number(basicSalary),
+        supervisor: supervisor || null,
+        bankAccount: {
+          bankName: bankAccount?.bankName?.trim() || '',
+          accountNumber: bankAccount?.accountNumber?.trim() || '',
+          accountHolder: bankAccount?.accountHolder?.trim() || ''
+        },
         deductions: {
-          bpjsKesehatanEmployee: deductions.bpjsKesehatanEmployee || 0,
-          bpjsKesehatanEmployer: deductions.bpjsKesehatanEmployer || 0,
-          bpjsKetenagakerjaanEmployee: deductions.bpjsKetenagakerjaanEmployee || 0,
-          bpjsKetenagakerjaanEmployer: deductions.bpjsKetenagakerjaanEmployer || 0,
-          tax: deductions.tax || 0,
-          other: deductions.other || 0
+          bpjsKesehatanEmployee: Number(deductions.bpjsKesehatanEmployee) || 0,
+          bpjsKesehatanEmployer: Number(deductions.bpjsKesehatanEmployer) || 0,
+          bpjsKetenagakerjaanEmployee: Number(deductions.bpjsKetenagakerjaanEmployee) || 0,
+          bpjsKetenagakerjaanEmployer: Number(deductions.bpjsKetenagakerjaanEmployer) || 0,
+          tax: Number(deductions.tax) || 0,
+          other: Number(deductions.other) || 0
         },
         allowances: {
-          childcare: allowances.childcare || 0,
-          departmental: allowances.departmental || 0,
-          housing: allowances.housing || 0,
-          transport: allowances.transport || 0,
-          meal: allowances.meal || 0,
-          health: allowances.health || 0,
-          other: allowances.other || 0
+          departmental: Number(allowances.departmental) || 0,
+          childcare: Number(allowances.childcare) || 0,
+          transport: Number(allowances.transport) || 0,
+          meal: Number(allowances.meal) || 0,
+          health: Number(allowances.health) || 0,
+          other: Number(allowances.other) || 0
         }
-      });
+      };
 
+      const employee = new Employee(employeeData);
       await employee.save();
       
-      // Populate user data
-      await employee.populate('user supervisor');
+      // Populate data setelah save
+      const populatedEmployee = await Employee.findById(employee._id)
+        .populate('user', 'username email')
+        .populate('supervisor', 'employeeId position');
 
       res.status(201).json({
-        message: 'Employee created successfully',
-        data: employee
+        success: true,
+        message: 'Employee berhasil dibuat',
+        data: populatedEmployee
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Error creating employee:', error);
+      
+      // Handle MongoDB duplicate key errors
+      if (error.code === 11000) {
+        const field = Object.keys(error.keyPattern)[0];
+        return res.status(400).json({ 
+          message: `${field} sudah digunakan` 
+        });
+      }
+      
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        const errors = Object.values(error.errors).map(err => err.message);
+        return res.status(400).json({ 
+          message: 'Data validation failed', 
+          errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 
-  // Get all employees
+  // Get all employees - FIXED
   getAllEmployees: async (req, res) => {
     try {
       const {
@@ -107,18 +145,20 @@ export const employeeController = {
         position,
         employmentStatus,
         employmentType,
-        isActive,
+        isActive = 'true',
         search
       } = req.query;
 
       const filter = {};
 
-      if (department) filter.department = department;
-      if (position) filter.position = position;
+      // Build filter object
+      if (department) filter.department = new RegExp(department, 'i');
+      if (position) filter.position = new RegExp(position, 'i');
       if (employmentStatus) filter.employmentStatus = employmentStatus;
       if (employmentType) filter.employmentType = employmentType;
       if (isActive !== undefined) filter.isActive = isActive === 'true';
       
+      // Search across multiple fields
       if (search) {
         filter.$or = [
           { employeeId: { $regex: search, $options: 'i' } },
@@ -128,8 +168,19 @@ export const employeeController = {
         ];
       }
 
+      const options = {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        sort: { createdAt: -1 },
+        populate: [
+          { path: 'user', select: 'username email' },
+          { path: 'supervisor', select: 'employeeId position department' }
+        ]
+      };
+
       const employees = await Employee.find(filter)
-        .populate('user supervisor')
+        .populate('user', 'username email')
+        .populate('supervisor', 'employeeId position department')
         .limit(limit * 1)
         .skip((page - 1) * limit)
         .sort({ createdAt: -1 });
@@ -137,13 +188,91 @@ export const employeeController = {
       const total = await Employee.countDocuments(filter);
 
       res.json({
+        success: true,
         data: employees,
-        totalPages: Math.ceil(total / limit),
-        currentPage: parseInt(page),
-        total
+        pagination: {
+          totalPages: Math.ceil(total / limit),
+          currentPage: parseInt(page),
+          total,
+          limit: parseInt(limit)
+        }
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Error fetching employees:', error);
+      res.status(500).json({ 
+        message: 'Gagal memuat data employees',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  },
+
+  // Update employee - FIXED
+  updateEmployee: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = { ...req.body };
+
+      // Handle nested objects
+      if (updateData.bankAccount) {
+        updateData.bankAccount = {
+          bankName: updateData.bankAccount.bankName || '',
+          accountNumber: updateData.bankAccount.accountNumber || '',
+          accountHolder: updateData.bankAccount.accountHolder || ''
+        };
+      }
+
+      if (updateData.allowances) {
+        Object.keys(updateData.allowances).forEach(key => {
+          updateData.allowances[key] = Number(updateData.allowances[key]) || 0;
+        });
+      }
+
+      if (updateData.deductions) {
+        Object.keys(updateData.deductions).forEach(key => {
+          updateData.deductions[key] = Number(updateData.deductions[key]) || 0;
+        });
+      }
+
+      // Convert string dates to Date objects
+      if (updateData.joinDate) {
+        updateData.joinDate = new Date(updateData.joinDate);
+      }
+
+      const employee = await Employee.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { 
+          new: true, 
+          runValidators: true 
+        }
+      )
+      .populate('user', 'username email')
+      .populate('supervisor', 'employeeId position department');
+
+      if (!employee) {
+        return res.status(404).json({ message: 'Employee tidak ditemukan' });
+      }
+
+      res.json({
+        success: true,
+        message: 'Employee berhasil diupdate',
+        data: employee
+      });
+    } catch (error) {
+      console.error('Error updating employee:', error);
+      
+      if (error.name === 'ValidationError') {
+        const errors = Object.values(error.errors).map(err => err.message);
+        return res.status(400).json({ 
+          message: 'Data validation failed', 
+          errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        message: 'Gagal update employee',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 
@@ -174,44 +303,6 @@ export const employeeController = {
       }
 
       res.json(employee);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  },
-
-  // Update employee
-  updateEmployee: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const updateData = req.body;
-
-      // Handle nested objects for deductions and allowances
-      if (updateData.deductions) {
-        updateData.$set = updateData.$set || {};
-        updateData.$set.deductions = updateData.deductions;
-        delete updateData.deductions;
-      }
-
-      if (updateData.allowances) {
-        updateData.$set = updateData.$set || {};
-        updateData.$set.allowances = updateData.allowances;
-        delete updateData.allowances;
-      }
-
-      const employee = await Employee.findByIdAndUpdate(
-        id,
-        updateData,
-        { new: true, runValidators: true }
-      ).populate('user supervisor');
-
-      if (!employee) {
-        return res.status(404).json({ message: 'Employee not found' });
-      }
-
-      res.json({
-        message: 'Employee updated successfully',
-        data: employee
-      });
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
