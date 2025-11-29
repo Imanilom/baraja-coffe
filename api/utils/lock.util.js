@@ -72,13 +72,15 @@ export class LockUtil {
   }
 
   /**
-   * Execute function with order-specific lock
+   * Execute function with reservation-specific lock
    */
-  static async withOrderLock(orderId, fn, options = {}) {
-    const resource = `order:${orderId}`;
+  static async withReservationLock(reservationData, fn, options = {}) {
+    const { area_id, reservation_date, reservation_time, table_ids } = reservationData;
+    const resource = `reservation:${area_id}:${reservation_date}:${reservation_time}:${table_ids.sort().join(',')}`;
+    
     return await LockUtil.withLock(resource, fn, {
-      owner: `order-process-${process.pid}-${Date.now()}`,
-      ttlMs: 45000,
+      owner: `reservation-process-${process.pid}-${Date.now()}`,
+      ttlMs: 45000, // 45 detik untuk reservation process
       retryDelayMs: 250,
       maxRetries: 8,
       ...options
@@ -86,15 +88,29 @@ export class LockUtil {
   }
 
   /**
-   * Execute function with outlet-specific lock
+   * Execute function with table-specific lock
    */
-  static async withOutletLock(outletId, fn, options = {}) {
-    const resource = `outlet:${outletId}`;
+  static async withTableLock(tableIds, fn, options = {}) {
+    const resource = `tables:${tableIds.sort().join(',')}`;
     return await LockUtil.withLock(resource, fn, {
-      owner: `outlet-process-${process.pid}-${Date.now()}`,
-      ttlMs: 45000,
+      owner: `table-process-${process.pid}-${Date.now()}`,
+      ttlMs: 30000,
       retryDelayMs: 150,
       maxRetries: 12,
+      ...options
+    });
+  }
+
+  /**
+   * Execute function with area-specific lock
+   */
+  static async withAreaLock(areaId, fn, options = {}) {
+    const resource = `area:${areaId}`;
+    return await LockUtil.withLock(resource, fn, {
+      owner: `area-process-${process.pid}-${Date.now()}`,
+      ttlMs: 30000,
+      retryDelayMs: 100,
+      maxRetries: 10,
       ...options
     });
   }

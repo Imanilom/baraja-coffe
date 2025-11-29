@@ -2,7 +2,7 @@ import Lock from '../models/Lock.model.js';
 
 export class LockService {
   /**
-   * Acquire a distributed lock - VERSION IMPROVED
+   * Acquire a distributed lock dengan retry mechanism
    */
   static async acquireLock(resource, owner, ttlMs = 30000, retryDelayMs = 100, maxRetries = 10) {
     const lockId = `lock:${resource}`;
@@ -37,7 +37,7 @@ export class LockService {
           } else {
             // Lock masih aktif, tunggu dan coba lagi
             if (attempt < maxRetries - 1) {
-              const waitTime = retryDelayMs * (attempt + 1); // Exponential backoff
+              const waitTime = retryDelayMs * (attempt + 1);
               console.log(`⏳ Lock busy, waiting ${waitTime}ms for: ${resource}`, {
                 currentOwner: existingLock.owner,
                 attempt: attempt + 1,
