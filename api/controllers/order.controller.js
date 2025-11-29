@@ -24,6 +24,7 @@ import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
 import { replaceOrderItemsAndAllocate } from '../services/orderEdit.service.js';
 import { createOrderHandler } from '../workers/handlers/createOrderHandler.js';
 import { LockUtil } from '../utils/lock.util.js';
+import { validateAndNormalizePaymentDetails } from '../utils/payment.utils.js';
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
@@ -2385,7 +2386,8 @@ export const createUnifiedOrder = async (req, res) => {
       outletId,
       tableNumber,
       isSplitPayment,
-      paymentDetailsType: Array.isArray(paymentDetails) ? 'array' : 'object'
+      paymentDetailsType: Array.isArray(paymentDetails) ? 'array' : 'object',
+      paymentDetails: paymentDetails // Log payment details untuk debugging
     });
 
     // PRE-CHECK: Cek order existence SEBELUM lock (optimization)
@@ -2513,24 +2515,41 @@ export const createUnifiedOrder = async (req, res) => {
       }
 
       // Hitung custom amount otomatis HANYA JIKA tidak ada customAmountItems manual
-      if (paymentDetails && paymentDetails.amount && req.body.items && finalCustomAmountItems.length === 0) {
+      if (paymentDetails && req.body.items && finalCustomAmountItems.length === 0) {
         // Hitung total order dari items saja (tanpa custom amount)
         const orderTotalFromItems = req.body.items.reduce((total, item) => {
           return total + (item.price || 0) * (item.quantity || 1);
         }, 0);
 
         // Hitung custom amount otomatis jika ada kelebihan
-        const autoCustomAmount = calculateCustomAmount(paymentDetails.amount, orderTotalFromItems);
+        // Untuk split payment, gunakan total amount dari semua payment
+        let totalPaymentAmount = 0;
+        
+        if (Array.isArray(paymentDetails)) {
+          totalPaymentAmount = paymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+        } else {
+          totalPaymentAmount = paymentDetails.amount || 0;
+        }
+
+        const autoCustomAmount = calculateCustomAmount(totalPaymentAmount, orderTotalFromItems);
         if (autoCustomAmount) {
           console.log('Auto-calculated custom amount:', autoCustomAmount);
           finalCustomAmountItems = [autoCustomAmount];
         }
       }
 
+      // Validasi payment details untuk backward compatibility
+      const validatedPaymentDetails = validateAndNormalizePaymentDetails(
+        paymentDetails, 
+        isSplitPayment, 
+        source
+      );
+
       const validated = validateOrderData({
         ...req.body,
         customAmountItems: finalCustomAmountItems,
-        isSplitPayment: isSplitPayment
+        isSplitPayment: isSplitPayment,
+        paymentDetails: validatedPaymentDetails // Gunakan payment details yang sudah dinormalisasi
       }, source);
 
       validated.outletId = outletId;
@@ -2618,14 +2637,15 @@ export const createUnifiedOrder = async (req, res) => {
           isReservation: orderType === 'reservation',
           requiresDelivery: source === 'App' && delivery_option === 'delivery',
           recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null,
-          paymentDetails: paymentDetails // Kirim paymentDetails ke handler
+          paymentDetails: validatedPaymentDetails // Kirim paymentDetails yang sudah dinormalisasi
         });
 
         console.log('✅ Order created successfully:', {
           orderId,
           orderNumber: orderResult.orderNumber,
           grandTotal: orderResult.grandTotal,
-          isSplitPayment: orderResult.isSplitPayment
+          isSplitPayment: orderResult.isSplitPayment,
+          paymentType: Array.isArray(validatedPaymentDetails) ? 'split_payment' : 'single_payment'
         });
 
         // Broadcast setelah order berhasil dibuat
@@ -2634,7 +2654,7 @@ export const createUnifiedOrder = async (req, res) => {
           tableNumber,
           source,
           outletId,
-          paymentDetails: validated.paymentDetails,
+          paymentDetails: validatedPaymentDetails,
           hasCustomAmountItems: finalCustomAmountItems.length > 0,
           isSplitPayment: orderResult.isSplitPayment
         });
@@ -2725,7 +2745,7 @@ export const createUnifiedOrder = async (req, res) => {
               }
             };
           } else {
-            // Single payment (legacy)
+            // Single payment (legacy) - backward compatibility
             const chargeRequest = {
               body: {
                 payment_type: paymentDetails?.method || 'Cash',
@@ -2763,7 +2783,7 @@ export const createUnifiedOrder = async (req, res) => {
             // Langsung pakai req.body.paymentDetails (bisa array atau object)
             const paymentResult = await processCashierPayment(
               orderId,
-              req.body.paymentDetails,
+              validatedPaymentDetails, // Gunakan yang sudah dinormalisasi
               baseResponse,
               orderResult
             );
@@ -2774,7 +2794,7 @@ export const createUnifiedOrder = async (req, res) => {
               orderData: validated,
               outletId,
               hasCustomAmountItems: finalCustomAmountItems.length > 0,
-              isSplitPayment: Array.isArray(req.body.paymentDetails)
+              isSplitPayment: Array.isArray(validatedPaymentDetails)
             });
 
             return {
@@ -2782,7 +2802,7 @@ export const createUnifiedOrder = async (req, res) => {
               data: {
                 ...baseResponse,
                 status: 'Completed',
-                message: Array.isArray(req.body.paymentDetails) 
+                message: Array.isArray(validatedPaymentDetails) 
                   ? 'Cashier order processed with split payment' 
                   : 'Cashier order processed and paid',
                 paymentData: paymentResult.data,
@@ -2861,15 +2881,25 @@ export const createUnifiedOrder = async (req, res) => {
               }
             };
           } else {
+            // Untuk split payment di App, gunakan total amount
+            let paymentAmount = 0;
+            if (Array.isArray(validatedPaymentDetails)) {
+              paymentAmount = validatedPaymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+            } else {
+              paymentAmount = validatedPaymentDetails?.amount || 0;
+            }
+
             // Validasi amount sebelum kirim ke Midtrans
-            if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
-              throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
+            if (!paymentAmount || isNaN(paymentAmount)) {
+              throw new Error(`Invalid payment amount: ${paymentAmount}`);
             }
 
             const midtransRes = await createMidtransCoreTransaction(
               orderId,
-              Number(validated.paymentDetails.amount),
-              validated.paymentDetails.method
+              Number(paymentAmount),
+              Array.isArray(validatedPaymentDetails) 
+                ? validatedPaymentDetails[0]?.method || 'other' 
+                : validatedPaymentDetails?.method || 'other'
             );
 
             return {
@@ -2950,25 +2980,37 @@ export const createUnifiedOrder = async (req, res) => {
               phone: contact?.phone || '081234567890'
             };
 
+            // Untuk split payment di Web, gunakan total amount
+            let paymentAmount = 0;
+            if (Array.isArray(validatedPaymentDetails)) {
+              paymentAmount = validatedPaymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+            } else {
+              paymentAmount = validatedPaymentDetails?.amount || 0;
+            }
+
             // Validasi amount sebelum kirim ke Midtrans
             console.log('Payment details for Midtrans SNAP:', {
               orderId,
-              amount: validated.paymentDetails?.amount,
-              amountType: typeof validated.paymentDetails?.amount,
+              amount: paymentAmount,
+              amountType: typeof paymentAmount,
               customer: customerData,
-              paymentMethod: validated.paymentDetails?.method
+              paymentMethod: Array.isArray(validatedPaymentDetails) 
+                ? validatedPaymentDetails[0]?.method || 'other' 
+                : validatedPaymentDetails?.method || 'other'
             });
 
-            if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
-              throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
+            if (!paymentAmount || isNaN(paymentAmount)) {
+              throw new Error(`Invalid payment amount: ${paymentAmount}`);
             }
 
             // Urutan parameter yang benar
             const midtransRes = await createMidtransSnapTransaction(
               orderId,
-              Number(validated.paymentDetails.amount),
+              Number(paymentAmount),
               customerData,
-              validated.paymentDetails.method
+              Array.isArray(validatedPaymentDetails) 
+                ? validatedPaymentDetails[0]?.method || 'other' 
+                : validatedPaymentDetails?.method || 'other'
             );
 
             return {
