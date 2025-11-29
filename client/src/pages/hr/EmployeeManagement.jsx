@@ -30,39 +30,49 @@ const EmployeeManagement = () => {
     const [activeTab, setActiveTab] = useState('basic');
 
     const [formData, setFormData] = useState({
-        // Basic Information
-        user: "",
-        employeeId: "",
-        nik: "",
-        npwp: "",
-        bpjsKesehatan: "",
-        bpjsKetenagakerjaan: "",
+    // Basic Information
+    user: "",
+    employeeId: "",
+    nik: "",
+    npwp: "",
+    bpjsKesehatan: "",
+    bpjsKetenagakerjaan: "",
 
-        // Employment Information
-        position: "",
-        department: "",
-        joinDate: "",
-        employmentStatus: "probation",
-        employmentType: "fulltime",
-        basicSalary: 0,
-        supervisor: "",
+    // Employment Information
+    position: "",
+    department: "",
+    joinDate: new Date().toISOString().split('T')[0], // default today
+    employmentStatus: "probation",
+    employmentType: "fulltime",
+    basicSalary: 0,
+    supervisor: "",
 
-        // Bank Account
-        bankAccount: {
-            bankName: "",
-            accountNumber: "",
-            accountHolder: ""
-        },
+    // Bank Account
+    bankAccount: {
+        bankName: "",
+        accountNumber: "",
+        accountHolder: ""
+    },
 
-        // Allowances
-        allowances: {
-            departmental: 0,
-            childcare: 0,
-            transport: 0,
-            meal: 0,
-            health: 0,
-            other: 0
-        }
+    // Allowances
+    allowances: {
+        departmental: 0,
+        childcare: 0,
+        transport: 0,
+        meal: 0,
+        health: 0,
+        other: 0
+    },
+
+    // Deductions (tambahkan ini)
+    deductions: {
+        bpjsKesehatanEmployee: 0,
+        bpjsKesehatanEmployer: 0,
+        bpjsKetenagakerjaanEmployee: 0,
+        bpjsKetenagakerjaanEmployer: 0,
+        tax: 0,
+        other: 0
+    }
     });
 
     const [filters, setFilters] = useState({
@@ -256,26 +266,49 @@ const EmployeeManagement = () => {
             return;
         }
 
+        // Format data sesuai dengan yang diharapkan backend
         const payload = {
-            ...formData,
-            userId: formData.user, // ← Tambahkan ini
+            userId: formData.user, // kirim sebagai userId
+            employeeId: formData.employeeId,
+            nik: formData.nik,
+            npwp: formData.npwp,
+            bpjsKesehatan: formData.bpjsKesehatan,
+            bpjsKetenagakerjaan: formData.bpjsKetenagakerjaan,
+            position: formData.position,
+            department: formData.department,
+            joinDate: formData.joinDate,
+            employmentStatus: formData.employmentStatus,
+            employmentType: formData.employmentType,
+            basicSalary: Number(formData.basicSalary),
+            supervisor: formData.supervisor || null,
+            bankAccount: formData.bankAccount,
+            allowances: formData.allowances
         };
+
+        console.log('Sending payload:', payload); // Debug log
 
         try {
             if (selectedEmployee) {
-                await axios.put(`/api/hr/employees/${selectedEmployee._id}`, payload);
+            await axios.put(`/api/hr/employees/${selectedEmployee._id}`, payload);
             } else {
-                await axios.post('/api/hr/employees', payload);
+            await axios.post('/api/hr/employees', payload);
             }
             setShowModal(false);
             resetForm();
             fetchEmployees();
         } catch (err) {
             console.error("Error saving employee:", err);
+            
+            // Tampilkan error yang lebih spesifik
+            if (err.response?.data?.message) {
+            setError(err.response.data.message);
+            alert(`Error: ${err.response.data.message}`);
+            } else {
             setError("Gagal menyimpan data karyawan");
+            alert("Gagal menyimpan data karyawan. Silakan coba lagi.");
+            }
         }
-    };
-
+        };
     const handleEdit = (employee) => {
         setSelectedEmployee(employee);
         setFormData({
