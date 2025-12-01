@@ -503,8 +503,8 @@ const EmployeeManagement = () => {
                                 <td className="px-6 py-4 text-sm text-gray-900">{employee.department}</td>
                                 <td className="px-6 py-4">
                                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${employee.isActive
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-red-100 text-red-800'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-red-100 text-red-800'
                                         }`}>
                                         {employee.isActive ? 'Aktif' : 'Nonaktif'}
                                     </span>
@@ -553,8 +553,8 @@ const EmployeeManagement = () => {
                                             type="button"
                                             onClick={() => setActiveTab(tab.id)}
                                             className={`flex items-center gap-2 px-6 py-3 font-medium transition-all whitespace-nowrap ${activeTab === tab.id
-                                                    ? 'text-[#005429] border-b-2 border-[#005429]'
-                                                    : 'text-gray-600 hover:text-gray-800'
+                                                ? 'text-[#005429] border-b-2 border-[#005429]'
+                                                : 'text-gray-600 hover:text-gray-800'
                                                 }`}
                                         >
                                             <Icon className="text-lg" />
