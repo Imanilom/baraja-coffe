@@ -2399,7 +2399,7 @@ export const createUnifiedOrder = async (req, res) => {
         orderId,
         status: existingOrderCheck.status
       });
-      
+
       try {
         const result = await confirmOrderHelper(orderId);
         return res.status(200).json({
@@ -2421,7 +2421,7 @@ export const createUnifiedOrder = async (req, res) => {
     // Execute dengan atomic lock yang diperbaiki
     const result = await LockUtil.withOrderLock(orderId, async () => {
       lockAcquired = true;
-      
+
       // DOUBLE-CHECK: Cek order existence dalam lock (safety net)
       const existingOrderInLock = await Order.findOne({
         order_id: orderId,
@@ -2447,7 +2447,7 @@ export const createUnifiedOrder = async (req, res) => {
           };
         } catch (confirmError) {
           return {
-            type: 'existing_order_error', 
+            type: 'existing_order_error',
             data: {
               success: false,
               error: `Order exists but confirmation failed: ${confirmError.message}`,
@@ -2512,7 +2512,7 @@ export const createUnifiedOrder = async (req, res) => {
           dineType: item.dineType || 'Dine-In',
           appliedAt: new Date()
         }));
-        
+
         console.log('Manual custom amount items included:', {
           count: finalCustomAmountItems.length,
           totalCustomAmount: finalCustomAmountItems.reduce((sum, item) => sum + item.amount, 0),
@@ -2522,8 +2522,8 @@ export const createUnifiedOrder = async (req, res) => {
 
       // Validasi payment details untuk backward compatibility
       const validatedPaymentDetails = validateAndNormalizePaymentDetails(
-        paymentDetails, 
-        isSplitPayment, 
+        paymentDetails,
+        isSplitPayment,
         source
       );
 
@@ -2680,7 +2680,7 @@ export const createUnifiedOrder = async (req, res) => {
             });
 
             const paymentResults = [];
-            
+
             for (const [index, payment] of paymentDetails.entries()) {
               // Validasi payment amount
               if (!payment.amount || payment.amount <= 0) {
@@ -2696,7 +2696,9 @@ export const createUnifiedOrder = async (req, res) => {
                   tendered_amount: payment.tenderedAmount || payment.amount,
                   change_amount: payment.changeAmount || 0,
                   is_split_payment: true, // Tandai sebagai split payment
-                  split_payment_index: index // Kirim index payment
+                  split_payment_index: index, // Kirim index payment
+                  va_numbers: payment.vaNumbers,
+                  actions: payment.actions
                 }
               };
 
@@ -2801,28 +2803,28 @@ export const createUnifiedOrder = async (req, res) => {
               isSplitPayment: Array.isArray(validatedPaymentDetails)
             });
 
-        // Di response handling, tambahkan informasi split payment:
-          return {
-            type: 'cashier_order',
-            data: {
-              ...baseResponse,
-              status: 'Completed',
-              message: Array.isArray(validatedPaymentDetails) 
-                ? `Cashier order processed with ${validatedPaymentDetails.length} split payments` 
-                : 'Cashier order processed and paid',
-              paymentData: paymentResult.data,
-              paymentStatus: paymentResult.data.payment_status,
-              isSplitPayment: Array.isArray(validatedPaymentDetails),
-              paymentCount: Array.isArray(validatedPaymentDetails) ? validatedPaymentDetails.length : 1,
-              ...(orderResult.loyalty?.isApplied && {
-                loyalty: {
-                  pointsEarned: orderResult.loyalty.pointsEarned,
-                  pointsUsed: orderResult.loyalty.pointsUsed,
-                  discountAmount: orderResult.loyalty.discountAmount
-                }
-              })
-            }
-          };
+            // Di response handling, tambahkan informasi split payment:
+            return {
+              type: 'cashier_order',
+              data: {
+                ...baseResponse,
+                status: 'Completed',
+                message: Array.isArray(validatedPaymentDetails)
+                  ? `Cashier order processed with ${validatedPaymentDetails.length} split payments`
+                  : 'Cashier order processed and paid',
+                paymentData: paymentResult.data,
+                paymentStatus: paymentResult.data.payment_status,
+                isSplitPayment: Array.isArray(validatedPaymentDetails),
+                paymentCount: Array.isArray(validatedPaymentDetails) ? validatedPaymentDetails.length : 1,
+                ...(orderResult.loyalty?.isApplied && {
+                  loyalty: {
+                    pointsEarned: orderResult.loyalty.pointsEarned,
+                    pointsUsed: orderResult.loyalty.pointsUsed,
+                    discountAmount: orderResult.loyalty.discountAmount
+                  }
+                })
+              }
+            };
 
           } catch (paymentError) {
             console.error('Cashier payment failed:', paymentError);
@@ -2904,8 +2906,8 @@ export const createUnifiedOrder = async (req, res) => {
             const midtransRes = await createMidtransCoreTransaction(
               orderId,
               Number(paymentAmount),
-              Array.isArray(validatedPaymentDetails) 
-                ? validatedPaymentDetails[0]?.method || 'other' 
+              Array.isArray(validatedPaymentDetails)
+                ? validatedPaymentDetails[0]?.method || 'other'
                 : validatedPaymentDetails?.method || 'other'
             );
 
@@ -3001,8 +3003,8 @@ export const createUnifiedOrder = async (req, res) => {
               amount: paymentAmount,
               amountType: typeof paymentAmount,
               customer: customerData,
-              paymentMethod: Array.isArray(validatedPaymentDetails) 
-                ? validatedPaymentDetails[0]?.method || 'other' 
+              paymentMethod: Array.isArray(validatedPaymentDetails)
+                ? validatedPaymentDetails[0]?.method || 'other'
                 : validatedPaymentDetails?.method || 'other'
             });
 
@@ -3015,8 +3017,8 @@ export const createUnifiedOrder = async (req, res) => {
               orderId,
               Number(paymentAmount),
               customerData,
-              Array.isArray(validatedPaymentDetails) 
-                ? validatedPaymentDetails[0]?.method || 'other' 
+              Array.isArray(validatedPaymentDetails)
+                ? validatedPaymentDetails[0]?.method || 'other'
                 : validatedPaymentDetails?.method || 'other'
             );
 
@@ -6671,7 +6673,9 @@ export const cashierCharge = async (req, res) => {
       tendered_amount,
       change_amount,
       is_split_payment = false,
-      split_payment_index = 0
+      split_payment_index = 0,
+      va_numbers,
+      actions
     } = req.body;
 
     console.log('Cashier Charge - Processing Payment:', {
@@ -6712,7 +6716,7 @@ export const cashierCharge = async (req, res) => {
       // Update payment spesifik
       order.payments[split_payment_index].status = 'completed';
       order.payments[split_payment_index].processedAt = new Date();
-      
+
       if (order.payments[split_payment_index].paymentMethod === 'Cash') {
         order.payments[split_payment_index].paymentDetails = {
           cashTendered: tendered_amount || gross_amount,
@@ -6735,21 +6739,21 @@ export const cashierCharge = async (req, res) => {
       if (order.payments && order.payments.length > 0) {
         order.payments[0].status = 'completed';
         order.payments[0].processedAt = new Date();
-        
+
         if (order.payments[0].paymentMethod === 'Cash') {
           order.payments[0].paymentDetails = {
             cashTendered: tendered_amount || gross_amount,
             change: change_amount || 0
           };
         }
-        
+
         await order.save();
       }
     }
 
     // Reload order untuk mendapatkan data terbaru
     const updatedOrder = await Order.findOne({ order_id });
-    
+
     // Hitung total paid
     const totalPaid = updatedOrder.payments
       .filter(p => p.status === 'completed')
@@ -6774,7 +6778,9 @@ export const cashierCharge = async (req, res) => {
       transaction_time: new Date().toLocaleString('id-ID'),
       paidAt: new Date(),
       currency: "IDR",
-      merchant_id: "G055993835"
+      merchant_id: "G055993835",
+      va_numbers: va_numbers,
+      actions: actions
     };
 
     const payment = await Payment.create(paymentData);
@@ -6791,8 +6797,8 @@ export const cashierCharge = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: is_split_payment ? 
-        `Split payment ${split_payment_index + 1} processed successfully` : 
+      message: is_split_payment ?
+        `Split payment ${split_payment_index + 1} processed successfully` :
         'Payment processed successfully',
       data: {
         payment_status: paymentStatus,

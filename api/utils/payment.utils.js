@@ -37,7 +37,9 @@ export function validateAndNormalizePaymentDetails(paymentDetails, isSplitPaymen
         changeAmount: payment.changeAmount || 0,
         transactionId: payment.transactionId || null,
         notes: payment.notes || `Payment ${index + 1}`,
-        index: index
+        index: index,
+        vaNumbers: payment.vaNumbers || [],
+        actions: payment.actions || []
       };
     });
 
@@ -68,7 +70,9 @@ export function validateAndNormalizePaymentDetails(paymentDetails, isSplitPaymen
       changeAmount: paymentDetails.changeAmount || 0,
       transactionId: paymentDetails.transactionId || null,
       notes: paymentDetails.notes || 'Single payment',
-      index: 0
+      index: 0,
+      vaNumbers: payment.vaNumbers || [],
+      actions: payment.actions || []
     };
 
     return [singlePayment];
@@ -82,11 +86,11 @@ export function validateAndNormalizePaymentDetails(paymentDetails, isSplitPaymen
  */
 export function calculateTotalPaymentAmount(paymentDetails) {
   if (!paymentDetails) return 0;
-  
+
   if (Array.isArray(paymentDetails)) {
     return paymentDetails.reduce((total, payment) => total + (payment.amount || 0), 0);
   }
-  
+
   return paymentDetails.amount || 0;
 }
 
@@ -95,7 +99,7 @@ export function calculateTotalPaymentAmount(paymentDetails) {
  */
 export function isPaymentCompleted(paymentDetails, grandTotal) {
   if (!paymentDetails) return false;
-  
+
   const totalPaid = calculateTotalPaymentAmount(paymentDetails);
   return totalPaid >= grandTotal;
 }
@@ -122,7 +126,7 @@ export function validatePaymentAgainstOrder(paymentDetails, orderTotal, customAm
 
   // Toleransi untuk rounding errors
   const tolerance = 1000;
-  
+
   if (Math.abs(totalPayment - effectiveOrderTotal) > tolerance) {
     return {
       isValid: false,
