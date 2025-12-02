@@ -848,7 +848,8 @@ export const bulkUpdateKitchenItems = async (req, res) => {
 };
 
 // ! End Kitchen sections
-// ! Start Bar sections - UPDATED WITH DEVICE INFO
+
+// ! Start Bar sections
 
 export const getBarOrder = async (req, res) => {
   try {
@@ -861,7 +862,7 @@ export const getBarOrder = async (req, res) => {
       });
     }
 
-    // ✅ Ambil data order terbaru dengan populate device_id
+    // ✅ Ambil data order terbaru
     const orders = await Order.find({
       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
     })
@@ -875,12 +876,8 @@ export const getBarOrder = async (req, res) => {
           { path: 'area_id', select: 'area_name' },
           { path: 'table_id', select: 'table_number' },
         ],
+        // 🔥 TAMBAHKAN INI - Skip populate jika reservation null
         options: { strictPopulate: false }
-      })
-      // 🔥 TAMBAHAN: Populate device info
-      .populate({
-        path: 'device_id',
-        select: 'deviceId deviceName deviceType location assignedAreas assignedTables orderTypes isOnline'
       })
       .sort({ createdAt: -1 })
       .lean();
@@ -895,33 +892,27 @@ export const getBarOrder = async (req, res) => {
             (item.menuItem?.category &&
               ['minuman', 'beverage', 'drink'].includes(item.menuItem.category.toLowerCase()))
         ),
-        // 🎯 Tambahan: Info untuk display di bar dengan device info
+        // 🎯 Tambahan: Info untuk display di bar
         displayInfo: {
           orderType: order.orderType || order.order_type || 'dine-in',
           location: order.reservation
             ? `${order.reservation.area_id?.area_name || '-'} - Table ${order.reservation.table_id?.table_number || '-'}`
             : (order.orderType || 'TAKEAWAY').toUpperCase(),
-          customerName: order.customer_name || order.user || 'Guest',
-          // 🔥 NEW: Device information
-          deviceInfo: order.device_id ? {
-            deviceId: order.device_id.deviceId,
-            deviceName: order.device_id.deviceName,
-            deviceType: order.device_id.deviceType,
-            location: order.device_id.location,
-            isOnline: order.device_id.isOnline
-          } : null
+          customerName: order.customer_name || order.user || 'Guest'
         }
       }))
-      .filter((order) => order.items.length > 0);
+      .filter((order) => order.items.length > 0); // hanya order yang punya beverage items
 
     // 🔥 Filter berdasarkan area meja untuk bar depan/belakang
     const filteredOrders = beverageOrders.filter((order) => {
+      // 🎯 HANDLE TAKEAWAY/PICKUP/DELIVERY - tampilkan di semua bar
       const orderType = (order.orderType || order.order_type || '').toLowerCase();
       if (['takeaway', 'pickup', 'delivery', 'take away'].includes(orderType)) {
         console.log(`📦 ${orderType.toUpperCase()} order ${order.order_id} - showing in all bars`);
-        return true;
+        return true; // Tampilkan di semua bar
       }
 
+      // 🎯 HANDLE DINE-IN & RESERVATION - filter berdasarkan table
       if (!order.tableNumber && !order.reservation) {
         console.log(`⚠️ Order ${order.order_id} has no table info - skipping`);
         return false;
@@ -929,6 +920,7 @@ export const getBarOrder = async (req, res) => {
 
       let tableNumber = '';
 
+      // Ambil table number dari reservation atau langsung dari order
       if (order.reservation && order.reservation.table_id) {
         const tableData = order.reservation.table_id;
         tableNumber = tableData.table_number || tableData;
@@ -938,12 +930,15 @@ export const getBarOrder = async (req, res) => {
         return false;
       }
 
+      // Convert ke string dan ambil karakter pertama
       const tableStr = tableNumber.toString().toUpperCase();
       const firstChar = tableStr.charAt(0);
 
       if (barType === 'depan') {
+        // Bar depan: meja A-I
         return firstChar >= 'A' && firstChar <= 'I';
       } else if (barType === 'belakang') {
+        // Bar belakang: meja J-Z
         return firstChar >= 'J' && firstChar <= 'Z';
       }
 
@@ -982,27 +977,28 @@ export const getAllBeverageOrders = async (req, res) => {
           { path: 'area_id', select: 'area_name' },
           { path: 'table_id', select: 'table_number' },
         ],
+        // 🔥 TAMBAHKAN INI - Skip populate jika reservation null
         options: { strictPopulate: false }
-      })
-      // 🔥 TAMBAHAN: Populate device info
-      .populate({
-        path: 'device_id',
-        select: 'deviceId deviceName deviceType location assignedAreas assignedTables orderTypes isOnline'
       })
       .sort({ createdAt: -1 })
       .lean();
 
+    // Filter hanya item beverage/bar - VERSI AMAN
     const beverageOrders = orders
       .map((order) => ({
         ...order,
         items: order.items.filter((item) => {
           const menuItem = item.menuItem;
+
+          // Skip jika menuItem null/undefined
           if (!menuItem) return false;
 
+          // Cek workstation
           if (menuItem.workstation === 'bar' || menuItem.workstation === 'beverage') {
             return true;
           }
 
+          // Cek category dengan safe check
           if (menuItem.category) {
             const categoryStr = String(menuItem.category).toLowerCase();
             return ['minuman', 'beverage', 'drink'].includes(categoryStr);
@@ -1010,21 +1006,13 @@ export const getAllBeverageOrders = async (req, res) => {
 
           return false;
         }),
-        // 🎯 Tambahan: Info untuk display dengan device info
+        // 🎯 Tambahan: Info untuk display
         displayInfo: {
           orderType: order.orderType || order.order_type || 'dine-in',
           location: order.reservation
             ? `${order.reservation.area_id?.area_name || '-'} - Table ${order.reservation.table_id?.table_number || '-'}`
             : (order.orderType || 'TAKEAWAY').toUpperCase(),
-          customerName: order.customer_name || order.user || 'Guest',
-          // 🔥 NEW: Device information
-          deviceInfo: order.device_id ? {
-            deviceId: order.device_id.deviceId,
-            deviceName: order.device_id.deviceName,
-            deviceType: order.device_id.deviceType,
-            location: order.device_id.location,
-            isOnline: order.device_id.isOnline
-          } : null
+          customerName: order.customer_name || order.user || 'Guest'
         }
       }))
       .filter((order) => order.items.length > 0);
@@ -1047,7 +1035,7 @@ export const getAllBeverageOrders = async (req, res) => {
   }
 };
 
-// ✅ Update bar order status - WITH DEVICE INFO
+// ✅ Update bar order status
 export const updateBarOrderStatus = async (req, res) => {
   const { orderId } = req.params;
   const { status, bartenderId, bartenderName, completedItems } = req.body;
@@ -1064,12 +1052,7 @@ export const updateBarOrderStatus = async (req, res) => {
   try {
     const order = await Order.findOne({ order_id: orderId })
       .populate('items.menuItem')
-      .populate('reservation')
-      // 🔥 TAMBAHAN: Populate device info
-      .populate({
-        path: 'device_id',
-        select: 'deviceId deviceName deviceType location isOnline'
-      });
+      .populate('reservation');
 
     if (!order) {
       return res.status(404).json({
@@ -1079,9 +1062,11 @@ export const updateBarOrderStatus = async (req, res) => {
     }
 
     // 🚫 CEK: Jika status ingin diubah ke Completed dan ada reservasi aktif
+    // ⚠️ Hanya cek jika order punya reservation (dine-in)
     if (status === 'Completed' && order.reservation) {
       const reservation = order.reservation;
 
+      // Cek apakah reservasi masih aktif
       if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
         return res.status(400).json({
           success: false,
@@ -1089,6 +1074,7 @@ export const updateBarOrderStatus = async (req, res) => {
         });
       }
 
+      // Atau cek berdasarkan waktu reservasi
       const now = new Date();
       const reservationEnd = new Date(reservation.reservation_end || reservation.end_time);
       if (reservationEnd > now) {
@@ -1099,29 +1085,28 @@ export const updateBarOrderStatus = async (req, res) => {
       }
     }
 
+    // Update status order
     order.status = status;
     await order.save();
 
-    // 🔥 EMIT SOCKET EVENTS WITH DEVICE INFO
+    // 🔥 EMIT SOCKET EVENTS
     const updateData = {
       order_id: orderId,
       orderStatus: status,
-      orderType: order.orderType || order.order_type || 'dine-in',
+      orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
       bartender: { id: bartenderId, name: bartenderName },
       completedItems: completedItems || [],
       hasActiveReservation: !!order.reservation,
-      // 🔥 NEW: Device information in socket event
-      deviceInfo: order.device_id ? {
-        deviceId: order.device_id.deviceId,
-        deviceName: order.device_id.deviceName,
-        location: order.device_id.location
-      } : null,
       timestamp: new Date()
     };
 
+    // Emit ke room customer
     io.to(`order_${orderId}`).emit('order_status_update', updateData);
+
+    // Emit ke cashier
     io.to('cashier_room').emit('beverage_order_updated', updateData);
 
+    // Emit ke bar room sesuai type
     const tableNumber = order.tableNumber?.toString() ||
       order.reservation?.table_id?.table_number || '';
 
@@ -1130,6 +1115,7 @@ export const updateBarOrderStatus = async (req, res) => {
       const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
       io.to(barRoom).emit('beverage_order_updated', updateData);
     } else {
+      // Jika tidak ada table number (takeaway/pickup/delivery), emit ke semua bar
       io.to('bar_depan').emit('beverage_order_updated', updateData);
       io.to('bar_belakang').emit('beverage_order_updated', updateData);
     }
@@ -1138,16 +1124,7 @@ export const updateBarOrderStatus = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        ...order.toObject(),
-        deviceInfo: order.device_id ? {
-          deviceId: order.device_id.deviceId,
-          deviceName: order.device_id.deviceName,
-          deviceType: order.device_id.deviceType,
-          location: order.device_id.location,
-          isOnline: order.device_id.isOnline
-        } : null
-      },
+      data: order,
       message: status === 'Completed' && order.reservation
         ? 'Order completed but reservation is still active'
         : `Order status updated to ${status}`
@@ -1161,7 +1138,7 @@ export const updateBarOrderStatus = async (req, res) => {
   }
 };
 
-// ✅ Start preparing beverage order - WITH DEVICE INFO
+// ✅ Start preparing beverage order
 export const startBeverageOrder = async (req, res) => {
   const { orderId } = req.params;
   const { bartenderName } = req.body;
@@ -1177,12 +1154,7 @@ export const startBeverageOrder = async (req, res) => {
 
   try {
     const order = await Order.findOne({ order_id: orderId })
-      .populate('reservation')
-      // 🔥 TAMBAHAN: Populate device info
-      .populate({
-        path: 'device_id',
-        select: 'deviceId deviceName deviceType location isOnline'
-      });
+      .populate('reservation');
 
     if (!order) {
       return res.status(404).json({
@@ -1191,27 +1163,27 @@ export const startBeverageOrder = async (req, res) => {
       });
     }
 
+    // Update status ke OnProcess
     order.status = 'OnProcess';
     await order.save();
 
+    // 🔥 EMIT SOCKET EVENTS
     const startData = {
       order_id: orderId,
       orderStatus: 'OnProcess',
-      orderType: order.orderType || order.order_type || 'dine-in',
+      orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
       bartenderName: bartenderName,
-      // 🔥 NEW: Device information
-      deviceInfo: order.device_id ? {
-        deviceId: order.device_id.deviceId,
-        deviceName: order.device_id.deviceName,
-        location: order.device_id.location
-      } : null,
       message: 'Beverage order started preparation',
       timestamp: new Date()
     };
 
+    // Emit ke customer
     io.to(`order_${orderId}`).emit('beverage_preparation_started', startData);
+
+    // Emit ke cashier
     io.to('cashier_room').emit('beverage_preparation_started', startData);
 
+    // Emit ke bar room
     const tableNumber = order.tableNumber?.toString() ||
       order.reservation?.table_id?.table_number || '';
 
@@ -1220,6 +1192,7 @@ export const startBeverageOrder = async (req, res) => {
       const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
       io.to(barRoom).emit('beverage_preparation_started', startData);
     } else {
+      // Emit ke semua bar untuk non-table orders
       io.to('bar_depan').emit('beverage_preparation_started', startData);
       io.to('bar_belakang').emit('beverage_preparation_started', startData);
     }
@@ -1228,16 +1201,7 @@ export const startBeverageOrder = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        ...order.toObject(),
-        deviceInfo: order.device_id ? {
-          deviceId: order.device_id.deviceId,
-          deviceName: order.device_id.deviceName,
-          deviceType: order.device_id.deviceType,
-          location: order.device_id.location,
-          isOnline: order.device_id.isOnline
-        } : null
-      },
+      data: order,
       message: 'Beverage preparation started'
     });
   } catch (error) {
@@ -1249,7 +1213,7 @@ export const startBeverageOrder = async (req, res) => {
   }
 };
 
-// ✅ Complete beverage order - WITH DEVICE INFO
+// ✅ Complete beverage order (mark as ready)
 export const completeBeverageOrder = async (req, res) => {
   const { orderId } = req.params;
   const { bartenderName, completedItems } = req.body;
@@ -1265,12 +1229,7 @@ export const completeBeverageOrder = async (req, res) => {
 
   try {
     const order = await Order.findOne({ order_id: orderId })
-      .populate('reservation')
-      // 🔥 TAMBAHAN: Populate device info
-      .populate({
-        path: 'device_id',
-        select: 'deviceId deviceName deviceType location isOnline'
-      });
+      .populate('reservation');
 
     if (!order) {
       return res.status(404).json({
@@ -1279,28 +1238,28 @@ export const completeBeverageOrder = async (req, res) => {
       });
     }
 
+    // Update status ke Ready
     order.status = 'Ready';
     await order.save();
 
+    // 🔥 EMIT SOCKET EVENTS
     const completeData = {
       order_id: orderId,
       orderStatus: 'Ready',
-      orderType: order.orderType || order.order_type || 'dine-in',
+      orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
       bartenderName: bartenderName,
       completedItems: completedItems || [],
-      // 🔥 NEW: Device information
-      deviceInfo: order.device_id ? {
-        deviceId: order.device_id.deviceId,
-        deviceName: order.device_id.deviceName,
-        location: order.device_id.location
-      } : null,
       message: 'Beverage order is ready to serve',
       timestamp: new Date()
     };
 
+    // Emit ke customer
     io.to(`order_${orderId}`).emit('beverage_ready', completeData);
+
+    // Emit ke cashier
     io.to('cashier_room').emit('beverage_ready', completeData);
 
+    // Emit ke bar room
     const tableNumber = order.tableNumber?.toString() ||
       order.reservation?.table_id?.table_number || '';
 
@@ -1309,26 +1268,19 @@ export const completeBeverageOrder = async (req, res) => {
       const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
       io.to(barRoom).emit('beverage_ready', completeData);
     } else {
+      // Emit ke semua bar untuk non-table orders
       io.to('bar_depan').emit('beverage_ready', completeData);
       io.to('bar_belakang').emit('beverage_ready', completeData);
     }
 
+    // Juga emit ke waitstaff/runner room
     io.to('waitstaff_room').emit('beverage_ready_for_serve', completeData);
 
     console.log(`✅ Beverage order ${orderId} completed by ${bartenderName}`);
 
     res.status(200).json({
       success: true,
-      data: {
-        ...order.toObject(),
-        deviceInfo: order.device_id ? {
-          deviceId: order.device_id.deviceId,
-          deviceName: order.device_id.deviceName,
-          deviceType: order.device_id.deviceType,
-          location: order.device_id.location,
-          isOnline: order.device_id.isOnline
-        } : null
-      },
+      data: order,
       message: 'Beverage order marked as ready'
     });
   } catch (error) {
@@ -1340,7 +1292,7 @@ export const completeBeverageOrder = async (req, res) => {
   }
 };
 
-// ✅ Update individual beverage item status - WITH DEVICE INFO
+// ✅ Update individual beverage item status
 export const updateBeverageItemStatus = async (req, res) => {
   const { orderId, itemId } = req.params;
   const { status, bartenderName } = req.body;
@@ -1357,12 +1309,7 @@ export const updateBeverageItemStatus = async (req, res) => {
   try {
     const order = await Order.findOne({ order_id: orderId })
       .populate('items.menuItem')
-      .populate('reservation')
-      // 🔥 TAMBAHAN: Populate device info
-      .populate({
-        path: 'device_id',
-        select: 'deviceId deviceName deviceType location isOnline'
-      });
+      .populate('reservation');
 
     if (!order) {
       return res.status(404).json({
@@ -1371,6 +1318,7 @@ export const updateBeverageItemStatus = async (req, res) => {
       });
     }
 
+    // Find and update the specific item
     const item = order.items.id(itemId);
     if (!item) {
       return res.status(404).json({
@@ -1379,29 +1327,26 @@ export const updateBeverageItemStatus = async (req, res) => {
       });
     }
 
-    item.kitchenStatus = status;
+    // Update item status
+    item.kitchenStatus = status; // Gunakan kitchenStatus sesuai schema
     if (status === 'served') {
       item.isPrinted = true;
       item.printedAt = new Date();
     }
     await order.save();
 
+    // 🔥 EMIT SOCKET EVENTS
     const itemUpdateData = {
       order_id: orderId,
       item_id: itemId,
       item_name: item.menuItem?.name || item.name,
       status: status,
-      orderType: order.orderType || order.order_type || 'dine-in',
+      orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
       bartenderName: bartenderName,
-      // 🔥 NEW: Device information
-      deviceInfo: order.device_id ? {
-        deviceId: order.device_id.deviceId,
-        deviceName: order.device_id.deviceName,
-        location: order.device_id.location
-      } : null,
       timestamp: new Date()
     };
 
+    // Emit ke bar room untuk update real-time
     const tableNumber = order.tableNumber?.toString() ||
       order.reservation?.table_id?.table_number || '';
 
@@ -1410,6 +1355,7 @@ export const updateBeverageItemStatus = async (req, res) => {
       const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
       io.to(barRoom).emit('beverage_item_status_updated', itemUpdateData);
     } else {
+      // Emit ke semua bar untuk non-table orders
       io.to('bar_depan').emit('beverage_item_status_updated', itemUpdateData);
       io.to('bar_belakang').emit('beverage_item_status_updated', itemUpdateData);
     }
@@ -1418,19 +1364,7 @@ export const updateBeverageItemStatus = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        order: {
-          ...order.toObject(),
-          deviceInfo: order.device_id ? {
-            deviceId: order.device_id.deviceId,
-            deviceName: order.device_id.deviceName,
-            deviceType: order.device_id.deviceType,
-            location: order.device_id.location,
-            isOnline: order.device_id.isOnline
-          } : null
-        },
-        updatedItem: item
-      },
+      data: { order, updatedItem: item },
       message: `Item status updated to ${status}`
     });
   } catch (error) {
@@ -1443,532 +1377,3 @@ export const updateBeverageItemStatus = async (req, res) => {
 };
 
 // ! End Bar sections
-
-// // ! Start Bar sections
-
-// export const getBarOrder = async (req, res) => {
-//   try {
-//     const { barType } = req.params; // 'depan' atau 'belakang'
-
-//     if (!barType || !['depan', 'belakang'].includes(barType)) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Bar type harus "depan" atau "belakang"'
-//       });
-//     }
-
-//     // ✅ Ambil data order terbaru
-//     const orders = await Order.find({
-//       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
-//     })
-//       .populate({
-//         path: 'items.menuItem',
-//         select: 'name workstation category',
-//       })
-//       .populate({
-//         path: 'reservation',
-//         populate: [
-//           { path: 'area_id', select: 'area_name' },
-//           { path: 'table_id', select: 'table_number' },
-//         ],
-//         // 🔥 TAMBAHKAN INI - Skip populate jika reservation null
-//         options: { strictPopulate: false }
-//       })
-//       .sort({ createdAt: -1 })
-//       .lean();
-
-//     // 🔥 Filter: hanya ambil item dengan workstation bar/beverage
-//     const beverageOrders = orders
-//       .map((order) => ({
-//         ...order,
-//         items: order.items.filter(
-//           (item) => item.menuItem?.workstation === 'bar' ||
-//             item.menuItem?.workstation === 'beverage' ||
-//             (item.menuItem?.category &&
-//               ['minuman', 'beverage', 'drink'].includes(item.menuItem.category.toLowerCase()))
-//         ),
-//         // 🎯 Tambahan: Info untuk display di bar
-//         displayInfo: {
-//           orderType: order.orderType || order.order_type || 'dine-in',
-//           location: order.reservation
-//             ? `${order.reservation.area_id?.area_name || '-'} - Table ${order.reservation.table_id?.table_number || '-'}`
-//             : (order.orderType || 'TAKEAWAY').toUpperCase(),
-//           customerName: order.customer_name || order.user || 'Guest'
-//         }
-//       }))
-//       .filter((order) => order.items.length > 0); // hanya order yang punya beverage items
-
-//     // 🔥 Filter berdasarkan area meja untuk bar depan/belakang
-//     const filteredOrders = beverageOrders.filter((order) => {
-//       // 🎯 HANDLE TAKEAWAY/PICKUP/DELIVERY - tampilkan di semua bar
-//       const orderType = (order.orderType || order.order_type || '').toLowerCase();
-//       if (['takeaway', 'pickup', 'delivery', 'take away'].includes(orderType)) {
-//         console.log(`📦 ${orderType.toUpperCase()} order ${order.order_id} - showing in all bars`);
-//         return true; // Tampilkan di semua bar
-//       }
-
-//       // 🎯 HANDLE DINE-IN & RESERVATION - filter berdasarkan table
-//       if (!order.tableNumber && !order.reservation) {
-//         console.log(`⚠️ Order ${order.order_id} has no table info - skipping`);
-//         return false;
-//       }
-
-//       let tableNumber = '';
-
-//       // Ambil table number dari reservation atau langsung dari order
-//       if (order.reservation && order.reservation.table_id) {
-//         const tableData = order.reservation.table_id;
-//         tableNumber = tableData.table_number || tableData;
-//       } else if (order.tableNumber) {
-//         tableNumber = order.tableNumber;
-//       } else {
-//         return false;
-//       }
-
-//       // Convert ke string dan ambil karakter pertama
-//       const tableStr = tableNumber.toString().toUpperCase();
-//       const firstChar = tableStr.charAt(0);
-
-//       if (barType === 'depan') {
-//         // Bar depan: meja A-I
-//         return firstChar >= 'A' && firstChar <= 'I';
-//       } else if (barType === 'belakang') {
-//         // Bar belakang: meja J-Z
-//         return firstChar >= 'J' && firstChar <= 'Z';
-//       }
-
-//       return false;
-//     });
-
-//     console.log(`✅ Bar ${barType} orders: ${filteredOrders.length} orders found`);
-
-//     res.status(200).json({
-//       success: true,
-//       data: filteredOrders,
-//       barType: barType,
-//       total: filteredOrders.length
-//     });
-//   } catch (error) {
-//     console.error(`❌ Error fetching ${barType} bar orders:`, error);
-//     res.status(500).json({
-//       success: false,
-//       message: `Failed to fetch ${barType} bar orders`,
-//     });
-//   }
-// };
-
-// export const getAllBeverageOrders = async (req, res) => {
-//   try {
-//     const orders = await Order.find({
-//       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
-//     })
-//       .populate({
-//         path: 'items.menuItem',
-//         select: 'name workstation category',
-//       })
-//       .populate({
-//         path: 'reservation',
-//         populate: [
-//           { path: 'area_id', select: 'area_name' },
-//           { path: 'table_id', select: 'table_number' },
-//         ],
-//         // 🔥 TAMBAHKAN INI - Skip populate jika reservation null
-//         options: { strictPopulate: false }
-//       })
-//       .sort({ createdAt: -1 })
-//       .lean();
-
-//     // Filter hanya item beverage/bar - VERSI AMAN
-//     const beverageOrders = orders
-//       .map((order) => ({
-//         ...order,
-//         items: order.items.filter((item) => {
-//           const menuItem = item.menuItem;
-
-//           // Skip jika menuItem null/undefined
-//           if (!menuItem) return false;
-
-//           // Cek workstation
-//           if (menuItem.workstation === 'bar' || menuItem.workstation === 'beverage') {
-//             return true;
-//           }
-
-//           // Cek category dengan safe check
-//           if (menuItem.category) {
-//             const categoryStr = String(menuItem.category).toLowerCase();
-//             return ['minuman', 'beverage', 'drink'].includes(categoryStr);
-//           }
-
-//           return false;
-//         }),
-//         // 🎯 Tambahan: Info untuk display
-//         displayInfo: {
-//           orderType: order.orderType || order.order_type || 'dine-in',
-//           location: order.reservation
-//             ? `${order.reservation.area_id?.area_name || '-'} - Table ${order.reservation.table_id?.table_number || '-'}`
-//             : (order.orderType || 'TAKEAWAY').toUpperCase(),
-//           customerName: order.customer_name || order.user || 'Guest'
-//         }
-//       }))
-//       .filter((order) => order.items.length > 0);
-
-//     console.log(`✅ All beverage orders: ${beverageOrders.length} orders found`);
-
-//     res.status(200).json({
-//       success: true,
-//       data: beverageOrders,
-//       total: beverageOrders.length
-//     });
-
-//   } catch (error) {
-//     console.error('❌ Error fetching beverage orders:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch beverage orders',
-//       error: error.message
-//     });
-//   }
-// };
-
-// // ✅ Update bar order status
-// export const updateBarOrderStatus = async (req, res) => {
-//   const { orderId } = req.params;
-//   const { status, bartenderId, bartenderName, completedItems } = req.body;
-
-//   console.log('Updating bar order status for orderId:', orderId, 'to status:', status);
-
-//   if (!orderId || !status) {
-//     return res.status(400).json({
-//       success: false,
-//       message: 'orderId and status are required'
-//     });
-//   }
-
-//   try {
-//     const order = await Order.findOne({ order_id: orderId })
-//       .populate('items.menuItem')
-//       .populate('reservation');
-
-//     if (!order) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Order not found'
-//       });
-//     }
-
-//     // 🚫 CEK: Jika status ingin diubah ke Completed dan ada reservasi aktif
-//     // ⚠️ Hanya cek jika order punya reservation (dine-in)
-//     if (status === 'Completed' && order.reservation) {
-//       const reservation = order.reservation;
-
-//       // Cek apakah reservasi masih aktif
-//       if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
-//         return res.status(400).json({
-//           success: false,
-//           message: 'Cannot complete order with active reservation. Reservation might have additional orders.'
-//         });
-//       }
-
-//       // Atau cek berdasarkan waktu reservasi
-//       const now = new Date();
-//       const reservationEnd = new Date(reservation.reservation_end || reservation.end_time);
-//       if (reservationEnd > now) {
-//         return res.status(400).json({
-//           success: false,
-//           message: 'Cannot complete order while reservation is still active.'
-//         });
-//       }
-//     }
-
-//     // Update status order
-//     order.status = status;
-//     await order.save();
-
-//     // 🔥 EMIT SOCKET EVENTS
-//     const updateData = {
-//       order_id: orderId,
-//       orderStatus: status,
-//       orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
-//       bartender: { id: bartenderId, name: bartenderName },
-//       completedItems: completedItems || [],
-//       hasActiveReservation: !!order.reservation,
-//       timestamp: new Date()
-//     };
-
-//     // Emit ke room customer
-//     io.to(`order_${orderId}`).emit('order_status_update', updateData);
-
-//     // Emit ke cashier
-//     io.to('cashier_room').emit('beverage_order_updated', updateData);
-
-//     // Emit ke bar room sesuai type
-//     const tableNumber = order.tableNumber?.toString() ||
-//       order.reservation?.table_id?.table_number || '';
-
-//     if (tableNumber) {
-//       const firstChar = tableNumber.charAt(0).toUpperCase();
-//       const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-//       io.to(barRoom).emit('beverage_order_updated', updateData);
-//     } else {
-//       // Jika tidak ada table number (takeaway/pickup/delivery), emit ke semua bar
-//       io.to('bar_depan').emit('beverage_order_updated', updateData);
-//       io.to('bar_belakang').emit('beverage_order_updated', updateData);
-//     }
-
-//     console.log(`✅ Bar order ${orderId} updated to ${status} by ${bartenderName}`);
-
-//     res.status(200).json({
-//       success: true,
-//       data: order,
-//       message: status === 'Completed' && order.reservation
-//         ? 'Order completed but reservation is still active'
-//         : `Order status updated to ${status}`
-//     });
-//   } catch (error) {
-//     console.error('❌ Error updating bar order status:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to update bar order status'
-//     });
-//   }
-// };
-
-// // ✅ Start preparing beverage order
-// export const startBeverageOrder = async (req, res) => {
-//   const { orderId } = req.params;
-//   const { bartenderName } = req.body;
-
-//   console.log('Starting beverage preparation for orderId:', orderId, 'by:', bartenderName);
-
-//   if (!orderId || !bartenderName) {
-//     return res.status(400).json({
-//       success: false,
-//       message: 'orderId and bartenderName are required'
-//     });
-//   }
-
-//   try {
-//     const order = await Order.findOne({ order_id: orderId })
-//       .populate('reservation');
-
-//     if (!order) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Order not found'
-//       });
-//     }
-
-//     // Update status ke OnProcess
-//     order.status = 'OnProcess';
-//     await order.save();
-
-//     // 🔥 EMIT SOCKET EVENTS
-//     const startData = {
-//       order_id: orderId,
-//       orderStatus: 'OnProcess',
-//       orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
-//       bartenderName: bartenderName,
-//       message: 'Beverage order started preparation',
-//       timestamp: new Date()
-//     };
-
-//     // Emit ke customer
-//     io.to(`order_${orderId}`).emit('beverage_preparation_started', startData);
-
-//     // Emit ke cashier
-//     io.to('cashier_room').emit('beverage_preparation_started', startData);
-
-//     // Emit ke bar room
-//     const tableNumber = order.tableNumber?.toString() ||
-//       order.reservation?.table_id?.table_number || '';
-
-//     if (tableNumber) {
-//       const firstChar = tableNumber.charAt(0).toUpperCase();
-//       const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-//       io.to(barRoom).emit('beverage_preparation_started', startData);
-//     } else {
-//       // Emit ke semua bar untuk non-table orders
-//       io.to('bar_depan').emit('beverage_preparation_started', startData);
-//       io.to('bar_belakang').emit('beverage_preparation_started', startData);
-//     }
-
-//     console.log(`✅ Beverage order ${orderId} started preparation by ${bartenderName}`);
-
-//     res.status(200).json({
-//       success: true,
-//       data: order,
-//       message: 'Beverage preparation started'
-//     });
-//   } catch (error) {
-//     console.error('❌ Error starting beverage order:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to start beverage order'
-//     });
-//   }
-// };
-
-// // ✅ Complete beverage order (mark as ready)
-// export const completeBeverageOrder = async (req, res) => {
-//   const { orderId } = req.params;
-//   const { bartenderName, completedItems } = req.body;
-
-//   console.log('Completing beverage order for orderId:', orderId, 'by:', bartenderName);
-
-//   if (!orderId || !bartenderName) {
-//     return res.status(400).json({
-//       success: false,
-//       message: 'orderId and bartenderName are required'
-//     });
-//   }
-
-//   try {
-//     const order = await Order.findOne({ order_id: orderId })
-//       .populate('reservation');
-
-//     if (!order) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Order not found'
-//       });
-//     }
-
-//     // Update status ke Ready
-//     order.status = 'Ready';
-//     await order.save();
-
-//     // 🔥 EMIT SOCKET EVENTS
-//     const completeData = {
-//       order_id: orderId,
-//       orderStatus: 'Ready',
-//       orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
-//       bartenderName: bartenderName,
-//       completedItems: completedItems || [],
-//       message: 'Beverage order is ready to serve',
-//       timestamp: new Date()
-//     };
-
-//     // Emit ke customer
-//     io.to(`order_${orderId}`).emit('beverage_ready', completeData);
-
-//     // Emit ke cashier
-//     io.to('cashier_room').emit('beverage_ready', completeData);
-
-//     // Emit ke bar room
-//     const tableNumber = order.tableNumber?.toString() ||
-//       order.reservation?.table_id?.table_number || '';
-
-//     if (tableNumber) {
-//       const firstChar = tableNumber.charAt(0).toUpperCase();
-//       const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-//       io.to(barRoom).emit('beverage_ready', completeData);
-//     } else {
-//       // Emit ke semua bar untuk non-table orders
-//       io.to('bar_depan').emit('beverage_ready', completeData);
-//       io.to('bar_belakang').emit('beverage_ready', completeData);
-//     }
-
-//     // Juga emit ke waitstaff/runner room
-//     io.to('waitstaff_room').emit('beverage_ready_for_serve', completeData);
-
-//     console.log(`✅ Beverage order ${orderId} completed by ${bartenderName}`);
-
-//     res.status(200).json({
-//       success: true,
-//       data: order,
-//       message: 'Beverage order marked as ready'
-//     });
-//   } catch (error) {
-//     console.error('❌ Error completing beverage order:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to complete beverage order'
-//     });
-//   }
-// };
-
-// // ✅ Update individual beverage item status
-// export const updateBeverageItemStatus = async (req, res) => {
-//   const { orderId, itemId } = req.params;
-//   const { status, bartenderName } = req.body;
-
-//   console.log('Updating beverage item status for orderId:', orderId, 'itemId:', itemId, 'to:', status);
-
-//   if (!orderId || !itemId || !status) {
-//     return res.status(400).json({
-//       success: false,
-//       message: 'orderId, itemId and status are required'
-//     });
-//   }
-
-//   try {
-//     const order = await Order.findOne({ order_id: orderId })
-//       .populate('items.menuItem')
-//       .populate('reservation');
-
-//     if (!order) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Order not found'
-//       });
-//     }
-
-//     // Find and update the specific item
-//     const item = order.items.id(itemId);
-//     if (!item) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Item not found in order'
-//       });
-//     }
-
-//     // Update item status
-//     item.kitchenStatus = status; // Gunakan kitchenStatus sesuai schema
-//     if (status === 'served') {
-//       item.isPrinted = true;
-//       item.printedAt = new Date();
-//     }
-//     await order.save();
-
-//     // 🔥 EMIT SOCKET EVENTS
-//     const itemUpdateData = {
-//       order_id: orderId,
-//       item_id: itemId,
-//       item_name: item.menuItem?.name || item.name,
-//       status: status,
-//       orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
-//       bartenderName: bartenderName,
-//       timestamp: new Date()
-//     };
-
-//     // Emit ke bar room untuk update real-time
-//     const tableNumber = order.tableNumber?.toString() ||
-//       order.reservation?.table_id?.table_number || '';
-
-//     if (tableNumber) {
-//       const firstChar = tableNumber.charAt(0).toUpperCase();
-//       const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-//       io.to(barRoom).emit('beverage_item_status_updated', itemUpdateData);
-//     } else {
-//       // Emit ke semua bar untuk non-table orders
-//       io.to('bar_depan').emit('beverage_item_status_updated', itemUpdateData);
-//       io.to('bar_belakang').emit('beverage_item_status_updated', itemUpdateData);
-//     }
-
-//     console.log(`✅ Beverage item ${itemId} in order ${orderId} updated to ${status}`);
-
-//     res.status(200).json({
-//       success: true,
-//       data: { order, updatedItem: item },
-//       message: `Item status updated to ${status}`
-//     });
-//   } catch (error) {
-//     console.error('❌ Error updating beverage item status:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to update beverage item status'
-//     });
-//   }
-// };
-
-// // ! End Bar sections
