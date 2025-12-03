@@ -12,6 +12,14 @@ import {
 } from '../controllers/cashierReport.controller.js'
 
 import {
+  getCustomerReports,
+  getCustomerDetailReport,
+  getCustomerInsightsOverview,
+  getCashierPerformanceReport,
+  exportCustomerReport
+} from '../controllers/customer.controller.js';
+
+import {
   generateSalesReport,
   getPaymentMethodDetailReport,
   getAvailablePaymentMethods,
@@ -31,6 +39,11 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 
 router.get('/sales', salesReport); // Get all Sales
 
+router.get('/customers', getCustomerReports);
+router.get('/customers/:customerId', getCustomerDetailReport);
+router.get('/customers/insights/overview', getCustomerInsightsOverview);
+router.get('/cashiers/performance', getCashierPerformanceReport);
+router.get('/customers/export', exportCustomerReport);
 
 //cashier report
 router.get('/sales/summary', getSalesSummary);
