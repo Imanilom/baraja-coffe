@@ -26,29 +26,46 @@ const CategoryIndex = () => {
   const [limit] = useState(250);
   const [offset, setOffset] = useState(0);
 
+  // ✅ FIX: Sesuaikan dengan backend response baru
   const fetchData = async (type) => {
     setLoading(true);
     try {
-      const categoryResponse = await axios.get('/api/storage/categories');
-      const categoryData = categoryResponse.data;
-      setCategories(categoryData.mainCategories);
-      setFilteredCategories(categoryData.mainCategories);
+      // Backend response: { success: true, data: categories }
+      const categoryResponse = await axios.get('/api/menu/categories');
 
-      const menuResponse = await axios.get('/api/menu/menu-items');
-      setMenuItems(menuResponse.data.data);
+      // ✅ Ambil data langsung dari response.data.data (array categories)
+      const categoriesData = categoryResponse.data.data || [];
+
+      setCategories(categoriesData);
+      setFilteredCategories(categoriesData);
+
+      // Fetch menu items
+      const menuResponse = await axios.get('/api/menu/all-menu-items-backoffice');
+      setMenuItems(menuResponse.data.data || []);
+
     } catch (err) {
       setError('Failed to fetch categories');
       setMenuItems([]);
       setCategories([]);
+      setFilteredCategories([]); // ✅ PENTING: Set ini juga!
       console.error('Error fetching categories:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ FIX: Tambahkan pengecekan untuk menuItems
   useEffect(() => {
     const counts = {};
+
+    if (!Array.isArray(menuItems)) {
+      setCategoryCounts({});
+      return;
+    }
+
     menuItems.forEach((menu) => {
+      if (!menu) return; // Skip jika menu null/undefined
+
       if (Array.isArray(menu.category)) {
         menu.category.forEach((cat) => {
           const name = typeof cat === 'string' ? cat : cat?.name;
@@ -57,7 +74,7 @@ const CategoryIndex = () => {
             counts[key] = (counts[key] || 0) + 1;
           }
         });
-      } else {
+      } else if (menu.category) {
         const name =
           typeof menu.category === 'string'
             ? menu.category
@@ -88,16 +105,29 @@ const CategoryIndex = () => {
   };
 
   useEffect(() => {
+    if (!Array.isArray(categories)) {
+      setFilteredCategories([]);
+      return;
+    }
+
     const filtered = categories.filter((category) =>
-      (category.name || '').toLowerCase().includes(tempSearch.toLowerCase())
+      (category?.name || '').toLowerCase().includes(tempSearch.toLowerCase())
     );
-    setFilteredCategories(filtered);
+
+    // ✅ Urutkan berdasarkan abjad (A-Z)
+    const sorted = filtered.sort((a, b) => {
+      const nameA = (a?.name || '').toLowerCase();
+      const nameB = (b?.name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    setFilteredCategories(sorted);
     setCurrentPage(1);
   }, [tempSearch, categories]);
 
   const handleConfirmDelete = async () => {
     try {
-      await axios.delete(`/api/storage/categories/${selectedCategoryId}`);
+      await axios.delete(`/api/menu/categories/${selectedCategoryId}`);
       setCategories((prev) => prev.filter((c) => c._id !== selectedCategoryId));
       setFilteredCategories((prev) => prev.filter((c) => c._id !== selectedCategoryId));
     } catch (err) {
@@ -110,13 +140,19 @@ const CategoryIndex = () => {
     }
   };
 
+  // ✅ FIX: Tambahkan guard untuk undefined
   const paginatedData = useMemo(() => {
+    if (!filteredCategories || !Array.isArray(filteredCategories)) {
+      return [];
+    }
+
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return filteredCategories?.slice(startIndex, endIndex) || [];
+    return filteredCategories.slice(startIndex, endIndex);
   }, [filteredCategories, currentPage]);
 
-  const totalPages = Math.ceil(filteredCategories.length / ITEMS_PER_PAGE);
+  // ✅ FIX: Guard untuk totalPages
+  const totalPages = Math.ceil((filteredCategories?.length || 0) / ITEMS_PER_PAGE);
 
   if (loading) {
     return (
@@ -198,7 +234,7 @@ const CategoryIndex = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-green-100 mb-1">Total Kategori</p>
-              <h2 className="text-4xl font-bold">{filteredCategories.length}</h2>
+              <h2 className="text-4xl font-bold">{filteredCategories?.length || 0}</h2>
             </div>
             <div className="bg-white bg-opacity-20 rounded-full p-4">
               <FaLayerGroup size={32} />
@@ -252,11 +288,14 @@ const CategoryIndex = () => {
               <tbody className="divide-y divide-gray-200">
                 {paginatedData.length > 0 ? (
                   paginatedData.map((category) => {
+                    // ✅ Guard untuk category undefined
+                    if (!category || !category.name) return null;
+
                     const key = category.name.toLowerCase().trim();
                     const count = categoryCounts[key] || 0;
 
                     return (
-                      <tr key={category._id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={category._id || Math.random()} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {formatDateTime(category.createdAt)}
                         </td>
@@ -265,7 +304,7 @@ const CategoryIndex = () => {
                             <div className="flex-shrink-0 h-10 w-10 bg-[#005429] bg-opacity-10 rounded-lg flex items-center justify-center">
                               <FaTag className="text-[#005429]" size={16} />
                             </div>
-                            <span className="ml-3 text-sm font-medium text-gray-900">{category.name}</span>
+                            <span className="ml-3 text-sm font-medium text-gray-900">{category._id} - {category.name}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">

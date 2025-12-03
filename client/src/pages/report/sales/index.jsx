@@ -156,7 +156,7 @@ const SalesMenu = () => {
                         </div>
                     </Link>
 
-                    <Link
+                    {/* <Link
                         to="/admin/event-sales"
                         className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
@@ -164,7 +164,7 @@ const SalesMenu = () => {
                             <FaTicketAlt className='' size={24} />
                             <h2 className="font-semibold">Event</h2>
                         </div>
-                    </Link>
+                    </Link> */}
                 </div>
             </div>
         </div>
