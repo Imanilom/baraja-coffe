@@ -20,6 +20,16 @@ import {
 } from '../controllers/customer.controller.js';
 
 import {
+  getProfitLossReport,
+  getDiscountUsageReport,
+  getCommissionLossReport,
+  getDailyProfitLossReport,
+  getWeeklyProfitLossReport,
+  getMonthlyProfitLossReport,
+  exportProfitLossReport
+} from '../controllers/profitLossController.js';
+
+import {
   generateSalesReport,
   getPaymentMethodDetailReport,
   getAvailablePaymentMethods,
@@ -44,6 +54,24 @@ router.get('/customers/:customerId', getCustomerDetailReport);
 router.get('/customers/insights/overview', getCustomerInsightsOverview);
 router.get('/cashiers/performance', getCashierPerformanceReport);
 router.get('/customers/export', exportCustomerReport);
+
+
+// Main profit loss report with various groupings
+router.get('/main/profit-loss', getProfitLossReport);
+
+// Discount usage analysis
+router.get('/main/discount-usage', getDiscountUsageReport);
+
+// Commission loss due to discounts
+router.get('/main/commission-loss', getCommissionLossReport);
+
+// Pre-configured period reports
+router.get('/main/profit-loss/daily', getDailyProfitLossReport);
+router.get('/main/profit-loss/weekly', getWeeklyProfitLossReport);
+router.get('/main/profit-loss/monthly', getMonthlyProfitLossReport);
+
+// Export functionality
+router.get('/main/profit-loss/export', exportProfitLossReport);
 
 //cashier report
 router.get('/sales/summary', getSalesSummary);
