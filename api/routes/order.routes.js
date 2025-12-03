@@ -109,7 +109,7 @@ router.put('/orders/kitchen/items/bulk-update', bulkUpdateKitchenItems);
 router.put('/orders/beverage/:orderId/status', updateBeverageItemStatus);
 router.get('/orders/beverage', getAllBeverageOrders);
 router.put('/orders/bar/:orderId/status', updateBarOrderStatus);
-router.get('/orders/bar', getBarOrder);
+router.get('/orders/bar/:barType', getBarOrder);
 router.put('/orders/beverage/:orderId/complete', completeBeverageOrder);
 router.post('/orders/beverage/:orderId/start', startBeverageOrder);
 router.get('/orders/workstation/print-stats', getPrintStats);

@@ -7,7 +7,13 @@ const EmployeeSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
+  },
+
+
   // Data spesifik karyawan
   employeeId: {
     type: String,
