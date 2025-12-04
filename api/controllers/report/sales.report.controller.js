@@ -12,28 +12,27 @@ class DailyProfitController {
    */
   async getDailyProfit(req, res) {
     try {
-      const { date, outletId, includeDeleted = 'true' } = req.query;
+      const { startDate, endDate, outletId, includeDeleted = 'true' } = req.query;
 
-      if (!date) {
+      if (!startDate || !endDate) {
         return res.status(400).json({
           success: false,
-          message: 'Date parameter is required (format: YYYY-MM-DD)'
+          message: 'startDate and endDate parameter is required (format: YYYY-MM-DD)'
         });
       }
 
       // Parse date and create date range for WIB timezone
-      const targetDate = new Date(date);
-      const startDate = new Date(targetDate);
-      startDate.setHours(0, 0, 0, 0);
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
 
-      const endDate = new Date(targetDate);
-      endDate.setHours(23, 59, 59, 999);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
 
       // Build query filter
       const filter = {
         createdAtWIB: {
-          $gte: startDate,
-          $lte: endDate
+          $gte: start,
+          $lte: end
         },
         status: { $in: ['Completed', 'OnProcess'] }
       };
@@ -150,7 +149,8 @@ class DailyProfitController {
       });
 
       const result = {
-        date: date,
+        startDate: startDate,
+        endDate: endDate,
         outlet: outletId || 'All Outlets',
         summary: {
           totalRevenue,
