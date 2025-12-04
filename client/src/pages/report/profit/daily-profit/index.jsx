@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaFileExcel, FaSync } from "react-icons/fa";
+import { FaChevronRight, FaFileExcel } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
@@ -41,7 +41,7 @@ const DailyProfitManagement = () => {
         }),
     };
 
-    const [profitData, setProfitData] = useState(null);
+    const [reportData, setReportData] = useState(null);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -101,8 +101,8 @@ const DailyProfitManagement = () => {
         fetchOutlets();
     }, []);
 
-    // Fetch profit data
-    const fetchProfitData = async (startDate, endDate, outletId = "") => {
+    // Fetch report data
+    const fetchReportData = async (startDate, endDate, outletId = "") => {
         setLoading(true);
         try {
             const params = {
@@ -114,18 +114,18 @@ const DailyProfitManagement = () => {
                 params.outletId = outletId;
             }
 
-            const response = await axios.get('/api/report/daily-profit/range', { params });
+            const response = await axios.get('/api/report/daily-profit', { params });
 
             if (response.data.success) {
-                setProfitData(response.data.data);
+                setReportData(response.data.data);
                 setError(null);
             } else {
-                throw new Error(response.data.message || 'Failed to fetch profit data');
+                throw new Error(response.data.message || 'Failed to fetch report data');
             }
         } catch (err) {
-            console.error("Error fetching profit data:", err);
-            setError("Gagal memuat data profit. Silakan coba lagi.");
-            setProfitData([]);
+            console.error("Error fetching report data:", err);
+            setError("Gagal memuat data laporan. Silakan coba lagi.");
+            setReportData(null);
         } finally {
             setLoading(false);
         }
@@ -134,7 +134,7 @@ const DailyProfitManagement = () => {
     // Fetch data when filters change
     useEffect(() => {
         if (dateRange.startDate && dateRange.endDate) {
-            fetchProfitData(dateRange.startDate, dateRange.endDate, selectedOutlet);
+            fetchReportData(dateRange.startDate, dateRange.endDate, selectedOutlet);
         }
     }, [dateRange, selectedOutlet]);
 
@@ -151,49 +151,112 @@ const DailyProfitManagement = () => {
         setSelectedOutlet(selected.value);
     };
 
-    // Refresh data
-    const handleRefresh = () => {
-        if (dateRange.startDate && dateRange.endDate) {
-            fetchProfitData(dateRange.startDate, dateRange.endDate, selectedOutlet);
+    // Calculate daily data from orders
+    const calculateDailyData = () => {
+        if (!reportData || !reportData.orders || reportData.orders.length === 0) {
+            return [];
         }
+
+        const dailyMap = new Map();
+
+        reportData.orders.forEach(order => {
+            const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+
+            if (!dailyMap.has(orderDate)) {
+                dailyMap.set(orderDate, {
+                    date: orderDate,
+                    totalRevenue: 0,
+                    totalTax: 0,
+                    totalDiscount: 0,
+                    totalRounding: 0,
+                    totalPurchase: 0,
+                    totalNetProfit: 0
+                });
+            }
+
+            const dayData = dailyMap.get(orderDate);
+            dayData.totalRevenue += order.revenue || 0;
+            dayData.totalTax += order.tax || 0;
+            dayData.totalDiscount += order.discounts || 0;
+            dayData.totalNetProfit += order.netProfit || 0;
+        });
+
+        return Array.from(dailyMap.values()).sort((a, b) =>
+            new Date(a.date) - new Date(b.date)
+        );
     };
 
-    // Export to Excel
+    const dailyData = calculateDailyData();
+
+    // Calculate totals
+    const calculateTotals = () => {
+        if (dailyData.length === 0) {
+            return {
+                totalRevenue: 0,
+                totalTax: 0,
+                totalDiscount: 0,
+                totalRounding: 0,
+                totalPurchase: 0,
+                totalNetProfit: 0,
+                profitMargin: 0
+            };
+        }
+
+        const totals = dailyData.reduce((acc, day) => ({
+            totalRevenue: acc.totalRevenue + day.totalRevenue,
+            totalTax: acc.totalTax + day.totalTax,
+            totalDiscount: acc.totalDiscount + day.totalDiscount,
+            totalRounding: acc.totalRounding + day.totalRounding,
+            totalPurchase: acc.totalPurchase + day.totalPurchase,
+            totalNetProfit: acc.totalNetProfit + day.totalNetProfit
+        }), {
+            totalRevenue: 0,
+            totalTax: 0,
+            totalDiscount: 0,
+            totalRounding: 0,
+            totalPurchase: 0,
+            totalNetProfit: 0
+        });
+
+        totals.profitMargin = totals.totalRevenue > 0
+            ? (totals.totalNetProfit / totals.totalRevenue) * 100
+            : 0;
+
+        return totals;
+    };
+
+    const totals = calculateTotals();
+
     // Export to Excel
     const exportToExcel = async () => {
         setExportLoading(true);
         try {
-            if (!profitData || profitData.length === 0) {
+            if (!dailyData || dailyData.length === 0) {
                 alert('Tidak ada data untuk diekspor');
                 return;
             }
 
-            // Get outlet name
             const outletName = selectedOutlet ?
                 outlets.find(o => o._id === selectedOutlet)?.name : 'Semua Outlet';
 
-            // Format date for display
             const formatDateForExcel = (dateStr) => {
                 const date = new Date(dateStr);
                 const pad = (n) => n.toString().padStart(2, "0");
                 return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
             };
 
-            // Create workbook
             const wb = XLSX.utils.book_new();
 
-            // Create header data
             const headerData = [
                 ['Laporan Laba Harian'],
                 [],
                 ['Outlet', outletName],
                 ['Tanggal', `${formatDateForExcel(dateRange.startDate)} s/d ${formatDateForExcel(dateRange.endDate)}`],
                 [],
-                ['Tanggal', 'Penjualan Kotor', 'Diskon', 'Pembulatan', 'Pembelian', 'Laba Kotor', '% Laba Kotor']
+                ['Tanggal', 'Penjualan Kotor', 'Pajak', 'Diskon', 'Pembulatan', 'Pembelian', 'Laba Kotor', '% Laba Kotor']
             ];
 
-            // Prepare data rows
-            const dataRows = profitData.map(item => {
+            const dataRows = dailyData.map(item => {
                 const profitMargin = item.totalRevenue > 0
                     ? ((item.totalNetProfit / item.totalRevenue) * 100)
                     : 0;
@@ -201,43 +264,40 @@ const DailyProfitManagement = () => {
                 return [
                     formatDateForExcel(item.date),
                     item.totalRevenue,
-                    0, // Diskon (sesuaikan jika ada field diskon)
-                    0, // Pembulatan (sesuaikan jika ada field pembulatan)
-                    0, // Pembelian (sesuaikan jika ada field pembelian)
+                    item.totalTax,
+                    item.totalDiscount,
+                    item.totalRounding,
+                    item.totalPurchase,
                     item.totalNetProfit,
-                    profitMargin / 100 // Untuk format persentase
+                    profitMargin / 100
                 ];
             });
 
-            // Add Grand Total row
             const grandTotal = [
                 'Grand Total',
                 totals.totalRevenue,
-                0,
-                0,
-                0,
+                totals.totalTax,
+                totals.totalDiscount,
+                totals.totalRounding,
+                totals.totalPurchase,
                 totals.totalNetProfit,
                 totals.totalRevenue > 0 ? (totals.totalNetProfit / totals.totalRevenue) : 0
             ];
 
-            // Combine all data
             const allData = [...headerData, ...dataRows, grandTotal];
-
-            // Create worksheet
             const ws = XLSX.utils.aoa_to_sheet(allData);
 
-            // Set column widths
             ws['!cols'] = [
-                { wch: 15 }, // Tanggal
-                { wch: 18 }, // Penjualan Kotor
-                { wch: 12 }, // Diskon
-                { wch: 12 }, // Pembulatan
-                { wch: 12 }, // Pembelian
-                { wch: 18 }, // Laba Kotor
-                { wch: 15 }  // % Laba Kotor
+                { wch: 15 },
+                { wch: 18 },
+                { wch: 12 },
+                { wch: 12 },
+                { wch: 12 },
+                { wch: 12 },
+                { wch: 18 },
+                { wch: 15 }
             ];
 
-            // Styling
             const range = XLSX.utils.decode_range(ws['!ref']);
 
             for (let R = range.s.r; R <= range.e.r; ++R) {
@@ -245,7 +305,6 @@ const DailyProfitManagement = () => {
                     const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
                     if (!ws[cellAddress]) continue;
 
-                    // Header title (row 0)
                     if (R === 0) {
                         ws[cellAddress].s = {
                             font: { bold: true, sz: 14 },
@@ -253,7 +312,6 @@ const DailyProfitManagement = () => {
                         };
                     }
 
-                    // Outlet and Tanggal info (rows 2-3)
                     if ((R === 2 || R === 3) && C === 0) {
                         ws[cellAddress].s = {
                             font: { bold: true },
@@ -261,7 +319,6 @@ const DailyProfitManagement = () => {
                         };
                     }
 
-                    // Column headers (row 5)
                     if (R === 5) {
                         ws[cellAddress].s = {
                             font: { bold: true },
@@ -276,17 +333,14 @@ const DailyProfitManagement = () => {
                         };
                     }
 
-                    // Data rows (from row 6 to before grand total)
                     if (R > 5 && R < range.e.r) {
-                        // Format currency columns (B, C, D, E, F)
-                        if (C >= 1 && C <= 5) {
+                        if (C >= 1 && C <= 6) {
                             ws[cellAddress].t = 'n';
                             ws[cellAddress].z = '#,##0';
                         }
-                        // Format percentage column (G)
-                        if (C === 6) {
+                        if (C === 7) {
                             ws[cellAddress].t = 'n';
-                            ws[cellAddress].z = '0%';
+                            ws[cellAddress].z = '0.0%';
                         }
 
                         ws[cellAddress].s = {
@@ -303,7 +357,6 @@ const DailyProfitManagement = () => {
                         };
                     }
 
-                    // Grand Total row (last row)
                     if (R === range.e.r) {
                         ws[cellAddress].s = {
                             font: { bold: true },
@@ -320,34 +373,28 @@ const DailyProfitManagement = () => {
                             }
                         };
 
-                        // Format currency for grand total
-                        if (C >= 1 && C <= 5) {
+                        if (C >= 1 && C <= 6) {
                             ws[cellAddress].t = 'n';
                             ws[cellAddress].z = '#,##0';
                         }
-                        // Format percentage for grand total
-                        if (C === 6) {
+                        if (C === 7) {
                             ws[cellAddress].t = 'n';
-                            ws[cellAddress].z = '0%';
+                            ws[cellAddress].z = '0.0%';
                         }
                     }
                 }
             }
 
-            // Merge cells for title
             ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } } // Merge title across all columns
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }
             ];
 
-            // Add worksheet to workbook
             XLSX.utils.book_append_sheet(wb, ws, "Laba Harian");
 
-            // Generate filename
             const startDateStr = formatDateForExcel(dateRange.startDate);
             const endDateStr = formatDateForExcel(dateRange.endDate);
             const filename = `Laporan_Laba_Harian_${outletName.replace(/\s+/g, '_')}_${startDateStr}_to_${endDateStr}.xlsx`;
 
-            // Write file
             XLSX.writeFile(wb, filename);
         } catch (err) {
             console.error("Error exporting to Excel:", err);
@@ -357,34 +404,7 @@ const DailyProfitManagement = () => {
         }
     };
 
-    // Calculate totals for display
-    const calculateTotals = () => {
-        if (!profitData || profitData.length === 0) {
-            return {
-                totalRevenue: 0,
-                totalNetProfit: 0,
-                totalOrders: 0,
-                totalItemsSold: 0,
-                averageOrderValue: 0
-            };
-        }
-
-        return {
-            totalRevenue: profitData.reduce((sum, item) => sum + item.totalRevenue, 0),
-            totalNetProfit: profitData.reduce((sum, item) => sum + item.totalNetProfit, 0),
-            totalOrders: profitData.reduce((sum, item) => sum + item.totalOrders, 0),
-            totalItemsSold: profitData.reduce((sum, item) => sum + item.totalItemsSold, 0),
-            averageOrderValue: Math.round(
-                profitData.reduce((sum, item) => sum + item.totalNetProfit, 0) /
-                profitData.reduce((sum, item) => sum + item.totalOrders, 0)
-            ) || 0
-        };
-    };
-
-    const totals = calculateTotals();
-
-    // Show loading state
-    if (loading && !profitData) {
+    if (loading && !reportData) {
         return (
             <div className="flex justify-center items-center h-screen">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
@@ -404,17 +424,9 @@ const DailyProfitManagement = () => {
                     <span>Laba Harian</span>
                 </div>
                 <div className="flex gap-2">
-                    {/* <button
-                        onClick={handleRefresh}
-                        disabled={loading}
-                        className="flex items-center gap-2 bg-gray-100 text-gray-700 text-[13px] px-[15px] py-[7px] rounded hover:bg-gray-200 disabled:opacity-50"
-                    >
-                        <FaSync className={loading ? "animate-spin" : ""} />
-                        Refresh
-                    </button> */}
                     <button
                         onClick={exportToExcel}
-                        disabled={exportLoading || !profitData || profitData.length === 0}
+                        disabled={exportLoading || !dailyData || dailyData.length === 0}
                         className="flex items-center gap-2 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50"
                     >
                         <FaFileExcel />
@@ -459,30 +471,30 @@ const DailyProfitManagement = () => {
                 </div>
 
                 {/* Summary Cards */}
-                {profitData && profitData.length > 0 && (
+                {dailyData && dailyData.length > 0 && (
                     <div className="grid grid-cols-4 gap-4 mb-6">
                         <div className="bg-white p-4 rounded-lg shadow border">
-                            <div className="text-sm text-gray-500">Total Penjualan</div>
+                            <div className="text-sm text-gray-500">Total Penjualan Kotor</div>
                             <div className="text-xl font-semibold text-green-900">
                                 {formatCurrency(totals.totalRevenue)}
                             </div>
                         </div>
                         <div className="bg-white p-4 rounded-lg shadow border">
-                            <div className="text-sm text-gray-500">Laba Bersih</div>
+                            <div className="text-sm text-gray-500">Total Pajak</div>
+                            <div className="text-xl font-semibold text-blue-900">
+                                {formatCurrency(totals.totalTax)}
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow border">
+                            <div className="text-sm text-gray-500">Total Laba Kotor</div>
                             <div className="text-xl font-semibold text-green-900">
                                 {formatCurrency(totals.totalNetProfit)}
                             </div>
                         </div>
                         <div className="bg-white p-4 rounded-lg shadow border">
-                            <div className="text-sm text-gray-500">Total Pesanan</div>
+                            <div className="text-sm text-gray-500">Margin Laba</div>
                             <div className="text-xl font-semibold text-green-900">
-                                {totals.totalOrders} Pesanan
-                            </div>
-                        </div>
-                        <div className="bg-white p-4 rounded-lg shadow border">
-                            <div className="text-sm text-gray-500">Rata-rata Pesanan</div>
-                            <div className="text-xl font-semibold text-green-900">
-                                {formatCurrency(totals.averageOrderValue)}
+                                {formatPercentage(totals.profitMargin)}
                             </div>
                         </div>
                     </div>
@@ -496,71 +508,93 @@ const DailyProfitManagement = () => {
                 )}
 
                 {/* Table */}
-                <div className="rounded shadow-md bg-white shadow-slate-200">
+                <div className="rounded shadow-md bg-white shadow-slate-200 overflow-x-auto">
                     <table className="min-w-full table-auto">
                         <thead className="text-[14px] text-gray-400 bg-gray-50">
                             <tr>
                                 <th className="px-4 py-4 text-left font-normal">Tanggal</th>
                                 <th className="px-4 py-4 text-right font-normal">Penjualan Kotor</th>
-                                <th className="px-4 py-4 text-right font-normal">Laba Bersih</th>
-                                <th className="px-4 py-4 text-right font-normal">Total Pesanan</th>
-                                <th className="px-4 py-4 text-right font-normal">Item Terjual</th>
-                                <th className="px-4 py-4 text-right font-normal">Rata-rata Pesanan</th>
+                                <th className="px-4 py-4 text-right font-normal">Pajak</th>
+                                <th className="px-4 py-4 text-right font-normal">Diskon</th>
+                                <th className="px-4 py-4 text-right font-normal">Pembulatan</th>
+                                <th className="px-4 py-4 text-right font-normal">Pembelian</th>
+                                <th className="px-4 py-4 text-right font-normal">Laba Kotor</th>
+                                <th className="px-4 py-4 text-right font-normal">% Laba Kotor</th>
                             </tr>
                         </thead>
-                        {profitData && profitData.length > 0 ? (
+                        {dailyData && dailyData.length > 0 ? (
                             <tbody>
-                                {profitData.map((item, index) => (
-                                    <tr key={index} className="hover:bg-gray-50 text-gray-500 border-b">
-                                        <td className="p-4 font-medium">{formatDate(item.date)}</td>
-                                        <td className="p-4 text-right">{formatCurrency(item.totalRevenue)}</td>
-                                        <td className="p-4 text-right">
-                                            <span className={`font-semibold ${item.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                                                }`}>
-                                                {formatCurrency(item.totalNetProfit)}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-right">{item.totalOrders}</td>
-                                        <td className="p-4 text-right">{item.totalItemsSold}</td>
-                                        <td className="p-4 text-right">
-                                            {formatCurrency(Math.round(item.totalNetProfit / item.totalOrders) || 0)}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {dailyData.map((item, index) => {
+                                    const profitMargin = item.totalRevenue > 0
+                                        ? (item.totalNetProfit / item.totalRevenue) * 100
+                                        : 0;
+
+                                    return (
+                                        <tr key={index} className="hover:bg-gray-50 text-gray-500 border-b">
+                                            <td className="p-4 font-medium">{formatDate(item.date)}</td>
+                                            <td className="p-4 text-right">{formatCurrency(item.totalRevenue)}</td>
+                                            <td className="p-4 text-right">{formatCurrency(item.totalTax)}</td>
+                                            <td className="p-4 text-right">{formatCurrency(item.totalDiscount)}</td>
+                                            <td className="p-4 text-right">{formatCurrency(item.totalRounding)}</td>
+                                            <td className="p-4 text-right">{formatCurrency(item.totalPurchase)}</td>
+                                            <td className="p-4 text-right">
+                                                <span className={`font-semibold ${item.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {formatCurrency(item.totalNetProfit)}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <span className={`font-semibold ${profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {formatPercentage(profitMargin)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         ) : (
                             <tbody>
                                 <tr>
-                                    <td colSpan={6} className="py-8 text-center text-gray-500">
+                                    <td colSpan={8} className="py-8 text-center text-gray-500">
                                         {loading ? (
                                             <div className="flex justify-center">
                                                 <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-[#005429]"></div>
                                             </div>
                                         ) : (
-                                            "Tidak ada data profit untuk rentang tanggal yang dipilih"
+                                            "Tidak ada data untuk rentang tanggal yang dipilih"
                                         )}
                                     </td>
                                 </tr>
                             </tbody>
                         )}
                         {/* Footer dengan grand total */}
-                        {profitData && profitData.length > 0 && (
+                        {dailyData && dailyData.length > 0 && (
                             <tfoot className="bg-gray-50 border-t font-semibold text-sm">
                                 <tr>
                                     <td className="p-4 text-gray-700">GRAND TOTAL</td>
                                     <td className="p-4 text-right text-gray-700">
                                         {formatCurrency(totals.totalRevenue)}
                                     </td>
+                                    <td className="p-4 text-right text-gray-700">
+                                        {formatCurrency(totals.totalTax)}
+                                    </td>
+                                    <td className="p-4 text-right text-gray-700">
+                                        {formatCurrency(totals.totalDiscount)}
+                                    </td>
+                                    <td className="p-4 text-right text-gray-700">
+                                        {formatCurrency(totals.totalRounding)}
+                                    </td>
+                                    <td className="p-4 text-right text-gray-700">
+                                        {formatCurrency(totals.totalPurchase)}
+                                    </td>
                                     <td className="p-4 text-right">
-                                        <span className={`${totals.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                                            }`}>
+                                        <span className={`${totals.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                             {formatCurrency(totals.totalNetProfit)}
                                         </span>
                                     </td>
-                                    <td className="p-4 text-right text-gray-700">{totals.totalOrders}</td>
-                                    <td className="p-4 text-right text-gray-700">{totals.totalItemsSold}</td>
-                                    <td className="p-4 text-right text-gray-700">
-                                        {formatCurrency(totals.averageOrderValue)}
+                                    <td className="p-4 text-right">
+                                        <span className={`${totals.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {formatPercentage(totals.profitMargin)}
+                                        </span>
                                     </td>
                                 </tr>
                             </tfoot>
@@ -569,10 +603,11 @@ const DailyProfitManagement = () => {
                 </div>
 
                 {/* Info */}
-                {profitData && profitData.length > 0 && (
+                {dailyData && dailyData.length > 0 && (
                     <div className="mt-4 text-xs text-gray-500">
                         <p>• Data hanya menampilkan pesanan dengan status Completed/OnProcess dan pembayaran settlement</p>
-                        <p>• Laba bersih sudah dikurangi diskon dan penyesuaian lainnya</p>
+                        <p>• Laba kotor sudah dikurangi diskon dan penyesuaian lainnya</p>
+                        <p>• Pajak dihitung dari total transaksi sebelum dikurangi diskon</p>
                         <p>• Waktu menggunakan zona waktu WIB (Asia/Jakarta)</p>
                     </div>
                 )}
