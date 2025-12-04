@@ -5,6 +5,7 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:kasirbaraja/utils/payment_details_utils.dart';
 
 class OrderListWidget extends ConsumerWidget {
   final List<OrderDetailModel> orders;
@@ -95,7 +96,12 @@ class OrderListWidget extends ConsumerWidget {
                             child: ListTile(
                               title: Text(
                                 order.payments
-                                        .map((p) => p.method)
+                                        .map(
+                                          (p) =>
+                                              PaymentDetails.buildPaymentMethodLabel(
+                                                p,
+                                              ),
+                                        )
                                         .join(', ') ??
                                     'No Payment Method',
                                 style: const TextStyle(

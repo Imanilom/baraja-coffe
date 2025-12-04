@@ -4,14 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/helper/offline_order_id_generator.dart';
-
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
+import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
+import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 // Provider tipe pembayaran yang sudah kamu punya
@@ -20,6 +21,7 @@ import 'package:kasirbaraja/providers/payment_provider.dart'
 
 // 🔹 Helper saran cash
 import 'package:kasirbaraja/helper/payment_helper.dart';
+import 'package:kasirbaraja/utils/payment_details_utils.dart';
 
 /// Mode pembayaran:
 /// - single: tanpa split, 1x bayar langsung lunas
@@ -499,10 +501,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         ref.invalidate(orderHistoryProvider);
         final savedPrinter = ref.read(savedPrintersProvider.notifier);
         savedPrinter.printToPrinter(
-          orderDetail: widget.order,
+          orderDetail: ref.read(orderDetailProvider) ?? widget.order,
           printType: 'all',
         );
+        try {
+          final menuRepo = MenuItemRepository();
 
+          // Kurangi stok di Hive sesuai qty yang dibeli
+          await menuRepo.decreaseLocalStockFromOrderItems(widget.order.items);
+
+          // Refresh data menu di kasir supaya badge stok langsung update
+          ref.invalidate(reservationMenuItemProvider);
+
+          debugPrint('✅ Stok lokal berhasil dikurangi setelah transaksi');
+        } catch (e) {
+          debugPrint('⚠️ Gagal mengurangi stok lokal: $e');
+        }
         if (mounted) {
           context.goNamed(
             'payment-success',
@@ -655,16 +669,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           return Row(
             children: [
               // ========= PANEL KIRI: DETAIL TAGIHAN + RIWAYAT PAYMENT =========
-              Expanded(
-                flex: 2,
-                child: Column(
-                  children: [
-                    _buildSummaryCard(),
-                    const SizedBox(height: 8),
-                    Expanded(child: _buildExistingPaymentsList()),
-                  ],
-                ),
-              ),
+              Expanded(flex: 2, child: _buildSummaryCard()),
 
               // ========= PANEL KANAN: AREA PEMBAYARAN =========
               Expanded(
@@ -756,46 +761,182 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Widget _buildSummaryCard() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(12),
-      decoration: _boxWhite(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Detail Tagihan',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[800],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _buildSummaryItem(
-                  label: 'Total',
-                  value: formatRupiah(_grandTotal),
-                  highlight: true,
-                ),
-              ),
-              Expanded(
-                child: _buildSummaryItem(
-                  label: 'Sudah Bayar',
-                  value: formatRupiah(_totalPaid),
-                ),
-              ),
-              Expanded(
-                child: _buildSummaryItem(
-                  label: 'Sisa',
-                  value: formatRupiah(_remaining),
-                  highlight: _remaining > 0,
-                ),
-              ),
-            ],
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green[600]!, Colors.green[800]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
+      child: Stack(
+        children: [
+          // Decorative circles
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -30,
+            bottom: -30,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.05),
+              ),
+            ),
+          ),
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Detail Tagihan',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildModernSummaryItem(
+                        icon: Icons.account_balance_wallet,
+                        label: 'Total Tagihan',
+                        value: formatRupiah(_grandTotal),
+                        iconColor: Colors.green[700]!,
+                        isHighlight: true,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: Colors.grey[200],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _buildModernSummaryItem(
+                        icon: Icons.check_circle,
+                        label: 'Sudah Bayar',
+                        value: formatRupiah(_totalPaid),
+                        iconColor: Colors.green[600]!,
+                        compact: true,
+                      ),
+                      SizedBox(height: 4),
+                      _buildModernSummaryItem(
+                        icon: Icons.pending,
+                        label: 'Sisa Tagihan',
+                        value: formatRupiah(_remaining),
+                        iconColor:
+                            _remaining > 0
+                                ? Colors.orange[600]!
+                                : Colors.grey[400]!,
+                        compact: true,
+                        isHighlight: _remaining > 0,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(child: _buildExistingPaymentsList()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernSummaryItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color iconColor,
+    bool isHighlight = false,
+    bool compact = false,
+  }) {
+    return Column(
+      crossAxisAlignment:
+          compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment:
+              compact ? MainAxisAlignment.center : MainAxisAlignment.start,
+          children: [
+            Icon(icon, size: compact ? 16 : 18, color: iconColor),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: compact ? 11 : 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: compact ? 6 : 8),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: compact ? 15 : 20,
+            fontWeight: FontWeight.w700,
+            color: isHighlight ? iconColor : Colors.grey[800],
+            letterSpacing: 0.3,
+          ),
+          textAlign: compact ? TextAlign.center : TextAlign.left,
+        ),
+      ],
     );
   }
 
@@ -823,8 +964,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   Widget _buildExistingPaymentsList() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: _boxWhite(),
       child:
           _payments.isEmpty
@@ -859,7 +999,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '-$p',
+                              PaymentDetails.buildPaymentMethodLabel(p),
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,

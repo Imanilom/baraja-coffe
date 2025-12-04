@@ -10,6 +10,7 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
+import 'package:kasirbaraja/utils/payment_details_utils.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
@@ -1374,42 +1375,12 @@ class PrinterService {
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: 'Metode',
+              text: PaymentDetails.buildPaymentMethodLabel(payment),
               width: 6,
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
               //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
-              text: payment.method ?? "-",
-              width: 6,
-              styles: const PosStyles(align: PosAlign.right),
-            ),
-          ]),
-        );
-
-        bytes.addAll(
-          generator.row([
-            PosColumn(
-              text: 'Tagihan',
-              width: 6,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-            PosColumn(
-              text: formatPrice(payment.amount).toString(),
-              width: 6,
-              styles: const PosStyles(align: PosAlign.right),
-            ),
-          ]),
-        );
-
-        bytes.addAll(
-          generator.row([
-            PosColumn(
-              text: 'Diterima',
-              width: 6,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-            PosColumn(
               text:
                   formatPrice(
                     payment.tenderedAmount == 0
@@ -1421,6 +1392,7 @@ class PrinterService {
             ),
           ]),
         );
+
         bytes.addAll(generator.hr());
 
         bytes.addAll(
@@ -1579,14 +1551,11 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text:
-                OrderTypeExtension.orderTypeToShortJson(item.orderType),
+            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
               bold: true,
-              height: PosTextSize.size2,
-              width: PosTextSize.size1,
               underline: true,
             ),
           ),
@@ -1668,6 +1637,38 @@ class PrinterService {
         );
       }
       bytes.addAll(generator.feed(1));
+    }
+
+    // Custom Amount
+    if (orderDetail.customAmountItems != null &&
+        orderDetail.customAmountItems!.isNotEmpty) {
+      for (var customItem in orderDetail.customAmountItems ?? []) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: OrderTypeExtension.orderTypeToShortJson(
+                customItem.orderType,
+              ),
+              width: 1,
+              styles: const PosStyles(
+                align: PosAlign.left,
+                bold: true,
+                underline: true,
+              ),
+            ),
+            PosColumn(
+              text: customItem.name ?? 'Custom Amount',
+              width: 7,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: '',
+              width: 4,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+      }
     }
     bytes.addAll(generator.hr());
     bytes.addAll(
@@ -1843,6 +1844,37 @@ class PrinterService {
       }
       bytes.addAll(generator.feed(1));
     }
+    // Custom Amount
+    if (orderDetail.customAmountItems != null &&
+        orderDetail.customAmountItems!.isNotEmpty) {
+      for (var customItem in orderDetail.customAmountItems ?? []) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: OrderTypeExtension.orderTypeToShortJson(
+                customItem.orderType,
+              ),
+              width: 1,
+              styles: const PosStyles(
+                align: PosAlign.left,
+                bold: true,
+                underline: true,
+              ),
+            ),
+            PosColumn(
+              text: customItem.name ?? 'Custom Amount',
+              width: 7,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: '',
+              width: 4,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+      }
+    }
     bytes.addAll(generator.hr());
     bytes.addAll(
       generator.text(
@@ -1961,6 +1993,37 @@ class PrinterService {
           ),
         ]),
       );
+    }
+    // Custom Amount
+    if (orderDetail.customAmountItems != null &&
+        orderDetail.customAmountItems!.isNotEmpty) {
+      for (var customItem in orderDetail.customAmountItems ?? []) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: OrderTypeExtension.orderTypeToShortJson(
+                customItem.orderType,
+              ),
+              width: 1,
+              styles: const PosStyles(
+                align: PosAlign.left,
+                bold: true,
+                underline: true,
+              ),
+            ),
+            PosColumn(
+              text: customItem.name ?? 'Custom Amount',
+              width: 7,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: '',
+              width: 4,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+      }
     }
     bytes.addAll(generator.hr());
 

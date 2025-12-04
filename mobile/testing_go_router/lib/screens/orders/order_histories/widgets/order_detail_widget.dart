@@ -127,7 +127,7 @@ class OrderDetailWidget extends ConsumerWidget {
           _buildInfoRow('Cashier', order.cashier?.username ?? 'Unknown'),
           if (order.tableNumber!.isNotEmpty)
             _buildInfoRow('Table', order.tableNumber!),
-          _buildInfoRow('Payment Method', order.paymentMethod!),
+          // _buildInfoRow('Payment Method', order.paymentMethod!),
           _buildInfoRow('Source', order.source ?? 'Unknown'),
         ],
       ),

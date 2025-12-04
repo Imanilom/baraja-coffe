@@ -8,6 +8,7 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
+import 'package:kasirbaraja/utils/payment_details_utils.dart';
 
 final isPrintHistory = StateProvider<bool>((ref) => false);
 
@@ -605,7 +606,9 @@ class ReceiptWidget extends ConsumerWidget {
 
         // List setiap payment detail
         ...details.map<Widget>((d) {
-          final String method = d.method?.toString() ?? '-'; // sesuaikan field
+          final String method = PaymentDetails.buildPaymentMethodLabel(
+            d,
+          ); // sesuaikan field
           final String status =
               (d.status?.toString() ?? '-').toLowerCase(); // sesuaikan field
           final String? paidAt = d.paidAt; // sesuaikan field
