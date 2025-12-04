@@ -4,7 +4,7 @@ import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
-import 'package:kasirbaraja/repositories/payment_type_repository.dart';
+import 'package:kasirbaraja/repositories/payment_method_repository.dart';
 import 'package:kasirbaraja/models/payments/process_payment_request.dart';
 
 final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((
@@ -24,7 +24,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   void selectPaymentType(PaymentTypeModel paymentType, bool isDownPayment) {
     state = state.copyWith(
       selectedPaymentType: paymentType,
-      clearPaymentMethod: true,
       clearCashAmount: true,
       isDownPayment: isDownPayment,
     );
@@ -37,6 +36,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   ) {
     state = state.copyWith(
       selectedPaymentMethod: paymentMethod,
+      clearPaymentMethod: true,
       clearCashAmount: true,
       isDownPayment: isDownPayment,
     );
@@ -90,8 +90,8 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       };
     } else {
       return {
-        'type': state.selectedPaymentType!.id,
-        'method': state.selectedPaymentMethod!.methodCode,
+        'type': state.selectedPaymentMethod!.id,
+        'method': state.selectedPaymentType!.typeCode,
         'amount': state.totalAmount,
         'paymentMethodId': state.selectedPaymentMethod!.id,
       };
@@ -165,52 +165,47 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   }
 }
 
-final paymentRepositoryProvider = Provider<PaymentTypeRepository>((ref) {
-  return PaymentTypeRepository();
+final paymentRepositoryProvider = Provider<PaymentMethodRepository>((ref) {
+  return PaymentMethodRepository();
 });
 
-// Provider utama untuk payment types
-final paymentTypesProvider = FutureProvider<List<PaymentTypeModel>>((
+final paymentMethodsProvider = FutureProvider<List<PaymentMethodModel>>((
   ref,
 ) async {
   try {
     final repository = ref.read(paymentRepositoryProvider);
-    final types = await repository.getLocalPaymentTypes();
-
-    // Filter only active payment types
-    return types.where((type) => type.isActive).toList();
+    final methods = await repository.getLocalPaymentMethods();
+    return methods.where((m) => m.isActive).toList();
   } catch (e) {
-    // Log error if you have logging setup
-    // Logger.e('Failed to fetch payment types: $e');
     rethrow;
   }
 });
 
-final paymentMethodsProvider =
-    Provider.family<List<PaymentMethodModel>, String>((ref, typeId) {
-      final paymentTypesAsync = ref.watch(paymentTypesProvider);
+final paymentTypesProvider = Provider.family<List<PaymentTypeModel>, String>((
+  ref,
+  typeId,
+) {
+  final paymentMethodsAsync = ref.watch(paymentMethodsProvider);
 
-      return paymentTypesAsync.when(
-        data: (types) {
-          final type = types.firstWhere(
-            (t) => t.id == typeId,
-            orElse:
-                () => const PaymentTypeModel(
-                  id: '',
-                  name: '',
-                  icon: '',
-                  isActive: false,
-                  paymentMethods: [],
-                ),
-          );
-          return type.paymentMethods
-              .where((method) => method.isActive)
-              .toList();
-        },
-        loading: () => <PaymentMethodModel>[],
-        error: (_, __) => <PaymentMethodModel>[],
+  return paymentMethodsAsync.when(
+    data: (methods) {
+      final method = methods.firstWhere(
+        (t) => t.id == typeId,
+        orElse:
+            () => PaymentMethodModel(
+              id: '',
+              name: '',
+              icon: '',
+              isActive: false,
+              paymentTypes: [],
+            ),
       );
-    });
+      return method.paymentTypes.where((type) => type.isActive).toList();
+    },
+    loading: () => <PaymentTypeModel>[],
+    error: (_, __) => <PaymentTypeModel>[],
+  );
+});
 
 // Provider untuk menyimpan payment process state
 final paymentProcessProvider =
@@ -255,14 +250,14 @@ class PaymentProcessNotifier extends StateNotifier<PaymentProcessState> {
   PaymentProcessNotifier(this.ref) : super(PaymentProcessState());
 
   void selectPaymentType(PaymentTypeModel type) {
-    state = state.copyWith(
-      selectedType: type,
-      selectedMethod: null, // Reset method when type changes
-    );
+    state = state.copyWith(selectedType: type);
   }
 
   void selectPaymentMethod(PaymentMethodModel method) {
-    state = state.copyWith(selectedMethod: method);
+    state = state.copyWith(
+      selectedMethod: method,
+      selectedType: null, // Reset method when type changes
+    );
   }
 
   void setAmount(int amount) {

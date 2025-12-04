@@ -153,7 +153,7 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
       // Check if all required Hive boxes have data
       final menuItemsBox = HiveService.menuItemsBox;
       final taxServiceBox = HiveService.taxAndServiceBox;
-      final paymentTypeBox = HiveService.paymentTypeBox;
+      final paymentTypeBox = HiveService.paymentMethodBox;
 
       return menuItemsBox.isNotEmpty &&
           taxServiceBox.isNotEmpty &&

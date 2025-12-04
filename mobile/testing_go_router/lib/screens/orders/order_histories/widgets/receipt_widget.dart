@@ -8,6 +8,7 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
+import 'package:kasirbaraja/utils/payment_details_utils.dart';
 
 final isPrintHistory = StateProvider<bool>((ref) => false);
 
@@ -116,9 +117,10 @@ class ReceiptWidget extends ConsumerWidget {
           DateFormat('dd/MM/yyyy HH:mm').format(order.createdAt!),
         ),
         _buildReceiptRow('Customer', order.user ?? 'Unknown'),
+        _buildReceiptRow('Cashier', order.cashier?.username ?? 'Unknown'),
         if (order.tableNumber!.isNotEmpty)
-          _buildReceiptRow('Table', order.tableNumber!),
-        _buildReceiptRow('Payment', order.paymentMethod!),
+          _buildReceiptRow('Table', order.tableNumber ?? ''),
+        _buildReceiptRow('Payment', order.paymentMethod ?? ''),
 
         const SizedBox(height: 16),
         Text(order.orderType.name, textAlign: TextAlign.center),
@@ -566,8 +568,8 @@ class ReceiptWidget extends ConsumerWidget {
   }
 
   Widget _buildPaymentDetailsSection(OrderDetailModel order) {
-    final details = order.payment; // <-- sesuaikan jika nama field berbeda
-    if (details == null || details.isEmpty) {
+    final details = order.payments; // <-- sesuaikan jika nama field berbeda
+    if (details.isEmpty) {
       // fallback lama: hanya tampilkan baris Payment tunggal jika ada
       if (order.paymentMethod != null && order.paymentMethod!.isNotEmpty) {
         return Column(
@@ -604,7 +606,9 @@ class ReceiptWidget extends ConsumerWidget {
 
         // List setiap payment detail
         ...details.map<Widget>((d) {
-          final String method = d.method?.toString() ?? '-'; // sesuaikan field
+          final String method = PaymentDetails.buildPaymentMethodLabel(
+            d,
+          ); // sesuaikan field
           final String status =
               (d.status?.toString() ?? '-').toLowerCase(); // sesuaikan field
           final String? paidAt = d.paidAt; // sesuaikan field

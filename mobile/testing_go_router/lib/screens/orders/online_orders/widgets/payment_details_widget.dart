@@ -24,7 +24,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
     final selectedPayment = ref.watch(selectedPaymentProvider);
     final isProcessingConfirm = ref.watch(isProcessingConfirmProvider);
 
-    final payments = orders?.payment ?? const <PaymentModel>[];
+    final payments = orders?.payments ?? const <PaymentModel>[];
 
     String statusOf(PaymentModel p) => (p.status ?? '').toLowerCase();
 

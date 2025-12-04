@@ -37,21 +37,21 @@ extension OrderCalculations on OrderDetailModel {
 }
 
 // ========== UTILITY EXTENSIONS ==========
-extension PaymentTypeExtension on PaymentTypeModel {
+extension PaymentMethodExtension on PaymentMethodModel {
   bool get hasCashPayment => id == 'cash';
 
-  bool get hasMultipleMethods => paymentMethods.length > 1;
+  bool get hasMultipleMethods => paymentTypes.length > 1;
 
-  List<PaymentMethodModel> get activeMethods =>
-      paymentMethods.where((method) => method.isActive).toList();
+  List<PaymentTypeModel> get activeTypes =>
+      paymentTypes.where((method) => method.isActive).toList();
 }
 
-extension PaymentMethodExtension on PaymentMethodModel {
-  bool get isCash => methodCode.toLowerCase() == 'cash';
+extension PaymentTypeExtensionon on PaymentTypeModel {
+  bool get isCash => typeCode.toLowerCase() == 'cash';
 
-  bool get isEWallet => typeId.contains('ewallet');
+  bool get isEWallet => methodIds.contains('ewallet');
 
-  bool get isDebit => typeId.contains('debit');
+  bool get isDebit => methodIds.contains('debit');
 
-  bool get isBankTransfer => typeId.contains('banktransfer');
+  bool get isBankTransfer => methodIds.contains('banktransfer');
 }
