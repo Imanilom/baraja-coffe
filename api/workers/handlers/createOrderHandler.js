@@ -4,6 +4,7 @@ import { processOrderItems } from '../../services/order.service.js';
 import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
+import Payment from '../../models/Payment.model.js';
 
 export async function createOrderHandler({
   orderId,
