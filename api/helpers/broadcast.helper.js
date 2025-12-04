@@ -222,51 +222,92 @@ export const triggerImmediatePrint = async (orderInfo) => {
 };
 
 // BROADCAST CASH ORDER TO KITCHEN/BAR (KHUSUS UNTUK CASH PAYMENT)
-export const broadcastCashOrderToKitchen = async (orderInfo) => {
+// export const broadcastCashOrderToKitchen = async (orderInfo) => {
+//   try {
+//     const { orderId, tableNumber, orderData, outletId, isAppOrder = false, isWebOrder = false, deliveryOption } = orderInfo;
+
+//     const areaCode = tableNumber?.charAt(0).toUpperCase();
+
+//     console.log(`📢 Broadcasting CASH order ${orderId} to kitchen/bar`);
+
+//     const kitchenData = {
+//       orderId,
+//       tableNumber,
+//       areaCode,
+//       orderData,
+//       paymentMethod: 'Cash',
+//       orderSource: isAppOrder ? 'App' : isWebOrder ? 'Web' : 'Cashier',
+//       deliveryOption: deliveryOption,
+//       timestamp: new Date(),
+//       message: `ORDER CASH - ${isAppOrder ? 'App' : isWebOrder ? 'Web' : 'Cashier'} - Meja ${tableNumber}`
+//     };
+
+//     if (global.io) {
+//       // Broadcast ke kitchen
+//       global.io.to('kitchen_room').emit('kitchen_new_order', kitchenData);
+//       global.io.to(`kitchen_${outletId}`).emit('kitchen_new_order', kitchenData);
+
+//       // Broadcast ke bar berdasarkan area
+//       if (areaCode) {
+//         const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
+//         global.io.to(barRoom).emit('beverage_order_received', {
+//           ...kitchenData,
+//           assignedBar: barRoom,
+//           items: orderData.items?.filter(item =>
+//             item.category === 'beverage' || item.category === 'drink'
+//           ) || []
+//         });
+//       }
+
+//       // Broadcast ke waitstaff jika ada
+//       global.io.to('waitstaff_room').emit('new_order_ready', kitchenData);
+
+//       console.log(`✅ Cash order ${orderId} broadcasted to kitchen/bar`);
+//     }
+
+//   } catch (error) {
+//     console.error('❌ Error broadcasting cash order to kitchen:', error);
+//   }
+// };
+
+
+// controllers/order.controller.js - UPDATE
+
+export const broadcastCashOrderToKitchen = async (params) => {
+  const { orderId, tableNumber, orderData, outletId } = params;
+
   try {
-    const { orderId, tableNumber, orderData, outletId, isAppOrder = false, isWebOrder = false, deliveryOption } = orderInfo;
+    // ✅ Use socketManagement for intelligent broadcast
+    if (global.socketManagement && global.socketManagement.broadcastOrder) {
+      await global.socketManagement.broadcastOrder({
+        orderId,
+        tableNumber,
+        items: orderData.orderItems || [],
+        outletId,
+        source: orderData.source || 'Cashier',
+        orderType: orderData.orderType || 'dine-in',
+        name: orderData.name || orderData.customer_name || 'Guest',
+        service: orderData.service || 'Dine-In',
+        paymentMethod: orderData.paymentDetails?.method || 'Cash'
+      });
 
-    const areaCode = tableNumber?.charAt(0).toUpperCase();
+      console.log(`✅ Order ${orderId} broadcasted via socketManagement`);
+    } else {
+      // Legacy fallback
+      console.warn('⚠️ Using legacy broadcast for order:', orderId);
 
-    console.log(`📢 Broadcasting CASH order ${orderId} to kitchen/bar`);
-
-    const kitchenData = {
-      orderId,
-      tableNumber,
-      areaCode,
-      orderData,
-      paymentMethod: 'Cash',
-      orderSource: isAppOrder ? 'App' : isWebOrder ? 'Web' : 'Cashier',
-      deliveryOption: deliveryOption,
-      timestamp: new Date(),
-      message: `ORDER CASH - ${isAppOrder ? 'App' : isWebOrder ? 'Web' : 'Cashier'} - Meja ${tableNumber}`
-    };
-
-    if (global.io) {
-      // Broadcast ke kitchen
-      global.io.to('kitchen_room').emit('kitchen_new_order', kitchenData);
-      global.io.to(`kitchen_${outletId}`).emit('kitchen_new_order', kitchenData);
-
-      // Broadcast ke bar berdasarkan area
-      if (areaCode) {
-        const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
-        global.io.to(barRoom).emit('beverage_order_received', {
-          ...kitchenData,
-          assignedBar: barRoom,
-          items: orderData.items?.filter(item =>
-            item.category === 'beverage' || item.category === 'drink'
-          ) || []
-        });
-      }
-
-      // Broadcast ke waitstaff jika ada
-      global.io.to('waitstaff_room').emit('new_order_ready', kitchenData);
-
-      console.log(`✅ Cash order ${orderId} broadcasted to kitchen/bar`);
+      // Broadcast ke kitchen room (legacy)
+      io.to('kitchen_room').emit('kitchen_immediate_print', {
+        orderId,
+        tableNumber,
+        orderItems: orderData.orderItems || [],
+        name: orderData.customer_name || orderData.name || 'Guest',
+        service: orderData.service || 'Dine-In',
+        timestamp: new Date()
+      });
     }
-
   } catch (error) {
-    console.error('❌ Error broadcasting cash order to kitchen:', error);
+    console.error('Error broadcasting cash order:', error);
   }
 };
 

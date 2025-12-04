@@ -3,155 +3,128 @@ import express from 'express';
 const router = express.Router();
 
 router.get('/payment-methods-and-types', (req, res) => {
-    const paymentTypes = [
-        //Cash, E-wallet, Debit
+    // LEVEL ATAS: PAYMENT METHOD
+    const paymentMethods = [
         {
             id: 'cash',
             name: 'Cash',
+            methodCode: 'Cash',
             icon: 'cash.png',
             isActive: true,
         },
         {
             id: 'ewallet',
             name: 'E-Wallet',
+            methodCode: 'E-Wallet',
             icon: 'ewallet.png',
             isActive: false,
         },
         {
             id: 'debit',
             name: 'Debit',
+            methodCode: 'Debit',
             icon: 'debit.png',
             isActive: true,
         },
         {
             id: 'banktransfer',
             name: 'Bank Transfer',
+            methodCode: 'Bank Transfer',
             icon: 'bank-transfer.png',
             isActive: true,
         },
         {
             id: 'qris',
             name: 'QRIS',
+            methodCode: 'QRIS',
             icon: 'qris.png',
-            isActive: true
-        }
-    ]
-    const paymentMethods = [
+            isActive: true,
+        },
+    ];
+
+    // LEVEL BAWAH: PAYMENT TYPE (CHANNEL / BANK / BRAND)
+    const paymentTypes = [
         {
             id: 'cash',
             name: 'Tunai',
-            payment_method: 'Cash',
-            typeId: ['cash'],
+            typeCode: 'Cash',
+            methodIds: ['cash'],       // HANYA muncul di method cash
             isDigital: false,
-            isActive: true
+            isActive: true,
         },
         {
             id: 'gopay',
             name: 'Gopay',
-            payment_method: 'Gopay',
-            typeId: ['ewallet'],
+            typeCode: 'Gopay',
+            methodIds: ['ewallet'],    // hanya di E-Wallet
             isDigital: true,
-            isActive: true
+            isActive: true,
         },
         {
             id: 'bni',
             name: 'BNI',
-            payment_method: 'BNI',
-            typeId: ['debit', 'banktransfer', 'qris'],
+            typeCode: 'BNI',
+            methodIds: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
-            isActive: true
+            isActive: true,
         },
         {
             id: 'bri',
             name: 'BRI',
-            payment_method: 'BRI',
-            typeId: ['debit', 'banktransfer', 'qris'],
+            typeCode: 'BRI',
+            methodIds: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
-            isActive: true
+            isActive: true,
         },
         {
             id: 'bca',
             name: 'BCA',
-            payment_method: 'BCA',
-            typeId: ['debit', 'banktransfer', 'qris'],
+            typeCode: 'BCA',
+            methodIds: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
-            isActive: true
+            isActive: true,
         },
         {
             id: 'mandiri',
             name: 'Mandiri',
-            payment_method: 'Mandiri',
-            typeId: ['debit', 'banktransfer', 'qris'],
+            typeCode: 'Mandiri',
+            methodIds: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
-            isActive: true
+            isActive: true,
         },
         {
             id: 'bsi',
             name: 'BSI',
-            payment_method: 'BSI',
-            typeId: ['debit', 'banktransfer', 'qris'],
+            typeCode: 'BSI',
+            methodIds: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
-            isActive: true
+            isActive: true,
         },
-        // {
-        //     id: 'qrisbni',
-        //     name: 'Qris BNI',
-        //     payment_method: 'Qris',
-        //     typeId: ['qris'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'qrisbri',
-        //     name: 'Qris BRI',
-        //     payment_method: 'Qris',
-        //     typeId: ['qris'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'qrisbca',
-        //     name: 'Qris BCA',
-        //     payment_method: 'Qris',
-        //     typeId: ['qris'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'qrismandiri',
-        //     name: 'Qris Mandiri',
-        //     payment_method: 'Qris',
-        //     typeId: ['qris'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'qrisbsi',
-        //     name: 'Qris BSI',
-        //     payment_method: 'Qris',
-        //     typeId: ['qris'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
     ];
 
-
     try {
-        const buildPaymentTypes = () => {
-            return paymentTypes.map((paymentType) => {
+        // Gabungkan: tiap METHOD punya LIST TYPE yang cocok lewat methodIds
+        const buildPaymentMethods = () => {
+            return paymentMethods.map((method) => {
                 return {
-                    ...paymentType,
-                    paymentMethods: paymentMethods.filter((paymentMethod) => paymentMethod.typeId.includes(paymentType.id))
-                }
-            })
-        }
+                    ...method,
+                    paymentTypes: paymentTypes.filter((pt) => pt.methodIds.includes(method.id)),
+                };
+            });
+        };
 
-        res.status(200).json({ success: true, paymentTypes: buildPaymentTypes() });
+        res.status(200).json({
+            success: true,
+            paymentMethods: buildPaymentMethods(),
+        });
     } catch (error) {
         console.error('Error fetching payment methods and types:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch payment methods and types' });
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch payment methods and types',
+        });
     }
-})
+});
 
 router.get('/payment-methods', (req, res) => {
     const paymentMethods = [

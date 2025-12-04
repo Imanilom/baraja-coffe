@@ -30,15 +30,15 @@ import {
 } from '../controllers/order.controller.js';
 
 import {
-  completeBeverageOrder,
+  // completeBeverageOrder,
   getAllBeverageOrders,
   getBarOrder,
   getKitchenOrder,
   bulkUpdateKitchenItems,
   updateKitchenItemStatus,
-  startBeverageOrder,
-  updateBarOrderStatus,
-  updateBeverageItemStatus,
+  // startBeverageOrder,
+  // updateBarOrderStatus,
+  // updateBeverageItemStatus,
   updateKitchenOrderStatus,
   getPrintStats,
   getOrderPrintHistory,
@@ -48,7 +48,9 @@ import {
   logSkippedItem,
   logProblematicItem,
   getProblematicPrintReport,
-  batchAutoConfirmOrders
+  batchAutoConfirmOrders,
+  getWorkstationOrders,
+  updateWorkstationOrderStatus
 } from '../controllers/operation.controller.js';
 
 import {
@@ -99,28 +101,91 @@ router.get('/orders', getAllOrders);
 
 // TODO: Start route untuk mendapatkan order yang belum dicetak di dapur
 
-router.get('/orders/kitchen', getKitchenOrder);
+// Get orders for specific workstation type
+router.get('/workstation/:workstationType/orders', getWorkstationOrders);
+
+// Update workstation order status
+router.put('/workstation/orders/:orderId/status', updateWorkstationOrderStatus);
+
+// ============================================
+// PRINT TRACKING & MONITORING
+// ============================================
+
+// Log print attempt
+router.post('/print/log-attempt', logPrintAttempt);
+
+// Log print success
+router.post('/print/log-success', logPrintSuccess);
+
+// Log print failure
+router.post('/print/log-failure', logPrintFailure);
+
+// Log skipped item
+router.post('/print/log-skipped', logSkippedItem);
+
+// Log problematic item
+router.post('/print/log-problematic', logProblematicItem);
+
+// Get print statistics
+router.get('/print/stats', getPrintStats);
+
+// Get problematic print report
+router.get('/print/problematic-report', getProblematicPrintReport);
+
+// Get order print history
+router.get('/print/order/:orderId/history', getOrderPrintHistory);
+
+// ============================================
+// ORDER STATUS MANAGEMENT
+// ============================================
+
+// Batch auto-confirm orders
+router.post('/orders/batch-confirm', batchAutoConfirmOrders);
+
+// Update order status
 router.put('/orders/:orderId/status', updateKitchenOrderStatus);
-router.post('/batch-confirm', batchAutoConfirmOrders);
-router.put('/orders/kitchen/items/status', updateKitchenItemStatus);
-router.put('/orders/kitchen/items/bulk-update', bulkUpdateKitchenItems);
 
+// Update item status
+router.put('/orders/:orderId/items/:itemId/status', updateKitchenItemStatus);
 
-router.put('/orders/beverage/:orderId/status', updateBeverageItemStatus);
-router.get('/orders/beverage', getAllBeverageOrders);
-router.put('/orders/bar/:orderId/status', updateBarOrderStatus);
+// Bulk update items
+router.put('/orders/:orderId/items/bulk-update', bulkUpdateKitchenItems);
+
+// ============================================
+// ⚠️ DEPRECATED ROUTES (Backward Compatibility)
+// ============================================
+
+// Kitchen orders (deprecated - use /workstation/kitchen/orders)
+router.get('/orders/kitchen', getKitchenOrder);
+
+// Bar orders by type (deprecated - use /workstation/bar/orders)
 router.get('/orders/bar/:barType', getBarOrder);
-router.put('/orders/beverage/:orderId/complete', completeBeverageOrder);
-router.post('/orders/beverage/:orderId/start', startBeverageOrder);
-router.get('/orders/workstation/print-stats', getPrintStats);
-router.get('/orders/workstation/print-history/:orderId', getOrderPrintHistory);
-router.post('/orders/workstation/print-attempt', logPrintAttempt);
-router.post('/orders/workstation/print-success', logPrintSuccess);
-router.post('/orders/workstation/print-failure', logPrintFailure);
-router.post('/orders/workstation/print-skipped', logSkippedItem);
-router.post('/orders/workstation/print-problematic', logProblematicItem);
-// Tambahkan route baru
-router.get('/orders/workstation/problematic-report', getProblematicPrintReport);
+
+// All beverage orders (deprecated - use /workstation/bar/orders)
+router.get('/orders/beverage', getAllBeverageOrders);
+
+// router.get('/orders/kitchen', getKitchenOrder);
+// router.put('/orders/:orderId/status', updateKitchenOrderStatus);
+// router.post('/batch-confirm', batchAutoConfirmOrders);
+// router.put('/orders/kitchen/items/status', updateKitchenItemStatus);
+// router.put('/orders/kitchen/items/bulk-update', bulkUpdateKitchenItems);
+
+
+// router.put('/orders/beverage/:orderId/status', updateBeverageItemStatus);
+// router.get('/orders/beverage', getAllBeverageOrders);
+// router.put('/orders/bar/:orderId/status', updateBarOrderStatus);
+// router.get('/orders/bar/:barType', getBarOrder);
+// router.put('/orders/beverage/:orderId/complete', completeBeverageOrder);
+// router.post('/orders/beverage/:orderId/start', startBeverageOrder);
+// router.get('/orders/workstation/print-stats', getPrintStats);
+// router.get('/orders/workstation/print-history/:orderId', getOrderPrintHistory);
+// router.post('/orders/workstation/print-attempt', logPrintAttempt);
+// router.post('/orders/workstation/print-success', logPrintSuccess);
+// router.post('/orders/workstation/print-failure', logPrintFailure);
+// router.post('/orders/workstation/print-skipped', logSkippedItem);
+// router.post('/orders/workstation/print-problematic', logProblematicItem);
+// // Tambahkan route baru
+// router.get('/orders/workstation/problematic-report', getProblematicPrintReport);
 
 
 // TODO: End route untuk mendapatkan order yang belum dicetak di dapur

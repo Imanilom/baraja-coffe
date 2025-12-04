@@ -1,9 +1,12 @@
+import 'package:flutter/cupertino.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
+import 'package:kasirbaraja/providers/menu_item_provider.dart';
+import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -52,7 +55,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       state = state!.copyWith(paymentMethod: paymentMethod);
       if (paymentType != null) {
         state = state!.copyWith(
-          payment: [
+          payments: [
             PaymentModel(method: paymentType, amount: state!.grandTotal),
           ],
         );
@@ -292,16 +295,16 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Kirim data orderDetail ke backend
-  Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
+  Future<bool> submitOrder(WidgetRef ref) async {
     final cashier = await HiveService.getCashier();
 
     state = state!.copyWith(cashier: cashier);
-    print('statedtdt: $state');
+    // print('statedtdt: $state');
     if (state == null) return false;
 
     try {
-      final order = await OrderService().createOrder(state!, paymentData);
-      print('Order submitted: $order');
+      final order = await OrderService().createOrder(state!);
+      // print('Order submitted: $order');
 
       final orderDetails = ref.read(orderDetailProvider.notifier);
       orderDetails.addOrderIdToOrderDetail(order['orderId']);
@@ -312,11 +315,39 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         return true;
       }
     } catch (e) {
-      print('error apa? $e');
-      return false;
+      debugPrint('error apa? $e');
+      // return false;
+      rethrow;
     }
     return false; // Return false if state is null
   }
+
+  // TODO: boleh dihapus jika fungsi sama bisa
+  // Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
+  //   final cashier = await HiveService.getCashier();
+
+  //   state = state!.copyWith(cashier: cashier);
+  //   // print('statedtdt: $state');
+  //   if (state == null) return false;
+
+  //   try {
+  //     final order = await OrderService().createOrder(state!, paymentData);
+  //     // print('Order submitted: $order');
+
+  //     final orderDetails = ref.read(orderDetailProvider.notifier);
+  //     orderDetails.addOrderIdToOrderDetail(order['orderId']);
+  //     orderDetails.addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
+
+  //     if (order.isNotEmpty) {
+  //       //update menu items
+  //       return true;
+  //     }
+  //   } catch (e) {
+  //     debugPrint('error apa? $e');
+  //     return false;
+  //   }
+  //   return false; // Return false if state is null
+  // }
 
   Future<void> _recalculateAll() async {
     if (state == null || _isCalculating) return;
@@ -577,6 +608,25 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       return mainCategory == 'bazar';
     });
   }
+
+  void setPayments(List<PaymentModel> payments) {
+    if (state == null) return;
+    state = state!.copyWith(payments: payments);
+  }
+
+  void addPayment(PaymentModel payment) {
+    if (state == null) return;
+    final current = state!.payments;
+    state = state!.copyWith(payments: [...current, payment]);
+  }
+
+  int get totalPaid =>
+      (state?.payments ?? []).fold(0, (sum, p) => sum + p.amount);
+
+  int get remaining =>
+      state == null ? 0 : (state!.grandTotal - totalPaid).clamp(0, 1 << 31);
+
+  bool get isFullyPaid => remaining == 0;
 }
 
 // Provider untuk OrderDetailNotifier

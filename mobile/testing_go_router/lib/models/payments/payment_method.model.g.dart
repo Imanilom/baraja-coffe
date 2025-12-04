@@ -19,29 +19,27 @@ class PaymentMethodModelAdapter extends TypeAdapter<PaymentMethodModel> {
     return PaymentMethodModel(
       id: fields[0] as String,
       name: fields[1] as String,
-      methodCode: fields[2] as String,
-      typeId: (fields[3] as List).cast<String>(),
-      isDigital: fields[4] as bool,
-      isActive: fields[5] as bool,
+      icon: fields[2] as String,
+      isActive: fields[3] as bool,
+      paymentTypes:
+          fields[4] == null ? [] : (fields[4] as List).cast<PaymentTypeModel>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, PaymentMethodModel obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.methodCode)
+      ..write(obj.icon)
       ..writeByte(3)
-      ..write(obj.typeId)
+      ..write(obj.isActive)
       ..writeByte(4)
-      ..write(obj.isDigital)
-      ..writeByte(5)
-      ..write(obj.isActive);
+      ..write(obj.paymentTypes);
   }
 
   @override
@@ -63,19 +61,20 @@ _PaymentMethodModel _$PaymentMethodModelFromJson(Map<String, dynamic> json) =>
     _PaymentMethodModel(
       id: json['id'] as String,
       name: json['name'] as String,
-      methodCode: json['payment_method'] as String,
-      typeId:
-          (json['typeId'] as List<dynamic>).map((e) => e as String).toList(),
-      isDigital: json['isDigital'] as bool,
+      icon: json['icon'] as String,
       isActive: json['isActive'] as bool,
+      paymentTypes:
+          (json['paymentTypes'] as List<dynamic>?)
+              ?.map((e) => PaymentTypeModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const <PaymentTypeModel>[],
     );
 
 Map<String, dynamic> _$PaymentMethodModelToJson(_PaymentMethodModel instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
-      'payment_method': instance.methodCode,
-      'typeId': instance.typeId,
-      'isDigital': instance.isDigital,
+      'icon': instance.icon,
       'isActive': instance.isActive,
+      'paymentTypes': instance.paymentTypes,
     };

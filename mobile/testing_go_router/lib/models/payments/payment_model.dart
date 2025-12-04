@@ -54,7 +54,7 @@ class PaymentState {
 
   // Calculate change (for cash payments)
   int? get change {
-    if (selectedPaymentType?.id == 'cash' && selectedCashAmount != null) {
+    if (selectedPaymentMethod?.id == 'cash' && selectedCashAmount != null) {
       if (isDownPayment) {
         final changeAmount = selectedCashAmount! - (selectedDownPayment ?? 0);
         return changeAmount >= 0 ? changeAmount : 0;
@@ -67,13 +67,13 @@ class PaymentState {
 
   // Check if payment selection is complete
   bool get isSelectionComplete {
-    if (selectedPaymentType == null) return false;
+    if (selectedPaymentMethod == null) return false;
 
-    if (selectedPaymentType!.id == 'cash') {
+    if (selectedPaymentMethod!.id == 'cash') {
       return selectedCashAmount != null;
     }
 
-    return selectedPaymentMethod != null;
+    return selectedPaymentType != null;
   }
 
   /// Returns a map with payment info for processing payment.
@@ -90,8 +90,8 @@ class PaymentState {
       };
     } else {
       return {
-        'type': selectedPaymentType!.name,
-        'method': selectedPaymentMethod?.methodCode ?? '',
+        'type': selectedPaymentMethod!.name,
+        'method': selectedPaymentType?.typeCode ?? '',
         'amount': 0, // You may want to set this based on your logic
         'change': change,
       };
@@ -113,11 +113,11 @@ class PaymentMethodss {
   });
 
   // Convert from new models to legacy format
-  factory PaymentMethodss.fromPaymentMethod(PaymentMethodModel method) {
+  factory PaymentMethodss.fromPaymentMethod(PaymentTypeModel type) {
     return PaymentMethodss(
-      id: method.id,
-      name: method.name,
-      type: method.isDigital ? 'digital' : 'physical',
+      id: type.id,
+      name: type.name,
+      type: type.isDigital ? 'digital' : 'physical',
     );
   }
 }
