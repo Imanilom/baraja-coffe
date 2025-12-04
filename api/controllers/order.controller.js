@@ -2364,12 +2364,54 @@ export const createUnifiedOrder = async (req, res) => {
       isSplitPayment = false
     } = req.body;
 
+    // ========== VALIDASI AWAL ==========
+    
     // Validasi outletId
     if (!outletId) {
       return res.status(400).json({
         success: false,
         message: 'Outlet ID diperlukan'
       });
+    }
+
+    // Validasi source
+    if (!['Web', 'App', 'Cashier'].includes(source)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Source tidak valid. Harus Web, App, atau Cashier'
+      });
+    }
+
+    // Validasi khusus untuk Web: TIDAK BOLEH split payment
+    if (source === 'Web' && isSplitPayment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Split payment tidak diizinkan untuk Web source'
+      });
+    }
+
+    // Validasi khusus untuk Web: cashierId harus null
+    if (source === 'Web' && cashierId) {
+      console.warn('cashierId provided for Web source, ignoring:', cashierId);
+      // Tetap lanjut, tapi ignore cashierId
+      cashierId = null;
+    }
+
+    // Validasi user/contact untuk Web
+    if (source === 'Web') {
+      if (!user || typeof user !== 'string' || user.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Nama pelanggan diperlukan untuk Web orders'
+        });
+      }
+      
+      if (!contact || !contact.phone || typeof contact.phone !== 'string' || contact.phone.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Nomor telepon pelanggan diperlukan untuk Web orders'
+        });
+      }
     }
 
     // Generate order ID early untuk locking
@@ -2385,7 +2427,8 @@ export const createUnifiedOrder = async (req, res) => {
       outletId,
       tableNumber,
       isSplitPayment,
-      paymentDetailsType: Array.isArray(paymentDetails) ? 'array' : 'object'
+      paymentDetailsType: Array.isArray(paymentDetails) ? 'array' : 'object',
+      paymentDetailsPreview: paymentDetails ? JSON.stringify(paymentDetails).substring(0, 200) : 'null'
     });
 
     // PRE-CHECK: Cek order existence SEBELUM lock (optimization)
@@ -2527,13 +2570,28 @@ export const createUnifiedOrder = async (req, res) => {
         source
       );
 
-      const validated = validateOrderData({
+      console.log('Validated payment details:', {
+        validatedPaymentDetails,
+        type: typeof validatedPaymentDetails,
+        isArray: Array.isArray(validatedPaymentDetails)
+      });
+
+      // Persiapkan data untuk validasi
+      const validationData = {
         ...req.body,
         customAmountItems: finalCustomAmountItems,
         isSplitPayment: isSplitPayment,
-        paymentDetails: validatedPaymentDetails
-      }, source);
+        paymentDetails: validatedPaymentDetails,
+        source: source,
+        outletId: outletId,
+        user: user || 'Customer',
+        contact: contact || { phone: '081234567890', email: 'example@mail.com' }
+      };
 
+      // Validasi order data
+      const validated = validateOrderData(validationData, source);
+      
+      // Pastikan field required ada
       validated.outletId = outletId;
       validated.outlet = outletId;
       validated.device_id = device_id;
@@ -2785,6 +2843,11 @@ export const createUnifiedOrder = async (req, res) => {
 
         // Handle payment based on source
         if (source === 'Cashier') {
+          // Pastikan cashierId ada untuk Cashier
+          if (!cashierId) {
+            throw new Error('cashierId diperlukan untuk Cashier source');
+          }
+          
           try {
             // Langsung pakai req.body.paymentDetails (bisa array atau object)
             const paymentResult = await processCashierPayment(
@@ -2832,7 +2895,7 @@ export const createUnifiedOrder = async (req, res) => {
           }
         }
 
-        // Handle untuk App dan Web (tetap seperti sebelumnya)
+        // Handle untuk App dan Web
         if (source === 'App') {
           let deliveryResult = null;
           if (delivery_option === 'delivery' && recipient_data) {
@@ -2941,23 +3004,32 @@ export const createUnifiedOrder = async (req, res) => {
         }
 
         if (source === 'Web') {
-          // Gunakan newOrder yang sudah dicari sebelumnya
+          console.log('Processing Web order:', {
+            orderId,
+            paymentDetails: validatedPaymentDetails,
+            isCashPayment: validatedPaymentDetails?.method?.toLowerCase() === 'cash'
+          });
+
+          // Untuk Web, selalu buat payment record terlebih dahulu
           const paymentData = {
-            order_id: newOrder.order_id,
+            order_id: orderId,
             payment_code: generatePaymentCode(),
             transaction_id: generateTransactionId(),
-            method: validated.paymentDetails?.method || 'Cash',
+            method: validatedPaymentDetails?.method || 'Cash',
             status: 'pending',
-            paymentType: validated.paymentDetails?.paymentType || 'Full',
-            amount: validated.paymentDetails?.amount || newOrder.grandTotal,
+            paymentType: 'Full',
+            amount: validatedPaymentDetails?.amount || newOrder.grandTotal,
             totalAmount: newOrder.grandTotal,
             remainingAmount: newOrder.grandTotal,
           };
+          
           const payment = await Payment.create(paymentData);
+          console.log('Payment record created for Web order:', payment._id);
 
-          const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
+          const isCashPayment = validatedPaymentDetails?.method?.toLowerCase() === 'cash';
 
           if (isCashPayment) {
+            // Untuk cash payment di Web
             await broadcastCashOrderToKitchen({
               orderId,
               tableNumber,
@@ -2972,7 +3044,8 @@ export const createUnifiedOrder = async (req, res) => {
               data: {
                 ...baseResponse,
                 status: 'pending',
-                message: 'Web cash order processed and paid',
+                message: 'Web cash order processed successfully',
+                paymentId: payment._id,
                 ...(orderResult.loyalty?.isApplied && {
                   loyalty: {
                     pointsEarned: orderResult.loyalty.pointsEarned,
@@ -2982,33 +3055,25 @@ export const createUnifiedOrder = async (req, res) => {
               }
             };
           } else {
-            // Urutan parameter yang benar untuk Web
+            // Untuk non-cash payment di Web (QRIS, E-Wallet, Bank Transfer)
             const customerData = {
               name: user || 'Customer',
               email: contact?.email || 'example@mail.com',
               phone: contact?.phone || '081234567890'
             };
 
-            // Untuk split payment di Web, gunakan total amount
-            let paymentAmount = 0;
-            if (Array.isArray(validatedPaymentDetails)) {
-              paymentAmount = validatedPaymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-            } else {
-              paymentAmount = validatedPaymentDetails?.amount || 0;
-            }
+            // Gunakan amount dari payment details
+            const paymentAmount = validatedPaymentDetails?.amount || 0;
 
             // Validasi amount sebelum kirim ke Midtrans
-            console.log('Payment details for Midtrans SNAP:', {
+            console.log('Payment details for Midtrans SNAP (Web):', {
               orderId,
               amount: paymentAmount,
-              amountType: typeof paymentAmount,
               customer: customerData,
-              paymentMethod: Array.isArray(validatedPaymentDetails)
-                ? validatedPaymentDetails[0]?.method || 'other'
-                : validatedPaymentDetails?.method || 'other'
+              paymentMethod: validatedPaymentDetails?.method
             });
 
-            if (!paymentAmount || isNaN(paymentAmount)) {
+            if (!paymentAmount || isNaN(paymentAmount) || paymentAmount <= 0) {
               throw new Error(`Invalid payment amount: ${paymentAmount}`);
             }
 
@@ -3017,10 +3082,16 @@ export const createUnifiedOrder = async (req, res) => {
               orderId,
               Number(paymentAmount),
               customerData,
-              Array.isArray(validatedPaymentDetails)
-                ? validatedPaymentDetails[0]?.method || 'other'
-                : validatedPaymentDetails?.method || 'other'
+              validatedPaymentDetails?.method || 'other'
             );
+
+            // Update payment record dengan data Midtrans
+            await Payment.findByIdAndUpdate(payment._id, {
+              transaction_id: midtransRes.transaction_id || payment.transaction_id,
+              midtransRedirectUrl: midtransRes.redirect_url,
+              status: 'pending',
+              updatedAt: new Date()
+            });
 
             return {
               type: 'web_payment_order',
@@ -3029,6 +3100,7 @@ export const createUnifiedOrder = async (req, res) => {
                 status: 'waiting_payment',
                 snapToken: midtransRes.token,
                 redirectUrl: midtransRes.redirect_url,
+                paymentId: payment._id,
                 ...(orderResult.loyalty?.isApplied && {
                   loyalty: {
                     pointsEarned: orderResult.loyalty.pointsEarned,
@@ -3091,7 +3163,8 @@ export const createUnifiedOrder = async (req, res) => {
     if (err.message.includes('Outlet sedang tutup') ||
       err.message.includes('Fitur delivery hanya tersedia') ||
       err.message.includes('Data penerima diperlukan') ||
-      err.message.includes('Koordinat lokasi penerima diperlukan')) {
+      err.message.includes('Koordinat lokasi penerima diperlukan') ||
+      err.message.includes('Payment method is required')) {
       return res.status(400).json({
         success: false,
         message: err.message
