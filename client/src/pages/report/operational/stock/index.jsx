@@ -1,129 +1,122 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
-import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
-
 
 const StockManagement = () => {
-    const [stock, setStock] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [category, setCategory] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
+    const [productStock, setProductStock] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    const [showInput, setShowInput] = useState(false);
-    const [showInputCategory, setShowInputCategory] = useState(false);
     const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [tempSelectedCategory, setTempSelectedCategory] = useState("");
-    const [value, setValue] = useState(null);
-    const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
-
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
+
     const ITEMS_PER_PAGE = 50;
 
-    const dropdownRef = useRef(null);
-
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
-
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
-
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
-
-    // Fetch stock and outlets data
+    // Fetch stock data
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
+        const fetchStockData = async () => {
             try {
-                // Fetch stock data
-                const stockData = [];
+                setLoading(true);
 
-                setStock(stockData);
-                setFilteredData(stockData); // Initialize filtered data with all stock
+                // Simulasi delay untuk loading
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
 
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
+                // Kode asli untuk production (uncomment saat API sudah siap)
+                const productResponse = await axios.get("/api/marketlist/products");
+                const products = productResponse.data.data || [];
 
-                setOutlets(outletsData);
+                const stockResponse = await axios.get("/api/product/stock/all");
+                const stockData = stockResponse.data.data || [];
 
-                const categoryResponse = await axios.get('/api/menu/categories');
+                const stockMap = {};
+                if (stockData && stockData.length > 0) {
+                    stockData.forEach((s) => {
+                        try {
+                            if (s?.productId?._id) {
+                                stockMap[s.productId._id] = s;
+                            }
+                        } catch (error) {
+                            console.error("Error processing stock item:", s, error);
+                        }
+                    });
+                }
 
-                // Ensure categoryResponse.data is an array
-                const categoryData = Array.isArray(categoryResponse.data) ?
-                    categoryResponse.data :
-                    (categoryResponse.data && Array.isArray(categoryResponse.data.data)) ?
-                        categoryResponse.data.data : [];
+                const mergedData = await Promise.all(
+                    products.map(async (prod) => {
+                        const stockItem = stockMap[prod._id] || null;
 
-                setCategory(categoryData)
+                        let movements = [];
+                        if (stockItem?.productId?._id) {
+                            try {
+                                const movementResponse = await axios.get(
+                                    `/api/product/stock/${stockItem.productId._id}/movements`
+                                );
+                                movements = movementResponse.data?.data?.movements || [];
+                            } catch (err) {
+                                console.error(`No movements for product: ${prod.name}`, err.message);
+                            }
+                        }
 
+                        return {
+                            ...prod,
+                            stock: stockItem?.stock || 0,
+                            stockData: stockItem || null,
+                            movements,
+                        };
+                    })
+                );
+
+                setProductStock(mergedData);
+                setFilteredData(mergedData);
                 setError(null);
+
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setStock([]);
+                console.error("Error fetching stock:", err);
+                setError(`Failed to load stock data: ${err.message}`);
+                setProductStock([]);
                 setFilteredData([]);
-                setOutlets([]);
-                setCategory([]);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchData();
+        fetchStockData();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Get unique outlet names for the dropdown
-    const uniqueCategory = useMemo(() => {
-        return category.map(item => item.name);
-    }, [category]);
-
-    // Handle click outside dropdown to close
+    // Filter data berdasarkan pencarian
     useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-                setShowInputCategory(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    // Paginate the filtered data
-    const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
+        if (!search) {
+            setFilteredData(productStock);
+            setCurrentPage(1);
+            return;
         }
 
+        const searchLower = search.toLowerCase();
+        const filtered = productStock.filter(product => {
+            const name = (product.name || '').toLowerCase();
+            const sku = (product.sku || '').toLowerCase();
+            const barcode = (product.barcode || '').toLowerCase();
+            const category = (product.category || '').toLowerCase();
+
+            return name.includes(searchLower) ||
+                sku.includes(searchLower) ||
+                barcode.includes(searchLower) ||
+                category.includes(searchLower);
+        });
+
+        setFilteredData(filtered);
+        setCurrentPage(1);
+    }, [search, productStock]);
+
+    // Paginate data
+    const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
+        return filteredData.slice(startIndex, endIndex);
     }, [currentPage, filteredData]);
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -134,177 +127,26 @@ const StockManagement = () => {
         }).format(amount);
     };
 
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    const filteredCategory = useMemo(() => {
-        return uniqueCategory.filter(category =>
-            category.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueCategory]);
-
-    // Calculate grand totals for filtered data
-    const {
-        grandTotalFinal,
-    } = useMemo(() => {
-        const totals = {
-            grandTotalFinal: 0,
-        };
-
-        if (!Array.isArray(filteredData)) {
-            return totals;
-        }
-
-        filteredData.forEach(product => {
-            try {
-                const item = product?.items?.[0];
-                if (!item) return;
-
-                const subtotal = Number(item.subtotal) || 0;
-
-                totals.grandTotalFinal += subtotal + pb1;
-            } catch (err) {
-                console.error("Error calculating totals for product:", err);
-            }
-        });
-
-        return totals;
+    // Calculate grand total
+    const grandTotalStock = useMemo(() => {
+        return filteredData.reduce((total, product) => {
+            return total + ((product.stock || 0) * (product.price || 0));
+        }, 0);
     }, [filteredData]);
 
-    // Apply filter function
-    const applyFilter = () => {
+    // Get stock status
+    const getStockStatus = (product) => {
+        const stock = product.stock || 0;
+        const minStock = product.minStock || 0;
 
-        // Make sure stock is an array before attempting to filter
-        let filtered = ensureArray([...stock]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
+        if (stock === 0) {
+            return { text: 'Habis', color: 'text-red-600 bg-red-50' };
+        } else if (stock <= minStock) {
+            return { text: 'Akan Habis', color: 'text-orange-600 bg-orange-50' };
         }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // filter Category
-        if (tempSelectedCategory) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.items[0]?.menuItem?.length > 0) {
-                        return false;
-                    }
-
-                    const categoryName = product.items[0].menuItem?.category;
-                    const matches = categoryName === tempSelectedCategory;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by category:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
+        return { text: 'Tersedia', color: 'text-green-600 bg-green-50' };
     };
 
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setTempSelectedCategory("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(stock));
-        setCurrentPage(1);
-    };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
-    };
-
-
-    // Show loading state
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -313,7 +155,6 @@ const StockManagement = () => {
         );
     }
 
-    // Show error state
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -322,7 +163,7 @@ const StockManagement = () => {
                     <p>{error}</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded hover:bg-[#003d1f]"
                     >
                         Refresh
                     </button>
@@ -332,245 +173,206 @@ const StockManagement = () => {
     }
 
     return (
-        <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+        <div className="min-h-screen bg-gray-50">
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-[15px] text-gray-500">Laporan Operational</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Stok</span>
+            <div className="bg-white px-6 py-3 border-b">
+                <div className="flex items-center space-x-2 text-sm">
+                    <FaClipboardList size={16} className="text-gray-500" />
+                    <span className="text-gray-500">Laporan</span>
+                    <FaChevronRight className="text-xs text-gray-400" />
+                    <span className="text-gray-500">Laporan Operational</span>
+                    <FaChevronRight className="text-xs text-gray-400" />
+                    <span className="text-[#005429] font-medium">Stok</span>
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
 
-            {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
-                        <div className="relative">
-                            {!showInputCategory ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputCategory(true)}>
-                                    {tempSelectedCategory || "Semua Kategori"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInputCategory && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredCategory.length > 0 ? (
-                                        filteredCategory.map((category, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedCategory(category);
-                                                    setShowInputCategory(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {category}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Stok</label>
-                        <select name="" id="" className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]">
-                            <option value="all">Semua Kondisi</option>
-                            <option value="akan_habis">Akan Habis</option>
-                            <option value="habis">Habis</option>
-                        </select>
-                    </div>
-
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                        <div className="relative">
+            {/* Main Content */}
+            <div className="p-6">
+                {/* Search and Actions */}
+                <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+                    <div className="flex justify-between items-center gap-4">
+                        <div className="flex-1 max-w-md relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="SKU / Produk / Barcode"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded"
+                                placeholder="Cari produk, SKU, barcode, atau kategori..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="w-full text-sm border border-gray-300 py-2 pl-10 pr-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005429] focus:border-transparent"
                             />
                         </div>
+                        <button className="bg-[#005429] text-white text-sm px-6 py-2 rounded-lg hover:bg-[#003d1f] transition-colors">
+                            Ekspor Excel
+                        </button>
                     </div>
+                </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white rounded-lg shadow-sm p-4">
+                        <p className="text-sm text-gray-500 mb-1">Total Produk</p>
+                        <p className="text-2xl font-semibold text-gray-800">{filteredData.length}</p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow-sm p-4">
+                        <p className="text-sm text-gray-500 mb-1">Stok Tersedia</p>
+                        <p className="text-2xl font-semibold text-green-600">
+                            {filteredData.filter(p => (p.stock || 0) > (p.minStock || 0)).length}
+                        </p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow-sm p-4">
+                        <p className="text-sm text-gray-500 mb-1">Akan Habis</p>
+                        <p className="text-2xl font-semibold text-orange-600">
+                            {filteredData.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= (p.minStock || 0)).length}
+                        </p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow-sm p-4">
+                        <p className="text-sm text-gray-500 mb-1">Stok Habis</p>
+                        <p className="text-2xl font-semibold text-red-600">
+                            {filteredData.filter(p => (p.stock || 0) === 0).length}
+                        </p>
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Produk</th>
-                                <th className="px-4 py-3 font-normal">SKU</th>
-                                <th className="px-4 py-3 font-normal">Kategori</th>
-                                <th className="px-4 py-3 font-normal">SKU</th>
-                                <th className="px-4 py-3 font-normal">Barcode</th>
-                                <th className="px-4 py-3 font-normal">Stok</th>
-                                <th className="px-4 py-3 font-normal">Satuan</th>
-                                <th className="px-4 py-3 font-normal text-right">Nilai Stok Per Unit</th>
-                                <th className="px-4 py-3 font-normal text-right">Nilai Stok</th>
-                            </tr>
-                        </thead>
-                        {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.produk || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.category || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.sku || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.barcode || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.stock || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.satuan || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {data.stockperunit}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.nilaistock)}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="9" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={9}>Tidak ada data ditemukan</td>
+                <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Produk
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        SKU
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Kategori
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Barcode
+                                    </th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Stok
+                                    </th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Harga/Unit
+                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Nilai Stok
+                                    </th>
                                 </tr>
-                            </tbody>
-                        )}
-                        <tfoot className="border-t font-semibold text-sm">
-                            <tr>
-                                <td className="px-4 py-2" colSpan="8">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalFinal.toLocaleString()}</p></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
+                            </thead>
+                            {paginatedData.length > 0 ? (
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {paginatedData.map((product) => {
+                                        const nilaiStockPerUnit = product.price || 0;
+                                        const nilaiStock = (product.stock || 0) * nilaiStockPerUnit;
+                                        const status = getStockStatus(product);
 
-                {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
+                                        return (
+                                            <tr key={product._id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm font-medium text-gray-900">
+                                                        {product.name || "-"}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {product.sku || "-"}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {product.category || "-"}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {product.barcode || "-"}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                    <span className="text-sm font-medium text-gray-900">
+                                                        {product.stock || 0}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 ml-1">
+                                                        {product.unit || ""}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${status.color}`}>
+                                                        {status.text}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                                                    {formatCurrency(nilaiStockPerUnit)}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
+                                                    {formatCurrency(nilaiStock)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            ) : (
+                                <tbody>
+                                    <tr>
+                                        <td colSpan={8} className="px-6 py-12 text-center">
+                                            <div className="flex flex-col items-center justify-center text-gray-400">
+                                                <FaClipboardList size={48} className="mb-3 opacity-50" />
+                                                <p className="text-sm">Tidak ada data ditemukan</p>
+                                                {search && (
+                                                    <p className="text-xs mt-1">
+                                                        Coba ubah kata kunci pencarian Anda
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            )}
+                            {paginatedData.length > 0 && (
+                                <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                                    <tr>
+                                        <td colSpan="7" className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                            Grand Total Nilai Stok
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <span className="text-sm font-bold text-[#005429]">
+                                                {formatCurrency(grandTotalStock)}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            )}
+                        </table>
                     </div>
-                )}
-            </div>
 
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
+                    {/* Pagination */}
+                    {paginatedData.length > 0 && totalPages > 1 && (
+                        <div className="bg-white px-6 py-4 flex items-center justify-between border-t border-gray-200">
+                            <div className="text-sm text-gray-700">
+                                Menampilkan <span className="font-medium">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> - <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</span> dari <span className="font-medium">{filteredData.length}</span> data
+                            </div>
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                >
+                                    Sebelumnya
+                                </button>
+                                <div className="flex items-center px-3 text-sm text-gray-700">
+                                    Halaman <span className="font-medium mx-1">{currentPage}</span> dari <span className="font-medium ml-1">{totalPages}</span>
+                                </div>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                >
+                                    Berikutnya
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

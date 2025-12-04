@@ -19,26 +19,29 @@ class PaymentTypeModelAdapter extends TypeAdapter<PaymentTypeModel> {
     return PaymentTypeModel(
       id: fields[0] as String,
       name: fields[1] as String,
-      icon: fields[2] as String,
-      isActive: fields[3] as bool,
-      paymentMethods: (fields[4] as List).cast<PaymentMethodModel>(),
+      typeCode: fields[2] as String,
+      methodIds: (fields[3] as List).cast<String>(),
+      isDigital: fields[4] as bool,
+      isActive: fields[5] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, PaymentTypeModel obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.icon)
+      ..write(obj.typeCode)
       ..writeByte(3)
-      ..write(obj.isActive)
+      ..write(obj.methodIds)
       ..writeByte(4)
-      ..write(obj.paymentMethods);
+      ..write(obj.isDigital)
+      ..writeByte(5)
+      ..write(obj.isActive);
   }
 
   @override
@@ -60,21 +63,19 @@ _PaymentTypeModel _$PaymentTypeModelFromJson(Map<String, dynamic> json) =>
     _PaymentTypeModel(
       id: json['id'] as String,
       name: json['name'] as String,
-      icon: json['icon'] as String,
+      typeCode: json['typeCode'] as String,
+      methodIds:
+          (json['methodIds'] as List<dynamic>).map((e) => e as String).toList(),
+      isDigital: json['isDigital'] as bool,
       isActive: json['isActive'] as bool,
-      paymentMethods:
-          (json['paymentMethods'] as List<dynamic>)
-              .map(
-                (e) => PaymentMethodModel.fromJson(e as Map<String, dynamic>),
-              )
-              .toList(),
     );
 
 Map<String, dynamic> _$PaymentTypeModelToJson(_PaymentTypeModel instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
-      'icon': instance.icon,
+      'typeCode': instance.typeCode,
+      'methodIds': instance.methodIds,
+      'isDigital': instance.isDigital,
       'isActive': instance.isActive,
-      'paymentMethods': instance.paymentMethods,
     };
