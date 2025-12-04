@@ -3,6 +3,8 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/payments/payment_action.model.dart';
+import 'package:kasirbaraja/models/payments/payment_method.model.dart';
+import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/va_number.model.dart';
 
 part 'payment.model.freezed.dart';
@@ -88,6 +90,7 @@ abstract class PaymentModel with _$PaymentModel {
     // Timestamps
     @HiveField(25) DateTime? createdAt,
     @HiveField(26) DateTime? updatedAt,
+
     //untuk kasir
     @HiveField(27)
     @JsonKey(name: 'tendered_amount')
@@ -97,6 +100,8 @@ abstract class PaymentModel with _$PaymentModel {
     @JsonKey(name: 'change_amount')
     @Default(null)
     int? changeAmount,
+    @HiveField(29) @Default(null) PaymentTypeModel? selectedPaymentType,
+    @HiveField(30) @Default(null) PaymentMethodModel? selectedPaymentMethod,
   }) = _PaymentModel;
 
   factory PaymentModel.fromJson(Map<String, dynamic> json) =>

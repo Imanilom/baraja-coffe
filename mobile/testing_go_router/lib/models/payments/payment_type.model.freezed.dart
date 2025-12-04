@@ -15,7 +15,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PaymentTypeModel {
 
-@HiveField(0) String get id;@HiveField(1) String get name;@HiveField(2) String get icon;@HiveField(3) bool get isActive;@HiveField(4) List<PaymentMethodModel> get paymentMethods;
+@HiveField(0) String get id;@HiveField(1) String get name;/// Kode method aslinya, misal: "Cash", "Gopay", "BNI"
+@HiveField(2) String get typeCode;/// Method mana saja yang boleh pakai type ini
+@HiveField(3) List<String> get methodIds;@HiveField(4) bool get isDigital;@HiveField(5) bool get isActive;
 /// Create a copy of PaymentTypeModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +30,16 @@ $PaymentTypeModelCopyWith<PaymentTypeModel> get copyWith => _$PaymentTypeModelCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTypeModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.icon, icon) || other.icon == icon)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&const DeepCollectionEquality().equals(other.paymentMethods, paymentMethods));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTypeModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.typeCode, typeCode) || other.typeCode == typeCode)&&const DeepCollectionEquality().equals(other.methodIds, methodIds)&&(identical(other.isDigital, isDigital) || other.isDigital == isDigital)&&(identical(other.isActive, isActive) || other.isActive == isActive));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,icon,isActive,const DeepCollectionEquality().hash(paymentMethods));
+int get hashCode => Object.hash(runtimeType,id,name,typeCode,const DeepCollectionEquality().hash(methodIds),isDigital,isActive);
 
 @override
 String toString() {
-  return 'PaymentTypeModel(id: $id, name: $name, icon: $icon, isActive: $isActive, paymentMethods: $paymentMethods)';
+  return 'PaymentTypeModel(id: $id, name: $name, typeCode: $typeCode, methodIds: $methodIds, isDigital: $isDigital, isActive: $isActive)';
 }
 
 
@@ -48,7 +50,7 @@ abstract mixin class $PaymentTypeModelCopyWith<$Res>  {
   factory $PaymentTypeModelCopyWith(PaymentTypeModel value, $Res Function(PaymentTypeModel) _then) = _$PaymentTypeModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) String id,@HiveField(1) String name,@HiveField(2) String icon,@HiveField(3) bool isActive,@HiveField(4) List<PaymentMethodModel> paymentMethods
+@HiveField(0) String id,@HiveField(1) String name,@HiveField(2) String typeCode,@HiveField(3) List<String> methodIds,@HiveField(4) bool isDigital,@HiveField(5) bool isActive
 });
 
 
@@ -65,14 +67,15 @@ class _$PaymentTypeModelCopyWithImpl<$Res>
 
 /// Create a copy of PaymentTypeModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? icon = null,Object? isActive = null,Object? paymentMethods = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? typeCode = null,Object? methodIds = null,Object? isDigital = null,Object? isActive = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,icon: null == icon ? _self.icon : icon // ignore: cast_nullable_to_non_nullable
-as String,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
-as bool,paymentMethods: null == paymentMethods ? _self.paymentMethods : paymentMethods // ignore: cast_nullable_to_non_nullable
-as List<PaymentMethodModel>,
+as String,typeCode: null == typeCode ? _self.typeCode : typeCode // ignore: cast_nullable_to_non_nullable
+as String,methodIds: null == methodIds ? _self.methodIds : methodIds // ignore: cast_nullable_to_non_nullable
+as List<String>,isDigital: null == isDigital ? _self.isDigital : isDigital // ignore: cast_nullable_to_non_nullable
+as bool,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -157,10 +160,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  String id, @HiveField(1)  String name, @HiveField(2)  String icon, @HiveField(3)  bool isActive, @HiveField(4)  List<PaymentMethodModel> paymentMethods)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  String id, @HiveField(1)  String name, @HiveField(2)  String typeCode, @HiveField(3)  List<String> methodIds, @HiveField(4)  bool isDigital, @HiveField(5)  bool isActive)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PaymentTypeModel() when $default != null:
-return $default(_that.id,_that.name,_that.icon,_that.isActive,_that.paymentMethods);case _:
+return $default(_that.id,_that.name,_that.typeCode,_that.methodIds,_that.isDigital,_that.isActive);case _:
   return orElse();
 
 }
@@ -178,10 +181,10 @@ return $default(_that.id,_that.name,_that.icon,_that.isActive,_that.paymentMetho
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  String id, @HiveField(1)  String name, @HiveField(2)  String icon, @HiveField(3)  bool isActive, @HiveField(4)  List<PaymentMethodModel> paymentMethods)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  String id, @HiveField(1)  String name, @HiveField(2)  String typeCode, @HiveField(3)  List<String> methodIds, @HiveField(4)  bool isDigital, @HiveField(5)  bool isActive)  $default,) {final _that = this;
 switch (_that) {
 case _PaymentTypeModel():
-return $default(_that.id,_that.name,_that.icon,_that.isActive,_that.paymentMethods);case _:
+return $default(_that.id,_that.name,_that.typeCode,_that.methodIds,_that.isDigital,_that.isActive);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +201,10 @@ return $default(_that.id,_that.name,_that.icon,_that.isActive,_that.paymentMetho
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  String id, @HiveField(1)  String name, @HiveField(2)  String icon, @HiveField(3)  bool isActive, @HiveField(4)  List<PaymentMethodModel> paymentMethods)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  String id, @HiveField(1)  String name, @HiveField(2)  String typeCode, @HiveField(3)  List<String> methodIds, @HiveField(4)  bool isDigital, @HiveField(5)  bool isActive)?  $default,) {final _that = this;
 switch (_that) {
 case _PaymentTypeModel() when $default != null:
-return $default(_that.id,_that.name,_that.icon,_that.isActive,_that.paymentMethods);case _:
+return $default(_that.id,_that.name,_that.typeCode,_that.methodIds,_that.isDigital,_that.isActive);case _:
   return null;
 
 }
@@ -213,20 +216,24 @@ return $default(_that.id,_that.name,_that.icon,_that.isActive,_that.paymentMetho
 @JsonSerializable()
 
 class _PaymentTypeModel implements PaymentTypeModel {
-  const _PaymentTypeModel({@HiveField(0) required this.id, @HiveField(1) required this.name, @HiveField(2) required this.icon, @HiveField(3) required this.isActive, @HiveField(4) required final  List<PaymentMethodModel> paymentMethods}): _paymentMethods = paymentMethods;
+  const _PaymentTypeModel({@HiveField(0) required this.id, @HiveField(1) required this.name, @HiveField(2) required this.typeCode, @HiveField(3) required final  List<String> methodIds, @HiveField(4) required this.isDigital, @HiveField(5) required this.isActive}): _methodIds = methodIds;
   factory _PaymentTypeModel.fromJson(Map<String, dynamic> json) => _$PaymentTypeModelFromJson(json);
 
 @override@HiveField(0) final  String id;
 @override@HiveField(1) final  String name;
-@override@HiveField(2) final  String icon;
-@override@HiveField(3) final  bool isActive;
- final  List<PaymentMethodModel> _paymentMethods;
-@override@HiveField(4) List<PaymentMethodModel> get paymentMethods {
-  if (_paymentMethods is EqualUnmodifiableListView) return _paymentMethods;
+/// Kode method aslinya, misal: "Cash", "Gopay", "BNI"
+@override@HiveField(2) final  String typeCode;
+/// Method mana saja yang boleh pakai type ini
+ final  List<String> _methodIds;
+/// Method mana saja yang boleh pakai type ini
+@override@HiveField(3) List<String> get methodIds {
+  if (_methodIds is EqualUnmodifiableListView) return _methodIds;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_paymentMethods);
+  return EqualUnmodifiableListView(_methodIds);
 }
 
+@override@HiveField(4) final  bool isDigital;
+@override@HiveField(5) final  bool isActive;
 
 /// Create a copy of PaymentTypeModel
 /// with the given fields replaced by the non-null parameter values.
@@ -241,16 +248,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTypeModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.icon, icon) || other.icon == icon)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&const DeepCollectionEquality().equals(other._paymentMethods, _paymentMethods));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTypeModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.typeCode, typeCode) || other.typeCode == typeCode)&&const DeepCollectionEquality().equals(other._methodIds, _methodIds)&&(identical(other.isDigital, isDigital) || other.isDigital == isDigital)&&(identical(other.isActive, isActive) || other.isActive == isActive));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,icon,isActive,const DeepCollectionEquality().hash(_paymentMethods));
+int get hashCode => Object.hash(runtimeType,id,name,typeCode,const DeepCollectionEquality().hash(_methodIds),isDigital,isActive);
 
 @override
 String toString() {
-  return 'PaymentTypeModel(id: $id, name: $name, icon: $icon, isActive: $isActive, paymentMethods: $paymentMethods)';
+  return 'PaymentTypeModel(id: $id, name: $name, typeCode: $typeCode, methodIds: $methodIds, isDigital: $isDigital, isActive: $isActive)';
 }
 
 
@@ -261,7 +268,7 @@ abstract mixin class _$PaymentTypeModelCopyWith<$Res> implements $PaymentTypeMod
   factory _$PaymentTypeModelCopyWith(_PaymentTypeModel value, $Res Function(_PaymentTypeModel) _then) = __$PaymentTypeModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) String id,@HiveField(1) String name,@HiveField(2) String icon,@HiveField(3) bool isActive,@HiveField(4) List<PaymentMethodModel> paymentMethods
+@HiveField(0) String id,@HiveField(1) String name,@HiveField(2) String typeCode,@HiveField(3) List<String> methodIds,@HiveField(4) bool isDigital,@HiveField(5) bool isActive
 });
 
 
@@ -278,14 +285,15 @@ class __$PaymentTypeModelCopyWithImpl<$Res>
 
 /// Create a copy of PaymentTypeModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? icon = null,Object? isActive = null,Object? paymentMethods = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? typeCode = null,Object? methodIds = null,Object? isDigital = null,Object? isActive = null,}) {
   return _then(_PaymentTypeModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,icon: null == icon ? _self.icon : icon // ignore: cast_nullable_to_non_nullable
-as String,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
-as bool,paymentMethods: null == paymentMethods ? _self._paymentMethods : paymentMethods // ignore: cast_nullable_to_non_nullable
-as List<PaymentMethodModel>,
+as String,typeCode: null == typeCode ? _self.typeCode : typeCode // ignore: cast_nullable_to_non_nullable
+as String,methodIds: null == methodIds ? _self._methodIds : methodIds // ignore: cast_nullable_to_non_nullable
+as List<String>,isDigital: null == isDigital ? _self.isDigital : isDigital // ignore: cast_nullable_to_non_nullable
+as bool,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

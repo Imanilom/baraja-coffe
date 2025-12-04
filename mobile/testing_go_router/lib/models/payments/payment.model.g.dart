@@ -58,13 +58,17 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
       updatedAt: fields[26] as DateTime?,
       tenderedAmount: fields[27] == null ? null : (fields[27] as num?)?.toInt(),
       changeAmount: fields[28] == null ? null : (fields[28] as num?)?.toInt(),
+      selectedPaymentType:
+          fields[29] == null ? null : fields[29] as PaymentTypeModel?,
+      selectedPaymentMethod:
+          fields[30] == null ? null : fields[30] as PaymentMethodModel?,
     );
   }
 
   @override
   void write(BinaryWriter writer, PaymentModel obj) {
     writer
-      ..writeByte(29)
+      ..writeByte(31)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -122,7 +126,11 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
       ..writeByte(27)
       ..write(obj.tenderedAmount)
       ..writeByte(28)
-      ..write(obj.changeAmount);
+      ..write(obj.changeAmount)
+      ..writeByte(29)
+      ..write(obj.selectedPaymentType)
+      ..writeByte(30)
+      ..write(obj.selectedPaymentMethod);
   }
 
   @override
@@ -191,6 +199,18 @@ _PaymentModel _$PaymentModelFromJson(Map<String, dynamic> json) =>
               : DateTime.parse(json['updatedAt'] as String),
       tenderedAmount: (json['tendered_amount'] as num?)?.toInt() ?? null,
       changeAmount: (json['change_amount'] as num?)?.toInt() ?? null,
+      selectedPaymentType:
+          json['selectedPaymentType'] == null
+              ? null
+              : PaymentTypeModel.fromJson(
+                json['selectedPaymentType'] as Map<String, dynamic>,
+              ),
+      selectedPaymentMethod:
+          json['selectedPaymentMethod'] == null
+              ? null
+              : PaymentMethodModel.fromJson(
+                json['selectedPaymentMethod'] as Map<String, dynamic>,
+              ),
     );
 
 Map<String, dynamic> _$PaymentModelToJson(_PaymentModel instance) =>
@@ -225,4 +245,6 @@ Map<String, dynamic> _$PaymentModelToJson(_PaymentModel instance) =>
       'updatedAt': instance.updatedAt?.toIso8601String(),
       'tendered_amount': instance.tenderedAmount,
       'change_amount': instance.changeAmount,
+      'selectedPaymentType': instance.selectedPaymentType?.toJson(),
+      'selectedPaymentMethod': instance.selectedPaymentMethod?.toJson(),
     };
