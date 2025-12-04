@@ -18,6 +18,11 @@ const SalarySchema = new mongoose.Schema({
       required: true
     }
   },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
+  },
   
   // Data tapping dan kehadiran
   attendanceSummary: {

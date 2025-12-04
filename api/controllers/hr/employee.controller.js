@@ -1,12 +1,14 @@
 import Employee from '../../models/model_hr/Employee.model.js';
 import User from '../../models/user.model.js';
+import Company from '../../models/model_hr/Company.model.js';
 
 export const employeeController = {
-  // Create new employee - FIXED
+  // Create new employee - UPDATED for multi-company
   createEmployee: async (req, res) => {
     try {
       const {
-        userId, // menerima userId dari frontend
+        userId,
+        companyId, // NEW: Add company ID
         employeeId,
         nik,
         npwp = '',
@@ -24,42 +26,73 @@ export const employeeController = {
         allowances = {}
       } = req.body;
 
-      console.log('Received data:', req.body); // Debug log
-
       // Validasi input wajib
-      if (!userId || !employeeId || !nik || !position || !department || !joinDate || !basicSalary) {
+      if (!userId || !companyId || !employeeId || !nik || !position || !department || !joinDate || !basicSalary) {
         return res.status(400).json({ 
+          success: false,
           message: 'Semua field wajib harus diisi',
-          required: ['userId', 'employeeId', 'nik', 'position', 'department', 'joinDate', 'basicSalary']
+          required: ['userId', 'companyId', 'employeeId', 'nik', 'position', 'department', 'joinDate', 'basicSalary']
+        });
+      }
+
+      // Check if company exists
+      const company = await Company.findById(companyId);
+      if (!company) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'Perusahaan tidak ditemukan' 
         });
       }
 
       // Check if user exists
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({ message: 'User tidak ditemukan' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'User tidak ditemukan' 
+        });
       }
 
-      // Check if employee already exists for this user
-      const existingEmployee = await Employee.findOne({ user: userId });
+      // Check if employee already exists for this user in this company
+      const existingEmployee = await Employee.findOne({ 
+        user: userId,
+        company: companyId 
+      });
       if (existingEmployee) {
-        return res.status(400).json({ message: 'Employee sudah ada untuk user ini' });
+        return res.status(400).json({ 
+          success: false,
+          message: 'Employee sudah ada untuk user ini di perusahaan ini' 
+        });
       }
 
-      // Check if employeeId or NIK already exists
-      const existingEmployeeId = await Employee.findOne({ employeeId });
+      // Check if employeeId already exists in this company
+      const existingEmployeeId = await Employee.findOne({ 
+        company: companyId,
+        employeeId 
+      });
       if (existingEmployeeId) {
-        return res.status(400).json({ message: 'Employee ID sudah digunakan' });
+        return res.status(400).json({ 
+          success: false,
+          message: 'Employee ID sudah digunakan di perusahaan ini' 
+        });
       }
 
-      const existingNIK = await Employee.findOne({ nik });
+      // Check if NIK already exists in this company
+      const existingNIK = await Employee.findOne({ 
+        company: companyId,
+        nik 
+      });
       if (existingNIK) {
-        return res.status(400).json({ message: 'NIK sudah digunakan' });
+        return res.status(400).json({ 
+          success: false,
+          message: 'NIK sudah digunakan di perusahaan ini' 
+        });
       }
 
-      // Create employee object dengan data yang sudah divalidasi
+      // Create employee object
       const employeeData = {
         user: userId,
+        company: companyId, // NEW: Add company reference
         employeeId: employeeId.trim(),
         nik: nik.trim(),
         npwp: npwp?.trim() || '',
@@ -75,7 +108,7 @@ export const employeeController = {
         bankAccount: {
           bankName: bankAccount?.bankName?.trim() || '',
           accountNumber: bankAccount?.accountNumber?.trim() || '',
-          accountHolder: bankAccount?.accountHolder?.trim() || ''
+          accountHolder: bankAccount?.accountHolder?.trim() || user.name || ''
         },
         deductions: {
           bpjsKesehatanEmployee: Number(deductions.bpjsKesehatanEmployee) || 0,
@@ -100,8 +133,9 @@ export const employeeController = {
       
       // Populate data setelah save
       const populatedEmployee = await Employee.findById(employee._id)
-        .populate('user', 'username email')
-        .populate('supervisor', 'employeeId position');
+        .populate('user', 'username email name')
+        .populate('company', 'name code')
+        .populate('supervisor', 'employeeId position name');
 
       res.status(201).json({
         success: true,
@@ -111,36 +145,38 @@ export const employeeController = {
     } catch (error) {
       console.error('Error creating employee:', error);
       
-      // Handle MongoDB duplicate key errors
       if (error.code === 11000) {
         const field = Object.keys(error.keyPattern)[0];
         return res.status(400).json({ 
+          success: false,
           message: `${field} sudah digunakan` 
         });
       }
       
-      // Handle validation errors
       if (error.name === 'ValidationError') {
         const errors = Object.values(error.errors).map(err => err.message);
         return res.status(400).json({ 
+          success: false,
           message: 'Data validation failed', 
           errors 
         });
       }
       
       res.status(500).json({ 
+        success: false,
         message: 'Internal server error',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   },
 
-  // Get all employees - FIXED
+  // Get all employees - UPDATED for multi-company
   getAllEmployees: async (req, res) => {
     try {
       const {
         page = 1,
         limit = 10,
+        companyId, // NEW: Filter by company
         department,
         position,
         employmentStatus,
@@ -151,7 +187,12 @@ export const employeeController = {
 
       const filter = {};
 
-      // Build filter object
+      // Filter by company
+      if (companyId) {
+        filter.company = companyId;
+      }
+
+      // Build other filter objects
       if (department) filter.department = new RegExp(department, 'i');
       if (position) filter.position = new RegExp(position, 'i');
       if (employmentStatus) filter.employmentStatus = employmentStatus;
@@ -168,21 +209,12 @@ export const employeeController = {
         ];
       }
 
-      const options = {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        sort: { createdAt: -1 },
-        populate: [
-          { path: 'user', select: 'username email' },
-          { path: 'supervisor', select: 'employeeId position department' }
-        ]
-      };
-
       const employees = await Employee.find(filter)
-        .populate('user', 'username email')
-        .populate('supervisor', 'employeeId position department')
-        .limit(limit * 1)
-        .skip((page - 1) * limit)
+        .populate('user', 'username email name')
+        .populate('company', 'name code')
+        .populate('supervisor', 'employeeId position department name')
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
         .sort({ createdAt: -1 });
 
       const total = await Employee.countDocuments(filter);
@@ -191,7 +223,7 @@ export const employeeController = {
         success: true,
         data: employees,
         pagination: {
-          totalPages: Math.ceil(total / limit),
+          totalPages: Math.ceil(total / parseInt(limit)),
           currentPage: parseInt(page),
           total,
           limit: parseInt(limit)
@@ -200,13 +232,48 @@ export const employeeController = {
     } catch (error) {
       console.error('Error fetching employees:', error);
       res.status(500).json({ 
+        success: false,
         message: 'Gagal memuat data employees',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   },
 
-  // Update employee - FIXED
+  // Get employees by company - NEW method
+  getEmployeesByCompany: async (req, res) => {
+    try {
+      const { companyId } = req.params;
+      const { isActive = 'true' } = req.query;
+
+      const filter = {
+        company: companyId
+      };
+
+      if (isActive !== undefined) {
+        filter.isActive = isActive === 'true';
+      }
+
+      const employees = await Employee.find(filter)
+        .populate('user', 'username email name')
+        .populate('supervisor', 'employeeId position department name')
+        .sort({ department: 1, position: 1 });
+
+      res.json({
+        success: true,
+        data: employees,
+        total: employees.length
+      });
+    } catch (error) {
+      console.error('Error fetching employees by company:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Gagal memuat data employees',
+        error: error.message 
+      });
+    }
+  },
+
+  // Update employee - UPDATED
   updateEmployee: async (req, res) => {
     try {
       const { id } = req.params;
@@ -246,11 +313,15 @@ export const employeeController = {
           runValidators: true 
         }
       )
-      .populate('user', 'username email')
-      .populate('supervisor', 'employeeId position department');
+      .populate('user', 'username email name')
+      .populate('company', 'name code')
+      .populate('supervisor', 'employeeId position department name');
 
       if (!employee) {
-        return res.status(404).json({ message: 'Employee tidak ditemukan' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Employee tidak ditemukan' 
+        });
       }
 
       res.json({
@@ -264,51 +335,197 @@ export const employeeController = {
       if (error.name === 'ValidationError') {
         const errors = Object.values(error.errors).map(err => err.message);
         return res.status(400).json({ 
+          success: false,
           message: 'Data validation failed', 
           errors 
         });
       }
       
       res.status(500).json({ 
+        success: false,
         message: 'Gagal update employee',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   },
 
-  // Get employee by ID
+  // Get employee by ID - UPDATED
   getEmployeeById: async (req, res) => {
     try {
       const employee = await Employee.findById(req.params.id)
-        .populate('user supervisor');
+        .populate('user', 'username email name')
+        .populate('company', 'name code address phone')
+        .populate('supervisor', 'employeeId position department name');
 
       if (!employee) {
-        return res.status(404).json({ message: 'Employee not found' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Employee not found' 
+        });
       }
 
-      res.json(employee);
+      res.json({
+        success: true,
+        data: employee
+      });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Error getting employee:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error retrieving employee',
+        error: error.message 
+      });
     }
   },
 
-  // Get employee by user ID
+  // Get employee by user ID - UPDATED
   getEmployeeByUserId: async (req, res) => {
     try {
-      const employee = await Employee.findOne({ user: req.params.userId })
-        .populate('user supervisor');
+      const { userId } = req.params;
+      const { companyId } = req.query; // Optional: filter by company
 
-      if (!employee) {
-        return res.status(404).json({ message: 'Employee not found' });
+      const filter = { user: userId };
+      if (companyId) {
+        filter.company = companyId;
       }
 
-      res.json(employee);
+      const employee = await Employee.findOne(filter)
+        .populate('user', 'username email name')
+        .populate('company', 'name code')
+        .populate('supervisor', 'employeeId position department name');
+
+      if (!employee) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'Employee not found' 
+        });
+      }
+
+      res.json({
+        success: true,
+        data: employee
+      });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Error getting employee by user ID:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error retrieving employee',
+        error: error.message 
+      });
     }
   },
 
-  // Update employee deductions
+  // Deactivate employee
+  deactivateEmployee: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { resignationDate, resignationReason } = req.body;
+
+      const employee = await Employee.findByIdAndUpdate(
+        id,
+        {
+          isActive: false,
+          resignationDate: resignationDate ? new Date(resignationDate) : new Date(),
+          resignationReason: resignationReason || ''
+        },
+        { new: true }
+      )
+      .populate('user', 'username email name')
+      .populate('company', 'name code')
+      .populate('supervisor', 'employeeId position department name');
+
+      if (!employee) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'Employee not found' 
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Employee deactivated successfully',
+        data: employee
+      });
+    } catch (error) {
+      console.error('Error deactivating employee:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error deactivating employee', 
+        error: error.message 
+      });
+    }
+  },
+
+  // Reactivate employee
+  reactivateEmployee: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const employee = await Employee.findByIdAndUpdate(
+        id,
+        {
+          isActive: true,
+          resignationDate: null,
+          resignationReason: null
+        },
+        { new: true }
+      )
+      .populate('user', 'username email name')
+      .populate('company', 'name code')
+      .populate('supervisor', 'employeeId position department name');
+
+      if (!employee) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'Employee not found' 
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Employee reactivated successfully',
+        data: employee
+      });
+    } catch (error) {
+      console.error('Error reactivating employee:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error reactivating employee', 
+        error: error.message 
+      });
+    }
+  },
+
+  // Get employees by department - UPDATED
+  getEmployeesByDepartment: async (req, res) => {
+    try {
+      const { companyId, department } = req.params;
+      const { isActive = true } = req.query;
+
+      const employees = await Employee.find({ 
+        company: companyId,
+        department,
+        isActive: isActive === 'true'
+      })
+      .populate('user', 'username email name')
+      .populate('supervisor', 'employeeId position department name')
+      .sort({ position: 1 });
+
+      res.json({
+        success: true,
+        data: employees,
+        total: employees.length
+      });
+    } catch (error) {
+      console.error('Error getting employees by department:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error retrieving employees', 
+        error: error.message 
+      });
+    }
+  },
+
   updateEmployeeDeductions: async (req, res) => {
     try {
       const { id } = req.params;
@@ -318,18 +535,30 @@ export const employeeController = {
         id,
         { deductions },
         { new: true, runValidators: true }
-      ).populate('user supervisor');
+      )
+      .populate('user', 'username email name')
+      .populate('company', 'name code')
+      .populate('supervisor', 'employeeId position department name');
 
       if (!employee) {
-        return res.status(404).json({ message: 'Employee not found' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Employee not found' 
+        });
       }
 
       res.json({
+        success: true,
         message: 'Employee deductions updated successfully',
         data: employee
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Error updating employee deductions:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error updating employee deductions', 
+        error: error.message 
+      });
     }
   },
 
@@ -343,18 +572,30 @@ export const employeeController = {
         id,
         { allowances },
         { new: true, runValidators: true }
-      ).populate('user supervisor');
+      )
+      .populate('user', 'username email name')
+      .populate('company', 'name code')
+      .populate('supervisor', 'employeeId position department name');
 
       if (!employee) {
-        return res.status(404).json({ message: 'Employee not found' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Employee not found' 
+        });
       }
 
       res.json({
+        success: true,
         message: 'Employee allowances updated successfully',
         data: employee
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Error updating employee allowances:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error updating employee allowances', 
+        error: error.message 
+      });
     }
   },
 
@@ -363,9 +604,15 @@ export const employeeController = {
     try {
       const { id } = req.params;
 
-      const employee = await Employee.findById(id);
+      const employee = await Employee.findById(id)
+        .populate('user', 'username email name')
+        .populate('company', 'name code');
+      
       if (!employee) {
-        return res.status(404).json({ message: 'Employee not found' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Employee not found' 
+        });
       }
 
       // Calculate total allowances
@@ -383,99 +630,37 @@ export const employeeController = {
         totalDeductions,
         netSalary,
         allowances: employee.allowances,
-        deductions: employee.deductions
+        deductions: employee.deductions,
+        employee: {
+          employeeId: employee.employeeId,
+          name: employee.user?.name || 'Unknown',
+          position: employee.position,
+          department: employee.department
+        }
       };
 
-      res.json(salarySummary);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  },
-
-  // Deactivate employee
-  deactivateEmployee: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { resignationDate, resignationReason } = req.body;
-
-      const employee = await Employee.findByIdAndUpdate(
-        id,
-        {
-          isActive: false,
-          resignationDate,
-          resignationReason
-        },
-        { new: true }
-      ).populate('user supervisor');
-
-      if (!employee) {
-        return res.status(404).json({ message: 'Employee not found' });
-      }
-
       res.json({
-        message: 'Employee deactivated successfully',
-        data: employee
+        success: true,
+        data: salarySummary
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  },
-
-  // Reactivate employee
-  reactivateEmployee: async (req, res) => {
-    try {
-      const { id } = req.params;
-
-      const employee = await Employee.findByIdAndUpdate(
-        id,
-        {
-          isActive: true,
-          resignationDate: null,
-          resignationReason: null
-        },
-        { new: true }
-      ).populate('user supervisor');
-
-      if (!employee) {
-        return res.status(404).json({ message: 'Employee not found' });
-      }
-
-      res.json({
-        message: 'Employee reactivated successfully',
-        data: employee
+      console.error('Error getting salary summary:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error retrieving salary summary', 
+        error: error.message 
       });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
     }
   },
 
-  // Get employees by department
-  getEmployeesByDepartment: async (req, res) => {
-    try {
-      const { department } = req.params;
-      const { isActive = true } = req.query;
 
-      const employees = await Employee.find({ 
-        department,
-        isActive: isActive === 'true'
-      })
-      .populate('user supervisor')
-      .sort({ position: 1 });
-
-      res.json({
-        department,
-        total: employees.length,
-        data: employees
-      });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  },
-
-  // Get supervisors list
+  // Get supervisors list - UPDATED
   getSupervisors: async (req, res) => {
     try {
+      const { companyId } = req.params;
+      
       const supervisors = await Employee.find({
+        company: companyId,
         isActive: true,
         $or: [
           { position: { $regex: 'manager', $options: 'i' } },
@@ -484,13 +669,21 @@ export const employeeController = {
           { position: { $regex: 'lead', $options: 'i' } }
         ]
       })
-      .populate('user')
-      .select('employeeId position department user')
+      .populate('user', 'username email name')
+      .select('employeeId position department company user')
       .sort({ position: 1 });
 
-      res.json(supervisors);
+      res.json({
+        success: true,
+        data: supervisors
+      });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Error getting supervisors:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error retrieving supervisors', 
+        error: error.message 
+      });
     }
   }
 };
