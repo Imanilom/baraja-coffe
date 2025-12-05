@@ -1,5 +1,4 @@
 import { Order } from '../../models/order.model.js';
-import Payment from '../../models/Payment.model.js';
 import {
   processOrderItems,
   getSafeMenuItemData,
@@ -8,7 +7,7 @@ import {
 
 class DailyProfitController {
   /**
-   * Get daily profit summary for a specific date - VERSION AMAN
+   * Get daily profit summary for a specific date - DUKUNG SPLIT PAYMENT
    */
   async getDailyProfit(req, res) {
     try {
@@ -47,22 +46,6 @@ class DailyProfitController {
         .sort({ createdAtWIB: -1 })
         .lean();
 
-      // Get all successful payments for these orders
-      const orderIds = orders.map(order => order.order_id);
-      const payments = await Payment.find({
-        order_id: { $in: orderIds },
-        status: 'settlement'
-      }).lean();
-
-      // Create payment map for quick lookup
-      const paymentMap = {};
-      payments.forEach(payment => {
-        if (!paymentMap[payment.order_id]) {
-          paymentMap[payment.order_id] = [];
-        }
-        paymentMap[payment.order_id].push(payment);
-      });
-
       // Calculate profit metrics
       let totalRevenue = 0;
       let totalTax = 0;
@@ -71,12 +54,17 @@ class DailyProfitController {
       let totalNetProfit = 0;
       let totalOrders = 0;
       let totalItemsSold = 0;
+      let totalPaidAmount = 0;
 
       const orderDetails = [];
 
       orders.forEach(order => {
-        const orderPayments = paymentMap[order.order_id] || [];
-        const totalPaid = orderPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+        // MODIFIKASI: Hitung total payment dari array payments di order
+        const completedPayments = order.payments?.filter(p => 
+          p.status === 'completed' || p.status === 'pending'
+        ) || [];
+        
+        const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
         // Only count orders with successful payments
         if (totalPaid > 0) {
@@ -95,6 +83,7 @@ class DailyProfitController {
           totalDiscounts += orderDiscounts;
           totalNetProfit += orderNetProfit;
           totalOrders++;
+          totalPaidAmount += totalPaid;
 
           // Count items sold menggunakan data yang aman
           const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
@@ -108,12 +97,21 @@ class DailyProfitController {
             ? processedItems
             : processedItems.filter(item => !item.isMenuDeleted);
 
+          // MODIFIKASI: Process payments untuk split payment
+          const paymentDetails = completedPayments.map(payment => ({
+            method: payment.paymentMethod,
+            amount: payment.amount,
+            status: payment.status,
+            details: payment.paymentDetails,
+            processedAt: payment.processedAt
+          }));
+
           orderDetails.push({
             order_id: order.order_id,
             createdAt: order.createdAtWIB,
             user: order.user,
             orderType: order.orderType,
-            paymentMethod: order.paymentMethod,
+            paymentMethod: order.paymentMethod, // legacy field untuk kompatibilitas
             revenue: orderRevenue,
             tax: orderTax,
             serviceFee: orderServiceFee,
@@ -121,12 +119,13 @@ class DailyProfitController {
             netProfit: orderNetProfit,
             itemsCount: itemsCount,
             status: order.status,
+            splitPaymentStatus: order.splitPaymentStatus,
+            isSplitPayment: order.isSplitPayment,
+            totalPaid: totalPaid,
+            remainingBalance: order.remainingBalance || 0,
+            change: order.change || 0,
             items: filteredItems,
-            payments: orderPayments.map(p => ({
-              method: p.method,
-              amount: p.amount,
-              status: p.status
-            }))
+            payments: paymentDetails
           });
         }
       });
@@ -134,11 +133,17 @@ class DailyProfitController {
       // Calculate average order value
       const averageOrderValue = totalOrders > 0 ? totalNetProfit / totalOrders : 0;
 
-      // Payment method breakdown
+      // MODIFIKASI: Payment method breakdown dari array payments
       const paymentMethodBreakdown = {};
-      payments.forEach(payment => {
-        const method = payment.method || 'Unknown';
-        paymentMethodBreakdown[method] = (paymentMethodBreakdown[method] || 0) + (payment.amount || 0);
+      orders.forEach(order => {
+        const completedPayments = order.payments?.filter(p => 
+          p.status === 'completed' || p.status === 'pending'
+        ) || [];
+        
+        completedPayments.forEach(payment => {
+          const method = payment.paymentMethod || 'Unknown';
+          paymentMethodBreakdown[method] = (paymentMethodBreakdown[method] || 0) + (payment.amount || 0);
+        });
       });
 
       // Order type breakdown
@@ -160,6 +165,7 @@ class DailyProfitController {
           totalNetProfit,
           totalOrders,
           totalItemsSold,
+          totalPaidAmount,
           averageOrderValue: Math.round(averageOrderValue)
         },
         breakdown: {
@@ -170,7 +176,8 @@ class DailyProfitController {
         metadata: {
           includeDeleted: includeDeleted === 'true',
           totalProcessedOrders: orders.length,
-          dataSource: 'denormalized_safe'
+          dataSource: 'denormalized_safe',
+          supportsSplitPayment: true
         }
       };
 
@@ -190,7 +197,7 @@ class DailyProfitController {
   }
 
   /**
-   * Get product sales report yang aman terhadap deleted items
+   * Get product sales report yang aman terhadap deleted items - DUKUNG SPLIT PAYMENT
    */
   async getProductSalesReport(req, res) {
     try {
@@ -218,8 +225,17 @@ class DailyProfitController {
 
       const orders = await Order.find(filter).lean();
 
+      // MODIFIKASI: Filter hanya orders dengan pembayaran yang berhasil
+      const paidOrders = orders.filter(order => {
+        const completedPayments = order.payments?.filter(p => 
+          p.status === 'completed' || p.status === 'pending'
+        ) || [];
+        const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+        return totalPaid > 0;
+      });
+
       // Get product summary menggunakan helper yang aman
-      const productSummary = getProductSummaryFromOrders(orders);
+      const productSummary = getProductSummaryFromOrders(paidOrders);
 
       // Filter berdasarkan includeDeleted parameter
       const filteredProducts = includeDeleted === 'true'
@@ -259,7 +275,7 @@ class DailyProfitController {
   }
 
   /**
-   * Get daily profit for a date range
+   * Get daily profit for a date range - DUKUNG SPLIT PAYMENT
    */
   async getDailyProfitRange(req, res) {
     try {
@@ -292,28 +308,16 @@ class DailyProfitController {
       // Gunakan data denormalized tanpa populate
       const orders = await Order.find(filter).lean();
 
-      const orderIds = orders.map(order => order.order_id);
-
-      const payments = await Payment.find({
-        order_id: { $in: orderIds },
-        status: 'settlement'
-      }).lean();
-
-      // Create payment map
-      const paymentMap = {};
-      payments.forEach(payment => {
-        if (!paymentMap[payment.order_id]) {
-          paymentMap[payment.order_id] = [];
-        }
-        paymentMap[payment.order_id].push(payment);
-      });
-
       // Group by date
       const dailyProfits = {};
 
       orders.forEach(order => {
-        const orderPayments = paymentMap[order.order_id] || [];
-        const totalPaid = orderPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+        // MODIFIKASI: Hitung total payment dari array payments
+        const completedPayments = order.payments?.filter(p => 
+          p.status === 'completed' || p.status === 'pending'
+        ) || [];
+        
+        const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
         if (totalPaid > 0) {
           const orderDate = order.createdAtWIB.toISOString().split('T')[0];
@@ -329,13 +333,15 @@ class DailyProfitController {
               totalRevenue: 0,
               totalNetProfit: 0,
               totalOrders: 0,
-              totalItemsSold: 0
+              totalItemsSold: 0,
+              totalPaidAmount: 0
             };
           }
 
           dailyProfits[orderDate].totalRevenue += orderRevenue;
           dailyProfits[orderDate].totalNetProfit += orderNetProfit;
           dailyProfits[orderDate].totalOrders += 1;
+          dailyProfits[orderDate].totalPaidAmount += totalPaid;
 
           // Count items - ini akan bekerja bahkan jika menuItems dihapus
           const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
@@ -364,7 +370,7 @@ class DailyProfitController {
   }
 
   /**
-   * Get today's profit summary
+   * Get today's profit summary - DUKUNG SPLIT PAYMENT
    */
   async getTodayProfit(req, res) {
     try {
@@ -376,7 +382,8 @@ class DailyProfitController {
       // Create mock request object
       const mockReq = {
         query: {
-          date: todayString,
+          startDate: todayString,
+          endDate: todayString,
           outletId: outletId,
           includeDeleted: includeDeleted
         }
@@ -394,7 +401,7 @@ class DailyProfitController {
   }
 
   /**
-   * Get detailed order report dengan handling deleted items
+   * Get detailed order report dengan handling deleted items - DUKUNG SPLIT PAYMENT
    */
   async getOrderDetailReport(req, res) {
     try {
@@ -417,11 +424,12 @@ class DailyProfitController {
         });
       }
 
-      // Get payments for this order
-      const payments = await Payment.find({
-        order_id: orderId,
-        status: 'settlement'
-      }).lean();
+      // MODIFIKASI: Gunakan payments dari order langsung
+      const completedPayments = order.payments?.filter(p => 
+        p.status === 'completed' || p.status === 'pending'
+      ) || [];
+      
+      const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
       // Process items dengan handling untuk deleted menu items
       const processedItems = processOrderItems(order.items);
@@ -431,7 +439,7 @@ class DailyProfitController {
         createdAt: order.createdAtWIB,
         user: order.user,
         orderType: order.orderType,
-        paymentMethod: order.paymentMethod,
+        paymentMethod: order.paymentMethod, // legacy field
         status: order.status,
         tableNumber: order.tableNumber,
         outlet: order.outlet,
@@ -448,22 +456,33 @@ class DailyProfitController {
             (order.discounts?.manualDiscount || 0) +
             (order.discounts?.voucherDiscount || 0)),
 
+        // MODIFIKASI: Split payment details
+        isSplitPayment: order.isSplitPayment || false,
+        splitPaymentStatus: order.splitPaymentStatus || 'not_started',
+        totalPaid: totalPaid,
+        remainingBalance: order.remainingBalance || 0,
+        change: order.change || 0,
+
         // Processed items
         items: processedItems,
 
-        // Payments
-        payments: payments.map(p => ({
-          method: p.method,
+        // MODIFIKASI: Payments dari array payments
+        payments: completedPayments.map(p => ({
+          method: p.paymentMethod,
           amount: p.amount,
           status: p.status,
-          paymentDate: p.paymentDate
+          details: p.paymentDetails,
+          processedBy: p.processedBy,
+          processedAt: p.processedAt,
+          notes: p.notes
         })),
 
         // Metadata
         metadata: {
           totalItems: processedItems.length,
           deletedItemsCount: processedItems.filter(item => item.isMenuDeleted).length,
-          dataSource: 'denormalized_safe'
+          dataSource: 'denormalized_safe',
+          supportsSplitPayment: true
         }
       };
 
@@ -483,7 +502,7 @@ class DailyProfitController {
   }
 
   /**
-   * Get profit statistics for dashboard
+   * Get profit statistics for dashboard - DUKUNG SPLIT PAYMENT
    */
   async getProfitDashboard(req, res) {
     try {
@@ -497,7 +516,7 @@ class DailyProfitController {
       const formattedStartDate = startDate.toISOString().split('T')[0];
       const formattedEndDate = endDate.toISOString().split('T')[0];
 
-      // Use getDailyProfitRange method
+      // Build query filter
       const filter = {
         createdAtWIB: {
           $gte: startDate,
@@ -511,31 +530,21 @@ class DailyProfitController {
       }
 
       const orders = await Order.find(filter).lean();
-      const orderIds = orders.map(order => order.order_id);
-
-      const payments = await Payment.find({
-        order_id: { $in: orderIds },
-        status: 'settlement'
-      }).lean();
-
-      // Create payment map
-      const paymentMap = {};
-      payments.forEach(payment => {
-        if (!paymentMap[payment.order_id]) {
-          paymentMap[payment.order_id] = [];
-        }
-        paymentMap[payment.order_id].push(payment);
-      });
 
       // Calculate dashboard metrics
       let totalRevenue = 0;
       let totalOrders = 0;
       let totalItemsSold = 0;
+      let totalPaidAmount = 0;
       const dailyData = {};
 
       orders.forEach(order => {
-        const orderPayments = paymentMap[order.order_id] || [];
-        const totalPaid = orderPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+        // MODIFIKASI: Hitung payment dari array payments
+        const completedPayments = order.payments?.filter(p => 
+          p.status === 'completed' || p.status === 'pending'
+        ) || [];
+        
+        const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
         if (totalPaid > 0) {
           const orderDate = order.createdAtWIB.toISOString().split('T')[0];
@@ -547,6 +556,7 @@ class DailyProfitController {
 
           totalRevenue += orderNetProfit;
           totalOrders += 1;
+          totalPaidAmount += totalPaid;
 
           // Count items
           const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
@@ -558,12 +568,14 @@ class DailyProfitController {
               date: orderDate,
               revenue: 0,
               orders: 0,
-              items: 0
+              items: 0,
+              paidAmount: 0
             };
           }
           dailyData[orderDate].revenue += orderNetProfit;
           dailyData[orderDate].orders += 1;
           dailyData[orderDate].items += itemsCount;
+          dailyData[orderDate].paidAmount += totalPaid;
         }
       });
 
@@ -580,6 +592,7 @@ class DailyProfitController {
             totalRevenue: Math.round(totalRevenue),
             totalOrders,
             totalItemsSold,
+            totalPaidAmount: Math.round(totalPaidAmount),
             averageOrderValue: Math.round(averageOrderValue)
           },
           dailyData: dailyDataArray,
@@ -594,6 +607,131 @@ class DailyProfitController {
 
     } catch (error) {
       console.error('Error in getProfitDashboard:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * NEW: Get split payment analysis report
+   */
+  async getSplitPaymentAnalysis(req, res) {
+    try {
+      const { startDate, endDate, outletId } = req.query;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
+        });
+      }
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      const filter = {
+        createdAtWIB: { $gte: start, $lte: end },
+        status: { $in: ['Completed', 'OnProcess'] }
+      };
+
+      if (outletId && outletId !== 'all') {
+        filter.outlet = outletId;
+      }
+
+      const orders = await Order.find(filter).lean();
+
+      // Analysis data
+      const analysis = {
+        totalOrders: orders.length,
+        splitPaymentOrders: 0,
+        singlePaymentOrders: 0,
+        paymentMethodDistribution: {},
+        averagePaymentsPerOrder: 0,
+        ordersByStatus: {
+          not_started: 0,
+          partial: 0,
+          completed: 0,
+          overpaid: 0
+        },
+        ordersData: []
+      };
+
+      let totalPaymentCount = 0;
+
+      orders.forEach(order => {
+        const isSplitPayment = order.isSplitPayment || false;
+        const splitStatus = order.splitPaymentStatus || 'not_started';
+        
+        if (isSplitPayment) {
+          analysis.splitPaymentOrders++;
+        } else {
+          analysis.singlePaymentOrders++;
+        }
+
+        // Track orders by split payment status
+        analysis.ordersByStatus[splitStatus] = (analysis.ordersByStatus[splitStatus] || 0) + 1;
+
+        // Track payment methods
+        const completedPayments = order.payments?.filter(p => 
+          p.status === 'completed' || p.status === 'pending'
+        ) || [];
+        
+        totalPaymentCount += completedPayments.length;
+
+        completedPayments.forEach(payment => {
+          const method = payment.paymentMethod || 'Unknown';
+          analysis.paymentMethodDistribution[method] = 
+            (analysis.paymentMethodDistribution[method] || 0) + 1;
+        });
+
+        // Add order data for detailed analysis
+        const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+        
+        analysis.ordersData.push({
+          order_id: order.order_id,
+          createdAt: order.createdAtWIB,
+          isSplitPayment: isSplitPayment,
+          splitPaymentStatus: splitStatus,
+          totalPayments: completedPayments.length,
+          totalAmount: order.grandTotal || 0,
+          totalPaid: totalPaid,
+          remainingBalance: order.remainingBalance || 0,
+          paymentMethods: completedPayments.map(p => p.paymentMethod)
+        });
+      });
+
+      // Calculate averages
+      analysis.averagePaymentsPerOrder = analysis.totalOrders > 0 
+        ? (totalPaymentCount / analysis.totalOrders).toFixed(2) 
+        : 0;
+
+      // Sort orders by split payment count
+      analysis.ordersData.sort((a, b) => b.totalPayments - a.totalPayments);
+
+      res.json({
+        success: true,
+        data: {
+          analysis,
+          period: {
+            startDate,
+            endDate,
+            outlet: outletId || 'All Outlets'
+          },
+          summary: {
+            splitPaymentRate: analysis.totalOrders > 0 
+              ? ((analysis.splitPaymentOrders / analysis.totalOrders) * 100).toFixed(2) + '%'
+              : '0%',
+            averagePaymentCount: analysis.averagePaymentsPerOrder
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in getSplitPaymentAnalysis:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
