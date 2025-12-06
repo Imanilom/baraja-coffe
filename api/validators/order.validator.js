@@ -13,117 +13,133 @@ dotenv.config();
  * @param {string} source - 'App' | 'Cashier' | 'Web'
  * @returns {Object} normalized order data
  */
-export function validateOrderData(data, source) {
-  const { items, orderType, customerId, loyaltyPointsToRedeem } = data;
-
-  // Basic validations
-  if (!data || typeof data !== 'object') {
-    throw new Error('Invalid order data');
-  }
-  if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
-    throw new Error('Order must contain at least one item');
-  }
-  if (!data.orderType) {
-    throw new Error('Order type is required');
-  }
-
+// validators/order.validator.js
+export const validateOrderData = (data, source) => {
+  const errors = [];
+  
   // Validasi dasar
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    throw new Error('Order items cannot be empty');
+  if (!data.user || typeof data.user !== 'string' || data.user.trim() === '') {
+    errors.push('Nama pelanggan diperlukan');
   }
 
+  if (!data.outletId) {
+    errors.push('Outlet ID diperlukan');
+  }
 
-  // Normalize orderType
-  const formattedOrderType = formatOrderType(data.orderType);
-
-  // Validasi khusus untuk delivery order
-  if (formattedOrderType === 'Delivery') {
-    if (!data.recipient_data) {
-      throw new Error('Recipient data is required for delivery orders');
-    }
-    if (!data.recipient_data.coordinates) {
-      throw new Error('Coordinates are required for delivery orders');
+  // Validasi items
+  if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+    if (!data.customAmountItems || !Array.isArray(data.customAmountItems) || data.customAmountItems.length === 0) {
+      errors.push('Order harus memiliki minimal satu item atau custom amount item');
     }
   }
 
-  switch (source) {
-    case 'App': {
-      if (!data.userId) throw new Error('User ID is required for App orders');
-      if (!data.paymentDetails?.method) throw new Error('Payment method is required for App orders');
-
-      // Order type specific validation
-      if (data.orderType === 'dineIn' && !data.tableNumber) {
-        throw new Error('Table number is required for dine-in orders');
-      }
-      if (data.orderType === 'delivery') {
-        if (!data.recipient_data) {
-          throw new Error('Recipient data is required for delivery orders');
-        }
-        if (!data.recipient_data.name || !data.recipient_data.phone || !data.recipient_data.address) {
-          throw new Error('Complete recipient information (name, phone, address) is required for delivery orders');
+  // Validasi payment details berdasarkan source
+  if (source === 'Web') {
+    // Untuk Web, paymentDetails harus object (bukan array)
+    if (!data.paymentDetails || typeof data.paymentDetails !== 'object' || Array.isArray(data.paymentDetails)) {
+      errors.push('Payment details harus berupa object untuk Web orders');
+    } else {
+      // Validasi method untuk Web
+      if (!data.paymentDetails.method || typeof data.paymentDetails.method !== 'string') {
+        errors.push('Payment method is required for Web orders');
+      } else {
+        const validWebMethods = ['Cash', 'QRIS', 'E-Wallet', 'Bank Transfer', 'Transfer'];
+        const method = data.paymentDetails.method.trim();
+        if (!validWebMethods.includes(method)) {
+          errors.push(`Payment method ${method} tidak valid untuk Web orders. Harus salah satu dari: ${validWebMethods.join(', ')}`);
         }
       }
-      if (data.orderType === 'pickup' && !data.pickupTime) {
-        throw new Error('Pickup time is required for pickup orders');
+      
+      // Validasi amount untuk Web
+      if (!data.paymentDetails.amount || isNaN(data.paymentDetails.amount) || data.paymentDetails.amount <= 0) {
+        errors.push('Payment amount harus lebih dari 0 untuk Web orders');
       }
-      if (data.orderType === 'reservation' && !data.reservationData) {
-        throw new Error('Reservation data is required for reservation orders');
+    }
+  } else if (source === 'Cashier') {
+    // Untuk Cashier, bisa object atau array (untuk split payment)
+    if (!data.paymentDetails) {
+      errors.push('Payment details diperlukan untuk Cashier orders');
+    } else if (Array.isArray(data.paymentDetails)) {
+      // Validasi array untuk split payment
+      if (data.paymentDetails.length === 0) {
+        errors.push('Split payment harus memiliki minimal satu payment detail');
       }
-
-      return {
-        ...data,
-        formattedOrderType
-      };
-    }
-
-    case 'Cashier': {
-      if (!data.cashierId) throw new Error('Cashier ID is required for Cashier orders');
-      if (!data.paymentMethod) throw new Error('Payment method is required for Cashier orders');
-      console.log('payment method check at cashier order', data.paymentMethod);
-      // PERBAIKAN KRITIS: Hapus semua field delivery dari data cashier
-      const {
-        delivery_option,
-        recipient_data,
-        deliveryStatus,
-        deliveryProvider,
-        deliveryTracking,
-        recipientInfo,
-        ...cashierData
-      } = data;
-
-      return {
-        items: cashierData.items,
-        customAmountItems: cashierData.customAmountItems || [],
-        user: cashierData.user || null,
-        cashierId: cashierData.cashierId,
-        paymentMethod: cashierData.paymentMethod,
-        orderType: formattedOrderType,
-        tableNumber: cashierData.tableNumber || null,
-        outlet: cashierData.outlet || null,
-        isOpenBill: Boolean(cashierData.isOpenBill),
-        // Pastikan tidak ada field delivery yang terbawa
-        formattedOrderType
-      };
-    }
-
-    case 'Web': {
-      if (!data.user) throw new Error('User information is required for Web orders');
-      if (!data.paymentMethod) throw new Error('Payment method is required for Web orders');
-
-      // Web tidak mendukung delivery
-      if (formattedOrderType === 'Delivery') {
-        throw new Error('Delivery orders are not supported for Web source');
+      data.paymentDetails.forEach((payment, index) => {
+        if (!payment.method) {
+          errors.push(`Payment method diperlukan untuk split payment ${index + 1}`);
+        }
+        if (!payment.amount || payment.amount <= 0) {
+          errors.push(`Payment amount harus lebih dari 0 untuk split payment ${index + 1}`);
+        }
+      });
+    } else if (typeof data.paymentDetails === 'object') {
+      // Single payment object
+      if (!data.paymentDetails.method) {
+        errors.push('Payment method diperlukan untuk Cashier orders');
       }
-
-      return {
-        ...data,
-        formattedOrderType
-      };
+      if (!data.paymentDetails.amount || data.paymentDetails.amount <= 0) {
+        errors.push('Payment amount harus lebih dari 0 untuk Cashier orders');
+      }
+    } else {
+      errors.push('Payment details harus berupa object atau array untuk Cashier orders');
     }
-
-    default:
-      throw new Error(`Invalid order source: ${source}`);
+  } else if (source === 'App') {
+    // Untuk App, bisa object atau array
+    if (!data.paymentDetails) {
+      errors.push('Payment details diperlukan untuk App orders');
+    } else if (Array.isArray(data.paymentDetails)) {
+      // Split payment untuk App
+      data.paymentDetails.forEach((payment, index) => {
+        if (!payment.method) {
+          errors.push(`Payment method diperlukan untuk split payment ${index + 1}`);
+        }
+        if (!payment.amount || payment.amount <= 0) {
+          errors.push(`Payment amount harus lebih dari 0 untuk split payment ${index + 1}`);
+        }
+      });
+    } else if (typeof data.paymentDetails === 'object') {
+      if (!data.paymentDetails.method) {
+        errors.push('Payment method diperlukan untuk App orders');
+      }
+      if (!data.paymentDetails.amount || data.paymentDetails.amount <= 0) {
+        errors.push('Payment amount harus lebih dari 0 untuk App orders');
+      }
+    }
   }
+
+  // Validasi contact untuk Web dan App
+  if (source === 'Web' || source === 'App') {
+    if (!data.contact || typeof data.contact !== 'object') {
+      errors.push('Contact information diperlukan');
+    } else {
+      if (!data.contact.phone || typeof data.contact.phone !== 'string' || data.contact.phone.trim() === '') {
+        errors.push('Nomor telepon pelanggan diperlukan');
+      }
+      
+      // Validasi email opsional tapi jika ada harus valid
+      if (data.contact.email && !isValidEmail(data.contact.email)) {
+        errors.push('Format email tidak valid');
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(errors.join(', '));
+  }
+
+  // Return data yang sudah divalidasi
+  return {
+    ...data,
+    source: source,
+    // Pastikan paymentDetails ada
+    paymentDetails: data.paymentDetails || { method: 'Cash', amount: 0 }
+  };
+};
+
+// Helper function untuk validasi email
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 }
 
 

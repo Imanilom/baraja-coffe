@@ -1,6 +1,7 @@
 import axios from "axios";
 import React, { useState, useEffect, useMemo } from "react";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaSearch, FaFileExcel } from "react-icons/fa";
+import * as XLSX from 'xlsx';
 
 const StockManagement = () => {
     const [productStock, setProductStock] = useState([]);
@@ -20,7 +21,6 @@ const StockManagement = () => {
 
                 // Simulasi delay untuk loading
                 await new Promise(resolve => setTimeout(resolve, 1000));
-
 
                 // Kode asli untuk production (uncomment saat API sudah siap)
                 const productResponse = await axios.get("/api/marketlist/products");
@@ -136,8 +136,8 @@ const StockManagement = () => {
 
     // Get stock status
     const getStockStatus = (product) => {
-        const stock = product.stock || 0;
-        const minStock = product.minStock || 0;
+        const stock = product.stockData !== null ? product.stockData.currentStock : 0;
+        const minStock = product.stockData !== null ? product.stockData.minStock : 0;
 
         if (stock === 0) {
             return { text: 'Habis', color: 'text-red-600 bg-red-50' };
@@ -145,6 +145,133 @@ const StockManagement = () => {
             return { text: 'Akan Habis', color: 'text-orange-600 bg-orange-50' };
         }
         return { text: 'Tersedia', color: 'text-green-600 bg-green-50' };
+    };
+
+    // Export to Excel Function
+    const exportToExcel = () => {
+        try {
+            // Prepare data for export
+            const exportData = filteredData.map((product, index) => {
+                const stock = product.stockData !== null ? product.stockData.currentStock : 0;
+                const minStock = product.stockData !== null ? product.stockData.minStock : 0;
+                const status = getStockStatus(product);
+                const nilaiStockPerUnit = product.price || 0;
+                const nilaiStock = stock * nilaiStockPerUnit;
+
+                return {
+                    'No': index + 1,
+                    'Nama Produk': product.name || '-',
+                    'SKU': product.sku || '-',
+                    'Kategori': product.category || '-',
+                    'Barcode': product.barcode || '-',
+                    'Stok Saat Ini': stock,
+                    'Stok Minimum': minStock,
+                    'Satuan': product.unit || '-',
+                    'Status': status.text,
+                    'Harga per Unit': nilaiStockPerUnit,
+                    'Nilai Total Stok': nilaiStock
+                };
+            });
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+
+            // Create main worksheet
+            const ws = XLSX.utils.json_to_sheet([]);
+
+            // Add company header
+            XLSX.utils.sheet_add_aoa(ws, [
+                ['LAPORAN STOK PRODUK'],
+                ['Tanggal Export: ' + new Date().toLocaleDateString('id-ID', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })],
+                [''],
+                ['DETAIL STOK']
+            ], { origin: 'A1' });
+
+            // Add data starting from row 12
+            XLSX.utils.sheet_add_json(ws, exportData, { origin: 'A12' });
+
+            // Add grand total row
+            const lastRow = 12 + exportData.length;
+            XLSX.utils.sheet_add_aoa(ws, [
+                ['', '', '', '', '', '', '', '', '', 'GRAND TOTAL:', grandTotalStock]
+            ], { origin: `A${lastRow}` });
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 5 },   // No
+                { wch: 30 },  // Nama Produk
+                { wch: 15 },  // SKU
+                { wch: 15 },  // Kategori
+                { wch: 15 },  // Barcode
+                { wch: 12 },  // Stok Saat Ini
+                { wch: 12 },  // Stok Minimum
+                { wch: 10 },  // Satuan
+                { wch: 12 },  // Status
+                { wch: 15 },  // Harga per Unit
+                { wch: 18 }   // Nilai Total Stok
+            ];
+
+            // Apply styles (basic styling for SheetJS)
+            const range = XLSX.utils.decode_range(ws['!ref']);
+
+            // Style header cells
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const address = XLSX.utils.encode_col(C) + "1";
+                if (!ws[address]) continue;
+                ws[address].s = {
+                    font: { bold: true, sz: 14 },
+                    alignment: { horizontal: "center" }
+                };
+            }
+
+            // Format currency columns
+            for (let R = 12; R <= lastRow; ++R) {
+                // Harga per Unit (column J)
+                const priceCell = 'J' + R;
+                if (ws[priceCell] && typeof ws[priceCell].v === 'number') {
+                    ws[priceCell].z = '#,##0';
+                }
+
+                // Nilai Total Stok (column K)
+                const totalCell = 'K' + R;
+                if (ws[totalCell] && typeof ws[totalCell].v === 'number') {
+                    ws[totalCell].z = '#,##0';
+                }
+            }
+
+            // Format grand total in summary
+            if (ws['B9']) {
+                ws['B9'].z = '#,##0';
+            }
+
+            // Format grand total at bottom
+            const grandTotalCell = 'K' + lastRow;
+            if (ws[grandTotalCell]) {
+                ws[grandTotalCell].z = '#,##0';
+            }
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Laporan Stok');
+
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().slice(0, 10);
+            const filename = `Laporan_Stok_${timestamp}.xlsx`;
+
+            // Write file
+            XLSX.writeFile(wb, filename);
+
+            // Show success message
+            alert('File Excel berhasil diexport!');
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            alert('Gagal mengexport file Excel. Silakan coba lagi.');
+        }
     };
 
     if (loading) {
@@ -174,7 +301,6 @@ const StockManagement = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
-
             {/* Breadcrumb */}
             <div className="bg-white px-6 py-3 border-b">
                 <div className="flex items-center space-x-2 text-sm">
@@ -202,7 +328,11 @@ const StockManagement = () => {
                                 className="w-full text-sm border border-gray-300 py-2 pl-10 pr-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005429] focus:border-transparent"
                             />
                         </div>
-                        <button className="bg-[#005429] text-white text-sm px-6 py-2 rounded-lg hover:bg-[#003d1f] transition-colors">
+                        <button
+                            onClick={exportToExcel}
+                            className="bg-[#005429] text-white text-sm px-6 py-2 rounded-lg hover:bg-[#003d1f] transition-colors flex items-center gap-2"
+                        >
+                            <FaFileExcel className="w-4 h-4" />
                             Ekspor Excel
                         </button>
                     </div>
@@ -217,19 +347,19 @@ const StockManagement = () => {
                     <div className="bg-white rounded-lg shadow-sm p-4">
                         <p className="text-sm text-gray-500 mb-1">Stok Tersedia</p>
                         <p className="text-2xl font-semibold text-green-600">
-                            {filteredData.filter(p => (p.stock || 0) > (p.minStock || 0)).length}
+                            {filteredData.filter(p => (p.stockData !== null ? p.stockData.currentStock : 0) > (p.stockData !== null ? p.stockData.minStock : 0)).length}
                         </p>
                     </div>
                     <div className="bg-white rounded-lg shadow-sm p-4">
                         <p className="text-sm text-gray-500 mb-1">Akan Habis</p>
                         <p className="text-2xl font-semibold text-orange-600">
-                            {filteredData.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= (p.minStock || 0)).length}
+                            {filteredData.filter(p => (p.stockData !== null ? p.stockData.currentStock : 0) > 0 && (p.stockData !== null ? p.stockData.currentStock : 0) <= (p.stockData !== null ? p.stockData.minStock : 0)).length}
                         </p>
                     </div>
                     <div className="bg-white rounded-lg shadow-sm p-4">
                         <p className="text-sm text-gray-500 mb-1">Stok Habis</p>
                         <p className="text-2xl font-semibold text-red-600">
-                            {filteredData.filter(p => (p.stock || 0) === 0).length}
+                            {filteredData.filter(p => (p.stockData !== null ? p.stockData.currentStock : 0) === 0).length}
                         </p>
                     </div>
                 </div>
@@ -291,7 +421,7 @@ const StockManagement = () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center">
                                                     <span className="text-sm font-medium text-gray-900">
-                                                        {product.stock || 0}
+                                                        {product.stockData !== null ? product.stockData.currentStock : 0}
                                                     </span>
                                                     <span className="text-xs text-gray-500 ml-1">
                                                         {product.unit || ""}
