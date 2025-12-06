@@ -2365,7 +2365,7 @@ export const createUnifiedOrder = async (req, res) => {
     } = req.body;
 
     // ========== VALIDASI AWAL ==========
-    
+
     // Validasi outletId
     if (!outletId) {
       return res.status(400).json({
@@ -2404,7 +2404,7 @@ export const createUnifiedOrder = async (req, res) => {
           message: 'Nama pelanggan diperlukan untuk Web orders'
         });
       }
-      
+
       if (!contact || !contact.phone || typeof contact.phone !== 'string' || contact.phone.trim() === '') {
         return res.status(400).json({
           success: false,
@@ -2441,7 +2441,7 @@ export const createUnifiedOrder = async (req, res) => {
     // ========== CASHIER: LANGSUNG TANPA LOCK ==========
     if (source === 'Cashier') {
       console.log('💰 Processing Cashier order directly (no lock needed)');
-      
+
       const result = await processCashierOrderDirect({
         req,
         orderId,
@@ -2654,12 +2654,13 @@ const processCashierOrderDirect = async ({
   }
 
   // Validate payment details
+  console.log("coba cek payment details sebelum validate:", paymentDetails);
   const validatedPaymentDetails = validateAndNormalizePaymentDetails(
     paymentDetails,
     isSplitPayment,
     'Cashier'
   );
-
+  console.log("coba cek payment details setelah validate:", validatedPaymentDetails);
   // Prepare validation data
   const validationData = {
     ...req.body,
@@ -2673,7 +2674,7 @@ const processCashierOrderDirect = async ({
   };
 
   const validated = validateOrderData(validationData, 'Cashier');
-  
+
   validated.outletId = outletId;
   validated.outlet = outletId;
   validated.device_id = device_id;
@@ -2707,7 +2708,7 @@ const processCashierOrderDirect = async ({
 
   // Create order
   console.log('🔄 Creating Cashier order directly...');
-  
+
   const orderResult = await createOrderHandler({
     orderId,
     orderData: validated,
@@ -2737,6 +2738,7 @@ const processCashierOrderDirect = async ({
   });
 
   // Process payment
+  console.log("apapapapap", validatedPaymentDetails);
   const paymentResult = await processCashierPayment(
     orderId,
     validatedPaymentDetails,
@@ -2799,7 +2801,7 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
 
       const chargeRequest = {
         body: {
-          payment_type: payment.method || 'Cash',
+          method: payment.method || 'Cash',
           order_id: orderId,
           gross_amount: payment.amount,
           is_down_payment: false,
@@ -2808,7 +2810,8 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
           is_split_payment: true,
           split_payment_index: index,
           va_numbers: payment.vaNumbers,
-          actions: payment.actions
+          actions: payment.actions,
+          method_type: payment.methodType
         }
       };
 
@@ -2856,18 +2859,21 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
     // Single payment
     const chargeRequest = {
       body: {
-        payment_type: paymentDetails?.method || 'Cash',
+        method: paymentDetails?.method || 'Cash',
         order_id: orderId,
         gross_amount: paymentDetails?.amount || 0,
         is_down_payment: paymentDetails?.is_down_payment || false,
         down_payment_amount: paymentDetails?.down_payment_amount,
-        remaining_payment: paymentDetails?.remaining_payment,
-        tendered_amount: paymentDetails?.tendered_amount,
-        change_amount: paymentDetails?.change_amount,
-        is_split_payment: false
+        remaining_payment: paymentDetails?.remainingPayment,
+        tendered_amount: paymentDetails?.tenderedAmount,
+        change_amount: paymentDetails?.changeAmount,
+        is_split_payment: false,
+        va_numbers: paymentDetails?.vaNumbers,
+        actions: paymentDetails?.actions,
+        method_type: paymentDetails?.methodType
       }
     };
-
+    console.log("coba cek va numbers in single payment:", chargeRequest);
     return new Promise((resolve, reject) => {
       const mockRes = {
         status: (code) => ({
@@ -2907,7 +2913,7 @@ const processWebAppOrder = async ({
 }) => {
   // [Sisa kode sama seperti yang ada di dalam lock sebelumnya untuk Web/App]
   // Implementasi lengkap untuk Web & App order processing...
-  
+
   // Cek outlet
   const outlet = await Outlet.findById(outletId);
   if (!outlet) {
@@ -2960,7 +2966,7 @@ const processWebAppOrder = async ({
   };
 
   const validated = validateOrderData(validationData, source);
-  
+
   validated.outletId = outletId;
   validated.outlet = outletId;
   validated.device_id = device_id;
@@ -3089,7 +3095,7 @@ const processWebAppOrder = async ({
   // Handle Web orders
   if (source === 'Web') {
     const newOrder = await Order.findOne({ order_id: orderId });
-    
+
     const paymentData = {
       order_id: orderId,
       payment_code: generatePaymentCode(),
@@ -3101,7 +3107,7 @@ const processWebAppOrder = async ({
       totalAmount: newOrder.grandTotal,
       remainingAmount: newOrder.grandTotal,
     };
-    
+
     const payment = await Payment.create(paymentData);
 
     const isCashPayment = validatedPaymentDetails?.method?.toLowerCase() === 'cash';
@@ -6690,7 +6696,7 @@ async function _autoConfirmOrderInBackground(orderId) {
 export const cashierCharge = async (req, res) => {
   try {
     const {
-      payment_type,
+      method,
       order_id,
       gross_amount,
       is_down_payment = false,
@@ -6701,18 +6707,21 @@ export const cashierCharge = async (req, res) => {
       is_split_payment = false,
       split_payment_index = 0,
       va_numbers,
-      actions
+      actions,
+      method_type
     } = req.body;
 
     console.log('Cashier Charge - Processing Payment:', {
       order_id,
-      payment_type,
+      method,
       gross_amount,
       is_down_payment,
       is_split_payment,
       split_payment_index,
       tendered_amount,
-      change_amount
+      change_amount,
+      va_numbers,
+      actions
     });
 
     // Cari order
@@ -6792,7 +6801,7 @@ export const cashierCharge = async (req, res) => {
       order_id: order_id,
       payment_code: generatePaymentCode(),
       transaction_id: generateTransactionId(),
-      method: payment_type,
+      method: method,
       status: paymentStatus,
       paymentType: is_down_payment ? 'Down Payment' : 'Full',
       amount: gross_amount,
@@ -6806,7 +6815,8 @@ export const cashierCharge = async (req, res) => {
       currency: "IDR",
       merchant_id: "G055993835",
       va_numbers: va_numbers,
-      actions: actions
+      actions: actions,
+      method_type: method_type
     };
 
     const payment = await Payment.create(paymentData);
@@ -7366,8 +7376,39 @@ export const processPaymentCashier = async (req, res) => {
 
       // Update status payment menjadi settlement
       payment.status = 'settlement';
-      payment.method = paymentMethodandtype;
+      payment.method = payment_method;
+      payment.method_type = paymentMethodandtype;
       payment.paidAt = new Date();
+
+      // Handle penyimpanan payment_type berdasarkan payment_method
+      if (payment_type) {
+        if (payment_method === 'Debit' || payment_method === 'Bank Transfer') {
+          // Simpan payment_type di va_numbers untuk Debit dan Bank Transfer
+          if (payment.va_numbers && payment.va_numbers.length > 0) {
+            // Jika sudah ada va_numbers, update bank dengan payment_type
+            payment.va_numbers[0].bank = payment_type;
+          } else {
+            // Jika belum ada, buat baru
+            payment.va_numbers = [{
+              bank: payment_type,
+              va_number: '' // Diisi kosong karena cashier tidak memiliki va_number
+            }];
+          }
+        } else if (payment_method === 'QRIS') {
+          // Simpan payment_type di actions untuk QRIS
+          if (payment.actions && payment.actions.length > 0) {
+            // Jika sudah ada actions, update name dengan payment_type
+            payment.actions[0].name = payment_type;
+          } else {
+            // Jika belum ada, buat baru
+            payment.actions = [{
+              name: payment_type,
+              method: QRIS, // Diisi kosong karena cashier tidak memiliki method detail
+              url: '' // Diisi kosong karena cashier tidak memiliki URL
+            }];
+          }
+        }
+      }
 
       await payment.save({ session });
       // console.log(payment);
