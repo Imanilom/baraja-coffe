@@ -7332,7 +7332,7 @@ export const processPaymentCashier = async (req, res) => {
     }
     // Update status order jika semua pembayaran sudah lunas
     order.cashierId = cashier._id;
-    order.paymentMethod = payment_type;
+    order.paymentMethod = payment_method;
     if (device_id) {
       order.device_id = device_id;
     }
