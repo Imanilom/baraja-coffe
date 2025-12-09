@@ -17,13 +17,13 @@ import {
     // Ganti nama method controller ke versi "dine-in"
     checkInDineInOrder,
     checkOutDineInOrder,
-    getOrderDetail,
     cancelDineInOrder,
     debugTableStatus,
     syncTableStatus,
     forceResetTableStatus,
     getAllAvailableTables,
-    transferOrderToTable
+    transferOrderToTable,
+    getOrderDetailById
 } from '../controllers/gro.controller.js';
 import { authMiddleware } from '../utils/verifyUser.js';
 
@@ -59,7 +59,7 @@ router.put('/orders/:orderId/cancel', authMiddleware, cancelDineInOrder);
 router.put('/orders/:orderId/dine-in/check-out', authMiddleware, checkOutDineInOrder);
 
 // Order detail (used by tracking, GRO, etc.)
-router.get('/orders/:orderId', authMiddleware, getOrderDetail);
+router.get('/orders/:orderId', authMiddleware, getOrderDetailById);
 
 // Table Availability
 router.get('/tables/availability', authMiddleware, getTableAvailability);

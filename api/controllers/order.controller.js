@@ -6132,6 +6132,7 @@ export const getOrderById = async (req, res) => {
     console.log('Payment:', payment);
     console.log('Order:', orderId);
     console.log('Reservation:', reservation);
+    console.log('controller yang digunakan masih dari orderController getOrderById');
 
     // Format tanggal
     const formatDate = (date) => {
