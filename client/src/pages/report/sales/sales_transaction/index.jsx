@@ -160,7 +160,7 @@ const SalesTransaction = () => {
                         return {
                             ...product,
                             paymentDetails: paymentDetails || null,
-                            actualPaymentMethod: paymentDetails?.method || product.paymentMethod || 'N/A'
+                            actualPaymentMethod: paymentDetails?.method_type || product.paymentMethod || 'N/A'
                         };
                     } catch (err) {
                         console.error(`Error processing payment for ${product.order_id}:`, err);

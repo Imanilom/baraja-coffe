@@ -281,7 +281,7 @@ const SalesTransactionTable = ({
                                         let totalSubtotal = 0;
 
                                         if (Array.isArray(product?.items)) {
-                                            menuNames = product.items.map((i) => i?.menuItem.name || "N/A");
+                                            menuNames = product.items.map((i) => i?.menuItemData.name || "produk tidak terinput dengan benar");
                                             totalSubtotal = product.items.reduce((sum, i) => {
                                                 return sum + (Number(i?.subtotal) || 0);
                                             }, 0);
