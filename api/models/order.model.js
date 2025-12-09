@@ -26,12 +26,12 @@ const SplitPaymentSchema = new mongoose.Schema({
     // Untuk cash
     cashTendered: { type: Number, default: 0 },
     change: { type: Number, default: 0 },
-    
+
     // Untuk card
     cardType: { type: String },
     cardLast4: { type: String },
     cardTransactionId: { type: String },
-    
+
     // Untuk QRIS/E-Wallet
     qrCode: { type: String },
     ewallets: {
@@ -39,7 +39,7 @@ const SplitPaymentSchema = new mongoose.Schema({
       enum: ['Gopay', 'OVO', 'Dana', 'ShopeePay', 'LinkAja', 'Other']
     },
     transactionId: { type: String },
-    
+
     // Untuk bank transfer
     bankName: { type: String },
     accountNumber: { type: String },
@@ -166,16 +166,16 @@ const OrderSchema = new mongoose.Schema({
     enum: ['Pending', 'Waiting', 'Reserved', 'OnProcess', 'Completed', 'Canceled'],
     default: 'Pending'
   },
-  
+
   // MODIFIKASI: Payment diubah menjadi array untuk split payment
   payments: [SplitPaymentSchema],
-  
+
   // Field legacy untuk kompatibilitas (opsional)
   paymentMethod: {
     type: String,
     enum: ['Cash', 'cash', 'Card', 'QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
   },
-  
+
   orderType: {
     type: String,
     enum: ['Dine-In', 'Pickup', 'Delivery', 'Take Away', 'Reservation', 'Event'],
@@ -248,11 +248,11 @@ const OrderSchema = new mongoose.Schema({
   totalAfterDiscount: { type: Number, required: true },
   totalCustomAmount: { type: Number, default: 0 },
   grandTotal: { type: Number, required: true },
-  
+
   // MODIFIKASI: Change sekarang dihitung dari total payments
-  change: { 
-    type: Number, 
-    default: 0 
+  change: {
+    type: Number,
+    default: 0
   },
 
   // Sumber order
@@ -326,7 +326,7 @@ const OrderSchema = new mongoose.Schema({
     coordinates: String,
     note: String
   },
-  
+
   // MODIFIKASI: Tambah field untuk tracking split payment
   isSplitPayment: {
     type: Boolean,
@@ -467,7 +467,7 @@ OrderSchema.pre('save', async function (next) {
           // Populate data menu item secara manual
           const MenuItem = mongoose.model('MenuItem');
           const menuItemDoc = await MenuItem.findById(item.menuItem).lean();
-          
+
           if (menuItemDoc) {
             item.menuItemData = {
               name: menuItemDoc.name || 'Unknown Item',
@@ -498,9 +498,9 @@ OrderSchema.pre('save', async function (next) {
         }
       }
     }
-    
+
     this.updatedAtWIB = getWIBNow();
-    
+
     // Hitung total dari semua custom amount items
     if (this.customAmountItems && Array.isArray(this.customAmountItems)) {
       this.totalCustomAmount = this.customAmountItems.reduce((total, item) => {
@@ -520,7 +520,7 @@ OrderSchema.pre('save', async function (next) {
       }, 0);
 
       const grandTotal = this.grandTotal || 0;
-      
+
       // Tentukan status split payment
       if (totalPaid === 0) {
         this.splitPaymentStatus = 'not_started';

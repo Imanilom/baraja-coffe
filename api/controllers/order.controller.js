@@ -5304,8 +5304,8 @@ export const getPaymentStatus = async (req, res) => {
 
     // Ambil semua payment terkait order
     const relatedPayments = await Payment.find({ order_id: orderId });
-    console.log('Related order:', relatedOrder);
-    console.log('Related payments:', relatedPayments);
+    // console.log('Related order:', relatedOrder);
+    // console.log('Related payments:', relatedPayments);
 
     // Case 1: Bukan Reservation → cari payment pending/settlement
     if (relatedOrder.orderType !== "Reservation") {
