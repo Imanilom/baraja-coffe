@@ -358,8 +358,8 @@ const PaymentMethodSales = () => {
                     key={i}
                     onClick={() => handlePageChange(i)}
                     className={`px-3 py-1 border border-green-900 rounded transition-colors ${currentPage === i
-                            ? "bg-green-900 text-white"
-                            : "text-green-900 hover:bg-green-900 hover:text-white"
+                        ? "bg-green-900 text-white"
+                        : "text-green-900 hover:bg-green-900 hover:text-white"
                         }`}
                 >
                     {i}
