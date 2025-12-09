@@ -2738,7 +2738,7 @@ const processCashierOrderDirect = async ({
   });
 
   // Process payment
-  console.log("apapapapap", validatedPaymentDetails);
+  console.log("validated payment data:", validatedPaymentDetails);
   const paymentResult = await processCashierPayment(
     orderId,
     validatedPaymentDetails,
