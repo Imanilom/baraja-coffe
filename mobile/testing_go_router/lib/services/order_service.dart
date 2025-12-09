@@ -442,7 +442,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
           return {
             'status': payment.status,
             'method': payment.method,
-            'methodType': payment.paymentType,
+            // 'methodType': payment.paymentType,
             'amount': payment.amount,
             'remainingAmount': payment.remainingAmount,
             'tenderedAmount': payment.tenderedAmount,

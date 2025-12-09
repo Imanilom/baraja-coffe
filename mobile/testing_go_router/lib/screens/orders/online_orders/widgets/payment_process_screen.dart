@@ -798,7 +798,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   Widget _buildPaymentTypeSelection() {
     final processState = ref.watch(paymentProcessProvider);
 
-    if (processState.selectedType == null) {
+    if (processState.selectedMethod == null) {
       return const Center(
         child: Text('Pilih methode pembayaran terlebih dahulu'),
       );
@@ -811,7 +811,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Pilih Metode ${processState.selectedType!.name}',
+            'Pilih type ${processState.selectedMethod?.name ?? 'unknown'}',
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -830,7 +830,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             itemCount: processState.selectedMethod!.paymentTypes.length,
             itemBuilder: (context, index) {
               final type = processState.selectedMethod!.paymentTypes[index];
-              final isSelected = processState.selectedMethod?.id == type.id;
+              final isSelected = processState.selectedType?.id == type.id;
               return _buildPaymentTypeCard(type, isSelected);
             },
           ),
@@ -1197,12 +1197,12 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     final processState = ref.read(paymentProcessProvider);
     switch (_currentStep) {
       case 0:
-        return processState.selectedType != null;
-      case 1:
         return processState.selectedMethod != null;
+      case 1:
+        return processState.selectedType != null;
       case 2:
-        return processState.selectedType != null &&
-            processState.selectedMethod != null;
+        return processState.selectedMethod != null &&
+            processState.selectedType != null;
       default:
         return false;
     }
@@ -1249,7 +1249,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           );
       final requestData = ref.watch(processPaymentRequestProvider);
       final paymentMethodAndType =
-          '${ref.read(paymentProcessProvider).selectedType!.name} ${ref.read(paymentProcessProvider).selectedMethod!.name}';
+          '${ref.read(paymentProcessProvider).selectedMethod!.name} ${ref.read(paymentProcessProvider).selectedType!.name} ';
       final List<PaymentModel> updatedPayments =
           (widget.order.payments ?? [])
               .map((p) => p.copyWith(method: paymentMethodAndType))

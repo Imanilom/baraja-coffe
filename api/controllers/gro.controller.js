@@ -1418,6 +1418,19 @@ export const getOrderDetail = async (req, res) => {
           kitchenStatus: item.kitchenStatus,
           batchNumber: item.batchNumber
         })),
+        customAmountItems: Array.isArray(order.customAmountItems)
+          ? order.customAmountItems.map(item => ({
+            _id: item._id,
+            amount: item.amount || 0,
+            name: item.name || 'Penyesuaian Pembayaran',
+            description: item.description || '',
+            dineType: item.dineType || 'Dine-In',
+            appliedAt: item.appliedAt,
+            originalAmount: item.originalAmount,
+            discountApplied: item.discountApplied || 0
+          }))
+          : [],
+        totalCustomAmount: order.totalCustomAmount || 0,
         totalBeforeDiscount: order.totalBeforeDiscount || 0,
         totalAfterDiscount: order.totalAfterDiscount || 0,
         totalTax: order.totalTax || 0,
