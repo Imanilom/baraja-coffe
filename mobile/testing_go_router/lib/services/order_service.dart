@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
 import 'package:kasirbaraja/models/payments/process_payment_request.dart';
+import 'package:kasirbaraja/utils/payment_details_utils.dart';
 
 class OrderService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
@@ -439,10 +440,11 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
             : [],
     'paymentDetails':
         order.payments.map((payment) {
+          final methodtype = PaymentDetails.buildPaymentMethodLabel(payment);
           return {
             'status': payment.status,
             'method': payment.method,
-            // 'methodType': payment.paymentType,
+            'methodType': methodtype,
             'amount': payment.amount,
             'remainingAmount': payment.remainingAmount,
             'tenderedAmount': payment.tenderedAmount,
