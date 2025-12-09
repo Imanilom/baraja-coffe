@@ -7,7 +7,7 @@ import {
   uploadBytesResumable,
 } from 'firebase/storage';
 import { app } from '../../firebase';
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaGift, FaPizzaSlice, FaChevronDown, FaInfoCircle } from "react-icons/fa";
 import { useNavigate, useParams } from "react-router-dom";
 import ToppingForm from "./varianmodal";
@@ -18,6 +18,11 @@ import Header from "../admin/header";
 import { useSelector } from "react-redux";
 
 const UpdateMenu = () => {
+  const location = useLocation();
+
+  // Ambil returnPage dari state yang dikirim dari halaman menu
+  const returnPage = location.state?.returnPage || 1;
+
   const customStyles = {
     control: (provided, state) => ({
       ...provided,
@@ -410,7 +415,7 @@ const UpdateMenu = () => {
       await axios.put(`/api/menu/menu-items/${id}`, payload, {
         headers: { Authorization: `Bearer ${currentUser.token}` },
       });
-      navigate("/admin/menu", { state: { success: "Menu berhasil diperbarui" } });
+      navigate(`/admin/menu?page=${returnPage}`, { state: { success: "Menu berhasil diperbarui" } });
     } catch (error) {
       console.error("Error updating menu item:", error);
     }
@@ -457,7 +462,7 @@ const UpdateMenu = () => {
         <ConfirmationModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
-          onConfirm={() => navigate("/admin/menu")}
+          onConfirm={() => navigate(`/admin/menu?page=${returnPage}`)}
         />
 
         <div className="p-4 md:p-6">

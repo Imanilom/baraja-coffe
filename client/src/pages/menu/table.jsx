@@ -7,6 +7,7 @@ import MenuSkeleton from "./skeleton";
 import ConfirmationModalActive from "./confirmationModalAction";
 import axios from "axios";
 import Paginated from "../../components/paginated";
+import ConfirmModal from "../../components/modal/confirmmodal";
 
 export default function MenuTable({
     categoryOptions,
@@ -35,14 +36,17 @@ export default function MenuTable({
     customStyles,
     currentPage,
     loading,
-    fetchData
+    fetchData,
+    onDeleteSuccess // Tambahkan prop ini
 }) {
 
     const location = useLocation();
     const navigate = useNavigate();
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [newStatus, setNewStatus] = useState(null);
     const [selectedMenu, setSelectedMenu] = useState(null);
+    const [itemToDelete, setItemToDelete] = useState(null);
     const [recipes, setRecipes] = useState([]);
     const [loadingRecipes, setLoadingRecipes] = useState(true);
 
@@ -53,7 +57,6 @@ export default function MenuTable({
                 setLoadingRecipes(true);
                 const response = await axios.get('/api/product/recipes');
 
-                // Pastikan data yang disimpan adalah array
                 if (Array.isArray(response.data)) {
                     setRecipes(response.data);
                 } else if (response.data && Array.isArray(response.data.data)) {
@@ -75,11 +78,47 @@ export default function MenuTable({
 
     // Function to check if menu has recipe
     const hasRecipe = (menuId) => {
-        // Pastikan recipes adalah array sebelum menggunakan .some()
         if (!Array.isArray(recipes)) {
             return false;
         }
         return recipes.some(recipe => recipe.menuItemId?._id === menuId);
+    };
+
+    // Handler untuk membuka modal delete
+    const handleDeleteClick = (item) => {
+        setItemToDelete(item);
+        setIsModalOpen(true);
+    };
+
+    // Handler untuk menutup modal
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setItemToDelete(null);
+    };
+
+    // Handler untuk konfirmasi delete
+    const handleConfirmDelete = async () => {
+        try {
+            await axios.delete(`/api/menu/menu-items/${itemToDelete.id}`);
+
+            // Refresh data
+            await fetchData();
+
+            // Trigger success message di parent component
+            if (onDeleteSuccess) {
+                onDeleteSuccess(`Menu "${itemToDelete.name}" berhasil dihapus`);
+            }
+
+        } catch (error) {
+            console.error("Error deleting item:", error);
+
+            // Trigger error message di parent component
+            if (onDeleteSuccess) {
+                onDeleteSuccess(null, 'Gagal menghapus menu. Silakan coba lagi.');
+            }
+        } finally {
+            handleCloseModal();
+        }
     };
 
     const handleUpdate = async (itemId, newStatus) => {
@@ -99,25 +138,6 @@ export default function MenuTable({
             console.error("Gagal update status:", error);
             alert("Terjadi kesalahan saat update status");
         }
-    };
-
-    const renderPageNumbers = () => {
-        let pages = [];
-        for (let i = 1; i <= totalPages; i++) {
-            pages.push(
-                <button
-                    key={i}
-                    onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
-                        ? "bg-green-900 text-white border-green-900"
-                        : "text-green-900 hover:bg-green-900 hover:text-white"
-                        }`}
-                >
-                    {i}
-                </button>
-            );
-        }
-        return pages;
     };
 
     if (loading || loadingRecipes) return <MenuSkeleton />;
@@ -161,7 +181,6 @@ export default function MenuTable({
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
-
                         <Select
                             options={outletOptions}
                             value={outletOptions.find(option => option.value === selectedOutlet) || outletOptions[0]}
@@ -235,7 +254,8 @@ export default function MenuTable({
                                         >
                                             <p>{checkedItems.length}</p> <FaTrashAlt />
                                         </button>
-                                    )}</th>
+                                    )}
+                                </th>
                             </tr>
                         </thead>
                         {currentItems.length > 0 ? (
@@ -292,11 +312,6 @@ export default function MenuTable({
                                         <td className="py-2 text-gray-700 w-1/6">
                                             {/* Toggle Aktif / Tidak Aktif */}
                                             <label className="flex items-center space-x-2 cursor-pointer">
-                                                <span
-                                                    className={`text-xs font-medium ${item.isActive ? "text-green-900" : "text-gray-500"
-                                                        }`}
-                                                >
-                                                </span>
                                                 <div className="relative inline-flex items-center">
                                                     <input
                                                         type="checkbox"
@@ -308,9 +323,7 @@ export default function MenuTable({
                                                         }}
                                                         className="sr-only peer"
                                                     />
-                                                    {/* Background toggle */}
                                                     <div className="w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-900 transition-colors"></div>
-                                                    {/* Lingkaran slider */}
                                                     <div className="absolute left-[2px] top-[2px] w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
                                                 </div>
                                             </label>
@@ -324,12 +337,12 @@ export default function MenuTable({
                                         {/* Actions */}
                                         <td className="py-2 w-1/6">
                                             <div className="flex items-center justify-end space-x-3">
-                                                {/* Resep - dengan status warna */}
+                                                {/* Resep */}
                                                 {hasRecipe(item.id) ? (
                                                     <Link
                                                         to={`/admin/menu-receipt/${item.id}`}
                                                         className="p-2 rounded-md hover:bg-gray-100 text-green-600"
-                                                        title="Resep Tersedia - Klik untuk kelola"
+                                                        title="Resep Tersedia"
                                                     >
                                                         <FaReceipt size={16} />
                                                     </Link>
@@ -337,21 +350,30 @@ export default function MenuTable({
                                                     <Link
                                                         to={`/admin/menu-receipt/${item.id}`}
                                                         className="p-2 rounded-md hover:bg-gray-100 text-yellow-500"
-                                                        title="Belum Ada Resep - Klik untuk tambah"
+                                                        title="Belum Ada Resep"
                                                     >
                                                         <FaReceipt size={16} />
                                                     </Link>
                                                 )}
 
-                                                {/* Edit */}
+                                                {/* Edit & Delete */}
                                                 {location.pathname === '/admin/menu' ? (
-                                                    <Link
-                                                        to={`/admin/menu-update/${item.id}`}
-                                                        className="p-2 rounded-md hover:bg-gray-100 text-green-900"
-                                                        title="Edit"
-                                                    >
-                                                        <FaPencilAlt size={16} />
-                                                    </Link>
+                                                    <div className="flex items-center gap-1">
+                                                        <Link
+                                                            to={`/admin/menu-update/${item.id}`}
+                                                            className="p-2 rounded-md hover:bg-gray-100 text-green-900"
+                                                            title="Edit"
+                                                        >
+                                                            <FaPencilAlt size={16} />
+                                                        </Link>
+                                                        <button
+                                                            onClick={() => handleDeleteClick(item)}
+                                                            className="p-2 rounded-md hover:bg-red-50 text-red-600"
+                                                            title="Hapus"
+                                                        >
+                                                            <FaTrashAlt size={16} />
+                                                        </button>
+                                                    </div>
                                                 ) : (
                                                     <Link
                                                         to={`/admin/ticket/edit-ticket/${item.id}`}
@@ -361,7 +383,6 @@ export default function MenuTable({
                                                         <FaPencilAlt size={16} />
                                                     </Link>
                                                 )}
-
                                             </div>
                                         </td>
                                     </tr>
@@ -376,7 +397,6 @@ export default function MenuTable({
                                 </tr>
                             </tbody>
                         )}
-
                     </table>
                 </div>
             </div>
@@ -389,7 +409,7 @@ export default function MenuTable({
                 />
             </div>
 
-
+            {/* Modal Konfirmasi Status */}
             <ConfirmationModalActive
                 isOpen={isConfirmOpen}
                 menu={selectedMenu}
@@ -405,6 +425,17 @@ export default function MenuTable({
                     setSelectedMenu(null);
                     setNewStatus(null);
                 }}
+            />
+
+            {/* Modal Konfirmasi Delete */}
+            <ConfirmModal
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                onConfirm={handleConfirmDelete}
+                title="Hapus Menu"
+                message={`Apakah Anda yakin ingin menghapus "${itemToDelete?.name}"? Tindakan ini tidak dapat dibatalkan.`}
+                confirmText="Ya, Hapus"
+                cancelText="Batal"
             />
         </>
     )

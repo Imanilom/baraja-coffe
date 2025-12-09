@@ -1,31 +1,9 @@
-import React, { useEffect, useState, useRef } from "react";
-import Select from "react-select";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaPencilAlt, FaTrash, FaReceipt, FaTrashAlt, FaChevronRight, FaChevronLeft, FaEyeSlash, FaEye, FaPlus, FaDownload, FaBoxes } from 'react-icons/fa';
+import React, { useEffect, useState } from "react";
+import { FaPlus } from 'react-icons/fa';
 import axios from "axios";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import Header from "../admin/header";
-import ConfirmationModalActive from "./confirmationModalAction";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import MessageAlertMenu from "../../components/messageAlert";
-import CategoryTabs from "./filters/categorytabs";
 import MenuTable from "./table";
-import MenuCategoryTabs from "./tabs";
-
-const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-6 rounded shadow-md text-center w-96">
-                <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
-                <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
-                <p>Apakah Anda yakin ingin menghapus item ini?</p>
-                <div className="flex justify-center mt-4">
-                    <button onClick={onClose} className="mr-2 px-4 py-2 bg-gray-300 rounded">Batal</button>
-                    <button onClick={onConfirm} className="px-4 py-2 bg-red-500 text-white rounded">Hapus</button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const Menu = () => {
     const customStyles = {
@@ -64,33 +42,31 @@ const Menu = () => {
 
     const location = useLocation();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+
     const [menuItems, setMenuItems] = useState([]);
     const [category, setCategory] = useState([]);
-    const [status, setStatus] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [error, setError] = useState(null);
     const [checkedItems, setCheckedItems] = useState([]);
     const [checkAll, setCheckAll] = useState(false);
-    const [openDropdown, setOpenDropdown] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // State sementara (input filter)
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [tempSelectedStatus, setTempSelectedStatus] = useState("");
-    const [tempSearch, setTempSearch] = useState("");
+    // State untuk alert message
+    const [alertMessage, setAlertMessage] = useState(null);
+    const [alertType, setAlertType] = useState('success');
 
-    // State final (filter aktif)
+    // State filter
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
     const [selectedStatus, setSelectedStatus] = useState("");
     const [selectedWorkstation, setSelectedWorkstation] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Pagination
-    const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+
+    // Pagination - selalu sinkron dengan URL
+    const currentPage = parseInt(searchParams.get('page')) || 1;
 
     const fetchData = async () => {
         setLoading(true);
@@ -111,11 +87,6 @@ const Menu = () => {
                 )
             );
 
-            setStatus([
-                { id: "ya", name: "Ya" },
-                { id: "tidak", name: "Tidak" }
-            ]);
-
             setError(null);
         } catch (err) {
             console.error("Error fetching data:", err);
@@ -132,8 +103,40 @@ const Menu = () => {
         fetchData();
     }, []);
 
+    // Check for success/error message from location state
     useEffect(() => {
-        setCurrentPage(1);
+        if (location.state?.success) {
+            setAlertMessage(location.state.success);
+            setAlertType('success');
+            // Clear state tapi pertahankan search params
+            window.history.replaceState({}, document.title);
+        } else if (location.state?.error) {
+            setAlertMessage(location.state.error);
+            setAlertType('error');
+            // Clear state tapi pertahankan search params
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
+
+    // Update URL ketika page berubah
+    const handlePageChange = (newPage) => {
+        // Jika newPage adalah function, eksekusi dulu dengan currentPage
+        const pageNumber = typeof newPage === 'function' ? newPage(currentPage) : newPage;
+        setSearchParams({ page: pageNumber.toString() });
+    };
+
+    // Reset ke page 1 ketika filter berubah (skip pada initial render)
+    const [isInitialRender, setIsInitialRender] = useState(true);
+
+    useEffect(() => {
+        if (isInitialRender) {
+            setIsInitialRender(false);
+            return;
+        }
+
+        if (currentPage !== 1) {
+            setSearchParams({ page: '1' });
+        }
     }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery, selectedWorkstation]);
 
     const outletOptions = [
@@ -189,16 +192,6 @@ const Menu = () => {
         }).format(amount);
     };
 
-    const handleDelete = async (itemId) => {
-        try {
-            await axios.delete(`/api/menu/menu-items/${itemId}`);
-            fetchData();
-            setIsModalOpen(false);
-        } catch (error) {
-            console.error("Error deleting item:", error);
-        }
-    };
-
     const handleDeleteSelected = async () => {
         if (!window.confirm("Apakah Anda yakin ingin menghapus data terpilih?")) return;
         try {
@@ -207,9 +200,26 @@ const Menu = () => {
             });
             setCheckedItems([]);
             setCheckAll(false);
-            fetchData();
+            await fetchData();
+
+            // Show success message
+            setAlertMessage(`${checkedItems.length} menu berhasil dihapus`);
+            setAlertType('success');
         } catch (error) {
             console.error("Gagal menghapus:", error);
+            setAlertMessage('Gagal menghapus menu. Silakan coba lagi.');
+            setAlertType('error');
+        }
+    };
+
+    // Handler untuk delete dari table
+    const handleDeleteSuccess = (successMsg, errorMsg) => {
+        if (successMsg) {
+            setAlertMessage(successMsg);
+            setAlertType('success');
+        } else if (errorMsg) {
+            setAlertMessage(errorMsg);
+            setAlertType('error');
         }
     };
 
@@ -233,27 +243,40 @@ const Menu = () => {
 
     return (
         <div className="w-full">
-
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     Menu
                 </h1>
                 <div className="flex items-center gap-3">
-                    {/* <button
-            onClick={() => console.log('Ekspor Produk')}
-            className="flex items-center gap-2 bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
-          >
-            <FaDownload /> Ekspor
-          </button> */}
-
                     <Link
                         to="/admin/menu-create"
+                        state={{ returnPage: currentPage }} // Kirim page saat ini
                         className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
                     >
                         <FaPlus /> Tambah
                     </Link>
                 </div>
             </div>
+
+            {/* Alert Message */}
+            {alertMessage && (
+                <div className="px-6 mb-4">
+                    <div className={`p-4 rounded-lg ${alertType === 'success'
+                        ? 'bg-green-100 border border-green-400 text-green-700'
+                        : 'bg-red-100 border border-red-400 text-red-700'
+                        }`}>
+                        <div className="flex items-center justify-between">
+                            <span>{alertMessage}</span>
+                            <button
+                                onClick={() => setAlertMessage(null)}
+                                className="text-xl font-bold ml-4"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <MessageAlertMenu />
 
@@ -278,7 +301,7 @@ const Menu = () => {
                 setCheckedItems={setCheckedItems}
                 currentItems={currentItems}
                 formatCurrency={formatCurrency}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={handlePageChange}
                 totalPages={totalPages}
                 menuItems={menuItems}
                 itemsPerPage={itemsPerPage}
@@ -287,13 +310,7 @@ const Menu = () => {
                 currentPage={currentPage}
                 loading={loading}
                 fetchData={fetchData}
-            />
-
-
-            <ConfirmationModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onConfirm={() => handleDelete(itemToDelete)}
+                onDeleteSuccess={handleDeleteSuccess}
             />
         </div>
     );
