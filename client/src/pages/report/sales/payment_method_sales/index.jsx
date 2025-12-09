@@ -210,7 +210,7 @@ const PaymentMethodSales = () => {
         }
 
         return reportData.paymentMethods.map(method => ({
-            paymentMethod: method.method || 'Unknown',
+            paymentMethod: method.displayName || 'Unknown',
             count: method.transactionCount || 0,
             subtotal: method.totalAmount || 0,
             percentage: method.percentageOfTotal?.toFixed(2) || '0.00',

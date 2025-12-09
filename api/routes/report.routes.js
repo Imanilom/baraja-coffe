@@ -8,7 +8,7 @@ import {
   getSalesAnalytics,
   getCashierPerformance,
   exportToCSV,
-  getCashiersList
+  getCashiersList,
 } from '../controllers/cashierReport.controller.js'
 
 import {
@@ -75,6 +75,7 @@ router.get('/main/profit-loss/export', exportProfitLossReport);
 
 //cashier report
 router.get('/sales/summary', getSalesSummary);
+router.get('/sales/product-sales', DailyProfitController.getProductSalesReport);
 router.get('/sales/order-detail', getOrderDetails);
 router.get('/sales/analytics', getSalesAnalytics);
 router.get('/sales/performance', getCashierPerformance);
