@@ -66,6 +66,7 @@ export const createAutoPromo = async (req, res) => {
   const { 
     name, 
     promoType, 
+    discountType, // Tambahkan discountType
     conditions, 
     discount, 
     bundlePrice, 
@@ -74,12 +75,41 @@ export const createAutoPromo = async (req, res) => {
     validFrom, 
     validTo, 
     isActive,
-    activeHours // Tambahkan field activeHours
+    activeHours
   } = req.body;
   const createdBy = req.user._id;
 
+  // Validasi field wajib
   if (!name || !promoType || !outlet || !validFrom || !validTo) {
     return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  // Validasi discountType berdasarkan promoType
+  if (['discount_on_quantity', 'discount_on_total', 'product_specific'].includes(promoType)) {
+    if (!discountType) {
+      return res.status(400).json({ 
+        message: "discountType is required for this promo type" 
+      });
+    }
+    if (!['percentage', 'fixed'].includes(discountType)) {
+      return res.status(400).json({ 
+        message: "discountType must be either 'percentage' or 'fixed'" 
+      });
+    }
+  }
+
+  // Validasi discount berdasarkan discountType
+  if (discount !== undefined) {
+    if (discountType === 'percentage' && (discount < 0 || discount > 100)) {
+      return res.status(400).json({ 
+        message: "Percentage discount must be between 0 and 100" 
+      });
+    }
+    if (discountType === 'fixed' && discount < 0) {
+      return res.status(400).json({ 
+        message: "Fixed discount cannot be negative" 
+      });
+    }
   }
 
   // Validasi activeHours jika diaktifkan
@@ -104,6 +134,7 @@ export const createAutoPromo = async (req, res) => {
     const autoPromo = new AutoPromo({
       name,
       promoType,
+      discountType,
       conditions,
       discount,
       bundlePrice,
@@ -124,9 +155,11 @@ export const createAutoPromo = async (req, res) => {
       identifier: req.user.email || req.user.username,
       action: "CREATE",
       module: "AutoPromo",
-      description: `Membuat promo baru: ${autoPromo.name}${autoPromo.activeHours.isEnabled ? ' (dengan jam aktif)' : ''}`,
+      description: `Membuat promo baru: ${autoPromo.name} (${promoType})`,
       metadata: { 
         promoId: autoPromo._id,
+        promoType,
+        discountType: discountType || 'N/A',
         hasActiveHours: autoPromo.activeHours.isEnabled
       },
       req,
@@ -146,6 +179,7 @@ export const createAutoPromo = async (req, res) => {
       module: "AutoPromo",
       description: `Gagal membuat promo: ${name}`,
       status: "FAILED",
+      metadata: { promoType, discountType },
       req,
     });
 
@@ -158,9 +192,60 @@ export const createAutoPromo = async (req, res) => {
 // =============================
 export const updateAutoPromo = async (req, res) => {
   try {
-    // Validasi activeHours jika ada dalam request body
-    if (req.body.activeHours && req.body.activeHours.isEnabled) {
-      const { activeHours } = req.body;
+    const { id } = req.params;
+    const { 
+      promoType, 
+      discountType, 
+      discount,
+      activeHours 
+    } = req.body;
+
+    // Validasi discountType jika diupdate
+    if (discountType !== undefined) {
+      if (!['percentage', 'fixed'].includes(discountType)) {
+        return res.status(400).json({ 
+          message: "discountType must be either 'percentage' or 'fixed'" 
+        });
+      }
+    }
+
+    // Validasi discount berdasarkan discountType jika keduanya diupdate
+    if (discount !== undefined && discountType !== undefined) {
+      if (discountType === 'percentage' && (discount < 0 || discount > 100)) {
+        return res.status(400).json({ 
+          message: "Percentage discount must be between 0 and 100" 
+        });
+      }
+      if (discountType === 'fixed' && discount < 0) {
+        return res.status(400).json({ 
+          message: "Fixed discount cannot be negative" 
+        });
+      }
+    }
+
+    // Validasi promoType dan discountType jika promoType diupdate
+    if (promoType !== undefined) {
+      if (['discount_on_quantity', 'discount_on_total', 'product_specific'].includes(promoType)) {
+        // Cek apakah promo sudah ada untuk validasi discountType
+        const existingPromo = await AutoPromo.findById(id);
+        if (existingPromo) {
+          // Jika update promoType ke tipe yang butuh discountType
+          // dan discountType tidak disediakan, gunakan yang existing
+          if (!discountType && !existingPromo.discountType) {
+            return res.status(400).json({ 
+              message: "discountType is required for this promo type" 
+            });
+          }
+        } else if (!discountType) {
+          return res.status(400).json({ 
+            message: "discountType is required for this promo type" 
+          });
+        }
+      }
+    }
+
+    // Validasi activeHours jika diaktifkan
+    if (activeHours && activeHours.isEnabled) {
       if (!activeHours.schedule || activeHours.schedule.length === 0) {
         return res.status(400).json({ 
           message: "Schedule is required when active hours is enabled" 
@@ -179,7 +264,7 @@ export const updateAutoPromo = async (req, res) => {
 
     // Gunakan findByIdAndUpdate dengan populate
     const autoPromo = await AutoPromo.findByIdAndUpdate(
-      req.params.id,
+      id,
       req.body,
       { new: true, runValidators: true }
     ).populate(PROMO_POPULATE);
@@ -190,7 +275,7 @@ export const updateAutoPromo = async (req, res) => {
         identifier: req.user.email || req.user.username,
         action: "UPDATE",
         module: "AutoPromo",
-        description: `Update gagal: promo tidak ditemukan (ID: ${req.params.id})`,
+        description: `Update gagal: promo tidak ditemukan (ID: ${id})`,
         status: "FAILED",
         req,
       });
@@ -203,9 +288,11 @@ export const updateAutoPromo = async (req, res) => {
       identifier: req.user.email || req.user.username,
       action: "UPDATE",
       module: "AutoPromo",
-      description: `Update promo: ${autoPromo.name}${autoPromo.activeHours.isEnabled ? ' (dengan jam aktif)' : ''}`,
+      description: `Update promo: ${autoPromo.name}`,
       metadata: { 
         promoId: autoPromo._id,
+        promoType: autoPromo.promoType,
+        discountType: autoPromo.discountType || 'N/A',
         hasActiveHours: autoPromo.activeHours.isEnabled
       },
       req,
@@ -258,7 +345,11 @@ export const deleteAutoPromo = async (req, res) => {
       action: "DELETE",
       module: "AutoPromo",
       description: `Menghapus promo: ${autoPromo.name}`,
-      metadata: { promoId: autoPromo._id },
+      metadata: { 
+        promoId: autoPromo._id,
+        promoType: autoPromo.promoType,
+        discountType: autoPromo.discountType || 'N/A'
+      },
       req,
     });
 
@@ -315,9 +406,16 @@ export const getActivePromos = async (req, res) => {
       return promo.isWithinActiveHours(now);
     });
 
+    // Tambahkan informasi discount display untuk response
+    const promosWithDiscountDisplay = activePromos.map(promo => {
+      const promoObj = promo.toObject();
+      promoObj.discountDisplay = promo.getDiscountDisplay();
+      return promoObj;
+    });
+
     res.status(200).json({
-      total: activePromos.length,
-      promos: activePromos
+      total: promosWithDiscountDisplay.length,
+      promos: promosWithDiscountDisplay
     });
   } catch (error) {
     console.error("Error fetching active promos:", error.message);
@@ -351,15 +449,25 @@ export const checkPromoActive = async (req, res) => {
 
     const isCurrentlyActive = isDateValid && isActive && isWithinActiveHours;
 
+    // Tambahkan informasi discount
+    const discountInfo = promo.discountType ? {
+      discountType: promo.discountType,
+      discountValue: promo.discount,
+      discountDisplay: promo.getDiscountDisplay()
+    } : null;
+
     res.status(200).json({
       promo: promo.name,
       isCurrentlyActive,
+      discountInfo,
       details: {
         isDateValid,
         isActive,
         isWithinActiveHours: promo.activeHours.isEnabled ? isWithinActiveHours : 'not_enabled',
         currentTime: now.toISOString(),
-        activeHours: promo.activeHours
+        activeHours: promo.activeHours,
+        promoType: promo.promoType,
+        discountType: promo.discountType || 'N/A'
       }
     });
   } catch (error) {
@@ -403,11 +511,62 @@ export const getPromoSchedule = async (req, res) => {
 
     res.status(200).json({
       promo: promo.name,
+      promoType: promo.promoType,
+      discountType: promo.discountType || 'N/A',
+      discountDisplay: promo.getDiscountDisplay(),
       schedule,
       dayOfWeek: dayOfWeek !== undefined ? parseInt(dayOfWeek) : new Date().getDay()
     });
   } catch (error) {
     console.error("Error getting promo schedule:", error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// =============================
+// Calculate discount for a specific amount
+// =============================
+export const calculateDiscount = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+
+    if (!amount || amount < 0) {
+      return res.status(400).json({ 
+        message: 'Valid amount is required' 
+      });
+    }
+
+    const promo = await AutoPromo.findById(id);
+    
+    if (!promo) {
+      return res.status(404).json({ message: 'Promo not found' });
+    }
+
+    // Cek apakah promo mendukung discount calculation
+    if (!promo.discount || !promo.discountType) {
+      return res.status(400).json({ 
+        message: 'This promo does not have discount configuration' 
+      });
+    }
+
+    const discountAmount = promo.calculateDiscount(parseFloat(amount));
+    const finalAmount = parseFloat(amount) - discountAmount;
+
+    res.status(200).json({
+      promo: promo.name,
+      originalAmount: parseFloat(amount),
+      discountType: promo.discountType,
+      discountValue: promo.discount,
+      discountDisplay: promo.getDiscountDisplay(),
+      discountAmount,
+      finalAmount,
+      discountPercentage: promo.discountType === 'percentage' ? 
+        promo.discount : 
+        ((discountAmount / parseFloat(amount)) * 100).toFixed(2)
+    });
+  } catch (error) {
+    console.error("Error calculating discount:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
