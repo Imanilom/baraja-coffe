@@ -67,6 +67,8 @@ android {
                 // Default file with automatically generated optimization rules.
                 getDefaultProguardFile("proguard-android-optimize.txt"),
             )
+
+            setProperty("archivesBaseName", "kasir-baraja-v${flutter.versionName}+${flutter.versionCode}")
         }
     }
 }

@@ -30,6 +30,8 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
     promos: autoPromos.map(p => ({
       name: p.name,
       promoType: p.promoType,
+      discountType: p.discountType,
+      discount: p.discount,
       activeHours: p.activeHours,
       isWithinActiveHours: p.isWithinActiveHours ? p.isWithinActiveHours(now) : 'method_not_available'
     }))
@@ -62,6 +64,8 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
     activePromos: activePromos.map(p => ({
       name: p.name,
       promoType: p.promoType,
+      discountType: p.discountType,
+      discount: p.discount,
       activeHours: p.activeHours
     }))
   });
@@ -70,7 +74,12 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
   let appliedPromos = [];
 
   for (const promo of activePromos) {
-    console.log('🔍 Processing promo:', promo.name);
+    console.log('🔍 Processing promo:', {
+      name: promo.name,
+      type: promo.promoType,
+      discountType: promo.discountType,
+      discountValue: promo.discount
+    });
     
     // Log detail active hours jika diaktifkan
     if (promo.activeHours && promo.activeHours.isEnabled) {
@@ -92,6 +101,8 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
         promoId: promo._id,
         promoName: promo.name,
         promoType: promo.promoType,
+        discountType: promo.discountType,
+        discountValue: promo.discount,
         discount: promoResult.discount,
         hasActiveHours: !!(promo.activeHours && promo.activeHours.isEnabled),
         activeHoursInfo: promo.activeHours && promo.activeHours.isEnabled ? {
@@ -105,7 +116,7 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
           originalSubtotal: item.originalSubtotal,
           discountAmount: item.discountAmount || item.discountShare || 0,
           discountedSubtotal: item.discountedSubtotal,
-          discountPercentage: item.discountPercentage
+          discountPercentage: item.discountPercentage || (promo.discountType === 'percentage' ? promo.discount : undefined)
         })),
         freeItems: (promoResult.freeItems || []).map(freeItem => ({
           menuItem: freeItem.menuItem,
@@ -122,6 +133,8 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
       console.log('✅ Promo applied successfully:', {
         name: promo.name,
         discount: promoResult.discount,
+        discountType: promo.discountType,
+        discountValue: promo.discount,
         hasActiveHours: appliedPromo.hasActiveHours
       });
     } else {
@@ -141,6 +154,7 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
       name: p.promoName,
       discount: p.discount,
       type: p.promoType,
+      discountType: p.discountType,
       hasActiveHours: p.hasActiveHours
     }))
   });
@@ -156,6 +170,8 @@ async function applyAutoPromo(promo, orderItems, orderType) {
   console.log('🔍 APPLY AUTO PROMO - Detailed Check:', {
     promoName: promo.name,
     promoType: promo.promoType,
+    discountType: promo.discountType,
+    discountValue: promo.discount,
     consumerType: promo.consumerType,
     orderType: orderType,
     hasActiveHours: !!(promo.activeHours && promo.activeHours.isEnabled),
@@ -190,21 +206,35 @@ async function applyAutoPromo(promo, orderItems, orderType) {
   }
 }
 
-// [Fungsi-fungsi apply lainnya tetap sama, hanya tambahkan log untuk active hours]
-
-// 1. Discount on Quantity - UNTUK PROMO ROTI ANDA
+// 1. Discount on Quantity - PERBAIKAN UNTUK discountType
 function applyDiscountOnQuantity(promo, orderItems) {
   let totalDiscount = 0;
   let affectedItems = [];
+
+  console.log('🛒 Discount on Quantity Promo:', {
+    name: promo.name,
+    discountType: promo.discountType,
+    discountValue: promo.discount,
+    minQuantity: promo.conditions.minQuantity
+  });
 
   for (const orderItem of orderItems) {
     // Cek apakah item memenuhi minimum quantity
     const minQuantity = promo.conditions.minQuantity || 1;
     
     if (orderItem.quantity >= minQuantity) {
-      // Untuk promo discount_on_quantity, discount adalah harga spesifik per item
-      const itemDiscountPerUnit = promo.discount;
-      const itemTotalDiscount = itemDiscountPerUnit * orderItem.quantity;
+      let itemTotalDiscount = 0;
+      
+      if (promo.discountType === 'percentage') {
+        // Calculate percentage discount per unit
+        const pricePerUnit = orderItem.subtotal / orderItem.quantity;
+        const discountPerUnit = (pricePerUnit * promo.discount) / 100;
+        itemTotalDiscount = discountPerUnit * orderItem.quantity;
+      } else if (promo.discountType === 'fixed') {
+        // Fixed discount per unit
+        const discountPerUnit = promo.discount;
+        itemTotalDiscount = discountPerUnit * orderItem.quantity;
+      }
       
       totalDiscount += itemTotalDiscount;
       
@@ -212,10 +242,22 @@ function applyDiscountOnQuantity(promo, orderItems) {
         menuItem: orderItem.menuItem,
         menuItemName: orderItem.menuItemName,
         quantity: orderItem.quantity,
-        discountPerUnit: itemDiscountPerUnit,
+        discountType: promo.discountType,
+        discountPerUnit: promo.discountType === 'percentage' ? 
+          `${promo.discount}%` : promo.discount,
         totalDiscount: itemTotalDiscount,
         originalSubtotal: orderItem.subtotal,
-        discountedSubtotal: orderItem.subtotal - itemTotalDiscount
+        discountedSubtotal: orderItem.subtotal - itemTotalDiscount,
+        discountPercentage: promo.discountType === 'percentage' ? promo.discount : undefined
+      });
+
+      console.log('✅ Discount on Quantity applied:', {
+        item: orderItem.menuItemName,
+        quantity: orderItem.quantity,
+        minRequired: minQuantity,
+        discountType: promo.discountType,
+        discountValue: promo.discount,
+        totalDiscount: itemTotalDiscount
       });
     }
   }
@@ -227,23 +269,50 @@ function applyDiscountOnQuantity(promo, orderItems) {
   };
 }
 
-// 2. Discount on Total
+// 2. Discount on Total - PERBAIKAN UNTUK discountType
 function applyDiscountOnTotal(promo, orderItems) {
   const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
   const minTotal = promo.conditions.minTotal || 0;
   
+  console.log('💰 Discount on Total Promo:', {
+    name: promo.name,
+    discountType: promo.discountType,
+    discountValue: promo.discount,
+    minTotal: minTotal,
+    orderSubtotal: subtotal
+  });
+
   if (subtotal >= minTotal) {
-    const discount = promo.discount;
-    const discountPerItem = discount / orderItems.length;
+    let discount = 0;
     
-    const affectedItems = orderItems.map(item => ({
-      menuItem: item.menuItem,
-      menuItemName: item.menuItemName,
-      quantity: item.quantity,
-      discountShare: (item.subtotal / subtotal) * discount,
-      originalSubtotal: item.subtotal,
-      discountedSubtotal: item.subtotal - ((item.subtotal / subtotal) * discount)
-    }));
+    if (promo.discountType === 'percentage') {
+      discount = (subtotal * promo.discount) / 100;
+    } else if (promo.discountType === 'fixed') {
+      discount = Math.min(promo.discount, subtotal);
+    }
+    
+    const affectedItems = orderItems.map(item => {
+      const itemDiscountShare = (item.subtotal / subtotal) * discount;
+      
+      return {
+        menuItem: item.menuItem,
+        menuItemName: item.menuItemName,
+        quantity: item.quantity,
+        discountType: promo.discountType,
+        discountShare: itemDiscountShare,
+        originalSubtotal: item.subtotal,
+        discountedSubtotal: item.subtotal - itemDiscountShare,
+        discountPercentage: promo.discountType === 'percentage' ? promo.discount : undefined
+      };
+    });
+
+    console.log('✅ Discount on Total applied:', {
+      subtotal: subtotal,
+      minTotal: minTotal,
+      discountType: promo.discountType,
+      discountValue: promo.discount,
+      totalDiscount: discount
+    });
 
     return {
       applied: true,
@@ -252,10 +321,16 @@ function applyDiscountOnTotal(promo, orderItems) {
     };
   }
 
+  console.log('❌ Discount on Total not applied:', {
+    subtotal: subtotal,
+    minTotal: minTotal,
+    reason: 'Subtotal less than minimum required'
+  });
+
   return { applied: false, discount: 0, affectedItems: [] };
 }
 
-// 3. Buy X Get Y
+// 3. Buy X Get Y - TIDAK BUTUH discountType
 function applyBuyXGetY(promo, orderItems) {
   const buyProduct = promo.conditions.buyProduct;
   const getProduct = promo.conditions.getProduct;
@@ -264,10 +339,22 @@ function applyBuyXGetY(promo, orderItems) {
     return { applied: false, discount: 0, affectedItems: [] };
   }
 
+  console.log('🎁 Buy X Get Y Promo:', {
+    name: promo.name,
+    buyProduct: buyProduct.name,
+    getProduct: getProduct.name,
+    minQuantity: promo.conditions.minQuantity
+  });
+
   // Cari item yang dibeli (buy product)
   const buyItem = orderItems.find(item => item.menuItem.toString() === buyProduct._id.toString());
   
   if (!buyItem || buyItem.quantity < (promo.conditions.minQuantity || 1)) {
+    console.log('❌ Buy X Get Y not applied:', {
+      reason: !buyItem ? 'Buy product not found' : 'Insufficient quantity',
+      requiredQuantity: promo.conditions.minQuantity || 1,
+      availableQuantity: buyItem?.quantity || 0
+    });
     return { applied: false, discount: 0, affectedItems: [] };
   }
 
@@ -291,6 +378,14 @@ function applyBuyXGetY(promo, orderItems) {
     discountedSubtotal: buyItem.subtotal
   }];
 
+  console.log('✅ Buy X Get Y applied:', {
+    buyProduct: buyProduct.name,
+    buyQuantity: buyItem.quantity,
+    getProduct: getProduct.name,
+    freeQuantity: freeQuantity,
+    totalDiscount: discount
+  });
+
   return {
     applied: true,
     discount: discount,
@@ -305,13 +400,22 @@ function applyBuyXGetY(promo, orderItems) {
   };
 }
 
-// 4. Bundling
+// 4. Bundling - TIDAK BUTUH discountType
 function applyBundling(promo, orderItems) {
   const bundleProducts = promo.conditions.bundleProducts;
   
   if (!bundleProducts || bundleProducts.length === 0) {
     return { applied: false, discount: 0, affectedItems: [] };
   }
+
+  console.log('📦 Bundling Promo:', {
+    name: promo.name,
+    bundlePrice: promo.bundlePrice,
+    products: bundleProducts.map(bp => ({
+      name: bp.product.name,
+      quantity: bp.quantity
+    }))
+  });
 
   // Hitung berapa set bundle yang bisa dibentuk
   let maxBundleSets = Infinity;
@@ -322,14 +426,23 @@ function applyBundling(promo, orderItems) {
     );
     
     if (!orderItem) {
+      console.log('❌ Bundling not applied: Missing product', bundleProduct.product.name);
       return { applied: false, discount: 0, affectedItems: [] };
     }
     
     const setsForThisProduct = Math.floor(orderItem.quantity / bundleProduct.quantity);
     maxBundleSets = Math.min(maxBundleSets, setsForThisProduct);
+    
+    console.log('📊 Bundle product availability:', {
+      product: bundleProduct.product.name,
+      required: bundleProduct.quantity,
+      available: orderItem.quantity,
+      setsPossible: setsForThisProduct
+    });
   }
 
   if (maxBundleSets === 0) {
+    console.log('❌ Bundling not applied: No complete sets available');
     return { applied: false, discount: 0, affectedItems: [] };
   }
 
@@ -362,6 +475,13 @@ function applyBundling(promo, orderItems) {
     };
   });
 
+  console.log('✅ Bundling applied:', {
+    sets: maxBundleSets,
+    originalPrice: originalBundlePrice,
+    bundlePrice: discountedBundlePrice,
+    totalDiscount: discount
+  });
+
   return {
     applied: true,
     discount: discount,
@@ -369,9 +489,9 @@ function applyBundling(promo, orderItems) {
   };
 }
 
-// 5. Product Specific Discount
+// 5. Product Specific Discount - PERBAIKAN UNTUK discountType
 function applyProductSpecific(promo, orderItems, orderType) {
-  const { conditions, discount, consumerType } = promo;
+  const { conditions, discount, discountType, consumerType } = promo;
   
   // Cek consumer type
   if (consumerType && consumerType !== '' && consumerType !== 'all' && consumerType !== orderType) {
@@ -396,15 +516,11 @@ function applyProductSpecific(promo, orderItems, orderType) {
     return p.toString();
   });
 
-  console.log('🔍 Normalized promo products:', promoProducts);
-
-  let totalDiscount = 0;
-  const affectedItems = [];
-
   console.log('🔍 Product Specific Promo Detailed Check:', {
     promoName: promo.name,
     promoType: promo.promoType,
-    discountPercentage: discount,
+    discountType: discountType,
+    discountValue: discount,
     consumerType: consumerType,
     orderType: orderType,
     promoProducts: promoProducts,
@@ -416,6 +532,9 @@ function applyProductSpecific(promo, orderItems, orderType) {
       subtotal: item.subtotal
     }))
   });
+
+  let totalDiscount = 0;
+  const affectedItems = [];
 
   for (const item of orderItems) {
     // Normalize item ID dengan comprehensive approach
@@ -465,8 +584,14 @@ function applyProductSpecific(promo, orderItems, orderType) {
     });
 
     if (isMatch) {
-      // Hitung discount berdasarkan subtotal aktual
-      const itemDiscount = (discount / 100) * item.subtotal;
+      // Hitung discount berdasarkan discountType
+      let itemDiscount = 0;
+      
+      if (discountType === 'percentage') {
+        itemDiscount = (discount / 100) * item.subtotal;
+      } else if (discountType === 'fixed') {
+        itemDiscount = Math.min(discount, item.subtotal);
+      }
       
       totalDiscount += itemDiscount;
       affectedItems.push({
@@ -476,13 +601,16 @@ function applyProductSpecific(promo, orderItems, orderType) {
         originalSubtotal: item.subtotal,
         discountAmount: itemDiscount,
         discountedSubtotal: item.subtotal - itemDiscount,
-        discountPercentage: discount
+        discountType: discountType,
+        discountValue: discount,
+        discountPercentage: discountType === 'percentage' ? discount : undefined
       });
 
       console.log('✅ PROMO APPLIED SUCCESSFULLY:', {
         itemName: item.menuItemName,
         originalPrice: item.subtotal,
-        discountPercentage: discount + '%',
+        discountType: discountType,
+        discountValue: discount,
         discountAmount: itemDiscount,
         finalPrice: item.subtotal - itemDiscount
       });
@@ -506,6 +634,8 @@ function applyProductSpecific(promo, orderItems, orderType) {
     promoName: promo.name,
     applied: result.applied,
     totalDiscount: result.discount,
+    discountType: discountType,
+    discountValue: discount,
     affectedItemsCount: result.affectedItems.length,
     affectedItems: result.affectedItems
   });
@@ -624,7 +754,8 @@ export async function checkManualPromo(totalAmount, outletId, customerType = 'al
       promoId: promo._id,
       name: promo.name,
       discountAmount: discount,
-      discountType: promo.discountType
+      discountType: promo.discountType,
+      discountValue: promo.discountAmount
     }
   };
 }
