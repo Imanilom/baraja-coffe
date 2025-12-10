@@ -23,7 +23,8 @@ import {
     forceResetTableStatus,
     getAllAvailableTables,
     transferOrderToTable,
-    getOrderDetailById
+    getOrderDetailById,
+    editReservation
 } from '../controllers/gro.controller.js';
 import { authMiddleware } from '../utils/verifyUser.js';
 
@@ -67,6 +68,7 @@ router.get('/tables/availability', authMiddleware, getTableAvailability);
 // routes/gro.js
 router.get('/tables/available', getAllAvailableTables);
 router.put('/orders/:orderId/transfer-table', transferOrderToTable);
+router.put('/reservations/:id/edit', authMiddleware, editReservation);
 
 // Transfer table (note: seharusnya PUT, bukan GET — diperbaiki di sini)
 // router.put('/reservations/:id/transfer-table', authMiddleware, transferTable);
