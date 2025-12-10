@@ -306,6 +306,8 @@ export const getWorkstationOrders = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    console.log(`📊 Total orders fetched from DB: ${orders.length}`);
+
     // Batch auto-confirm waiting orders
     const waitingOrderIds = orders
       .filter(order => order.status === 'Waiting')
@@ -313,6 +315,7 @@ export const getWorkstationOrders = async (req, res) => {
 
     if (waitingOrderIds.length > 0) {
       console.log(`🔥 [AUTO-CONFIRM] Found ${waitingOrderIds.length} Waiting orders`);
+      console.log(`🔥 [AUTO-CONFIRM] Order IDs:`, waitingOrderIds);
 
       _batchConfirmWaitingOrders(waitingOrderIds).catch(err => {
         console.error('❌ Background auto-confirm failed:', err);
@@ -428,8 +431,36 @@ export const getWorkstationOrders = async (req, res) => {
 
     const queryTime = Date.now() - startTime;
     console.log(`⚡ ${workstationType} query completed in ${queryTime}ms`);
+    console.log(`📦 Filtered orders for ${workstationType}: ${filteredOrders.length} orders`);
 
-    res.status(200).json({
+    // Log detail setiap order yang akan dikirim
+    console.log(`\n🔍 ===== DATA YANG DIKIRIM KE FRONTEND (${workstationType.toUpperCase()}) =====`);
+    filteredOrders.forEach((order, index) => {
+      console.log(`\n📋 Order ${index + 1}:`);
+      console.log(`   Order ID: ${order.order_id}`);
+      console.log(`   Customer: ${order.displayInfo.customerName}`);
+      console.log(`   Status: ${order.status}`);
+      console.log(`   Location: ${order.displayInfo.location}`);
+      console.log(`   Order Type: ${order.displayInfo.orderType}`);
+      console.log(`   Items Count: ${order.items.length}`);
+      console.log(`   Items:`, order.items.map(item => ({
+        name: item.menuItem?.name || 'Unknown',
+        quantity: item.quantity,
+        workstation: item.menuItem?.workstation,
+        status: item.status
+      })));
+      console.log(`   Serving Option: ${order.displayInfo.servingOption}`);
+      if (order.displayInfo.servingTime) {
+        console.log(`   Serving Time: ${order.displayInfo.servingTime}`);
+        console.log(`   Should Start Prep: ${order.displayInfo.shouldStartPreparation}`);
+        console.log(`   Time Until Prep: ${order.displayInfo.timeUntilPreparation} mins`);
+      }
+      console.log(`   Created At: ${order.createdAt}`);
+    });
+    console.log(`\n📊 Total orders dikirim: ${filteredOrders.length}`);
+    console.log(`============================================\n`);
+
+    const responseData = {
       success: true,
       data: filteredOrders,
       meta: {
@@ -438,7 +469,15 @@ export const getWorkstationOrders = async (req, res) => {
         totalOrders: orders.length,
         filteredOrders: filteredOrders.length
       }
+    };
+
+    console.log(`✅ Response summary:`, {
+      success: responseData.success,
+      ordersCount: responseData.data.length,
+      meta: responseData.meta
     });
+
+    res.status(200).json(responseData);
   } catch (error) {
     console.error(`❌ Error fetching ${workstationType} orders:`, error);
     res.status(500).json({
