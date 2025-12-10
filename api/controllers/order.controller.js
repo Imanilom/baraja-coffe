@@ -5304,8 +5304,8 @@ export const getPaymentStatus = async (req, res) => {
 
     // Ambil semua payment terkait order
     const relatedPayments = await Payment.find({ order_id: orderId });
-    console.log('Related order:', relatedOrder);
-    console.log('Related payments:', relatedPayments);
+    // console.log('Related order:', relatedOrder);
+    // console.log('Related payments:', relatedPayments);
 
     // Case 1: Bukan Reservation → cari payment pending/settlement
     if (relatedOrder.orderType !== "Reservation") {
@@ -6132,6 +6132,7 @@ export const getOrderById = async (req, res) => {
     console.log('Payment:', payment);
     console.log('Order:', orderId);
     console.log('Reservation:', reservation);
+    console.log('controller yang digunakan masih dari orderController getOrderById');
 
     // Format tanggal
     const formatDate = (date) => {

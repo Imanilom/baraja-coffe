@@ -60,7 +60,7 @@ export const generateSalesReport = async (req, res) => {
       // Process items untuk handle deleted menu items
       const processedItems = order.items.map(item => {
         const menuItem = item.menuItem;
-        
+
         // Jika menuItem null atau deleted, create fallback object
         if (!menuItem) {
           return {
@@ -88,37 +88,51 @@ export const generateSalesReport = async (req, res) => {
       // HITUNG PAYMENT DETAILS DARI ORDER
       let paymentDetails = [];
       let totalOrderPaid = 0;
-      
+
       if (order.isSplitPayment && order.payments && Array.isArray(order.payments)) {
         // SPLIT PAYMENT: Gunakan data dari order.payments
         paymentDetails = order.payments.map(payment => {
           const amount = payment.amount || 0;
           totalOrderPaid += amount;
-          
+
           return {
             method: payment.paymentMethod || order.paymentMethod || 'Cash',
+            displayName: getDisplayName(
+              payment.paymentMethod || order.paymentMethod || 'Cash',
+              payment.va_numbers || [],
+              payment.actions || []
+            ),
             amount: amount,
             status: payment.status || 'completed',
             isSplitPayment: true,
             splitIndex: payment._id ? payment._id.toString() : null,
             tenderedAmount: payment.paymentDetails?.cashTendered || amount,
             changeAmount: payment.paymentDetails?.change || 0,
-            processedAt: payment.processedAt || order.createdAt
+            processedAt: payment.processedAt || order.createdAt,
+            va_numbers: payment.va_numbers || [],
+            actions: payment.actions || []
           };
         });
       } else {
         // SINGLE PAYMENT: Cek payment dari collection Payment atau dari order
         const singlePaymentAmount = order.grandTotal || 0;
         totalOrderPaid = singlePaymentAmount;
-        
+
         paymentDetails = [{
           method: order.paymentMethod || 'Cash',
+          displayName: getDisplayName(
+            order.paymentMethod || 'Cash',
+            order.payments?.[0]?.va_numbers || [],
+            order.payments?.[0]?.actions || []
+          ),
           amount: singlePaymentAmount,
           status: 'completed',
           isSplitPayment: false,
           tenderedAmount: order.payments?.[0]?.paymentDetails?.cashTendered || singlePaymentAmount,
           changeAmount: order.payments?.[0]?.paymentDetails?.change || 0,
-          processedAt: order.createdAt
+          processedAt: order.createdAt,
+          va_numbers: order.payments?.[0]?.va_numbers || [],
+          actions: order.payments?.[0]?.actions || []
         }];
       }
 
@@ -153,32 +167,39 @@ export const generateSalesReport = async (req, res) => {
     // Merge payment records dengan processed orders
     const finalOrders = processedOrders.map(order => {
       const externalPayments = paymentRecordMap.get(order.order_id) || [];
-      
+
       // Jika ada payment records external, merge dengan order payment details
       if (externalPayments.length > 0) {
         const mergedPaymentDetails = [...order.paymentDetails];
-        
+
         externalPayments.forEach(extPayment => {
           // Cek apakah payment ini sudah ada di order.paymentDetails
-          const existingIndex = mergedPaymentDetails.findIndex(p => 
-            p.method === extPayment.method && 
+          const existingIndex = mergedPaymentDetails.findIndex(p =>
+            p.method === extPayment.method &&
             Math.abs(p.amount - extPayment.amount) < 100
           );
-          
+
           if (existingIndex === -1) {
             // Tambahkan sebagai payment tambahan
             mergedPaymentDetails.push({
               method: extPayment.method,
+              displayName: getDisplayName(
+                extPayment.method,
+                extPayment.va_numbers || [],
+                extPayment.actions || []
+              ),
               amount: extPayment.amount,
               status: extPayment.status,
               isExternalPayment: true,
               paymentType: extPayment.paymentType,
               transaction_id: extPayment.transaction_id,
-              processedAt: extPayment.createdAt
+              processedAt: extPayment.createdAt,
+              va_numbers: extPayment.va_numbers || [],
+              actions: extPayment.actions || []
             });
           }
         });
-        
+
         return {
           ...order,
           paymentDetails: mergedPaymentDetails,
@@ -186,7 +207,7 @@ export const generateSalesReport = async (req, res) => {
           totalPaid: mergedPaymentDetails.reduce((sum, p) => sum + p.amount, 0)
         };
       }
-      
+
       return order;
     });
 
@@ -215,7 +236,7 @@ export const generateSalesReport = async (req, res) => {
         totalRevenue: finalOrders.reduce((sum, order) => sum + order.totalPaid, 0),
         totalTransactions: finalOrders.reduce((sum, order) => sum + order.splitPaymentCount, 0),
         totalOrders: finalOrders.length,
-        totalItemsSold: finalOrders.reduce((sum, order) => 
+        totalItemsSold: finalOrders.reduce((sum, order) =>
           sum + order.items.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0), 0),
         averageTransaction: finalOrders.length > 0 ?
           finalOrders.reduce((sum, order) => sum + order.totalPaid, 0) / finalOrders.length : 0,
@@ -244,56 +265,11 @@ export const generateSalesReport = async (req, res) => {
   }
 };
 
-// Helper function untuk breakdown item sales
-const generateItemSalesBreakdown = (orders) => {
-  const itemMap = new Map();
-  
-  orders.forEach(order => {
-    order.items.forEach(item => {
-      const menuItem = item.menuItem;
-      const itemId = menuItem?._id ? menuItem._id.toString() : 'deleted_' + Math.random().toString(36).substr(2, 9);
-      const itemName = menuItem?.name || 'Menu Item Deleted';
-      const itemPrice = item.price || menuItem?.price || 0;
-      const quantity = item.quantity || 0;
-      
-      if (!itemMap.has(itemId)) {
-        itemMap.set(itemId, {
-          itemId: itemId,
-          name: itemName,
-          price: itemPrice,
-          totalQuantity: 0,
-          totalRevenue: 0,
-          orders: new Set(),
-          isActive: menuItem?.isActive !== false
-        });
-      }
-      
-      const itemData = itemMap.get(itemId);
-      itemData.totalQuantity += quantity;
-      itemData.totalRevenue += itemPrice * quantity;
-      itemData.orders.add(order.order_id);
-    });
-  });
-
-  // Convert to array and calculate additional metrics
-  const result = Array.from(itemMap.values()).map(itemData => ({
-    ...itemData,
-    totalOrders: itemData.orders.size,
-    orders: Array.from(itemData.orders).slice(0, 10), // Limit to 10 orders
-    averageQuantityPerOrder: itemData.totalOrders > 0 ? itemData.totalQuantity / itemData.totalOrders : 0,
-    percentageOfTotalRevenue: orders.reduce((sum, o) => sum + o.totalPaid, 0) > 0 ?
-      (itemData.totalRevenue / orders.reduce((sum, o) => sum + o.totalPaid, 0)) * 100 : 0
-  }));
-
-  // Sort by total revenue descending
-  return result.sort((a, b) => b.totalRevenue - a.totalRevenue);
-};
-
 // Helper function untuk breakdown payment method dengan handling split payment
 const generateDetailedPaymentMethodBreakdown = (orders) => {
   const paymentMethodMap = new Map();
   const allPayments = [];
-  
+
   // Collect all payments from orders
   orders.forEach(order => {
     order.paymentDetails.forEach(payment => {
@@ -306,16 +282,21 @@ const generateDetailedPaymentMethodBreakdown = (orders) => {
     });
   });
 
-  // Group by payment method
+  // Group by payment method dengan displayName
   allPayments.forEach(payment => {
     const method = payment.method || 'Unknown';
+    const displayName = payment.displayName || method;
     const normalizedMethod = normalizePaymentMethodForReport(method);
     const amount = payment.amount || 0;
     const orderId = payment.order_id;
-    
-    if (!paymentMethodMap.has(normalizedMethod)) {
-      paymentMethodMap.set(normalizedMethod, {
+
+    // Gunakan displayName sebagai key untuk grouping yang lebih spesifik
+    const groupKey = displayName;
+
+    if (!paymentMethodMap.has(groupKey)) {
+      paymentMethodMap.set(groupKey, {
         method: normalizedMethod,
+        displayName: displayName,
         originalMethod: method,
         totalAmount: 0,
         transactionCount: 0,
@@ -326,12 +307,12 @@ const generateDetailedPaymentMethodBreakdown = (orders) => {
         percentageOfTotal: 0
       });
     }
-    
-    const methodData = paymentMethodMap.get(normalizedMethod);
+
+    const methodData = paymentMethodMap.get(groupKey);
     methodData.totalAmount += amount;
     methodData.transactionCount += 1;
     methodData.orderCount.add(orderId);
-    
+
     // Track split vs single
     if (payment.isSplitPayment) {
       methodData.splitPaymentCount += 1;
@@ -342,17 +323,16 @@ const generateDetailedPaymentMethodBreakdown = (orders) => {
 
   // Calculate totals for percentage
   const totalRevenue = orders.reduce((sum, order) => sum + order.totalPaid, 0);
-  const totalTransactions = allPayments.length;
 
   // Convert Map to Array and calculate additional metrics
   const result = Array.from(paymentMethodMap.values()).map(methodData => {
     const orderCount = methodData.orderCount.size;
     methodData.orderCount = orderCount;
-    methodData.averageTransaction = methodData.transactionCount > 0 ? 
+    methodData.averageTransaction = methodData.transactionCount > 0 ?
       methodData.totalAmount / methodData.transactionCount : 0;
-    methodData.percentageOfTotal = totalRevenue > 0 ? 
+    methodData.percentageOfTotal = totalRevenue > 0 ?
       (methodData.totalAmount / totalRevenue) * 100 : 0;
-    
+
     return methodData;
   });
 
@@ -363,7 +343,7 @@ const generateDetailedPaymentMethodBreakdown = (orders) => {
 // Helper function untuk split payment analysis
 const generateSplitPaymentAnalysis = (orders) => {
   const splitOrders = orders.filter(o => o.hasSplitPayment);
-  
+
   if (splitOrders.length === 0) {
     return {
       totalSplitOrders: 0,
@@ -375,16 +355,16 @@ const generateSplitPaymentAnalysis = (orders) => {
     };
   }
 
-  // Analyze method combinations
+  // Analyze method combinations dengan displayName
   const methodCombinationMap = new Map();
   const methodFrequency = new Map();
-  
+
   splitOrders.forEach(order => {
     const methods = order.paymentDetails
-      .map(p => p.method || 'Unknown')
+      .map(p => p.displayName || p.method || 'Unknown')
       .sort()
       .join(' + ');
-    
+
     if (!methodCombinationMap.has(methods)) {
       methodCombinationMap.set(methods, {
         combination: methods,
@@ -394,7 +374,7 @@ const generateSplitPaymentAnalysis = (orders) => {
         orders: []
       });
     }
-    
+
     const comboData = methodCombinationMap.get(methods);
     comboData.count += 1;
     comboData.totalAmount += order.totalPaid;
@@ -404,18 +384,24 @@ const generateSplitPaymentAnalysis = (orders) => {
       paymentCount: order.paymentDetails.length,
       methods: order.paymentDetails.map(p => ({
         method: p.method,
+        displayName: p.displayName,
         amount: p.amount,
         status: p.status
       }))
     });
-    
+
     // Count individual method frequency in split payments
     order.paymentDetails.forEach(payment => {
-      const method = payment.method || 'Unknown';
-      if (!methodFrequency.has(method)) {
-        methodFrequency.set(method, { method, count: 0, totalAmount: 0 });
+      const displayName = payment.displayName || payment.method || 'Unknown';
+      if (!methodFrequency.has(displayName)) {
+        methodFrequency.set(displayName, {
+          method: payment.method,
+          displayName: displayName,
+          count: 0,
+          totalAmount: 0
+        });
       }
-      const freqData = methodFrequency.get(method);
+      const freqData = methodFrequency.get(displayName);
       freqData.count += 1;
       freqData.totalAmount += payment.amount;
     });
@@ -424,15 +410,15 @@ const generateSplitPaymentAnalysis = (orders) => {
   // Calculate averages and percentages
   const totalRevenueFromSplit = splitOrders.reduce((sum, o) => sum + o.totalPaid, 0);
   const totalRevenueAll = orders.reduce((sum, o) => sum + o.totalPaid, 0);
-  
+
   const combinations = Array.from(methodCombinationMap.values()).map(combo => ({
     ...combo,
     averageAmount: combo.totalAmount / combo.count,
     percentageOfSplitOrders: (combo.count / splitOrders.length) * 100,
     percentageOfTotalRevenue: totalRevenueFromSplit > 0 ? (combo.totalAmount / totalRevenueFromSplit) * 100 : 0,
-    orders: combo.orders.slice(0, 5) // Limit to 5 orders for detail
+    orders: combo.orders.slice(0, 5)
   })).sort((a, b) => b.count - a.count);
-  
+
   const methodFrequencyArray = Array.from(methodFrequency.values())
     .map(freq => ({
       ...freq,
@@ -455,6 +441,7 @@ const generateSplitPaymentAnalysis = (orders) => {
       paymentCount: o.paymentDetails.length,
       payments: o.paymentDetails.map(p => ({
         method: p.method,
+        displayName: p.displayName,
         amount: p.amount,
         status: p.status
       }))
@@ -465,27 +452,27 @@ const generateSplitPaymentAnalysis = (orders) => {
 // Helper function untuk summary berdasarkan periode
 const generatePeriodSummary = (orders, groupBy) => {
   const periodMap = new Map();
-  
+
   orders.forEach(order => {
     const date = new Date(order.createdAt);
     let periodKey;
-    
+
     switch (groupBy) {
       case 'daily':
-        periodKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+        periodKey = date.toISOString().split('T')[0];
         break;
       case 'weekly':
         const weekStart = new Date(date);
-        weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+        weekStart.setDate(date.getDate() - date.getDay());
         periodKey = `Week-${weekStart.toISOString().split('T')[0]}`;
         break;
       case 'monthly':
-        periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+        periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         break;
       default:
         periodKey = date.toISOString().split('T')[0];
     }
-    
+
     if (!periodMap.has(periodKey)) {
       periodMap.set(periodKey, {
         period: periodKey,
@@ -497,40 +484,41 @@ const generatePeriodSummary = (orders, groupBy) => {
         paymentMethods: new Map()
       });
     }
-    
+
     const periodData = periodMap.get(periodKey);
-    
+
     periodData.totalRevenue += order.totalPaid;
     periodData.orderCount.add(order.order_id);
-    
+
     // Calculate total transactions (including split payments)
     const transactionCount = order.hasSplitPayment ? order.paymentDetails.length : 1;
     periodData.transactionCount += transactionCount;
-    
+
     if (order.hasSplitPayment) {
       periodData.splitPaymentCount += 1;
     }
-    
+
     // Calculate items sold for this period
     const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
     periodData.totalItemsSold += itemsCount;
-    
-    // Track payment methods within period
+
+    // Track payment methods within period dengan displayName
     order.paymentDetails.forEach(payment => {
-      const method = payment.method || 'Unknown';
-      if (!periodData.paymentMethods.has(method)) {
-        periodData.paymentMethods.set(method, {
-          method: method,
+      const displayName = payment.displayName || payment.method || 'Unknown';
+      if (!periodData.paymentMethods.has(displayName)) {
+        periodData.paymentMethods.set(displayName, {
+          method: payment.method,
+          displayName: displayName,
           amount: 0,
           count: 0,
           splitPaymentCount: 0
         });
       }
-      
-      const methodData = periodData.paymentMethods.get(method);
+
+      const methodData = periodData.paymentMethods.get(displayName);
       methodData.amount += payment.amount || 0;
       methodData.count += 1;
-      
+
       if (order.hasSplitPayment) {
         methodData.splitPaymentCount += 1;
       }
@@ -540,31 +528,74 @@ const generatePeriodSummary = (orders, groupBy) => {
   // Convert Map to Array and format
   return Array.from(periodMap.values()).map(periodData => {
     periodData.orderCount = periodData.orderCount.size;
-    
+
     // Convert paymentMethods Map to Array
     periodData.paymentMethods = Array.from(periodData.paymentMethods.values())
       .sort((a, b) => b.amount - a.amount);
-    
+
     periodData.averageTransaction = periodData.transactionCount > 0 ?
       periodData.totalRevenue / periodData.transactionCount : 0;
-    
+
     periodData.averageOrderValue = periodData.orderCount > 0 ?
       periodData.totalRevenue / periodData.orderCount : 0;
-    
+
     periodData.averageItemsPerOrder = periodData.orderCount > 0 ?
       periodData.totalItemsSold / periodData.orderCount : 0;
-    
+
     periodData.splitPaymentPercentage = periodData.orderCount > 0 ?
       (periodData.splitPaymentCount / periodData.orderCount) * 100 : 0;
-    
+
     return periodData;
   }).sort((a, b) => a.period.localeCompare(b.period));
+};
+
+// Helper function untuk breakdown item sales
+const generateItemSalesBreakdown = (orders) => {
+  const itemMap = new Map();
+
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      const menuItem = item.menuItem;
+      const itemId = menuItem?._id ? menuItem._id.toString() : 'deleted_' + Math.random().toString(36).substr(2, 9);
+      const itemName = menuItem?.name || 'Menu Item Deleted';
+      const itemPrice = item.price || menuItem?.price || 0;
+      const quantity = item.quantity || 0;
+
+      if (!itemMap.has(itemId)) {
+        itemMap.set(itemId, {
+          itemId: itemId,
+          name: itemName,
+          price: itemPrice,
+          totalQuantity: 0,
+          totalRevenue: 0,
+          orders: new Set(),
+          isActive: menuItem?.isActive !== false
+        });
+      }
+
+      const itemData = itemMap.get(itemId);
+      itemData.totalQuantity += quantity;
+      itemData.totalRevenue += itemPrice * quantity;
+      itemData.orders.add(order.order_id);
+    });
+  });
+
+  const result = Array.from(itemMap.values()).map(itemData => ({
+    ...itemData,
+    totalOrders: itemData.orders.size,
+    orders: Array.from(itemData.orders).slice(0, 10),
+    averageQuantityPerOrder: itemData.totalOrders > 0 ? itemData.totalQuantity / itemData.totalOrders : 0,
+    percentageOfTotalRevenue: orders.reduce((sum, o) => sum + o.totalPaid, 0) > 0 ?
+      (itemData.totalRevenue / orders.reduce((sum, o) => sum + o.totalPaid, 0)) * 100 : 0
+  }));
+
+  return result.sort((a, b) => b.totalRevenue - a.totalRevenue);
 };
 
 // Normalize payment method for reporting
 const normalizePaymentMethodForReport = (method) => {
   const methodLower = method.toLowerCase();
-  
+
   switch (methodLower) {
     case 'cash':
       return 'Cash';
@@ -587,6 +618,26 @@ const normalizePaymentMethodForReport = (method) => {
     default:
       return method.charAt(0).toUpperCase() + method.slice(1).toLowerCase();
   }
+};
+
+// Function getDisplayName untuk generate display name yang lebih deskriptif
+export const getDisplayName = (method, va_numbers = [], actions = []) => {
+  let displayName = method ? method.charAt(0).toUpperCase() + method.slice(1) : 'Unknown';
+
+  if (method === 'Bank Transfer' || method === 'Debit') {
+    // Append bank name dari va_numbers
+    const bankName = va_numbers && va_numbers.length > 0 ? va_numbers[0].bank : '';
+    displayName = bankName ? `${method} - ${bankName.toUpperCase()}` : `${method}`;
+  } else if (method === 'QRIS') {
+    // Gunakan name dari actions
+    const actionName = actions && actions.length > 0 ? actions[0].name : '';
+    displayName = actionName ? `${method} - ${actionName}` : `${method}`;
+  } else if (method === 'Cash') {
+    // Cash tetap menggunakan method name saja
+    displayName = method;
+  }
+
+  return displayName;
 };
 
 // Controller untuk mendapatkan detail transaksi
@@ -634,7 +685,7 @@ export const getPaymentDetails = async (req, res) => {
       // Process items
       const processedItems = order.items.map(item => {
         const menuItem = item.menuItem;
-        
+
         if (!menuItem) {
           return {
             ...item,
@@ -660,10 +711,15 @@ export const getPaymentDetails = async (req, res) => {
 
       // Get payment details
       let paymentDetails = [];
-      
+
       if (order.isSplitPayment && order.payments && Array.isArray(order.payments)) {
         paymentDetails = order.payments.map(payment => ({
           method: payment.paymentMethod || order.paymentMethod || 'Cash',
+          displayName: getDisplayName(
+            payment.paymentMethod || order.paymentMethod || 'Cash',
+            payment.va_numbers || [],
+            payment.actions || []
+          ),
           amount: payment.amount || 0,
           status: payment.status || 'completed',
           isSplitPayment: true,
@@ -674,6 +730,11 @@ export const getPaymentDetails = async (req, res) => {
       } else {
         paymentDetails = [{
           method: order.paymentMethod || 'Cash',
+          displayName: getDisplayName(
+            order.paymentMethod || 'Cash',
+            order.payments?.[0]?.va_numbers || [],
+            order.payments?.[0]?.actions || []
+          ),
           amount: order.grandTotal || 0,
           status: 'completed',
           isSplitPayment: false,
@@ -777,7 +838,7 @@ export const getPaymentMethodDetailReport = async (req, res) => {
 
     // Process untuk extract payment details
     const allPayments = [];
-    
+
     orders.forEach(order => {
       if (order.isSplitPayment && order.payments && Array.isArray(order.payments)) {
         order.payments.forEach(payment => {
@@ -785,6 +846,11 @@ export const getPaymentMethodDetailReport = async (req, res) => {
             order_id: order.order_id,
             createdAt: order.createdAt,
             method: payment.paymentMethod || order.paymentMethod || 'Cash',
+            displayName: getDisplayName(
+              payment.paymentMethod || order.paymentMethod || 'Cash',
+              payment.va_numbers || [],
+              payment.actions || []
+            ),
             amount: payment.amount || 0,
             isSplitPayment: true,
             orderTotal: order.grandTotal || 0
@@ -795,6 +861,11 @@ export const getPaymentMethodDetailReport = async (req, res) => {
           order_id: order.order_id,
           createdAt: order.createdAt,
           method: order.paymentMethod || 'Cash',
+          displayName: getDisplayName(
+            order.paymentMethod || 'Cash',
+            order.payments?.[0]?.va_numbers || [],
+            order.payments?.[0]?.actions || []
+          ),
           amount: order.grandTotal || 0,
           isSplitPayment: false,
           orderTotal: order.grandTotal || 0
@@ -804,7 +875,7 @@ export const getPaymentMethodDetailReport = async (req, res) => {
 
     // Group berdasarkan parameter groupBy
     let groupedResults;
-    
+
     switch (groupBy) {
       case 'method':
         groupedResults = groupPaymentsByMethod(allPayments);
@@ -850,12 +921,13 @@ export const getPaymentMethodDetailReport = async (req, res) => {
 // Group payments by method
 const groupPaymentsByMethod = (payments) => {
   const methodMap = new Map();
-  
+
   payments.forEach(payment => {
-    const method = payment.method || 'Unknown';
-    if (!methodMap.has(method)) {
-      methodMap.set(method, {
-        method: method,
+    const displayName = payment.displayName || payment.method || 'Unknown';
+    if (!methodMap.has(displayName)) {
+      methodMap.set(displayName, {
+        method: payment.method,
+        displayName: displayName,
         totalAmount: 0,
         transactionCount: 0,
         orderCount: new Set(),
@@ -864,16 +936,16 @@ const groupPaymentsByMethod = (payments) => {
         orders: []
       });
     }
-    
-    const methodData = methodMap.get(method);
+
+    const methodData = methodMap.get(displayName);
     methodData.totalAmount += payment.amount;
     methodData.transactionCount += 1;
     methodData.orderCount.add(payment.order_id);
-    
+
     if (payment.isSplitPayment) {
       methodData.splitPaymentCount += 1;
     }
-    
+
     // Keep sample of orders
     if (methodData.orders.length < 10) {
       methodData.orders.push({
@@ -897,11 +969,11 @@ const groupPaymentsByMethod = (payments) => {
 // Group payments by day
 const groupPaymentsByDay = (payments) => {
   const dayMap = new Map();
-  
+
   payments.forEach(payment => {
     const date = new Date(payment.createdAt);
     const dayKey = date.toISOString().split('T')[0];
-    
+
     if (!dayMap.has(dayKey)) {
       dayMap.set(dayKey, {
         date: dayKey,
@@ -911,18 +983,23 @@ const groupPaymentsByDay = (payments) => {
         methods: new Map()
       });
     }
-    
+
     const dayData = dayMap.get(dayKey);
     dayData.totalAmount += payment.amount;
     dayData.transactionCount += 1;
     dayData.orderCount.add(payment.order_id);
-    
+
     // Track methods for this day
-    const method = payment.method || 'Unknown';
-    if (!dayData.methods.has(method)) {
-      dayData.methods.set(method, { method, amount: 0, count: 0 });
+    const displayName = payment.displayName || payment.method || 'Unknown';
+    if (!dayData.methods.has(displayName)) {
+      dayData.methods.set(displayName, {
+        method: payment.method,
+        displayName: displayName,
+        amount: 0,
+        count: 0
+      });
     }
-    const methodData = dayData.methods.get(method);
+    const methodData = dayData.methods.get(displayName);
     methodData.amount += payment.amount;
     methodData.count += 1;
   });
@@ -941,7 +1018,7 @@ const groupPaymentsByDay = (payments) => {
 // Group payments by hour
 const groupPaymentsByHour = (payments) => {
   const hourMap = new Map();
-  
+
   for (let i = 0; i < 24; i++) {
     hourMap.set(i, {
       hour: i,
@@ -952,16 +1029,16 @@ const groupPaymentsByHour = (payments) => {
       peakAmount: 0
     });
   }
-  
+
   payments.forEach(payment => {
     const date = new Date(payment.createdAt);
     const hour = date.getHours();
-    
+
     const hourData = hourMap.get(hour);
     hourData.totalAmount += payment.amount;
     hourData.transactionCount += 1;
     hourData.orderCount.add(payment.order_id);
-    
+
     if (payment.amount > hourData.peakAmount) {
       hourData.peakAmount = payment.amount;
     }
@@ -997,44 +1074,58 @@ export const getAvailablePaymentMethods = async (req, res) => {
       .select('paymentMethod isSplitPayment payments')
       .lean();
 
-    // Extract all unique payment methods
+    // Extract all unique payment methods dengan displayName
     const methodSet = new Set();
     const methodDetails = new Map();
-    
+
     orders.forEach(order => {
       if (order.isSplitPayment && order.payments && Array.isArray(order.payments)) {
         order.payments.forEach(payment => {
           const method = payment.paymentMethod || order.paymentMethod;
+          const displayName = getDisplayName(
+            method,
+            payment.va_numbers || [],
+            payment.actions || []
+          );
+
           if (method) {
-            methodSet.add(method);
-            
-            if (!methodDetails.has(method)) {
-              methodDetails.set(method, {
+            methodSet.add(displayName);
+
+            if (!methodDetails.has(displayName)) {
+              methodDetails.set(displayName, {
                 method: method,
+                displayName: displayName,
                 count: 0,
                 splitPaymentCount: 0,
                 singlePaymentCount: 0
               });
             }
-            const detail = methodDetails.get(method);
+            const detail = methodDetails.get(displayName);
             detail.count += 1;
             detail.splitPaymentCount += 1;
           }
         });
       } else {
         const method = order.paymentMethod;
+        const displayName = getDisplayName(
+          method,
+          order.payments?.[0]?.va_numbers || [],
+          order.payments?.[0]?.actions || []
+        );
+
         if (method) {
-          methodSet.add(method);
-          
-          if (!methodDetails.has(method)) {
-            methodDetails.set(method, {
+          methodSet.add(displayName);
+
+          if (!methodDetails.has(displayName)) {
+            methodDetails.set(displayName, {
               method: method,
+              displayName: displayName,
               count: 0,
               splitPaymentCount: 0,
               singlePaymentCount: 0
             });
           }
-          const detail = methodDetails.get(method);
+          const detail = methodDetails.get(displayName);
           detail.count += 1;
           detail.singlePaymentCount += 1;
         }
@@ -1050,11 +1141,10 @@ export const getAvailablePaymentMethods = async (req, res) => {
 
   } catch (error) {
     console.error('Error getting available payment methods:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: 'Internal server error',
-      error: error.message 
+      error: error.message
     });
   }
-
 };

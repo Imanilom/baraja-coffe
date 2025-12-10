@@ -174,17 +174,44 @@ const getCached = async (key, fetchFn, ttl = CACHE.TTL) => {
  * SECTION 3: OPTIMIZED STOCK VALIDATION (PARALLEL)
  * ==================================================================================
  */
+// ✅ ADD THIS HELPER FUNCTION before validateAndReserveStockOptimized
+
+/**
+ * Helper function to check if item is custom amount
+ * Custom amount items have productId starting with 'custom_'
+ */
+const isCustomAmountItem = (productId) => {
+    return productId && productId.toString().startsWith('custom_');
+};
+
+/**
+ * ==================================================================================
+ * UPDATED SECTION 3: OPTIMIZED STOCK VALIDATION (SKIP CUSTOM AMOUNTS)
+ * ==================================================================================
+ */
 const validateAndReserveStockOptimized = async (items) => {
     const stockReservations = [];
 
     try {
+        // ✅ FILTER: Separate custom amount items from regular menu items
+        const regularItems = items.filter(item => !isCustomAmountItem(item.productId));
+        const customAmountItems = items.filter(item => isCustomAmountItem(item.productId));
+
+        console.log(`📊 Item breakdown: ${regularItems.length} regular, ${customAmountItems.length} custom amounts`);
+
+        // Skip stock validation if only custom amount items
+        if (regularItems.length === 0) {
+            console.log('✅ All items are custom amounts, skipping stock validation');
+            return [];
+        }
+
         // OPTIMIZATION 1: Batch fetch all menu items & stocks in parallel
-        const menuItemIds = items.map(item => item.productId);
+        const menuItemIds = regularItems.map(item => item.productId);
 
         const [menuItems, menuStocks] = await Promise.all([
             MenuItem.find({ _id: { $in: menuItemIds } })
                 .select('_id name price availableStock isActive __v')
-                .lean(), // Use lean() untuk performa
+                .lean(),
 
             MenuStock.find({ menuItemId: { $in: menuItemIds } })
                 .select('menuItemId currentStock manualStock calculatedStock __v')
@@ -196,7 +223,7 @@ const validateAndReserveStockOptimized = async (items) => {
         const stockMap = new Map(menuStocks.map(stock => [stock.menuItemId.toString(), stock]));
 
         // OPTIMIZATION 2: Validate semua items secara parallel
-        const validationPromises = items.map(async (item) => {
+        const validationPromises = regularItems.map(async (item) => {
             const menuItem = menuItemMap.get(item.productId);
 
             if (!menuItem) {
@@ -243,6 +270,76 @@ const validateAndReserveStockOptimized = async (items) => {
         throw error;
     }
 };
+
+// const validateAndReserveStockOptimized = async (items) => {
+//     const stockReservations = [];
+
+//     try {
+//         // OPTIMIZATION 1: Batch fetch all menu items & stocks in parallel
+//         const menuItemIds = items.map(item => item.productId);
+
+//         const [menuItems, menuStocks] = await Promise.all([
+//             MenuItem.find({ _id: { $in: menuItemIds } })
+//                 .select('_id name price availableStock isActive __v')
+//                 .lean(), // Use lean() untuk performa
+
+//             MenuStock.find({ menuItemId: { $in: menuItemIds } })
+//                 .select('menuItemId currentStock manualStock calculatedStock __v')
+//                 .lean()
+//         ]);
+
+//         // Create lookup maps
+//         const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
+//         const stockMap = new Map(menuStocks.map(stock => [stock.menuItemId.toString(), stock]));
+
+//         // OPTIMIZATION 2: Validate semua items secara parallel
+//         const validationPromises = items.map(async (item) => {
+//             const menuItem = menuItemMap.get(item.productId);
+
+//             if (!menuItem) {
+//                 throw new Error(`Menu item not found: ${item.productId}`);
+//             }
+
+//             if (!menuItem.isActive) {
+//                 throw new Error(`Menu item "${menuItem.name}" is not available`);
+//             }
+
+//             const menuStock = stockMap.get(item.productId);
+
+//             if (!menuStock) {
+//                 throw new Error(`Stock data not found for "${menuItem.name}"`);
+//             }
+
+//             const effectiveStock = menuStock.manualStock !== null
+//                 ? menuStock.manualStock
+//                 : menuStock.calculatedStock;
+
+//             if (effectiveStock < item.quantity) {
+//                 throw new Error(
+//                     `Insufficient stock for "${menuItem.name}". Available: ${effectiveStock}, Requested: ${item.quantity}`
+//                 );
+//             }
+
+//             return {
+//                 menuItemId: menuItem._id,
+//                 menuItemName: menuItem.name,
+//                 menuItemVersion: menuItem.__v,
+//                 menuStockId: menuStock._id,
+//                 menuStockVersion: menuStock.__v,
+//                 requestedQty: item.quantity,
+//                 currentStock: effectiveStock,
+//                 isManualStock: menuStock.manualStock !== null
+//             };
+//         });
+
+//         stockReservations.push(...await Promise.all(validationPromises));
+
+//         return stockReservations;
+
+//     } catch (error) {
+//         throw error;
+//     }
+// };
 
 /**
  * ==================================================================================
@@ -495,10 +592,10 @@ export const createAppOrder = async (req, res) => {
     let stockDeductions = [];
 
     try {
-        // Wrap entire operation dalam timeout
         await withTimeout((async () => {
             const {
                 items,
+                customAmountItems, // ✅ NEW: Separate custom amounts
                 orderType,
                 tableNumber,
                 deliveryAddress,
@@ -520,21 +617,33 @@ export const createAppOrder = async (req, res) => {
             console.log('🚀 Optimized createAppOrder:', {
                 isGroMode,
                 itemsCount: items?.length || 0,
+                customAmountsCount: customAmountItems?.length || 0,
                 timestamp: new Date().toISOString()
             });
 
-            // VALIDATION (same as before)
+            // ✅ Log custom amounts
+            if (customAmountItems && customAmountItems.length > 0) {
+                console.log('💰 Custom Amounts Detected:');
+                customAmountItems.forEach((ca, idx) => {
+                    console.log(`   ${idx + 1}. ${ca.name}: Rp ${ca.amount}`);
+                });
+            }
+
+            // VALIDATION
             const shouldSkipItemValidation =
                 (orderType === 'reservation' && !isOpenBill) ||
                 (orderType === 'reservation' && isOpenBill) ||
                 isOpenBill;
 
-            if ((!items || items.length === 0) && !shouldSkipItemValidation) {
+            if ((!items || items.length === 0) &&
+                (!customAmountItems || customAmountItems.length === 0) &&
+                !shouldSkipItemValidation) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Order must contain at least one item'
+                    message: 'Order must contain at least one item or custom amount'
                 });
             }
+
 
             if (!isOpenBill && !orderType) {
                 return res.status(400).json({ success: false, message: 'Order type is required' });
@@ -593,7 +702,6 @@ export const createAppOrder = async (req, res) => {
                         () => validateAndReserveStockOptimized(items),
                         'stock_validation'
                     );
-
                     console.log(`✅ Stock validated in ${Date.now() - startTime}ms`);
                 } catch (stockError) {
                     console.error('❌ Stock validation failed:', stockError.message);
@@ -750,7 +858,6 @@ export const createAppOrder = async (req, res) => {
                         () => deductStockWithLockingOptimized(stockReservations),
                         'stock_deduction'
                     );
-
                     console.log(`✅ Stock deducted in ${Date.now() - startTime}ms`);
                 } catch (deductError) {
                     console.error('❌ Stock deduction failed:', deductError.message);
@@ -762,7 +869,7 @@ export const createAppOrder = async (req, res) => {
                 }
             }
 
-            // ORDER ITEMS PROCESSING (OPTIMIZED with parallel MenuItem fetch)
+            // ORDER ITEMS PROCESSING (Regular items only)
             const orderItems = [];
             if (items && items.length > 0) {
                 const menuItemIds = items.map(item => item.productId);
@@ -814,13 +921,40 @@ export const createAppOrder = async (req, res) => {
                 }
             }
 
+            console.log(`✅ Processed ${orderItems.length} regular menu items`);
+
+            // ✅ PROCESS CUSTOM AMOUNTS (separate from items)
+            const processedCustomAmounts = [];
+            if (customAmountItems && customAmountItems.length > 0) {
+                for (const ca of customAmountItems) {
+                    processedCustomAmounts.push({
+                        amount: ca.amount || 0,
+                        name: ca.name || 'Penyesuaian Pembayaran',
+                        description: ca.description || '',
+                        dineType: ca.dineType || 'Dine-In',
+                        appliedAt: new Date(),
+                    });
+                }
+                console.log(`✅ Processed ${processedCustomAmounts.length} custom amounts`);
+            }
+
             // PRICE CALCULATION
             let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
 
-            if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
+            // ✅ ADD CUSTOM AMOUNTS to total
+            const totalCustomAmount = processedCustomAmounts.reduce((sum, ca) => sum + ca.amount, 0);
+            totalBeforeDiscount += totalCustomAmount;
+
+            console.log(`💰 Total calculation:`);
+            console.log(`   Items subtotal: ${orderItems.reduce((sum, item) => sum + item.subtotal, 0)}`);
+            console.log(`   Custom amounts: ${totalCustomAmount}`);
+            console.log(`   Total before discount: ${totalBeforeDiscount}`);
+
+            if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0 && processedCustomAmounts.length === 0) {
                 totalBeforeDiscount = 25000;
             }
 
+            // Tax and service calculation
             let taxServiceCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
             if (totalBeforeDiscount > 0) {
                 taxServiceCalculation = await calculateTaxAndServiceCached(
@@ -850,39 +984,51 @@ export const createAppOrder = async (req, res) => {
 
                 if (orderItems.length > 0) {
                     existingOrder.items.push(...orderItems);
+                }
 
-                    const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-                    const updatedTotalBeforeDiscount = existingOrder.totalBeforeDiscount + newItemsTotal;
-
-                    let updatedTotalAfterDiscount = updatedTotalBeforeDiscount;
-                    if (voucherId && discountType === 'percentage') {
-                        updatedTotalAfterDiscount = updatedTotalBeforeDiscount - (updatedTotalBeforeDiscount * (voucherAmount / 100));
-                    } else if (voucherId && discountType === 'fixed') {
-                        updatedTotalAfterDiscount = updatedTotalBeforeDiscount - voucherAmount;
-                        if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
+                // ✅ ADD CUSTOM AMOUNTS to existing order
+                if (processedCustomAmounts.length > 0) {
+                    if (!existingOrder.customAmountItems) {
+                        existingOrder.customAmountItems = [];
                     }
+                    existingOrder.customAmountItems.push(...processedCustomAmounts);
+                    console.log(`✅ Added ${processedCustomAmounts.length} custom amounts to existing order`);
+                }
 
-                    let updatedTaxCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
-                    if (updatedTotalAfterDiscount > 0) {
-                        updatedTaxCalculation = await calculateTaxAndServiceCached(
-                            updatedTotalAfterDiscount,
-                            outlet || "67cbc9560f025d897d69f889",
-                            orderType === 'reservation',
-                            true
-                        );
-                    }
+                // Recalculate totals
+                const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+                const newCustomAmountsTotal = processedCustomAmounts.reduce((sum, ca) => sum + ca.amount, 0);
+                const updatedTotalBeforeDiscount = existingOrder.totalBeforeDiscount + newItemsTotal + newCustomAmountsTotal;
 
-                    existingOrder.totalBeforeDiscount = updatedTotalBeforeDiscount;
-                    existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
-                    existingOrder.totalTax = updatedTaxCalculation.totalTax;
-                    existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
-                    existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
-                    existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
+                let updatedTotalAfterDiscount = updatedTotalBeforeDiscount;
+                if (voucherId && discountType === 'percentage') {
+                    updatedTotalAfterDiscount = updatedTotalBeforeDiscount - (updatedTotalBeforeDiscount * (voucherAmount / 100));
+                } else if (voucherId && discountType === 'fixed') {
+                    updatedTotalAfterDiscount = updatedTotalBeforeDiscount - voucherAmount;
+                    if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
+                }
 
-                    if (voucherId) {
-                        existingOrder.appliedVoucher = voucherId;
-                        existingOrder.voucher = voucherId;
-                    }
+                let updatedTaxCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
+                if (updatedTotalAfterDiscount > 0) {
+                    updatedTaxCalculation = await calculateTaxAndServiceCached(
+                        updatedTotalAfterDiscount,
+                        outlet || "67cbc9560f025d897d69f889",
+                        orderType === 'reservation',
+                        true
+                    );
+                }
+
+                existingOrder.totalBeforeDiscount = updatedTotalBeforeDiscount;
+                existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
+                existingOrder.totalTax = updatedTaxCalculation.totalTax;
+                existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
+                existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
+                existingOrder.totalCustomAmount = existingOrder.customAmountItems.reduce((sum, ca) => sum + ca.amount, 0);
+                existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
+
+                if (voucherId) {
+                    existingOrder.appliedVoucher = voucherId;
+                    existingOrder.voucher = voucherId;
                 }
 
                 if (isGroMode) {
@@ -904,6 +1050,7 @@ export const createAppOrder = async (req, res) => {
                     cashier: null,
                     groId: isGroMode ? groId : null,
                     items: orderItems,
+                    customAmountItems: processedCustomAmounts, // ✅ Add custom amounts
                     status: orderStatus,
                     paymentMethod: paymentDetails.method,
                     orderType: formattedOrderType,
@@ -917,6 +1064,7 @@ export const createAppOrder = async (req, res) => {
                     totalAfterDiscount,
                     totalTax: taxServiceCalculation.totalTax,
                     totalServiceFee: taxServiceCalculation.totalServiceFee,
+                    totalCustomAmount, // ✅ Add total custom amount
                     discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
                     appliedPromos: [],
                     appliedManualPromo: null,
@@ -932,6 +1080,7 @@ export const createAppOrder = async (req, res) => {
 
                 try {
                     await newOrder.save();
+                    console.log(`✅ Order created with ${orderItems.length} items and ${processedCustomAmounts.length} custom amounts`);
                 } catch (saveError) {
                     console.error('❌ Order save failed, rolling back stock:', saveError.message);
                     if (stockDeductions.length > 0) {
