@@ -467,7 +467,7 @@ const Summary = () => {
                             <tbody className="text-sm text-gray-400">
                                 {paymentBreakdown.map((item, index) => (
                                     <tr key={index} className="border-t">
-                                        <td className="font-medium text-gray-500 p-[15px]">{item.method}</td>
+                                        <td className="font-medium text-gray-500 p-[15px]">{item.method || "Pembayaran Tidak Terdeteksi / Null"}</td>
                                         <td className="text-right p-[15px]">{item.count}</td>
                                         <td className="text-right p-[15px]">{formatCurrency(item.amount)}</td>
                                         <td className="text-right p-[15px]">{item.percentage}%</td>

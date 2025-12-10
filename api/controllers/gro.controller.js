@@ -1077,7 +1077,6 @@ export const getReservationDetail = async (req, res) => {
   }
 };
 
-
 export const getReservations = async (req, res) => {
   try {
     const {
@@ -1124,13 +1123,11 @@ export const getReservations = async (req, res) => {
       reservationFilter.area_id = area_id;
     }
 
-    // ✅ PERBAIKAN: Search untuk reservations - hanya field string
     if (search) {
       const searchRegex = { $regex: search, $options: 'i' };
       reservationFilter.$or = [
         { reservation_code: searchRegex },
         { 'created_by.employee_name': searchRegex }
-        // Hapus pencarian di field object/array yang bukan string
       ];
     }
 
@@ -1142,7 +1139,7 @@ export const getReservations = async (req, res) => {
       .populate('table_id', 'table_number seats')
       .populate({
         path: 'order_id',
-        select: '_id order_id grandTotal status user'
+        select: '_id order_id grandTotal status user items customAmountItems totalCustomAmount'
       })
       .populate('created_by.employee_id', 'username')
       .populate('checked_in_by.employee_id', 'username')
@@ -1151,25 +1148,27 @@ export const getReservations = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    // ✅ Format reservations untuk konsistensi
+    // ✅ Format reservations dengan custom amount items
     const formattedReservations = reservations.map(reservation => {
       const resObj = reservation.toObject();
 
-      // Jika order_id populated, ambil user dari order
       let guestName = 'Tamu';
       if (resObj.order_id && typeof resObj.order_id === 'object') {
         guestName = resObj.order_id.user || 'Tamu';
 
+        // ✅ Format order dengan custom amount items
         resObj.order_id = {
           _id: resObj.order_id._id,
           order_id: resObj.order_id.order_id,
           grandTotal: resObj.order_id.grandTotal,
           status: resObj.order_id.status,
-          user: resObj.order_id.user
+          user: resObj.order_id.user,
+          items: resObj.order_id.items || [],
+          customAmountItems: resObj.order_id.customAmountItems || [],
+          totalCustomAmount: resObj.order_id.totalCustomAmount || 0
         };
       }
 
-      // ✅ Tambahkan guest_name dari order.user
       resObj.guest_name = guestName;
 
       return resObj;
@@ -1201,7 +1200,6 @@ export const getReservations = async (req, res) => {
       orderFilter.status = { $nin: ['Canceled', 'Completed'] };
     }
 
-    // Apply date filter to orders
     if (date) {
       const targetDate = new Date(date);
       if (!isNaN(targetDate.getTime())) {
@@ -1218,13 +1216,11 @@ export const getReservations = async (req, res) => {
       };
     }
 
-    // ✅ PERBAIKAN: Search untuk dine-in orders - hanya field string
     if (search) {
       const searchRegex = { $regex: search, $options: 'i' };
       orderFilter.$or = [
         { order_id: searchRegex },
         { user: searchRegex }
-        // Hapus groId dari search karena itu ObjectId, bukan string
       ];
     }
 
@@ -1233,15 +1229,14 @@ export const getReservations = async (req, res) => {
       order_id: { $ne: null }
     });
 
-    // Exclude orders that already have reservations
     orderFilter._id = { $nin: reservedOrderIds };
 
-    // Query orders
+    // ✅ Query orders dengan custom amount items
     let dineInOrdersQuery = Order.find(orderFilter)
       .populate('cashierId', 'username')
       .populate('groId', 'username')
       .sort({ createdAt: -1 })
-      .select('_id order_id orderType grandTotal status tableNumber type createdAt cashierId groId user');
+      .select('_id order_id orderType grandTotal status tableNumber type createdAt cashierId groId user items customAmountItems totalCustomAmount');
 
     const dineInOrders = await dineInOrdersQuery.lean();
 
@@ -1272,7 +1267,7 @@ export const getReservations = async (req, res) => {
       };
     }));
 
-    // Apply area filter to orders (after getting area info)
+    // Apply area filter to orders
     let filteredOrders = ordersWithTableInfo;
     if (area_id) {
       filteredOrders = ordersWithTableInfo.filter(order =>
@@ -1280,7 +1275,7 @@ export const getReservations = async (req, res) => {
       );
     }
 
-    // Transform dine-in orders to match reservation structure
+    // ✅ Transform dine-in orders dengan custom amount items
     const transformedOrders = filteredOrders.map(order => ({
       _id: order._id,
       type: 'dine-in-order',
@@ -1301,7 +1296,10 @@ export const getReservations = async (req, res) => {
         order_id: order.order_id,
         grandTotal: order.grandTotal,
         status: order.status,
-        user: order.user
+        user: order.user,
+        items: order.items || [],
+        customAmountItems: order.customAmountItems || [],
+        totalCustomAmount: order.totalCustomAmount || 0
       },
       created_by: {
         employee_id: order.cashierId || order.groId,
@@ -1312,7 +1310,7 @@ export const getReservations = async (req, res) => {
       createdAt: order.createdAt
     }));
 
-    // ✅ PERBAIKAN: Filter manual berdasarkan search untuk dine-in orders
+    // Filter manual berdasarkan search untuk dine-in orders
     let finalTransformedOrders = transformedOrders;
     if (search) {
       finalTransformedOrders = transformedOrders.filter(order =>
@@ -1356,96 +1354,936 @@ export const getReservations = async (req, res) => {
   }
 };
 
-// GET /api/orders/:orderId - Get order detail (FIXED - Proper 404 handling)
-export const getOrderDetail = async (req, res) => {
+export const getOrderDetailById = async (req, res) => {
   try {
-    const { orderId } = req.params;
-
+    const orderId = req.params.orderId;
+    if (!orderId) {
+      return res.status(400).json({ message: 'Order ID is required.' });
+    }
     console.log('Fetching order with ID:', orderId);
 
-    // Validate ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid order ID format'
-      });
-    }
-
+    // Cari pesanan dengan populate voucher dan tax details
     const order = await Order.findById(orderId)
-      .populate('user_id', 'name phone email')
-      .populate({
-        path: 'items.menuItem',
-        select: 'name price imageURL category mainCategory'
-      })
-      .populate('reservation', 'reservation_code reservation_date reservation_time guest_count');
-
-    console.log('Order found:', order ? 'Yes' : 'No');
+      .populate('items.menuItem')
+      .populate('appliedVoucher')
+      .populate('taxAndServiceDetails');
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    // Cari pembayaran
+    const payment = await Payment.findOne({ order_id: order.order_id });
+
+    // Cari reservasi
+    const reservation = await Reservation.findOne({ order_id: orderId })
+      .populate('area_id')
+      .populate('table_id');
+
+    console.log('Payment:', payment);
+    console.log('Order:', orderId);
+    console.log('Reservation:', reservation);
+
+    // Format tanggal
+    const formatDate = (date) => {
+      const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      };
+      return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
+    };
+
+    const formatReservationDate = (dateString) => {
+      const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
+      };
+      return new Intl.DateTimeFormat('id-ID', options).format(new Date(dateString));
+    };
+
+    // ✅ Format items (menu items)
+    const formattedItems = order.items.map(item => {
+      const basePrice = item.price || item.menuItem?.price || 0;
+      const quantity = item.quantity || 1;
+
+      return {
+        menuItemId: item.menuItem?._id || item.menuItem || item._id,
+        name: item.menuItem?.name || item.name || 'Unknown Item',
+        price: basePrice,
+        quantity,
+        addons: item.addons || [],
+        toppings: item.toppings || [],
+        notes: item.notes,
+        outletId: item.outletId || null,
+        outletName: item.outletName || null,
+      };
+    });
+
+    // ✅ Format custom amount items
+    const formattedCustomAmountItems = (order.customAmountItems || []).map(item => ({
+      amount: item.amount || 0,
+      name: item.name || 'Penyesuaian Pembayaran',
+      description: item.description || '',
+      dineType: item.dineType || 'Dine-In',
+      appliedAt: item.appliedAt,
+      originalAmount: item.originalAmount || null,
+      discountApplied: item.discountApplied || 0
+    }));
+
+    // Generate order number
+    const generateOrderNumber = (orderId) => {
+      if (typeof orderId === 'string' && orderId.includes('ORD-')) {
+        const parts = orderId.split('-');
+        return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
+      }
+      return `#${orderId.toString().slice(-4)}`;
+    };
+
+    // Reservation data
+    let reservationData = null;
+    if (reservation) {
+      reservationData = {
+        _id: reservation._id.toString(),
+        reservationCode: reservation.reservation_code,
+        reservationDate: formatReservationDate(reservation.reservation_date),
+        reservationTime: reservation.reservation_time,
+        guestCount: reservation.guest_count,
+        status: reservation.status,
+        reservationType: reservation.reservation_type,
+        notes: reservation.notes,
+        area: {
+          _id: reservation.area_id?._id,
+          name: reservation.area_id?.area_name || 'Unknown Area'
+        },
+        tables: Array.isArray(reservation.table_id) ? reservation.table_id.map(table => ({
+          _id: table._id.toString(),
+          tableNumber: table.table_number || 'Unknown Table',
+          seats: table.seats,
+          tableType: table.table_type,
+          isAvailable: table.is_available,
+          isActive: table.is_active
+        })) : []
+      };
+    }
+
+    // Payment status logic
+    const paymentStatus = (() => {
+      if (
+        payment?.status === 'settlement' &&
+        payment?.paymentType === 'Down Payment' &&
+        payment?.remainingAmount !== 0
+      ) {
+        return 'partial';
+      } else if (
+        payment?.status === 'settlement' &&
+        payment?.paymentType === 'Down Payment' &&
+        payment?.remainingAmount == 0
+      ) {
+        return 'settlement';
+      }
+      return payment?.status || 'Unpaid';
+    })();
+
+    const totalAmountRemaining = await Payment.findOne({
+      order_id: order.order_id,
+      relatedPaymentId: { $ne: null },
+      status: { $in: ['pending', 'expire'] }
+    }).sort({ createdAt: -1 });
+
+    // Payment details
+    const paymentDetails = {
+      totalAmount: totalAmountRemaining?.amount || payment?.totalAmount || order.grandTotal || 0,
+      paidAmount: payment?.amount || 0,
+      remainingAmount: totalAmountRemaining?.totalAmount || payment?.remainingAmount || 0,
+      paymentType: payment?.paymentType || 'Full',
+      isDownPayment: payment?.paymentType === 'Down Payment',
+      downPaymentPaid: payment?.paymentType === 'Down Payment' && payment?.status === 'settlement',
+      method: payment
+        ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
+        : 'Unknown',
+      status: paymentStatus,
+    };
+
+    // Format voucher data
+    let voucherData = null;
+    if (order.appliedVoucher && typeof order.appliedVoucher === 'object') {
+      if (order.appliedVoucher.code) {
+        voucherData = {
+          _id: order.appliedVoucher._id,
+          code: order.appliedVoucher.code,
+          name: order.appliedVoucher.name,
+          description: order.appliedVoucher.description,
+          discountAmount: order.appliedVoucher.discountAmount,
+          discountType: order.appliedVoucher.discountType,
+          validFrom: order.appliedVoucher.validFrom,
+          validTo: order.appliedVoucher.validTo,
+          quota: order.appliedVoucher.quota,
+          applicableOutlets: order.appliedVoucher.applicableOutlets || [],
+          customerType: order.appliedVoucher.customerType,
+          printOnReceipt: order.appliedVoucher.printOnReceipt || false,
+          isActive: order.appliedVoucher.isActive || true
+        };
+      }
+    }
+
+    // Format tax and service details
+    let taxAndServiceDetails = [];
+    if (order.taxAndServiceDetails && Array.isArray(order.taxAndServiceDetails)) {
+      taxAndServiceDetails = order.taxAndServiceDetails.map(tax => {
+        if (tax.type && tax.name) {
+          return {
+            _id: tax._id,
+            type: tax.type,
+            name: tax.name,
+            percentage: tax.percentage,
+            amount: tax.amount
+          };
+        }
+        return {
+          _id: tax._id || tax,
+          type: 'unknown',
+          name: 'Tax/Service',
+          percentage: 0,
+          amount: 0
+        };
       });
     }
 
-    // Format response dengan struktur yang konsisten
-    const formattedResponse = {
-      success: true,
-      data: {
-        _id: order._id,
-        order_id: order.order_id,
-        customerName: order.user_id?.name || order.user || 'Guest',
-        customerPhone: order.user_id?.phone || '',
-        customerEmail: order.user_id?.email || '',
-        tableNumber: order.tableNumber || 'N/A',
-        status: order.status,
-        orderType: order.orderType,
-        items: order.items.map(item => ({
-          _id: item._id,
-          menuItem: item.menuItem ? {
-            _id: item.menuItem._id,
-            name: item.menuItem.name,
-            price: item.menuItem.price,
-            imageURL: item.menuItem.imageURL,
-            category: item.menuItem.category,
-            mainCategory: item.menuItem.mainCategory
-          } : null,
-          quantity: item.quantity,
-          subtotal: item.subtotal,
-          addons: Array.isArray(item.addons) ? item.addons : [],
-          toppings: Array.isArray(item.toppings) ? item.toppings : [],
-          notes: item.notes || '',
-          kitchenStatus: item.kitchenStatus,
-          batchNumber: item.batchNumber
-        })),
-        totalBeforeDiscount: order.totalBeforeDiscount || 0,
-        totalAfterDiscount: order.totalAfterDiscount || 0,
-        totalTax: order.totalTax || 0,
-        totalServiceFee: order.totalServiceFee || 0,
-        grandTotal: order.grandTotal || 0,
-        discounts: order.discounts || {},
-        appliedVoucher: order.appliedVoucher,
-        paymentMethod: order.paymentMethod,
-        isOpenBill: order.isOpenBill || false,
-        createdAt: order.createdAt,
-        createdAtWIB: order.createdAtWIB,
-        updatedAt: order.updatedAt,
-        updatedAtWIB: order.updatedAtWIB
-      }
+    const totalTax = order.totalTax || 0;
+
+    // ✅ Build orderData dengan custom amount items
+    const orderData = {
+      _id: order._id.toString(),
+      orderId: order.order_id || order._id.toString(),
+      orderNumber: generateOrderNumber(order.order_id || order._id),
+      orderDate: formatDate(order.createdAt),
+      items: formattedItems,
+      customAmountItems: formattedCustomAmountItems,
+      totalCustomAmount: order.totalCustomAmount || 0,
+      orderStatus: order.status,
+      paymentMethod: paymentDetails.method,
+      paymentStatus,
+      totalBeforeDiscount: order.totalBeforeDiscount || 0,
+      totalAfterDiscount: order.totalAfterDiscount || 0,
+      grandTotal: order.grandTotal || 0,
+      paymentDetails: paymentDetails,
+      voucher: voucherData,
+      taxAndServiceDetails: taxAndServiceDetails,
+      totalTax: totalTax,
+      reservation: reservationData,
+      dineInData: order.orderType === 'Dine-In' ? {
+        tableNumber: order.tableNumber,
+      } : null,
+      pickupData: order.orderType === 'Pickup' ? {
+        pickupTime: order.pickupTime,
+      } : null,
+      takeAwayData: order.orderType === 'Take Away' ? {
+        note: "Take Away order",
+      } : null,
+      deliveryData: order.orderType === 'Delivery' ? {
+        deliveryAddress: order.deliveryAddress,
+      } : null,
     };
 
-    console.log('Returning formatted response');
-    res.json(formattedResponse);
-
+    console.log('Order Data:', JSON.stringify(orderData, null, 2));
+    res.status(200).json({ orderData });
   } catch (error) {
-    console.error('Error fetching order detail:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching order detail',
-      error: error.message
-    });
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
+
+
+// export const getReservations = async (req, res) => {
+//   try {
+//     const {
+//       page = 1,
+//       limit = 20,
+//       status,
+//       date,
+//       area_id,
+//       search
+//     } = req.query;
+
+//     const skip = (parseInt(page) - 1) * parseInt(limit);
+
+//     // ========== FILTER UNTUK RESERVATIONS ==========
+//     const reservationFilter = {};
+
+//     if (status) {
+//       if (status === 'active') {
+//         reservationFilter.status = 'confirmed';
+//         reservationFilter.check_in_time = { $ne: null };
+//         reservationFilter.check_out_time = null;
+//       } else {
+//         reservationFilter.status = status;
+//       }
+//     }
+
+//     if (date) {
+//       const targetDate = new Date(date);
+//       if (!isNaN(targetDate.getTime())) {
+//         reservationFilter.reservation_date = {
+//           $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+//           $lt: new Date(targetDate.setHours(23, 59, 59, 999))
+//         };
+//       }
+//     } else {
+//       const { startOfDay, endOfDay } = getTodayWIBRange();
+//       reservationFilter.reservation_date = {
+//         $gte: startOfDay,
+//         $lte: endOfDay
+//       };
+//     }
+
+//     if (area_id) {
+//       reservationFilter.area_id = area_id;
+//     }
+
+//     // ✅ PERBAIKAN: Search untuk reservations - hanya field string
+//     if (search) {
+//       const searchRegex = { $regex: search, $options: 'i' };
+//       reservationFilter.$or = [
+//         { reservation_code: searchRegex },
+//         { 'created_by.employee_name': searchRegex }
+//         // Hapus pencarian di field object/array yang bukan string
+//       ];
+//     }
+
+//     // Get reservations
+//     const total = await Reservation.countDocuments(reservationFilter);
+
+//     const reservations = await Reservation.find(reservationFilter)
+//       .populate('area_id', 'area_name area_code capacity')
+//       .populate('table_id', 'table_number seats')
+//       .populate({
+//         path: 'order_id',
+//         select: '_id order_id grandTotal status user'
+//       })
+//       .populate('created_by.employee_id', 'username')
+//       .populate('checked_in_by.employee_id', 'username')
+//       .populate('checked_out_by.employee_id', 'username')
+//       .sort({ reservation_date: 1, reservation_time: 1 })
+//       .skip(skip)
+//       .limit(parseInt(limit));
+
+//     // ✅ Format reservations untuk konsistensi
+//     const formattedReservations = reservations.map(reservation => {
+//       const resObj = reservation.toObject();
+
+//       // Jika order_id populated, ambil user dari order
+//       let guestName = 'Tamu';
+//       if (resObj.order_id && typeof resObj.order_id === 'object') {
+//         guestName = resObj.order_id.user || 'Tamu';
+
+//         resObj.order_id = {
+//           _id: resObj.order_id._id,
+//           order_id: resObj.order_id.order_id,
+//           grandTotal: resObj.order_id.grandTotal,
+//           status: resObj.order_id.status,
+//           user: resObj.order_id.user
+//         };
+//       }
+
+//       // ✅ Tambahkan guest_name dari order.user
+//       resObj.guest_name = guestName;
+
+//       return resObj;
+//     });
+
+//     // ========== FILTER UNTUK DINE-IN ORDERS ==========
+//     const orderFilter = {
+//       orderType: 'Dine-In'
+//     };
+
+//     if (status) {
+//       switch (status) {
+//         case 'pending':
+//           orderFilter.status = { $in: ['Pending', 'Waiting'] };
+//           break;
+//         case 'active':
+//           orderFilter.status = 'OnProcess';
+//           break;
+//         case 'completed':
+//           orderFilter.status = 'Completed';
+//           break;
+//         case 'cancelled':
+//           orderFilter.status = 'Canceled';
+//           break;
+//         default:
+//           break;
+//       }
+//     } else {
+//       orderFilter.status = { $nin: ['Canceled', 'Completed'] };
+//     }
+
+//     // Apply date filter to orders
+//     if (date) {
+//       const targetDate = new Date(date);
+//       if (!isNaN(targetDate.getTime())) {
+//         orderFilter.createdAt = {
+//           $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+//           $lt: new Date(targetDate.setHours(23, 59, 59, 999))
+//         };
+//       }
+//     } else {
+//       const { startOfDay, endOfDay } = getTodayWIBRange();
+//       orderFilter.createdAt = {
+//         $gte: startOfDay,
+//         $lte: endOfDay
+//       };
+//     }
+
+//     // ✅ PERBAIKAN: Search untuk dine-in orders - hanya field string
+//     if (search) {
+//       const searchRegex = { $regex: search, $options: 'i' };
+//       orderFilter.$or = [
+//         { order_id: searchRegex },
+//         { user: searchRegex }
+//         // Hapus groId dari search karena itu ObjectId, bukan string
+//       ];
+//     }
+
+//     // Get order IDs that already have reservations
+//     const reservedOrderIds = await Reservation.distinct('order_id', {
+//       order_id: { $ne: null }
+//     });
+
+//     // Exclude orders that already have reservations
+//     orderFilter._id = { $nin: reservedOrderIds };
+
+//     // Query orders
+//     let dineInOrdersQuery = Order.find(orderFilter)
+//       .populate('cashierId', 'username')
+//       .populate('groId', 'username')
+//       .sort({ createdAt: -1 })
+//       .select('_id order_id orderType grandTotal status tableNumber type createdAt cashierId groId user');
+
+//     const dineInOrders = await dineInOrdersQuery.lean();
+
+//     // Get table info manually if tableNumber exists
+//     const ordersWithTableInfo = await Promise.all(dineInOrders.map(async (order) => {
+//       let tableInfo = null;
+//       let areaInfo = null;
+
+//       if (order.tableNumber) {
+//         const table = await Table.findOne({ table_number: order.tableNumber })
+//           .populate('area_id', 'area_name area_code capacity')
+//           .lean();
+
+//         if (table) {
+//           tableInfo = {
+//             _id: table._id,
+//             table_number: table.table_number,
+//             seats: table.seats
+//           };
+//           areaInfo = table.area_id;
+//         }
+//       }
+
+//       return {
+//         ...order,
+//         tableInfo,
+//         areaInfo
+//       };
+//     }));
+
+//     // Apply area filter to orders (after getting area info)
+//     let filteredOrders = ordersWithTableInfo;
+//     if (area_id) {
+//       filteredOrders = ordersWithTableInfo.filter(order =>
+//         order.areaInfo && order.areaInfo._id.toString() === area_id
+//       );
+//     }
+
+//     // Transform dine-in orders to match reservation structure
+//     const transformedOrders = filteredOrders.map(order => ({
+//       _id: order._id,
+//       type: 'dine-in-order',
+//       reservation_code: order.order_id,
+//       status: order.status,
+//       guest_name: order.user || 'Customer',
+//       guest_count: 1,
+//       reservation_date: order.createdAt,
+//       reservation_time: new Date(order.createdAt).toLocaleTimeString('id-ID', {
+//         hour: '2-digit',
+//         minute: '2-digit',
+//         timeZone: 'Asia/Jakarta'
+//       }),
+//       area_id: order.areaInfo,
+//       table_id: order.tableInfo ? [order.tableInfo] : [],
+//       order_id: {
+//         _id: order._id,
+//         order_id: order.order_id,
+//         grandTotal: order.grandTotal,
+//         status: order.status,
+//         user: order.user
+//       },
+//       created_by: {
+//         employee_id: order.cashierId || order.groId,
+//         employee_name: (order.cashierId?.username || order.groId?.username || 'System'),
+//         timestamp: order.createdAt
+//       },
+//       notes: `Dine-In customer - ${order.user || 'Guest'}`,
+//       createdAt: order.createdAt
+//     }));
+
+//     // ✅ PERBAIKAN: Filter manual berdasarkan search untuk dine-in orders
+//     let finalTransformedOrders = transformedOrders;
+//     if (search) {
+//       finalTransformedOrders = transformedOrders.filter(order =>
+//         order.guest_name.toLowerCase().includes(search.toLowerCase()) ||
+//         order.reservation_code.toLowerCase().includes(search.toLowerCase()) ||
+//         order.created_by.employee_name.toLowerCase().includes(search.toLowerCase())
+//       );
+//     }
+
+//     // Combine and sort both datasets
+//     const combinedData = [...formattedReservations, ...finalTransformedOrders]
+//       .sort((a, b) => {
+//         const dateA = new Date(a.reservation_date || a.createdAt);
+//         const dateB = new Date(b.reservation_date || b.createdAt);
+//         return dateB - dateA;
+//       });
+
+//     // Apply pagination to combined data
+//     const paginatedData = combinedData.slice(skip, skip + parseInt(limit));
+//     const totalCombined = total + finalTransformedOrders.length;
+
+//     res.json({
+//       success: true,
+//       data: paginatedData,
+//       pagination: {
+//         current_page: parseInt(page),
+//         total_pages: Math.ceil(totalCombined / parseInt(limit)),
+//         total_records: totalCombined,
+//         reservations_count: reservations.length,
+//         dine_in_orders_count: finalTransformedOrders.length,
+//         limit: parseInt(limit)
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error fetching reservations:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error fetching reservations',
+//       error: error.message
+//     });
+//   }
+// };
+
+// export const getOrderDetailById = async (req, res) => {
+//   try {
+//     const orderId = req.params.orderId;
+//     if (!orderId) {
+//       return res.status(400).json({ message: 'Order ID is required.' });
+//     }
+//     console.log('Fetching order with ID:', orderId);
+
+//     // Cari pesanan dengan populate voucher dan tax details
+//     const order = await Order.findById(orderId)
+//       .populate('items.menuItem')
+//       .populate('appliedVoucher')
+//       .populate('taxAndServiceDetails');
+//     if (!order) {
+//       return res.status(404).json({ message: 'Order not found.' });
+//     }
+
+//     // Cari pembayaran
+//     const payment = await Payment.findOne({ order_id: order.order_id });
+
+
+//     // Cari reservasi
+//     const reservation = await Reservation.findOne({ order_id: orderId })
+//       .populate('area_id')
+//       .populate('table_id');
+
+//     console.log('Payment:', payment);
+//     console.log('Order:', orderId);
+//     console.log('Reservation:', reservation);
+//     console.log('controller yang digunakan masih dari groController');
+
+//     // Format tanggal
+//     const formatDate = (date) => {
+//       const options = {
+//         day: 'numeric',
+//         month: 'long',
+//         year: 'numeric',
+//         hour: '2-digit',
+//         minute: '2-digit',
+//         timeZone: 'Asia/Jakarta'
+//       };
+//       return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
+//     };
+
+//     const formatReservationDate = (dateString) => {
+//       const options = {
+//         day: 'numeric',
+//         month: 'long',
+//         year: 'numeric',
+//         timeZone: 'Asia/Jakarta'
+//       };
+//       return new Intl.DateTimeFormat('id-ID', options).format(new Date(dateString));
+//     };
+
+//     // Format items
+//     const formattedItems = order.items.map(item => {
+//       const basePrice = item.price || item.menuItem?.price || 0;
+//       const quantity = item.quantity || 1;
+
+//       return {
+//         menuItemId: item.menuItem?._id || item.menuItem || item._id,
+//         name: item.menuItem?.name || item.name || 'Unknown Item',
+//         price: basePrice,
+//         quantity,
+//         addons: item.addons || [],
+//         toppings: item.toppings || [],
+//         notes: item.notes,
+//         outletId: item.outletId || null,
+//         outletName: item.outletName || null,
+//       };
+//     });
+
+//     // Generate order number
+//     const generateOrderNumber = (orderId) => {
+//       if (typeof orderId === 'string' && orderId.includes('ORD-')) {
+//         const parts = orderId.split('-');
+//         return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
+//       }
+//       return `#${orderId.toString().slice(-4)}`;
+//     };
+
+//     // Reservation data
+//     let reservationData = null;
+//     if (reservation) {
+//       reservationData = {
+//         _id: reservation._id.toString(),
+//         reservationCode: reservation.reservation_code,
+//         reservationDate: formatReservationDate(reservation.reservation_date),
+//         reservationTime: reservation.reservation_time,
+//         guestCount: reservation.guest_count,
+//         status: reservation.status,
+//         reservationType: reservation.reservation_type,
+//         notes: reservation.notes,
+//         area: {
+//           _id: reservation.area_id?._id,
+//           name: reservation.area_id?.area_name || 'Unknown Area'
+//         },
+//         tables: Array.isArray(reservation.table_id) ? reservation.table_id.map(table => ({
+//           _id: table._id.toString(),
+//           tableNumber: table.table_number || 'Unknown Table',
+//           seats: table.seats,
+//           tableType: table.table_type,
+//           isAvailable: table.is_available,
+//           isActive: table.is_active
+//         })) : []
+//       };
+//     }
+
+//     console.log("orderType:", order.orderType);
+//     console.log('Tables detail:', JSON.stringify(reservationData?.tables || [], null, 2));
+//     console.log("Dine In Data:", order.orderType === 'Dine-In' ? { tableNumber: order.tableNumber } : 'N/A');
+//     console.log("Pickup Data:", order.orderType === 'Pickup' ? { pickupTime: order.pickupTime } : 'N/A');
+//     console.log("Delivery Data:", order.orderType === 'Delivery' ? { deliveryAddress: order.deliveryAddress } : 'N/A');
+//     console.log("Take Away Data:", order.orderType === 'Take Away' ? { note: "Take Away order" } : 'N/A');
+//     console.log("Ini adalah data order di getORderById:", order)
+
+//     // Payment status logic
+//     const paymentStatus = (() => {
+//       if (
+//         payment?.status === 'settlement' &&
+//         payment?.paymentType === 'Down Payment' &&
+//         payment?.remainingAmount !== 0
+//       ) {
+//         return 'partial';
+//       } else if (
+//         payment?.status === 'settlement' &&
+//         payment?.paymentType === 'Down Payment' &&
+//         payment?.remainingAmount == 0
+//       ) {
+//         return 'settlement';
+//       }
+//       return payment?.status || 'Unpaid';
+//     })();
+
+//     const totalAmountRemaining = await Payment.findOne({
+//       order_id: order.order_id,
+//       relatedPaymentId: { $ne: null },
+//       status: { $in: ['pending', 'expire'] } // hanya update yang belum settlement
+//     }).sort({ createdAt: -1 });
+
+//     console.log('Total Amount Remaining:', totalAmountRemaining);
+//     console.log('Total Amount Remaining (amount):', totalAmountRemaining?.amount || 'N/A');
+
+//     //  TAMBAHAN: Payment details untuk down payment
+//     const paymentDetails = {
+//       totalAmount: totalAmountRemaining?.amount || payment?.totalAmount || order.grandTotal || 0,
+//       paidAmount: payment?.amount || 0,
+//       remainingAmount: totalAmountRemaining?.totalAmount || payment?.remainingAmount || 0,
+//       paymentType: payment?.paymentType || 'Full',
+//       isDownPayment: payment?.paymentType === 'Down Payment',
+//       downPaymentPaid: payment?.paymentType === 'Down Payment' && payment?.status === 'settlement',
+//       method: payment
+//         ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
+//         : 'Unknown',
+//       status: paymentStatus,
+//     };
+
+//     //  DEBUG: Log semua data order untuk melihat struktur sebenarnya
+//     console.log('=== DEBUGGING ORDER DATA ===');
+//     console.log('Order keys:', Object.keys(order.toObject()));
+//     console.log('Applied Voucher:', JSON.stringify(order.appliedVoucher, null, 2));
+//     console.log('Tax And Service Details:', JSON.stringify(order.taxAndServiceDetails, null, 2));
+//     console.log('Discounts:', JSON.stringify(order.discounts, null, 2));
+//     console.log('Applied Promos:', order.appliedPromos);
+//     console.log('Applied Manual Promo:', order.appliedManualPromo);
+//     console.log('Total Tax:', order.totalTax);
+//     console.log('============================');
+
+//     //  TAMBAHAN: Format voucher data - sekarang sudah ter-populate
+//     let voucherData = null;
+
+//     if (order.appliedVoucher && typeof order.appliedVoucher === 'object') {
+//       // Jika sudah ter-populate, ambil data langsung
+//       if (order.appliedVoucher.code) {
+//         voucherData = {
+//           _id: order.appliedVoucher._id,
+//           code: order.appliedVoucher.code,
+//           name: order.appliedVoucher.name,
+//           description: order.appliedVoucher.description,
+//           discountAmount: order.appliedVoucher.discountAmount,
+//           discountType: order.appliedVoucher.discountType,
+//           validFrom: order.appliedVoucher.validFrom,
+//           validTo: order.appliedVoucher.validTo,
+//           quota: order.appliedVoucher.quota,
+//           applicableOutlets: order.appliedVoucher.applicableOutlets || [],
+//           customerType: order.appliedVoucher.customerType,
+//           printOnReceipt: order.appliedVoucher.printOnReceipt || false,
+//           isActive: order.appliedVoucher.isActive || true
+//         };
+//       } else {
+//         // Jika hanya ObjectId, coba manual query
+//         console.log('Voucher not populated, trying manual query for ID:', order.appliedVoucher._id);
+//         try {
+//           // Assumsi Anda punya model Voucher
+//           const Voucher = require('../models/Voucher'); // sesuaikan path model
+//           const voucherDetails = await Voucher.findById(order.appliedVoucher._id || order.appliedVoucher);
+//           if (voucherDetails) {
+//             voucherData = {
+//               _id: voucherDetails._id,
+//               code: voucherDetails.code,
+//               name: voucherDetails.name,
+//               description: voucherDetails.description,
+//               discountAmount: voucherDetails.discountAmount,
+//               discountType: voucherDetails.discountType,
+//               validFrom: voucherDetails.validFrom,
+//               validTo: voucherDetails.validTo,
+//               quota: voucherDetails.quota,
+//               applicableOutlets: voucherDetails.applicableOutlets || [],
+//               customerType: voucherDetails.customerType,
+//               printOnReceipt: voucherDetails.printOnReceipt || false,
+//               isActive: voucherDetails.isActive || true
+//             };
+//           }
+//         } catch (voucherError) {
+//           console.log('Error fetching voucher details:', voucherError.message);
+//         }
+//       }
+//     }
+
+//     //  TAMBAHAN: Format tax and service details - sekarang sudah ter-populate  
+//     let taxAndServiceDetails = [];
+
+//     if (order.taxAndServiceDetails && Array.isArray(order.taxAndServiceDetails)) {
+//       taxAndServiceDetails = order.taxAndServiceDetails.map(tax => {
+//         // Jika tax adalah object dengan data lengkap
+//         if (tax.type && tax.name) {
+//           return {
+//             _id: tax._id,
+//             type: tax.type,
+//             name: tax.name,
+//             percentage: tax.percentage,
+//             amount: tax.amount
+//           };
+//         }
+//         // Jika tax hanya ObjectId, return minimal data
+//         return {
+//           _id: tax._id || tax,
+//           type: 'unknown',
+//           name: 'Tax/Service',
+//           percentage: 0,
+//           amount: 0
+//         };
+//       });
+//     }
+
+//     console.log('Formatted Voucher Data:', JSON.stringify(voucherData, null, 2));
+//     console.log('Formatted Tax Data:', JSON.stringify(taxAndServiceDetails, null, 2));
+
+//     // Calculate total tax amount
+//     const totalTax = order.totalTax || 0;
+
+//     // Build orderData
+//     const orderData = {
+//       _id: order._id.toString(),
+//       orderId: order.order_id || order._id.toString(),
+//       orderNumber: generateOrderNumber(order.order_id || order._id),
+//       orderDate: formatDate(order.createdAt),
+//       items: formattedItems,
+//       orderStatus: order.status,
+//       paymentMethod: paymentDetails.method,
+//       paymentStatus,
+//       totalBeforeDiscount: order.totalBeforeDiscount || 0,
+//       totalAfterDiscount: order.totalAfterDiscount || 0,
+//       grandTotal: order.grandTotal || 0,
+
+//       //  TAMBAHAN: Detail pembayaran yang lebih lengkap
+//       paymentDetails: paymentDetails,
+
+//       //  TAMBAHAN: Data voucher
+//       voucher: voucherData,
+
+//       //  TAMBAHAN: Data tax dan service details
+//       taxAndServiceDetails: taxAndServiceDetails,
+//       totalTax: totalTax,
+
+//       reservation: reservationData,
+
+//       // Data untuk frontend
+//       dineInData: order.orderType === 'Dine-In' ? {
+//         tableNumber: order.tableNumber,
+//       } : null,
+
+//       pickupData: order.orderType === 'Pickup' ? {
+//         pickupTime: order.pickupTime,
+//       } : null,
+
+//       takeAwayData: order.orderType === 'Take Away' ? {
+//         note: "Take Away order",
+//       } : null,
+
+//       deliveryData: order.orderType === 'Delivery' ? {
+//         deliveryAddress: order.deliveryAddress,
+//       } : null,
+//     };
+
+//     console.log('Order Data:', JSON.stringify(orderData, null, 2));
+//     res.status(200).json({ orderData });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Internal server error.' });
+//   }
+// };
+
+// GET /api/orders/:orderId - Get order detail (FIXED - Proper 404 handling)
+// export const getOrderDetail = async (req, res) => {
+//   try {
+//     const { orderId } = req.params;
+
+//     console.log('Fetching order with ID:', orderId);
+
+//     // Validate ObjectId format
+//     if (!mongoose.Types.ObjectId.isValid(orderId)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid order ID format'
+//       });
+//     }
+
+//     const order = await Order.findById(orderId)
+//       .populate('user_id', 'name phone email')
+//       .populate({
+//         path: 'items.menuItem',
+//         select: 'name price imageURL category mainCategory'
+//       })
+//       .populate('reservation', 'reservation_code reservation_date reservation_time guest_count');
+
+//     console.log('Order found:', order ? 'Yes' : 'No');
+
+//     if (!order) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Order not found'
+//       });
+//     }
+
+//     // Format response dengan struktur yang konsisten
+//     const formattedResponse = {
+//       success: true,
+//       data: {
+//         _id: order._id,
+//         order_id: order.order_id,
+//         customerName: order.user_id?.name || order.user || 'Guest',
+//         customerPhone: order.user_id?.phone || '',
+//         customerEmail: order.user_id?.email || '',
+//         tableNumber: order.tableNumber || 'N/A',
+//         status: order.status,
+//         orderType: order.orderType,
+//         items: order.items.map(item => ({
+//           _id: item._id,
+//           menuItem: item.menuItem ? {
+//             _id: item.menuItem._id,
+//             name: item.menuItem.name,
+//             price: item.menuItem.price,
+//             imageURL: item.menuItem.imageURL,
+//             category: item.menuItem.category,
+//             mainCategory: item.menuItem.mainCategory
+//           } : null,
+//           quantity: item.quantity,
+//           subtotal: item.subtotal,
+//           addons: Array.isArray(item.addons) ? item.addons : [],
+//           toppings: Array.isArray(item.toppings) ? item.toppings : [],
+//           notes: item.notes || '',
+//           kitchenStatus: item.kitchenStatus,
+//           batchNumber: item.batchNumber
+//         })),
+//         customAmountItems: Array.isArray(order.customAmountItems)
+//           ? order.customAmountItems.map(item => ({
+//             _id: item._id,
+//             amount: item.amount || 0,
+//             name: item.name || 'Penyesuaian Pembayaran',
+//             description: item.description || '',
+//             dineType: item.dineType || 'Dine-In',
+//             appliedAt: item.appliedAt,
+//             originalAmount: item.originalAmount,
+//             discountApplied: item.discountApplied || 0
+//           }))
+//           : [],
+//         totalCustomAmount: order.totalCustomAmount || 0,
+//         totalBeforeDiscount: order.totalBeforeDiscount || 0,
+//         totalAfterDiscount: order.totalAfterDiscount || 0,
+//         totalTax: order.totalTax || 0,
+//         totalServiceFee: order.totalServiceFee || 0,
+//         grandTotal: order.grandTotal || 0,
+//         discounts: order.discounts || {},
+//         appliedVoucher: order.appliedVoucher,
+//         paymentMethod: order.paymentMethod,
+//         isOpenBill: order.isOpenBill || false,
+//         createdAt: order.createdAt,
+//         createdAtWIB: order.createdAtWIB,
+//         updatedAt: order.updatedAt,
+//         updatedAtWIB: order.updatedAtWIB
+//       }
+//     };
+
+//     console.log('Returning formatted response');
+//     res.json(formattedResponse);
+
+//   } catch (error) {
+//     console.error('Error fetching order detail:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error fetching order detail',
+//       error: error.message
+//     });
+//   }
+// };
 
 // ✅ FIXED: Update order status ke Reserved saat konfirmasi
 export const confirmReservation = async (req, res) => {

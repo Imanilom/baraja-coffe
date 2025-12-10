@@ -7,7 +7,7 @@ const PaymentSchema = new mongoose.Schema({
   transaction_id: { type: String },
   method: { type: String, required: true },
   status: { type: String, default: 'pending' },
-
+  method_type: { type: String, default: null },
   paymentType: {
     type: String,
     enum: ['Down Payment', 'Final Payment', 'Full'],

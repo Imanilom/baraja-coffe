@@ -1,3 +1,4 @@
+import Category from '../../models/Category.model.js';
 import { Order } from '../../models/order.model.js';
 import {
   processOrderItems,
@@ -60,10 +61,10 @@ class DailyProfitController {
 
       orders.forEach(order => {
         // MODIFIKASI: Hitung total payment dari array payments di order
-        const completedPayments = order.payments?.filter(p => 
+        const completedPayments = order.payments?.filter(p =>
           p.status === 'completed' || p.status === 'pending'
         ) || [];
-        
+
         const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
         // Only count orders with successful payments
@@ -136,10 +137,10 @@ class DailyProfitController {
       // MODIFIKASI: Payment method breakdown dari array payments
       const paymentMethodBreakdown = {};
       orders.forEach(order => {
-        const completedPayments = order.payments?.filter(p => 
+        const completedPayments = order.payments?.filter(p =>
           p.status === 'completed' || p.status === 'pending'
         ) || [];
-        
+
         completedPayments.forEach(payment => {
           const method = payment.paymentMethod || 'Unknown';
           paymentMethodBreakdown[method] = (paymentMethodBreakdown[method] || 0) + (payment.amount || 0);
@@ -199,6 +200,81 @@ class DailyProfitController {
   /**
    * Get product sales report yang aman terhadap deleted items - DUKUNG SPLIT PAYMENT
    */
+  // async getProductSalesReport(req, res) {
+  //   try {
+  //     const { startDate, endDate, outletId, includeDeleted = 'true' } = req.query;
+
+  //     if (!startDate || !endDate) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
+  //       });
+  //     }
+
+  //     const start = new Date(startDate);
+  //     const end = new Date(endDate);
+  //     end.setHours(23, 59, 59, 999);
+
+  //     const filter = {
+  //       createdAtWIB: { $gte: start, $lte: end },
+  //       status: { $in: ['Completed', 'OnProcess'] }
+  //     };
+
+  //     if (outletId && outletId !== 'all') {
+  //       filter.outlet = outletId;
+  //     }
+
+  //     const orders = await Order.find(filter).lean();
+
+  //     // MODIFIKASI: Filter hanya orders dengan pembayaran yang berhasil
+  //     const paidOrders = orders.filter(order => {
+  //       const completedPayments = order.payments?.filter(p =>
+  //         p.status === 'completed' || p.status === 'pending'
+  //       ) || [];
+  //       const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  //       return totalPaid > 0;
+  //     });
+
+  //     // Get product summary menggunakan helper yang aman
+  //     const productSummary = getProductSummaryFromOrders(paidOrders);
+
+  //     // Filter berdasarkan includeDeleted parameter
+  //     const filteredProducts = includeDeleted === 'true'
+  //       ? productSummary
+  //       : productSummary.filter(product => !product.isDeleted);
+
+  //     // Sort by total revenue descending
+  //     const sortedProducts = filteredProducts.sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  //     res.json({
+  //       success: true,
+  //       data: {
+  //         products: sortedProducts,
+  //         summary: {
+  //           totalProducts: sortedProducts.length,
+  //           totalRevenue: sortedProducts.reduce((sum, product) => sum + product.totalRevenue, 0),
+  //           totalQuantity: sortedProducts.reduce((sum, product) => sum + product.totalQuantity, 0),
+  //           activeProducts: sortedProducts.filter(p => p.isActive && !p.isDeleted).length,
+  //           deletedProducts: sortedProducts.filter(p => p.isDeleted).length
+  //         },
+  //         period: {
+  //           startDate,
+  //           endDate,
+  //           outlet: outletId || 'All Outlets'
+  //         }
+  //       }
+  //     });
+
+  //   } catch (error) {
+  //     console.error('Error in getProductSalesReport:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Internal server error',
+  //       error: error.message
+  //     });
+  //   }
+  // }
+
   async getProductSalesReport(req, res) {
     try {
       const { startDate, endDate, outletId, includeDeleted = 'true' } = req.query;
@@ -223,19 +299,194 @@ class DailyProfitController {
         filter.outlet = outletId;
       }
 
-      const orders = await Order.find(filter).lean();
+      const orders = await Order.find(filter)
+        .populate('items.menuItem.category')
+        .lean();
 
-      // MODIFIKASI: Filter hanya orders dengan pembayaran yang berhasil
+      // Filter hanya orders dengan pembayaran yang berhasil
       const paidOrders = orders.filter(order => {
-        const completedPayments = order.payments?.filter(p => 
+        const completedPayments = order.payments?.filter(p =>
           p.status === 'completed' || p.status === 'pending'
         ) || [];
         const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
         return totalPaid > 0;
       });
 
-      // Get product summary menggunakan helper yang aman
-      const productSummary = getProductSummaryFromOrders(paidOrders);
+      // Manual populate category dari menuItemData
+      const categoryIds = new Set();
+
+      paidOrders.forEach(order => {
+        order.items?.forEach(item => {
+          const categoryId = item.menuItemData?.category;
+          if (categoryId) {
+            categoryIds.add(categoryId.toString());
+          }
+        });
+      });
+
+      // Fetch semua categories sekaligus (tanpa mongoose.model)
+      const categories = await Category.find({
+        _id: { $in: Array.from(categoryIds) }
+      }).lean();
+
+      // Buat map untuk lookup cepat
+      const categoryMap = new Map();
+      categories.forEach(cat => {
+        categoryMap.set(cat._id.toString(), cat.name);
+      });
+
+      // Proses product summary dengan addons separation
+      const productMap = new Map();
+
+      paidOrders.forEach(order => {
+        order.items?.forEach(item => {
+          const menuItem = item.menuItem;
+          const menuItemData = item.menuItemData;
+
+          // Skip kalau tidak ada data sama sekali
+          if (!menuItem && !menuItemData) return;
+
+          // Prioritas ambil dari menuItemData dulu, baru menuItem
+          const productId = menuItem?._id?.toString() || menuItemData?._id?.toString() || 'unknown';
+          const productName = menuItemData?.name || menuItem?.name || 'Unknown Product';
+
+          // Untuk category: cek menuItemData dulu (pakai categoryMap), baru menuItem
+          let categoryName = null;
+
+          // 1. Cek menuItemData.category (ObjectId)
+          if (menuItemData?.category) {
+            const catId = menuItemData.category.toString();
+            if (categoryMap.has(catId)) {
+              categoryName = categoryMap.get(catId);
+            }
+          }
+
+          // 2. Fallback ke menuItem.category (sudah di-populate)
+          if (!categoryName && menuItem?.category) {
+            if (typeof menuItem.category === 'object' && menuItem.category.name) {
+              categoryName = menuItem.category.name;
+            } else if (typeof menuItem.category === 'string' && menuItem.category !== '') {
+              categoryName = menuItem.category;
+            }
+          }
+
+          // Kalau masih null, skip item ini (jangan tampilkan "Uncategorized")
+          if (!categoryName) return;
+
+          // Hitung diskon per item (proporsional dari total diskon order)
+          const itemSubtotal = item.subtotal || 0;
+          const orderTotal = order.totalBeforeDiscount || order.total || 0;
+          const totalDiscount = (order.discounts?.autoPromoDiscount || 0) +
+            (order.discounts?.manualDiscount || 0) +
+            (order.discounts?.voucherDiscount || 0);
+
+          const itemDiscount = orderTotal > 0
+            ? (itemSubtotal / orderTotal) * totalDiscount
+            : 0;
+
+          const itemTotal = itemSubtotal - itemDiscount;
+
+          // Kumpulkan addons info dan buat unique key
+          const addonsInfo = [];
+          let addonsKey = '';
+
+          if (item.addons && item.addons.length > 0) {
+            item.addons.forEach(addon => {
+              if (addon.options && addon.options.length > 0) {
+                addon.options.forEach(option => {
+                  if (option.label) {
+                    addonsInfo.push({
+                      label: option.label,
+                      price: option.price || 0
+                    });
+                    addonsKey += `|${option.label}:${option.price}`;
+                  }
+                });
+              }
+            });
+          }
+
+          // Buat unique key: kombinasi product ID + addons (untuk pisahkan Hot/Iced dll)
+          const uniqueKey = `${productId}${addonsKey}`;
+
+          // Buat display name dengan variant
+          let displayName = productName;
+          if (addonsInfo.length > 0) {
+            const variantLabels = addonsInfo.map(a => a.label).join(', ');
+            displayName = `${displayName} (${variantLabels})`;
+          }
+
+          // Agregasi data produk dengan unique key
+          if (productMap.has(uniqueKey)) {
+            const existing = productMap.get(uniqueKey);
+            existing.totalQuantity += item.quantity;
+            existing.totalRevenue += itemTotal;
+            existing.grossSales += itemSubtotal;
+            existing.totalDiscount += itemDiscount;
+          } else {
+            productMap.set(uniqueKey, {
+              productId: productId,
+              productName: displayName,
+              baseProductName: productName,
+              category: categoryName,
+              totalQuantity: item.quantity,
+              totalRevenue: itemTotal,
+              grossSales: itemSubtotal,
+              totalDiscount: itemDiscount,
+              addons: addonsInfo.length > 0 ? addonsInfo : null,
+              isActive: menuItem?.isActive !== undefined ? menuItem.isActive : (menuItemData?.isActive !== false),
+              isDeleted: menuItem?.isDeleted || menuItemData?.isDeleted || false
+            });
+          }
+        });
+
+        // Proses custom amount items
+        if (order.customAmountItems && order.customAmountItems.length > 0) {
+          order.customAmountItems.forEach(customItem => {
+            const customId = `custom_${customItem._id}`;
+            const customAmount = customItem.amount || 0;
+            const customDiscount = customItem.discountApplied || 0;
+            const customTotal = customAmount - customDiscount;
+
+            if (productMap.has(customId)) {
+              const existing = productMap.get(customId);
+              existing.totalQuantity += 1;
+              existing.totalRevenue += customTotal;
+              existing.grossSales += customAmount;
+              existing.totalDiscount += customDiscount;
+            } else {
+              productMap.set(customId, {
+                productId: customId,
+                productName: customItem.name || 'Custom Amount',
+                baseProductName: customItem.name || 'Custom Amount',
+                category: 'Custom',
+                totalQuantity: 1,
+                totalRevenue: customTotal,
+                grossSales: customAmount,
+                totalDiscount: customDiscount,
+                addons: null,
+                isActive: true,
+                isDeleted: false
+              });
+            }
+          });
+        }
+      });
+
+      // Convert map to array dan format angka
+      const productSummary = Array.from(productMap.values()).map(product => ({
+        productId: product.productId,
+        productName: product.productName,
+        baseProductName: product.baseProductName,
+        category: product.category,
+        totalQuantity: product.totalQuantity,
+        totalRevenue: Math.round(product.totalRevenue),
+        grossSales: Math.round(product.grossSales),
+        totalDiscount: Math.round(product.totalDiscount),
+        addons: product.addons,
+        isActive: product.isActive,
+        isDeleted: product.isDeleted
+      }));
 
       // Filter berdasarkan includeDeleted parameter
       const filteredProducts = includeDeleted === 'true'
@@ -252,6 +503,8 @@ class DailyProfitController {
           summary: {
             totalProducts: sortedProducts.length,
             totalRevenue: sortedProducts.reduce((sum, product) => sum + product.totalRevenue, 0),
+            totalGrossSales: sortedProducts.reduce((sum, product) => sum + product.grossSales, 0),
+            totalDiscount: sortedProducts.reduce((sum, product) => sum + product.totalDiscount, 0),
             totalQuantity: sortedProducts.reduce((sum, product) => sum + product.totalQuantity, 0),
             activeProducts: sortedProducts.filter(p => p.isActive && !p.isDeleted).length,
             deletedProducts: sortedProducts.filter(p => p.isDeleted).length
@@ -313,10 +566,10 @@ class DailyProfitController {
 
       orders.forEach(order => {
         // MODIFIKASI: Hitung total payment dari array payments
-        const completedPayments = order.payments?.filter(p => 
+        const completedPayments = order.payments?.filter(p =>
           p.status === 'completed' || p.status === 'pending'
         ) || [];
-        
+
         const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
         if (totalPaid > 0) {
@@ -425,10 +678,10 @@ class DailyProfitController {
       }
 
       // MODIFIKASI: Gunakan payments dari order langsung
-      const completedPayments = order.payments?.filter(p => 
+      const completedPayments = order.payments?.filter(p =>
         p.status === 'completed' || p.status === 'pending'
       ) || [];
-      
+
       const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
       // Process items dengan handling untuk deleted menu items
@@ -540,10 +793,10 @@ class DailyProfitController {
 
       orders.forEach(order => {
         // MODIFIKASI: Hitung payment dari array payments
-        const completedPayments = order.payments?.filter(p => 
+        const completedPayments = order.payments?.filter(p =>
           p.status === 'completed' || p.status === 'pending'
         ) || [];
-        
+
         const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
         if (totalPaid > 0) {
@@ -665,7 +918,7 @@ class DailyProfitController {
       orders.forEach(order => {
         const isSplitPayment = order.isSplitPayment || false;
         const splitStatus = order.splitPaymentStatus || 'not_started';
-        
+
         if (isSplitPayment) {
           analysis.splitPaymentOrders++;
         } else {
@@ -676,21 +929,21 @@ class DailyProfitController {
         analysis.ordersByStatus[splitStatus] = (analysis.ordersByStatus[splitStatus] || 0) + 1;
 
         // Track payment methods
-        const completedPayments = order.payments?.filter(p => 
+        const completedPayments = order.payments?.filter(p =>
           p.status === 'completed' || p.status === 'pending'
         ) || [];
-        
+
         totalPaymentCount += completedPayments.length;
 
         completedPayments.forEach(payment => {
           const method = payment.paymentMethod || 'Unknown';
-          analysis.paymentMethodDistribution[method] = 
+          analysis.paymentMethodDistribution[method] =
             (analysis.paymentMethodDistribution[method] || 0) + 1;
         });
 
         // Add order data for detailed analysis
         const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-        
+
         analysis.ordersData.push({
           order_id: order.order_id,
           createdAt: order.createdAtWIB,
@@ -705,8 +958,8 @@ class DailyProfitController {
       });
 
       // Calculate averages
-      analysis.averagePaymentsPerOrder = analysis.totalOrders > 0 
-        ? (totalPaymentCount / analysis.totalOrders).toFixed(2) 
+      analysis.averagePaymentsPerOrder = analysis.totalOrders > 0
+        ? (totalPaymentCount / analysis.totalOrders).toFixed(2)
         : 0;
 
       // Sort orders by split payment count
@@ -722,7 +975,7 @@ class DailyProfitController {
             outlet: outletId || 'All Outlets'
           },
           summary: {
-            splitPaymentRate: analysis.totalOrders > 0 
+            splitPaymentRate: analysis.totalOrders > 0
               ? ((analysis.splitPaymentOrders / analysis.totalOrders) * 100).toFixed(2) + '%'
               : '0%',
             averagePaymentCount: analysis.averagePaymentsPerOrder

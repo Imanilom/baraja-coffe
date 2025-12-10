@@ -150,7 +150,7 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
 
     // Get payment details from paymentDetails object if available
     const paymentDetails = selectedTrx?.paymentDetails;
-    const paymentMethod = paymentDetails?.method || selectedTrx?.actualPaymentMethod || selectedTrx?.paymentMethod || "N/A";
+    const paymentMethod = paymentDetails?.method_type || selectedTrx?.actualPaymentMethod || selectedTrx?.paymentMethod || "N/A";
     const paymentStatus = paymentDetails?.status;
     const paymentAmount = paymentDetails?.amount || finalTotal;
     const changeAmount = paymentDetails?.change_amount || 0;
@@ -249,7 +249,7 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                         {selectedTrx.items?.map((item, index) => (
                             <div key={index} className="space-y-1">
                                 <div className="flex justify-between text-sm">
-                                    <div className="flex-1 font-medium">{item.menuItem?.name || "-"}</div>
+                                    <div className="flex-1 font-medium">{item.menuItemData?.name || "tidak terinput dengan benar"}</div>
                                     <div className="w-12 text-center text-gray-600">× {item.quantity}</div>
                                     <div className="w-24 text-right font-semibold">
                                         {formatCurrency(item.subtotal)}
