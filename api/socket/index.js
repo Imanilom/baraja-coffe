@@ -34,16 +34,17 @@ export default function socketHandler(io) {
                     throw new Error('Session ID dan Device ID diperlukan');
                 }
 
-                // Validasi session dengan transaction-like approach
+                // ✅ OPTIMIZATION: Validasi session dengan lean() dan selective populate
                 const session = await DeviceSession.findOne({
                     _id: sessionId,
                     device: deviceId,
                     isActive: true
                 })
-                    .populate('device')
-                    .populate('user')
-                    .populate('outlet')
-                    .populate('role');
+                    .lean() // ✅ Faster query, less memory
+                    .populate('device', 'deviceId deviceName location assignedAreas assignedTables orderTypes')
+                    .populate('user', 'name email')
+                    .populate('outlet', '_id name')
+                    .populate('role', 'name');
 
                 if (!session) {
                     throw new Error('Session tidak valid atau sudah logout');
@@ -54,17 +55,22 @@ export default function socketHandler(io) {
                     device: deviceId,
                     isActive: true,
                     socketId: { $exists: true, $ne: '' }
-                });
+                }).lean();
+
+                // ✅ OPTIMIZATION: Batch updates dengan Promise.all()
+                const updatePromises = [];
 
                 if (existingSocketSession && existingSocketSession.socketId !== socket.id) {
                     console.warn(`⚠️ Device ${deviceId} sudah memiliki session aktif: ${existingSocketSession.socketId}`);
 
                     // Force logout session sebelumnya
-                    await DeviceSession.findByIdAndUpdate(existingSocketSession._id, {
-                        isActive: false,
-                        logoutTime: new Date(),
-                        logoutReason: 'replaced_by_new_session'
-                    });
+                    updatePromises.push(
+                        DeviceSession.findByIdAndUpdate(existingSocketSession._id, {
+                            isActive: false,
+                            logoutTime: new Date(),
+                            logoutReason: 'replaced_by_new_session'
+                        })
+                    );
 
                     // Emit force logout ke socket sebelumnya
                     if (existingSocketSession.socketId) {
@@ -75,17 +81,22 @@ export default function socketHandler(io) {
                     }
                 }
 
-                // Update session & device
-                session.socketId = socket.id;
-                session.lastActivity = new Date();
-                session.loginTime = session.loginTime || new Date(); // Set loginTime jika belum ada
-                await session.save();
+                // Update session & device in parallel
+                updatePromises.push(
+                    DeviceSession.findByIdAndUpdate(sessionId, {
+                        socketId: socket.id,
+                        lastActivity: new Date(),
+                        loginTime: session.loginTime || new Date()
+                    }),
+                    Device.findByIdAndUpdate(deviceId, {
+                        socketId: socket.id,
+                        isOnline: true,
+                        lastActivity: new Date()
+                    })
+                );
 
-                await Device.findByIdAndUpdate(deviceId, {
-                    socketId: socket.id,
-                    isOnline: true,
-                    lastActivity: new Date()
-                });
+                // ✅ Execute all updates in parallel
+                await Promise.all(updatePromises);
 
                 // Register device ke socket management
                 const deviceData = {

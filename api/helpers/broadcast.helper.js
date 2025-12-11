@@ -333,30 +333,17 @@ export const broadcastOrderCreation = async (orderId, orderData) => {
       paymentMethod: paymentDetails?.method
     });
 
-    // 🔥 TRIGGER IMMEDIATE PRINT (tidak tunggu apapun)
+    // ✅ OPTIMIZATION: Single broadcast path via socketManagement (no duplicate)
     const isCashPayment = paymentDetails?.method?.toLowerCase() === 'cash';
     if (isCashPayment) {
-      // Print trigger langsung tanpa await
-      setImmediate(async () => {
-        await triggerImmediatePrint({
-          orderId,
-          tableNumber,
-          orderData,
-          outletId,
-          isAppOrder: source === 'App',
-          isWebOrder: source === 'Web',
-          source
-        });
-
-        // Setelah print trigger, baru broadcast ke kitchen (opsional)
-        await broadcastCashOrderToKitchen({
-          orderId,
-          tableNumber,
-          orderData,
-          outletId,
-          isAppOrder: source === 'App',
-          isWebOrder: source === 'Web'
-        });
+      // Use only socketManagement.broadcastOrder - no duplicate broadcast
+      await broadcastCashOrderToKitchen({
+        orderId,
+        tableNumber,
+        orderData,
+        outletId,
+        isAppOrder: source === 'App',
+        isWebOrder: source === 'Web'
       });
     }
 
