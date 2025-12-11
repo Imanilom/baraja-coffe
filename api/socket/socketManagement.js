@@ -51,6 +51,136 @@ class SocketManagement {
     }
 
     // ✅ MAIN BROADCAST FUNCTION WITH DEVICE FILTERING
+    // async broadcastOrder(orderData) {
+    //     try {
+    //         const {
+    //             order_id: orderId,
+    //             tableNumber,
+    //             items,
+    //             outlet,
+    //             source,
+    //             order_type: orderType,
+    //             customer_name: customerName,
+    //             service
+    //         } = orderData;
+
+    //         const outletId = outlet?._id || outlet;
+
+    //         console.log('╔═══════════════════════════════════════════════════════════╗');
+    //         console.log('📡 BROADCASTING ORDER WITH DEVICE FILTERING');
+    //         console.log('╠═══════════════════════════════════════════════════════════╣');
+    //         console.log(`   Order ID: ${orderId}`);
+    //         console.log(`   Table: ${tableNumber || 'N/A'}`);
+    //         console.log(`   Total Items: ${items?.length || 0}`);
+    //         console.log(`   Outlet: ${outletId}`);
+    //         console.log('╚═══════════════════════════════════════════════════════════╝');
+
+    //         // Get all connected devices
+    //         const connectedDevices = Array.from(this.connectedDevices.values());
+    //         console.log(`📱 Total connected devices: ${connectedDevices.length}`);
+
+    //         // ✅ Separate items by workstation type
+    //         const beverageItems = items.filter(item => {
+    //             const mainCat = (item.mainCategory || '').toLowerCase();
+    //             const ws = (item.workstation || '').toLowerCase();
+    //             return mainCat.includes('beverage') ||
+    //                 mainCat.includes('minuman') ||
+    //                 ws.includes('bar');
+    //         });
+
+    //         const kitchenItems = items.filter(item => {
+    //             const mainCat = (item.mainCategory || '').toLowerCase();
+    //             const ws = (item.workstation || '').toLowerCase();
+    //             return !mainCat.includes('beverage') &&
+    //                 !mainCat.includes('minuman') &&
+    //                 !ws.includes('bar');
+    //         });
+
+    //         console.log(`   Kitchen Items: ${kitchenItems.length}`);
+    //         console.log(`   Beverage Items: ${beverageItems.length}`);
+
+    //         // ✅ Broadcast to relevant devices
+    //         let sentCount = 0;
+    //         for (const device of connectedDevices) {
+    //             // Skip if different outlet
+    //             if (device.outletId.toString() !== outletId.toString()) {
+    //                 console.log(`⏭️  Skipping ${device.deviceName} - Different outlet`);
+    //                 continue;
+    //             }
+
+    //             let relevantItems = [];
+    //             let eventType = '';
+
+    //             // Determine which items this device should receive
+    //             if (device.role.includes('bar')) {
+    //                 relevantItems = beverageItems;
+    //                 eventType = 'beverage_immediate_print';
+
+    //                 // Check if table is assigned to this bar
+    //                 if (tableNumber && !this._isTableAssignedToDevice(tableNumber, device)) {
+    //                     console.log(`⏭️  Skipping bar ${device.deviceName} - Table ${tableNumber} not assigned`);
+    //                     continue;
+    //                 }
+    //             } else if (device.role.includes('kitchen')) {
+    //                 relevantItems = kitchenItems;
+    //                 eventType = 'kitchen_immediate_print';
+    //                 // Kitchen gets all kitchen items (no table filtering)
+    //             } else {
+    //                 // General devices might handle both
+    //                 relevantItems = items;
+    //                 eventType = 'kitchen_immediate_print';
+    //             }
+
+    //             // Skip if no relevant items
+    //             if (relevantItems.length === 0) {
+    //                 console.log(`⏭️  Skipping ${device.deviceName} - No relevant items`);
+    //                 continue;
+    //             }
+
+    //             // ✅ CRITICAL: Send to specific device socket with deviceId
+    //             const printData = {
+    //                 orderId,
+    //                 tableNumber,
+    //                 orderType,
+    //                 source,
+    //                 name: customerName || 'Guest',
+    //                 service: service || 'Dine-In',
+    //                 orderItems: relevantItems,
+    //                 deviceId: device.deviceId,  // ← CRITICAL: Include backend device ID
+    //                 targetDevice: device.deviceName,
+    //                 timestamp: new Date()
+    //             };
+
+    //             global.io.to(device.socketId).emit(eventType, printData);
+
+    //             console.log(`✅ Sent to: ${device.deviceName}`);
+    //             console.log(`   Socket ID: ${device.socketId}`);
+    //             console.log(`   Device ID: ${device.deviceId}`);
+    //             console.log(`   Event: ${eventType}`);
+    //             console.log(`   Items: ${relevantItems.length}`);
+
+    //             sentCount++;
+    //         }
+
+    //         console.log(`📊 Broadcast Summary: Sent to ${sentCount} device(s)`);
+    //         console.log('═══════════════════════════════════════════════════════════');
+
+    //         return {
+    //             success: true,
+    //             devicesNotified: sentCount,
+    //             kitchenItems: kitchenItems.length,
+    //             beverageItems: beverageItems.length
+    //         };
+
+    //     } catch (error) {
+    //         console.error('❌ Broadcast order error:', error);
+    //         return {
+    //             success: false,
+    //             error: error.message
+    //         };
+    //     }
+    // }
+
     async broadcastOrder(orderData) {
         try {
             const {
@@ -63,22 +193,18 @@ class SocketManagement {
                 customer_name: customerName,
                 service
             } = orderData;
-
             const outletId = outlet?._id || outlet;
-
             console.log('╔═══════════════════════════════════════════════════════════╗');
-            console.log('📡 BROADCASTING ORDER WITH DEVICE FILTERING');
+            console.log('📡 BROADCASTING ORDER WITH BAR-FIRST PRIORITY');
             console.log('╠═══════════════════════════════════════════════════════════╣');
             console.log(`   Order ID: ${orderId}`);
             console.log(`   Table: ${tableNumber || 'N/A'}`);
             console.log(`   Total Items: ${items?.length || 0}`);
             console.log(`   Outlet: ${outletId}`);
             console.log('╚═══════════════════════════════════════════════════════════╝');
-
             // Get all connected devices
             const connectedDevices = Array.from(this.connectedDevices.values());
             console.log(`📱 Total connected devices: ${connectedDevices.length}`);
-
             // ✅ Separate items by workstation type
             const beverageItems = items.filter(item => {
                 const mainCat = (item.mainCategory || '').toLowerCase();
@@ -87,7 +213,6 @@ class SocketManagement {
                     mainCat.includes('minuman') ||
                     ws.includes('bar');
             });
-
             const kitchenItems = items.filter(item => {
                 const mainCat = (item.mainCategory || '').toLowerCase();
                 const ws = (item.workstation || '').toLowerCase();
@@ -95,49 +220,44 @@ class SocketManagement {
                     !mainCat.includes('minuman') &&
                     !ws.includes('bar');
             });
-
             console.log(`   Kitchen Items: ${kitchenItems.length}`);
             console.log(`   Beverage Items: ${beverageItems.length}`);
-
-            // ✅ Broadcast to relevant devices
-            let sentCount = 0;
+            // ✅ SEPARATE DEVICES BY TYPE
+            const barDevices = [];
+            const kitchenDevices = [];
+            const otherDevices = [];
             for (const device of connectedDevices) {
                 // Skip if different outlet
                 if (device.outletId.toString() !== outletId.toString()) {
                     console.log(`⏭️  Skipping ${device.deviceName} - Different outlet`);
                     continue;
                 }
-
-                let relevantItems = [];
-                let eventType = '';
-
-                // Determine which items this device should receive
                 if (device.role.includes('bar')) {
-                    relevantItems = beverageItems;
-                    eventType = 'beverage_immediate_print';
-
-                    // Check if table is assigned to this bar
-                    if (tableNumber && !this._isTableAssignedToDevice(tableNumber, device)) {
-                        console.log(`⏭️  Skipping bar ${device.deviceName} - Table ${tableNumber} not assigned`);
-                        continue;
-                    }
+                    barDevices.push(device);
                 } else if (device.role.includes('kitchen')) {
-                    relevantItems = kitchenItems;
-                    eventType = 'kitchen_immediate_print';
-                    // Kitchen gets all kitchen items (no table filtering)
+                    kitchenDevices.push(device);
                 } else {
-                    // General devices might handle both
-                    relevantItems = items;
-                    eventType = 'kitchen_immediate_print';
+                    otherDevices.push(device);
                 }
-
-                // Skip if no relevant items
+            }
+            console.log(`   📊 Device Distribution:`);
+            console.log(`      Bar Devices: ${barDevices.length}`);
+            console.log(`      Kitchen Devices: ${kitchenDevices.length}`);
+            console.log(`      Other Devices: ${otherDevices.length}`);
+            let sentCount = 0;
+            // ✅ STEP 1: Send to BAR devices FIRST
+            console.log('\n🍹 STEP 1: Broadcasting to BAR devices...');
+            for (const device of barDevices) {
+                const relevantItems = beverageItems;
                 if (relevantItems.length === 0) {
-                    console.log(`⏭️  Skipping ${device.deviceName} - No relevant items`);
+                    console.log(`   ⏭️  Skipping ${device.deviceName} - No beverage items`);
                     continue;
                 }
-
-                // ✅ CRITICAL: Send to specific device socket with deviceId
+                // Check table assignment
+                if (tableNumber && !this._isTableAssignedToDevice(tableNumber, device)) {
+                    console.log(`   ⏭️  Skipping ${device.deviceName} - Table ${tableNumber} not assigned`);
+                    continue;
+                }
                 const printData = {
                     orderId,
                     tableNumber,
@@ -146,32 +266,90 @@ class SocketManagement {
                     name: customerName || 'Guest',
                     service: service || 'Dine-In',
                     orderItems: relevantItems,
-                    deviceId: device.deviceId,  // ← CRITICAL: Include backend device ID
+                    deviceId: device.deviceId,
                     targetDevice: device.deviceName,
                     timestamp: new Date()
                 };
-
-                global.io.to(device.socketId).emit(eventType, printData);
-
-                console.log(`✅ Sent to: ${device.deviceName}`);
-                console.log(`   Socket ID: ${device.socketId}`);
-                console.log(`   Device ID: ${device.deviceId}`);
-                console.log(`   Event: ${eventType}`);
-                console.log(`   Items: ${relevantItems.length}`);
-
+                global.io.to(device.socketId).emit('beverage_immediate_print', printData);
+                console.log(`   ✅ [BAR FIRST] Sent to: ${device.deviceName}`);
+                console.log(`      Socket ID: ${device.socketId}`);
+                console.log(`      Items: ${relevantItems.length}`);
                 sentCount++;
             }
-
-            console.log(`📊 Broadcast Summary: Sent to ${sentCount} device(s)`);
-            console.log('═══════════════════════════════════════════════════════════');
-
+            // ✅ STEP 2: DELAY before sending to KITCHEN (only if both exist)
+            if (barDevices.length > 0 && kitchenDevices.length > 0 && beverageItems.length > 0 && kitchenItems.length > 0) {
+                console.log(`\n⏱️  STEP 2: Delaying kitchen broadcast by 800ms to prioritize bar...`);
+                await new Promise(resolve => setTimeout(resolve, 800));
+            }
+            // ✅ STEP 3: Send to KITCHEN devices
+            console.log('\n🍳 STEP 3: Broadcasting to KITCHEN devices...');
+            for (const device of kitchenDevices) {
+                const relevantItems = kitchenItems;
+                if (relevantItems.length === 0) {
+                    console.log(`   ⏭️  Skipping ${device.deviceName} - No kitchen items`);
+                    continue;
+                }
+                const printData = {
+                    orderId,
+                    tableNumber,
+                    orderType,
+                    source,
+                    name: customerName || 'Guest',
+                    service: service || 'Dine-In',
+                    orderItems: relevantItems,
+                    deviceId: device.deviceId,
+                    targetDevice: device.deviceName,
+                    timestamp: new Date()
+                };
+                global.io.to(device.socketId).emit('kitchen_immediate_print', printData);
+                console.log(`   ✅ [KITCHEN] Sent to: ${device.deviceName}`);
+                console.log(`      Socket ID: ${device.socketId}`);
+                console.log(`      Items: ${relevantItems.length}`);
+                sentCount++;
+            }
+            // ✅ STEP 4: Send to OTHER devices (if any)
+            if (otherDevices.length > 0) {
+                console.log('\n📋 STEP 4: Broadcasting to OTHER devices...');
+                for (const device of otherDevices) {
+                    const relevantItems = items; // Send all items to general devices
+                    if (relevantItems.length === 0) {
+                        console.log(`   ⏭️  Skipping ${device.deviceName} - No items`);
+                        continue;
+                    }
+                    const printData = {
+                        orderId,
+                        tableNumber,
+                        orderType,
+                        source,
+                        name: customerName || 'Guest',
+                        service: service || 'Dine-In',
+                        orderItems: relevantItems,
+                        deviceId: device.deviceId,
+                        targetDevice: device.deviceName,
+                        timestamp: new Date()
+                    };
+                    global.io.to(device.socketId).emit('kitchen_immediate_print', printData);
+                    console.log(`   ✅ [OTHER] Sent to: ${device.deviceName}`);
+                    console.log(`      Items: ${relevantItems.length}`);
+                    sentCount++;
+                }
+            }
+            console.log('\n╔═══════════════════════════════════════════════════════════╗');
+            console.log('📊 BROADCAST SUMMARY');
+            console.log('╠═══════════════════════════════════════════════════════════╣');
+            console.log(`   Total Devices Notified: ${sentCount}`);
+            console.log(`   Bar Devices (First): ${barDevices.filter(d => beverageItems.length > 0).length}`);
+            console.log(`   Kitchen Devices (After): ${kitchenDevices.filter(d => kitchenItems.length > 0).length}`);
+            console.log(`   Other Devices: ${otherDevices.length}`);
+            console.log('╚═══════════════════════════════════════════════════════════╝\n');
             return {
                 success: true,
                 devicesNotified: sentCount,
+                barDevicesFirst: barDevices.length,
+                kitchenDevicesAfter: kitchenDevices.length,
                 kitchenItems: kitchenItems.length,
                 beverageItems: beverageItems.length
             };
-
         } catch (error) {
             console.error('❌ Broadcast order error:', error);
             return {

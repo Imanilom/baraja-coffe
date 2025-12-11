@@ -1599,6 +1599,267 @@ export const getOrderDetailById = async (req, res) => {
   }
 };
 
+// ✅ PUT /api/gro/reservations/:id/edit - Edit reservation details and menu
+export const editReservation = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { id } = req.params;
+    const {
+      guest_name,
+      guest_phone,
+      guest_count,
+      reservation_date,
+      reservation_time,
+      table_ids,
+      area_id,
+      notes,
+      items = [], // Updated menu items
+      customAmountItems = [], // Custom amount items
+      voucherCode,
+      serving_type,
+      equipment = [],
+      agenda,
+      food_serving_option,
+      food_serving_time,
+      reservation_type
+    } = req.body;
+
+    const userId = req.user?.id;
+
+    console.log('🔄 Editing reservation:', id);
+
+    // Cari reservasi
+    const reservation = await Reservation.findById(id)
+      .populate('order_id')
+      .session(session);
+
+    if (!reservation) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Reservasi tidak ditemukan'
+      });
+    }
+
+    // ✅ VALIDASI: Hanya bisa edit jika belum dimulai (belum check-in)
+    if (reservation.check_in_time) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Tidak dapat mengedit reservasi yang sudah dimulai (sudah check-in)'
+      });
+    }
+
+    // ✅ VALIDASI: Hanya bisa edit jika status pending atau confirmed
+    if (!['pending', 'confirmed'].includes(reservation.status)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Tidak dapat mengedit reservasi dengan status ${reservation.status}`
+      });
+    }
+
+    const employee = await User.findById(userId).select('username email');
+
+    // ✅ UPDATE RESERVATION DATA
+    if (guest_count !== undefined) reservation.guest_count = guest_count;
+    if (reservation_date) reservation.reservation_date = new Date(reservation_date);
+    if (reservation_time) reservation.reservation_time = reservation_time;
+    if (area_id) reservation.area_id = area_id;
+    if (table_ids && Array.isArray(table_ids)) reservation.table_id = table_ids;
+    if (notes !== undefined) reservation.notes = notes;
+    if (reservation_type) reservation.reservation_type = reservation_type;
+    if (serving_type !== undefined) reservation.serving_food = serving_type === 'buffet' || serving_type === 'ala carte';
+    if (equipment) reservation.equipment = equipment;
+    if (agenda) reservation.agenda = agenda;
+    if (food_serving_option) reservation.food_serving_option = food_serving_option;
+    if (food_serving_time) reservation.food_serving_time = new Date(food_serving_time);
+
+    // Tambahkan log edit
+    const editNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Reservasi diedit oleh GRO: ${employee?.username || 'Unknown'}`;
+    reservation.notes = (reservation.notes || '') + editNote;
+    reservation.updatedAtWIB = getWIBNow();
+
+    await reservation.save({ session });
+
+    // ✅ UPDATE ORDER (Menu Items & Custom Amounts)
+    if (reservation.order_id) {
+      const order = await Order.findById(reservation.order_id).session(session);
+
+      if (order) {
+        // Process menu items
+        const orderItems = [];
+        if (items && items.length > 0) {
+          for (const item of items) {
+            const menuItem = await MenuItem.findById(item.productId);
+            if (!menuItem) {
+              await session.abortTransaction();
+              return res.status(404).json({
+                success: false,
+                message: `Menu item tidak ditemukan: ${item.productId}`
+              });
+            }
+
+            const processedAddons = item.addons?.map(addon => ({
+              name: addon.name,
+              price: addon.price
+            })) || [];
+
+            const processedToppings = item.toppings?.map(topping => ({
+              name: topping.name,
+              price: topping.price
+            })) || [];
+
+            const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
+            const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
+            const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
+
+            orderItems.push({
+              menuItem: menuItem._id,
+              quantity: item.quantity,
+              subtotal: itemSubtotal,
+              addons: processedAddons,
+              toppings: processedToppings,
+              notes: item.notes || '',
+              batchNumber: 1,
+              addedAt: getWIBNow(),
+              kitchenStatus: 'pending',
+              isPrinted: false,
+              dineType: 'Dine-In',
+              outletId: menuItem.availableAt?.[0]?._id || null,
+              outletName: menuItem.availableAt?.[0]?.name || null,
+              payment_id: null,
+            });
+          }
+        }
+
+        // ✅ Update order items
+        order.items = orderItems;
+
+        // ✅ Update custom amount items
+        order.customAmountItems = customAmountItems.map(item => ({
+          amount: item.amount || 0,
+          name: item.name || 'Penyesuaian Pembayaran',
+          description: item.description || '',
+          dineType: item.dineType || 'Dine-In',
+          appliedAt: getWIBNow(),
+          originalAmount: item.originalAmount || null,
+          discountApplied: item.discountApplied || 0
+        }));
+
+        // ✅ Recalculate totals
+        let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+        // Add custom amounts to subtotal
+        const totalCustomAmount = order.customAmountItems.reduce((sum, item) => sum + item.amount, 0);
+        totalBeforeDiscount += totalCustomAmount;
+        order.totalCustomAmount = totalCustomAmount;
+
+        let totalAfterDiscount = totalBeforeDiscount;
+        let voucherDiscount = 0;
+
+        // Apply voucher if provided
+        if (voucherCode) {
+          const voucher = await Voucher.findOne({ code: voucherCode, isActive: true });
+          if (voucher) {
+            order.appliedVoucher = voucher._id;
+            if (voucher.discountType === 'percentage') {
+              voucherDiscount = totalBeforeDiscount * (voucher.discountAmount / 100);
+            } else {
+              voucherDiscount = voucher.discountAmount;
+            }
+            totalAfterDiscount = Math.max(0, totalBeforeDiscount - voucherDiscount);
+          }
+        }
+
+        order.discounts = {
+          autoPromoDiscount: 0,
+          manualDiscount: 0,
+          voucherDiscount: voucherDiscount
+        };
+
+        // Recalculate tax and service
+        const taxServiceCalculation = await calculateTaxAndService(
+          totalAfterDiscount,
+          order.outlet,
+          true,
+          false
+        );
+
+        order.taxAndServiceDetails = taxServiceCalculation.taxAndServiceDetails;
+        order.totalTax = taxServiceCalculation.totalTax;
+        order.totalServiceFee = taxServiceCalculation.totalServiceFee;
+
+        order.totalBeforeDiscount = totalBeforeDiscount;
+        order.totalAfterDiscount = totalAfterDiscount;
+        order.grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
+
+        // Update guest info if changed
+        if (guest_name) order.user = guest_name;
+
+        // Add edit note
+        const orderEditNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Menu diedit oleh GRO: ${employee?.username || 'Unknown'}`;
+        order.notes = (order.notes || '') + orderEditNote;
+        order.updatedAtWIB = getWIBNow();
+
+        await order.save({ session });
+
+        console.log('✅ Order updated:', {
+          orderId: order.order_id,
+          items: orderItems.length,
+          customAmounts: order.customAmountItems.length,
+          totalBeforeDiscount,
+          totalAfterDiscount,
+          grandTotal: order.grandTotal
+        });
+      }
+    }
+
+    await session.commitTransaction();
+
+    // Get updated data
+    const updatedReservation = await Reservation.findById(id)
+      .populate('area_id', 'area_name area_code capacity')
+      .populate('table_id', 'table_number seats table_type')
+      .populate({
+        path: 'order_id',
+        populate: {
+          path: 'items.menuItem',
+          select: 'name price imageURL category'
+        }
+      });
+
+    // Emit socket event
+    if (typeof io !== 'undefined' && io) {
+      io.to('gro_room').emit('reservation_updated', {
+        reservation: updatedReservation,
+        updatedBy: employee?.username || 'Unknown',
+        timestamp: getWIBNow()
+      });
+    }
+
+    console.log('✅ Reservation edited successfully:', id);
+
+    res.json({
+      success: true,
+      message: 'Reservasi berhasil diperbarui',
+      data: updatedReservation
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error editing reservation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengedit reservasi',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
 
 // export const getReservations = async (req, res) => {
 //   try {
