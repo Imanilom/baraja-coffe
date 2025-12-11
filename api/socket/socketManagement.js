@@ -3,6 +3,9 @@
 class SocketManagement {
     constructor() {
         this.connectedDevices = new Map();
+        // ✅ OPTIMIZATION: Device indexing for O(1) lookup
+        this.devicesByRole = new Map(); // role -> Set of socketIds
+        this.devicesByOutlet = new Map(); // outletId -> Set of socketIds
     }
 
     async registerDevice(socket, deviceData) {
@@ -32,6 +35,19 @@ class SocketManagement {
             connectedAt: new Date()
         });
 
+        // ✅ OPTIMIZATION: Maintain role index
+        if (!this.devicesByRole.has(role)) {
+            this.devicesByRole.set(role, new Set());
+        }
+        this.devicesByRole.get(role).add(socket.id);
+
+        // ✅ OPTIMIZATION: Maintain outlet index
+        const outletKey = outletId.toString();
+        if (!this.devicesByOutlet.has(outletKey)) {
+            this.devicesByOutlet.set(outletKey, new Set());
+        }
+        this.devicesByOutlet.get(outletKey).add(socket.id);
+
         console.log(`✅ Device registered: ${deviceName} (${deviceId})`);
         console.log(`   Socket ID: ${socket.id}`);
         console.log(`   Role: ${role}`);
@@ -46,6 +62,23 @@ class SocketManagement {
         const device = this.connectedDevices.get(socketId);
         if (device) {
             console.log(`❌ Device disconnected: ${device.deviceName}`);
+            
+            // ✅ OPTIMIZATION: Clean up indexes
+            if (this.devicesByRole.has(device.role)) {
+                this.devicesByRole.get(device.role).delete(socketId);
+                if (this.devicesByRole.get(device.role).size === 0) {
+                    this.devicesByRole.delete(device.role);
+                }
+            }
+            
+            const outletKey = device.outletId.toString();
+            if (this.devicesByOutlet.has(outletKey)) {
+                this.devicesByOutlet.get(outletKey).delete(socketId);
+                if (this.devicesByOutlet.get(outletKey).size === 0) {
+                    this.devicesByOutlet.delete(outletKey);
+                }
+            }
+            
             this.connectedDevices.delete(socketId);
         }
     }
@@ -276,36 +309,64 @@ class SocketManagement {
                 console.log(`      Items: ${relevantItems.length}`);
                 sentCount++;
             }
-            // ✅ STEP 2: DELAY before sending to KITCHEN (only if both exist)
+            // ✅ STEP 2: NON-BLOCKING DELAY for kitchen (prioritize bar)
             if (barDevices.length > 0 && kitchenDevices.length > 0 && beverageItems.length > 0 && kitchenItems.length > 0) {
-                console.log(`\n⏱️  STEP 2: Delaying kitchen broadcast by 800ms to prioritize bar...`);
-                await new Promise(resolve => setTimeout(resolve, 800));
-            }
-            // ✅ STEP 3: Send to KITCHEN devices
-            console.log('\n🍳 STEP 3: Broadcasting to KITCHEN devices...');
-            for (const device of kitchenDevices) {
-                const relevantItems = kitchenItems;
-                if (relevantItems.length === 0) {
-                    console.log(`   ⏭️  Skipping ${device.deviceName} - No kitchen items`);
-                    continue;
+                console.log(`\n⏱️  STEP 2: Scheduling kitchen broadcast in 800ms (non-blocking)...`);
+                
+                // ✅ OPTIMIZATION: Non-blocking setTimeout
+                setTimeout(() => {
+                    console.log('\n🍳 STEP 3: Broadcasting to KITCHEN devices (delayed)...');
+                    for (const device of kitchenDevices) {
+                        const relevantItems = kitchenItems;
+                        if (relevantItems.length === 0) {
+                            console.log(`   ⏭️  Skipping ${device.deviceName} - No kitchen items`);
+                            return;
+                        }
+                        const printData = {
+                            orderId,
+                            tableNumber,
+                            orderType,
+                            source,
+                            name: customerName || 'Guest',
+                            service: service || 'Dine-In',
+                            orderItems: relevantItems,
+                            deviceId: device.deviceId,
+                            targetDevice: device.deviceName,
+                            timestamp: new Date()
+                        };
+                        global.io.to(device.socketId).emit('kitchen_immediate_print', printData);
+                        console.log(`   ✅ [KITCHEN DELAYED] Sent to: ${device.deviceName}`);
+                        console.log(`      Socket ID: ${device.socketId}`);
+                        console.log(`      Items: ${relevantItems.length}`);
+                    }
+                }, 800);
+            } else {
+                // ✅ STEP 3: Send to KITCHEN devices immediately (no bar items)
+                console.log('\n🍳 STEP 3: Broadcasting to KITCHEN devices (immediate)...');
+                for (const device of kitchenDevices) {
+                    const relevantItems = kitchenItems;
+                    if (relevantItems.length === 0) {
+                        console.log(`   ⏭️  Skipping ${device.deviceName} - No kitchen items`);
+                        continue;
+                    }
+                    const printData = {
+                        orderId,
+                        tableNumber,
+                        orderType,
+                        source,
+                        name: customerName || 'Guest',
+                        service: service || 'Dine-In',
+                        orderItems: relevantItems,
+                        deviceId: device.deviceId,
+                        targetDevice: device.deviceName,
+                        timestamp: new Date()
+                    };
+                    global.io.to(device.socketId).emit('kitchen_immediate_print', printData);
+                    console.log(`   ✅ [KITCHEN] Sent to: ${device.deviceName}`);
+                    console.log(`      Socket ID: ${device.socketId}`);
+                    console.log(`      Items: ${relevantItems.length}`);
+                    sentCount++;
                 }
-                const printData = {
-                    orderId,
-                    tableNumber,
-                    orderType,
-                    source,
-                    name: customerName || 'Guest',
-                    service: service || 'Dine-In',
-                    orderItems: relevantItems,
-                    deviceId: device.deviceId,
-                    targetDevice: device.deviceName,
-                    timestamp: new Date()
-                };
-                global.io.to(device.socketId).emit('kitchen_immediate_print', printData);
-                console.log(`   ✅ [KITCHEN] Sent to: ${device.deviceName}`);
-                console.log(`      Socket ID: ${device.socketId}`);
-                console.log(`      Items: ${relevantItems.length}`);
-                sentCount++;
             }
             // ✅ STEP 4: Send to OTHER devices (if any)
             if (otherDevices.length > 0) {
