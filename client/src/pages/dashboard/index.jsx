@@ -57,6 +57,7 @@ const Dashboard = () => {
     const hrd = currentUser.role === 'hrd';
     const admin = currentUser.role === 'admin';
     const inventory = currentUser.role === 'inventory';
+    const cashiersenior = currentUser.role === 'cashier senior';
 
 
     useEffect(() => {
