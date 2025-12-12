@@ -1074,7 +1074,8 @@ export const createAppOrder = async (req, res) => {
                     promotions: [],
                     source: isGroMode ? 'Gro' : 'App',
                     reservation: null,
-                    isOpenBill: false,
+                    // ✅ FIXED: Pass isOpenBill as-is (allow undefined) so Mongoose model default logic works for Dine-In/Reservation
+                    isOpenBill: isOpenBill,
                     created_by: createdByData,
                 });
 
