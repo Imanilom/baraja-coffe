@@ -1,4 +1,3 @@
-// models/MenuStock.model.js - Versi diperbaiki
 import mongoose from 'mongoose';
 
 const MenuStockSchema = new mongoose.Schema({
@@ -6,21 +5,24 @@ const MenuStockSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'MenuItem',
     required: true,
-    unique: true,
   },
-
+  warehouseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Warehouse',
+    required: true,
+  },
   type: { 
     type: String, 
-    enum: ['waste', 'adjustment', 'sale', 'production'],
-    default: 'adjustment' // Default value
+    enum: ['waste', 'adjustment', 'sale', 'production', 'transfer'],
+    default: 'adjustment'
   },
   quantity: { 
     type: Number, 
-    default: 0 // Default untuk initial creation
+    default: 0
   },
   reason: { 
     type: String,
-    enum: ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya', 'manual_adjustment', 'initial_setup','order_fulfillment'],
+    enum: ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya', 'manual_adjustment', 'initial_setup','order_fulfillment', 'transfer_in', 'transfer_out'],
     default: 'initial_setup'
   },
   previousStock: { 
@@ -46,16 +48,25 @@ const MenuStockSchema = new mongoose.Schema({
     trim: true,
   },
   adjustedBy: {
-     type: String,
-      trim: true,
-      default: null,
+    type: String,
+    trim: true,
+    default: null,
   },
   handledBy: { 
     type: String, 
-    default: 'system' // Default value
+    default: 'system'
   },
   notes: { 
     type: String 
+  },
+  relatedWarehouse: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Warehouse',
+    default: null
+  },
+  transferId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null
   },
   lastCalculatedAt: {
     type: Date,
@@ -69,7 +80,10 @@ const MenuStockSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Virtual: effectiveStock → prioritas manualStock jika ada, else calculatedStock
+// Compound index untuk unique stock per menu item per warehouse
+MenuStockSchema.index({ menuItemId: 1, warehouseId: 1 }, { unique: true });
+
+// Virtual: effectiveStock
 MenuStockSchema.virtual('effectiveStock').get(function () {
   return this.manualStock !== null && this.manualStock !== undefined 
     ? this.manualStock 
@@ -78,16 +92,17 @@ MenuStockSchema.virtual('effectiveStock').get(function () {
 
 // Index untuk performa query
 MenuStockSchema.index({ menuItemId: 1 });
+MenuStockSchema.index({ warehouseId: 1 });
 MenuStockSchema.index({ lastCalculatedAt: -1 });
 MenuStockSchema.index({ type: 1 });
 
-// Middleware untuk auto-update currentStock berdasarkan effectiveStock
+// Middleware untuk auto-update currentStock
 MenuStockSchema.pre('save', function(next) {
   this.currentStock = this.effectiveStock;
   next();
 });
 
-// Pastikan virtual muncul saat toJSON / toObject
+// Pastikan virtual muncul
 MenuStockSchema.set('toJSON', { virtuals: true });
 MenuStockSchema.set('toObject', { virtuals: true });
 
