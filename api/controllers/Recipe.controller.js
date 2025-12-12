@@ -3,22 +3,24 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Product from '../models/modul_market/Product.model.js';
+import Warehouse from '../models/modul_market/Warehouse.model.js';
 import mongoose from 'mongoose';
-import { calculateMaxPortions } from '../utils/stockCalculator.js';
-import { calibrateSingleMenuStock } from '../jobs/stockCalibration.job.js';
+import { 
+  calculateMaxPortionsForWarehouse,
+  getWorkstationWarehouseMapping,
+  calculateMenuItemStockForWarehouse
+} from '../utils/stockCalculator.js';
+import { calibrateSingleMenuStockForAllWarehouses } from '../jobs/stockCalibration.job.js';
+
 /**
- * Hitung porsi maksimal berdasarkan bahan tersedia
+ * Hitung porsi maksimal berdasarkan bahan tersedia di semua warehouse terkait
  */
-
-
 export const calculateCostPrice = async (menuItemId, recipeOverride = null) => {
   let recipe;
 
   if (recipeOverride) {
-    // Gunakan resep yang baru dibuat
     recipe = recipeOverride;
   } else {
-    // Cari di DB jika tidak ada override
     recipe = await Recipe.findOne({ menuItemId });
   }
 
@@ -28,8 +30,6 @@ export const calculateCostPrice = async (menuItemId, recipeOverride = null) => {
 
   const getPrice = (product) => {
     if (!product?.suppliers?.length) return 0;
-
-    // Urutkan supplier berdasarkan lastPurchaseDate terbaru
     const sorted = [...product.suppliers].sort((a, b) =>
       new Date(b.lastPurchaseDate) - new Date(a.lastPurchaseDate)
     );
@@ -45,10 +45,8 @@ export const calculateCostPrice = async (menuItemId, recipeOverride = null) => {
     }
   };
 
-  // Hitung bahan utama
   await sumIngredients(recipe.baseIngredients);
 
-  // Hitung addonOptions
   for (const addon of recipe.addonOptions) {
     await sumIngredients(addon.ingredients);
   }
@@ -57,109 +55,214 @@ export const calculateCostPrice = async (menuItemId, recipeOverride = null) => {
 };
 
 /**
- * Update semua menuItem dengan hitungan availableStock berdasarkan recipe
+ * Update semua menuItem dengan hitungan availableStock berdasarkan semua warehouse
  */
 export const updateMenuAvailableStock = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const menuItems = await MenuItem.find().populate("category", "name").session(session);
+    const menuItems = await MenuItem.find()
+      .populate("category", "name")
+      .populate("warehouseStocks.warehouseId", "name code")
+      .session(session);
 
     for (const menuItem of menuItems) {
       const recipe = await Recipe.findOne({ menuItemId: menuItem._id }).session(session);
 
       if (!recipe || !recipe.baseIngredients.length) {
-        // Update MenuStock dengan calculatedStock = 0
-        await MenuStock.findOneAndUpdate(
-          { menuItemId: menuItem._id },
-          {
-            calculatedStock: 0,
-            lastCalculatedAt: new Date()
-          },
-          { upsert: true, session }
-        );
+        // Update MenuStock untuk semua warehouse terkait
+        const workstation = menuItem.workstation;
+        if (workstation) {
+          const warehouses = await getWorkstationWarehouseMapping(workstation);
+          
+          for (const [warehouseType, warehouseId] of Object.entries(warehouses)) {
+            await MenuStock.findOneAndUpdate(
+              { 
+                menuItemId: menuItem._id,
+                warehouseId: warehouseId
+              },
+              {
+                calculatedStock: 0,
+                currentStock: 0,
+                lastCalculatedAt: new Date()
+              },
+              { upsert: true, session }
+            );
+          }
+        }
 
         menuItem.availableStock = 0;
+        menuItem.isActive = false;
+        
+        // Reset warehouse stocks
+        menuItem.warehouseStocks = [];
         await menuItem.save({ session });
         continue;
       }
 
-      // 🔑 Filter hanya baseIngredients yang isDefault = true
-      const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
+      const workstation = menuItem.workstation;
+      let totalAvailableStock = 0;
+      const warehouseStocksUpdate = [];
 
-      let calculatedStock = 0;
-      if (defaultIngredients.length) {
-        calculatedStock = await calculateMaxPortions(defaultIngredients);
+      if (workstation) {
+        const warehouses = await getWorkstationWarehouseMapping(workstation);
+        
+        for (const [warehouseType, warehouseId] of Object.entries(warehouses)) {
+          // Filter hanya baseIngredients yang isDefault = true
+          const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
+          let calculatedStock = 0;
+          
+          if (defaultIngredients.length) {
+            calculatedStock = await calculateMaxPortionsForWarehouse(defaultIngredients, warehouseId);
+          }
+
+          // Update atau buat MenuStock untuk warehouse ini
+          const menuStock = await MenuStock.findOneAndUpdate(
+            { 
+              menuItemId: menuItem._id,
+              warehouseId: warehouseId
+            },
+            {
+              calculatedStock,
+              currentStock: calculatedStock,
+              manualStock: null,
+              lastCalculatedAt: new Date()
+            },
+            {
+              upsert: true,
+              new: true,
+              session
+            }
+          );
+
+          totalAvailableStock += menuStock.effectiveStock;
+          
+          warehouseStocksUpdate.push({
+            warehouseId: warehouseId,
+            stock: menuStock.effectiveStock,
+            workstation: workstation
+          });
+        }
       }
 
-      // Update atau buat MenuStock
-      const menuStock = await MenuStock.findOneAndUpdate(
-        { menuItemId: menuItem._id },
-        {
-          calculatedStock,
-          lastCalculatedAt: new Date()
-        },
-        {
-          upsert: true,
-          new: true,
-          session
-        }
-      );
-
-      // Jika manualStock null, gunakan calculatedStock untuk availableStock
-      menuItem.availableStock = menuStock.effectiveStock;
+      // Update MenuItem dengan warehouse stocks
+      menuItem.warehouseStocks = warehouseStocksUpdate;
+      menuItem.availableStock = totalAvailableStock;
+      menuItem.isActive = totalAvailableStock > 0;
+      
       await menuItem.save({ session });
     }
 
     await session.commitTransaction();
     res.status(200).json({
       success: true,
-      message: 'Stok menu berhasil diperbarui',
+      message: 'Stok menu berhasil diperbarui untuk semua warehouse',
       data: menuItems.map(m => ({
         _id: m._id,
         name: m.name,
         category: m.category?.name,
-        availableStock: m.availableStock
+        workstation: m.workstation,
+        availableStock: m.availableStock,
+        warehouseStocks: m.warehouseStocks,
+        isActive: m.isActive
       }))
     });
 
   } catch (error) {
     await session.abortTransaction();
     console.error('Error updating menu available stock:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengupdate stok menu' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Gagal mengupdate stok menu' 
+    });
   } finally {
     session.endSession();
   }
 };
 
-// Ambil data stok menu dari MenuStock (dengan join ke MenuItem & category)
+// Ambil data stok menu dari MenuStock (dengan join ke MenuItem & category) untuk semua warehouse
 export const getMenuStocks = async (req, res) => {
   try {
-    const stocks = await MenuStock.find()
+    const { warehouseId } = req.query;
+    
+    let query = {};
+    if (warehouseId && mongoose.Types.ObjectId.isValid(warehouseId)) {
+      query.warehouseId = warehouseId;
+    }
+
+    const stocks = await MenuStock.find(query)
       .populate({
         path: "menuItemId",
-        select: "name category availableStock",
-        populate: { path: "category", select: "name" }
+        select: "name category availableStock workstation warehouseStocks",
+        populate: { 
+          path: "category", 
+          select: "name" 
+        }
+      })
+      .populate({
+        path: "warehouseId",
+        select: "name code type"
       })
       .lean();
 
-    res.status(200).json({
-      success: true,
-      message: "Data stok menu berhasil diambil",
-      data: stocks.map(s => ({
-        _id: s._id,
-        menuItemId: s.menuItemId?._id,
-        name: s.menuItemId?.name,
-        category: s.menuItemId?.category?.name || "-",
+    // Group by menu item untuk agregasi multi-warehouse
+    const menuItemMap = new Map();
+    
+    stocks.forEach(s => {
+      const menuItemId = s.menuItemId?._id?.toString();
+      if (!menuItemId) return;
+      
+      if (!menuItemMap.has(menuItemId)) {
+        menuItemMap.set(menuItemId, {
+          _id: menuItemId,
+          name: s.menuItemId?.name,
+          category: s.menuItemId?.category?.name || "-",
+          workstation: s.menuItemId?.workstation,
+          availableStock: s.menuItemId?.availableStock || 0,
+          warehouseStocks: [],
+          totalEffectiveStock: 0
+        });
+      }
+      
+      const effectiveStock = s.manualStock !== null ? s.manualStock : s.calculatedStock;
+      
+      menuItemMap.get(menuItemId).warehouseStocks.push({
+        warehouseId: s.warehouseId?._id,
+        warehouseName: s.warehouseId?.name || "Unknown",
+        warehouseCode: s.warehouseId?.code,
         calculatedStock: s.calculatedStock,
         manualStock: s.manualStock,
-        effectiveStock: s.manualStock !== null ? s.manualStock : s.calculatedStock, // Manual override logic
+        effectiveStock: effectiveStock,
         adjustmentNote: s.adjustmentNote,
         adjustedBy: s.adjustedBy,
         lastCalculatedAt: s.lastCalculatedAt,
         lastAdjustedAt: s.lastAdjustedAt
-      }))
+      });
+      
+      menuItemMap.get(menuItemId).totalEffectiveStock += effectiveStock;
+    });
+
+    const result = Array.from(menuItemMap.values());
+
+    res.status(200).json({
+      success: true,
+      message: "Data stok menu berhasil diambil",
+      data: warehouseId ? stocks.map(s => ({
+        _id: s._id,
+        menuItemId: s.menuItemId?._id,
+        menuItemName: s.menuItemId?.name,
+        warehouseId: s.warehouseId?._id,
+        warehouseName: s.warehouseId?.name,
+        category: s.menuItemId?.category?.name || "-",
+        calculatedStock: s.calculatedStock,
+        manualStock: s.manualStock,
+        effectiveStock: s.manualStock !== null ? s.manualStock : s.calculatedStock,
+        adjustmentNote: s.adjustmentNote,
+        adjustedBy: s.adjustedBy,
+        lastCalculatedAt: s.lastCalculatedAt,
+        lastAdjustedAt: s.lastAdjustedAt
+      })) : result
     });
   } catch (error) {
     console.error("Error fetching menu stocks:", error);
@@ -171,7 +274,7 @@ export const getMenuStocks = async (req, res) => {
 };
 
 /**
- * Update stok hanya untuk satu menuItem
+ * Update stok hanya untuk satu menuItem di semua warehouse terkait
  */
 export const updateSingleMenuStock = async (req, res) => {
   const session = await mongoose.startSession();
@@ -179,45 +282,146 @@ export const updateSingleMenuStock = async (req, res) => {
 
   try {
     const { menuItemId } = req.params;
+    const { warehouseId } = req.query; // Optional: jika ingin update untuk warehouse tertentu
+
     if (!menuItemId || !mongoose.Types.ObjectId.isValid(menuItemId)) {
-      return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID Menu tidak valid' 
+      });
     }
 
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     if (!menuItem) {
-      return res.status(404).json({ success: false, message: 'Menu tidak ditemukan' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Menu tidak ditemukan' 
+      });
     }
 
     const recipe = await Recipe.findOne({ menuItemId: menuItem._id }).session(session);
-    let calculatedStock = 0;
+    const workstation = menuItem.workstation;
 
-    if (recipe?.baseIngredients?.length) {
-      const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
-      if (defaultIngredients.length) {
-        calculatedStock = await calculateMaxPortions(defaultIngredients);
-      }
-    }
-
-    // Simpan ke MenuStock
-    let menuStockDoc = await MenuStock.findOne({ menuItemId }).session(session);
-    if (!menuStockDoc) {
-      menuStockDoc = new MenuStock({
-        menuItemId,
-        calculatedStock,
-        lastCalculatedAt: new Date(),
+    if (!workstation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Menu tidak memiliki workstation yang ditentukan'
       });
-    } else {
-      // Hanya update calculatedStock jika manualStock null
-      // Jika manualStock ada, biarkan manualStock tetap
-      if (menuStockDoc.manualStock === null) {
-        menuStockDoc.calculatedStock = calculatedStock;
-      }
-      menuStockDoc.lastCalculatedAt = new Date();
     }
-    await menuStockDoc.save({ session });
 
-    // Update MenuItem.availableStock dengan effectiveStock
-    menuItem.availableStock = menuStockDoc.effectiveStock;
+    const warehouses = await getWorkstationWarehouseMapping(workstation);
+    const warehouseStocksUpdate = [];
+    let totalAvailableStock = 0;
+
+    // Jika warehouseId di-spesifikasikan, hanya update warehouse tersebut
+    if (warehouseId && mongoose.Types.ObjectId.isValid(warehouseId)) {
+      if (!Object.values(warehouses).includes(warehouseId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Warehouse tidak valid untuk workstation ini'
+        });
+      }
+
+      let calculatedStock = 0;
+      if (recipe?.baseIngredients?.length) {
+        const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
+        if (defaultIngredients.length) {
+          calculatedStock = await calculateMaxPortionsForWarehouse(defaultIngredients, warehouseId);
+        }
+      }
+
+      // Update MenuStock untuk warehouse tertentu
+      let menuStockDoc = await MenuStock.findOne({ 
+        menuItemId, 
+        warehouseId 
+      }).session(session);
+      
+      if (!menuStockDoc) {
+        menuStockDoc = new MenuStock({
+          menuItemId,
+          warehouseId,
+          calculatedStock,
+          lastCalculatedAt: new Date(),
+        });
+      } else {
+        if (menuStockDoc.manualStock === null) {
+          menuStockDoc.calculatedStock = calculatedStock;
+          menuStockDoc.currentStock = calculatedStock;
+        }
+        menuStockDoc.lastCalculatedAt = new Date();
+      }
+      
+      await menuStockDoc.save({ session });
+      
+      // Update warehouse stock in menu item
+      const effectiveStock = menuStockDoc.effectiveStock;
+      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+        ws.warehouseId.toString() === warehouseId.toString()
+      );
+      
+      if (warehouseIndex >= 0) {
+        menuItem.warehouseStocks[warehouseIndex].stock = effectiveStock;
+      } else {
+        menuItem.warehouseStocks.push({
+          warehouseId,
+          stock: effectiveStock,
+          workstation
+        });
+      }
+      
+      totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
+      
+    } else {
+      // Update untuk semua warehouse terkait
+      for (const [warehouseType, whId] of Object.entries(warehouses)) {
+        let calculatedStock = 0;
+        if (recipe?.baseIngredients?.length) {
+          const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
+          if (defaultIngredients.length) {
+            calculatedStock = await calculateMaxPortionsForWarehouse(defaultIngredients, whId);
+          }
+        }
+
+        // Update MenuStock untuk setiap warehouse
+        let menuStockDoc = await MenuStock.findOne({ 
+          menuItemId, 
+          warehouseId: whId 
+        }).session(session);
+        
+        if (!menuStockDoc) {
+          menuStockDoc = new MenuStock({
+            menuItemId,
+            warehouseId: whId,
+            calculatedStock,
+            lastCalculatedAt: new Date(),
+          });
+        } else {
+          if (menuStockDoc.manualStock === null) {
+            menuStockDoc.calculatedStock = calculatedStock;
+            menuStockDoc.currentStock = calculatedStock;
+          }
+          menuStockDoc.lastCalculatedAt = new Date();
+        }
+        
+        await menuStockDoc.save({ session });
+        
+        const effectiveStock = menuStockDoc.effectiveStock;
+        totalAvailableStock += effectiveStock;
+        
+        warehouseStocksUpdate.push({
+          warehouseId: whId,
+          stock: effectiveStock,
+          workstation
+        });
+      }
+
+      // Update warehouse stocks array
+      menuItem.warehouseStocks = warehouseStocksUpdate;
+    }
+
+    // Update MenuItem
+    menuItem.availableStock = totalAvailableStock;
+    menuItem.isActive = totalAvailableStock > 0;
     await menuItem.save({ session });
 
     await session.commitTransaction();
@@ -226,41 +430,91 @@ export const updateSingleMenuStock = async (req, res) => {
       success: true,
       data: {
         menuItem: menuItem,
-        stockDetail: {
-          ...menuStockDoc.toJSON(),
-          effectiveStock: menuStockDoc.effectiveStock
-        }
+        totalAvailableStock,
+        warehouseStocks: menuItem.warehouseStocks,
+        isActive: menuItem.isActive
       }
     });
 
   } catch (error) {
     await session.abortTransaction();
     console.error('Error updating single menu stock:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengupdate stok menu' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Gagal mengupdate stok menu' 
+    });
   } finally {
     session.endSession();
   }
 };
 
-// PATCH /api/menu-stocks/:menuItemId/adjust
+// PATCH /api/menu-stocks/:menuItemId/adjust - dengan support multi-warehouse
 export const adjustMenuStock = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const { menuItemId } = req.params;
-    const { manualStock, adjustmentNote, adjustedBy, reason, wasteQuantity } = req.body;
+    const { 
+      manualStock, 
+      adjustmentNote, 
+      adjustedBy, 
+      reason, 
+      wasteQuantity,
+      warehouseId // Tambahkan warehouseId untuk multi-warehouse
+    } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(menuItemId)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID Menu tidak valid' 
+      });
+    }
+
+    // Validasi warehouseId jika di-provide
+    let targetWarehouseId = warehouseId;
+    if (!targetWarehouseId) {
+      // Jika tidak di-specify, gunakan primary warehouse berdasarkan workstation
+      const menuItem = await MenuItem.findById(menuItemId).session(session);
+      if (!menuItem) {
+        await session.abortTransaction();
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Menu tidak ditemukan' 
+        });
+      }
+      
+      const workstation = menuItem.workstation;
+      if (!workstation) {
+        await session.abortTransaction();
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Menu tidak memiliki workstation' 
+        });
+      }
+      
+      const warehouses = await getWorkstationWarehouseMapping(workstation);
+      // Gunakan primary warehouse (biasanya yang pertama)
+      targetWarehouseId = Object.values(warehouses)[0];
+      
+      if (!targetWarehouseId) {
+        await session.abortTransaction();
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Tidak ada warehouse untuk workstation ini' 
+        });
+      }
     }
 
     // Validasi untuk waste/pengurangan stok
     if (reason && wasteQuantity) {
       if (wasteQuantity <= 0) {
         await session.abortTransaction();
-        return res.status(400).json({ success: false, message: 'Quantity waste harus lebih dari 0' });
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Quantity waste harus lebih dari 0' 
+        });
       }
 
       const validReasons = ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya'];
@@ -273,29 +527,67 @@ export const adjustMenuStock = async (req, res) => {
       }
     }
 
-    // Handle reset stock
+    // Handle reset stock untuk warehouse tertentu
     if (manualStock === '' || manualStock === null) {
-      const menuStock = await MenuStock.findOne({ menuItemId }).session(session);
+      const menuStock = await MenuStock.findOne({ 
+        menuItemId, 
+        warehouseId: targetWarehouseId 
+      }).session(session);
+      
       if (!menuStock) {
         await session.abortTransaction();
-        return res.status(404).json({ success: false, message: 'Stok menu tidak ditemukan' });
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Stok menu tidak ditemukan untuk warehouse ini' 
+        });
       }
 
-      const effectiveStock = menuStock.calculatedStock || 0;
+      // Hitung calculated stock berdasarkan bahan di warehouse ini
+      const recipe = await Recipe.findOne({ menuItemId }).session(session);
+      let calculatedStock = 0;
+      
+      if (recipe?.baseIngredients?.length) {
+        const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
+        if (defaultIngredients.length) {
+          calculatedStock = await calculateMaxPortionsForWarehouse(defaultIngredients, targetWarehouseId);
+        }
+      }
 
-      // Reset dan aktifkan/nonaktifkan berdasarkan calculatedStock
+      const effectiveStock = calculatedStock;
+
+      // Reset manual stock untuk warehouse ini
       menuStock.manualStock = null;
+      menuStock.calculatedStock = calculatedStock;
+      menuStock.currentStock = calculatedStock;
       menuStock.adjustmentNote = 'Reset ke stok terhitung sistem';
       menuStock.adjustedBy = adjustedBy || null;
       menuStock.lastAdjustedAt = new Date();
       await menuStock.save({ session });
 
-      // ✅ Update MenuItem dengan status aktivasi DALAM transaction
+      // Update MenuItem warehouse stock
       const menuItem = await MenuItem.findById(menuItemId).session(session);
       const previousStatus = menuItem.isActive;
 
-      menuItem.availableStock = effectiveStock;
-      menuItem.isActive = effectiveStock > 0; // Aktif jika ada stok
+      // Update warehouse stock di array
+      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+        ws.warehouseId.toString() === targetWarehouseId.toString()
+      );
+      
+      if (warehouseIndex >= 0) {
+        menuItem.warehouseStocks[warehouseIndex].stock = effectiveStock;
+      } else {
+        menuItem.warehouseStocks.push({
+          warehouseId: targetWarehouseId,
+          stock: effectiveStock,
+          workstation: menuItem.workstation
+        });
+      }
+
+      // Hitung total stock dari semua warehouse
+      const totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
+      menuItem.availableStock = totalAvailableStock;
+      menuItem.isActive = totalAvailableStock > 0; // Aktif jika ada stok di salah satu warehouse
+      
       await menuItem.save({ session });
 
       const statusChange = previousStatus !== menuItem.isActive
@@ -304,37 +596,44 @@ export const adjustMenuStock = async (req, res) => {
 
       await session.commitTransaction();
 
-      // ✅ Emit socket PERTAMA: Update instant
-      io.emit('stock_updated', {
-        menuItemId: menuItemId.toString(),
-        message: 'Stock Reset & Updated',
-        stockData: {
-          menuItemId: menuStock.menuItemId,
-          calculatedStock: menuStock.calculatedStock,
-          manualStock: menuStock.manualStock,
-          effectiveStock,
-          isActive: menuItem.isActive,
-          statusChange,
-          lastAdjustedAt: menuStock.lastAdjustedAt
-        },
-        phase: 'instant',
-        timestamp: new Date()
-      });
+      // ✅ Emit socket dengan informasi warehouse
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('stock_updated', {
+          menuItemId: menuItemId.toString(),
+          warehouseId: targetWarehouseId.toString(),
+          message: 'Stock Reset & Updated',
+          stockData: {
+            menuItemId: menuStock.menuItemId,
+            warehouseId: targetWarehouseId,
+            calculatedStock: menuStock.calculatedStock,
+            manualStock: menuStock.manualStock,
+            effectiveStock,
+            isActive: menuItem.isActive,
+            statusChange,
+            lastAdjustedAt: menuStock.lastAdjustedAt
+          },
+          phase: 'instant',
+          timestamp: new Date()
+        });
+      }
 
-      // ✅ Kalibrasi background (non-blocking)
+      // ✅ Kalibrasi background untuk semua warehouse
       console.log(`🔄 Memulai kalibrasi background untuk ${menuItemId} setelah reset stock...`);
-      calibrateSingleMenuStock(menuItemId.toString())
+      calibrateSingleMenuStockForAllWarehouses(menuItemId.toString())
         .then((calibrationResult) => {
           console.log(`✅ Kalibrasi background berhasil:`, calibrationResult);
 
           // Emit socket KEDUA: Update setelah kalibrasi
-          io.emit('stock_calibrated', {
-            menuItemId: menuItemId.toString(),
-            message: 'Stock Calibrated',
-            data: calibrationResult,
-            phase: 'calibrated',
-            timestamp: new Date()
-          });
+          if (io) {
+            io.emit('stock_calibrated', {
+              menuItemId: menuItemId.toString(),
+              message: 'Stock Calibrated',
+              data: calibrationResult,
+              phase: 'calibrated',
+              timestamp: new Date()
+            });
+          }
         })
         .catch((calibrationError) => {
           console.error(`⚠️ Kalibrasi background gagal (non-blocking):`, calibrationError.message);
@@ -342,12 +641,15 @@ export const adjustMenuStock = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        message: `Stok manual berhasil direset${statusChange ? ' dan menu ' + (statusChange === 'activated' ? 'diaktifkan' : 'dinonaktifkan') : ''}`,
+        message: `Stok manual berhasil direset untuk warehouse ini${statusChange ? ' dan menu ' + (statusChange === 'activated' ? 'diaktifkan' : 'dinonaktifkan') : ''}`,
         data: {
           ...menuStock.toJSON(),
+          warehouseId: targetWarehouseId,
           effectiveStock,
+          totalAvailableStock,
           isActive: menuItem.isActive,
-          statusChange
+          statusChange,
+          warehouseStocks: menuItem.warehouseStocks
         }
       });
     }
@@ -355,10 +657,18 @@ export const adjustMenuStock = async (req, res) => {
     // Validasi untuk input manual stock
     if (manualStock < 0) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, message: 'Stok manual harus angka ≥ 0' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Stok manual harus angka ≥ 0' 
+      });
     }
 
-    let stockDoc = await MenuStock.findOne({ menuItemId }).session(session);
+    // Cari atau buat MenuStock untuk warehouse ini
+    let stockDoc = await MenuStock.findOne({ 
+      menuItemId, 
+      warehouseId: targetWarehouseId 
+    }).session(session);
+    
     const previousStock = stockDoc ? stockDoc.effectiveStock : 0;
 
     if (!stockDoc) {
@@ -369,12 +679,13 @@ export const adjustMenuStock = async (req, res) => {
       if (recipe?.baseIngredients?.length) {
         const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
         if (defaultIngredients.length) {
-          calculatedStock = await calculateMaxPortions(defaultIngredients);
+          calculatedStock = await calculateMaxPortionsForWarehouse(defaultIngredients, targetWarehouseId);
         }
       }
 
       stockDoc = new MenuStock({
         menuItemId,
+        warehouseId: targetWarehouseId,
         calculatedStock,
         manualStock: manualStock,
         adjustmentNote,
@@ -391,24 +702,42 @@ export const adjustMenuStock = async (req, res) => {
 
     await stockDoc.save({ session });
 
-    // ✅ Hitung effective stock dan aktifkan/nonaktifkan menu DALAM transaction
+    // ✅ Hitung effective stock untuk warehouse ini
     const effectiveStock = stockDoc.manualStock !== null ? stockDoc.manualStock : stockDoc.calculatedStock;
 
+    // Update MenuItem warehouse stocks
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     const previousStatus = menuItem.isActive;
 
-    menuItem.availableStock = effectiveStock;
+    // Update warehouse stock di array
+    const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+      ws.warehouseId.toString() === targetWarehouseId.toString()
+    );
+    
+    if (warehouseIndex >= 0) {
+      menuItem.warehouseStocks[warehouseIndex].stock = effectiveStock;
+    } else {
+      menuItem.warehouseStocks.push({
+        warehouseId: targetWarehouseId,
+        stock: effectiveStock,
+        workstation: menuItem.workstation
+      });
+    }
 
-    // Auto activate/deactivate berdasarkan stok
+    // Hitung total stock dari semua warehouse
+    const totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
+    menuItem.availableStock = totalAvailableStock;
+
+    // Auto activate/deactivate berdasarkan total stok di semua warehouse
     let statusChange = null;
-    if (effectiveStock > 0 && !menuItem.isActive) {
+    if (totalAvailableStock > 0 && !menuItem.isActive) {
       menuItem.isActive = true;
       statusChange = 'activated';
-      console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
-    } else if (effectiveStock <= 0 && menuItem.isActive) {
+      console.log(`🟢 Aktifkan ${menuItem.name} - total stok tersedia (${totalAvailableStock})`);
+    } else if (totalAvailableStock <= 0 && menuItem.isActive) {
       menuItem.isActive = false;
       statusChange = 'deactivated';
-      console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
+      console.log(`🔴 Nonaktifkan ${menuItem.name} - total stok habis (${totalAvailableStock})`);
     }
 
     await menuItem.save({ session });
@@ -423,61 +752,71 @@ export const adjustMenuStock = async (req, res) => {
         adjustmentNote,
         previousStock,
         effectiveStock,
+        targetWarehouseId, // Tambahkan warehouseId
         session
       );
     }
 
     await session.commitTransaction();
-    console.log('✅ Stok menu berhasil disesuaikan');
+    console.log('✅ Stok menu berhasil disesuaikan untuk warehouse:', targetWarehouseId);
 
-    // ✅ Emit socket PERTAMA: Update instant ke semua client
-    io.emit('stock_updated', {
-      menuItemId: menuItemId.toString(),
-      message: 'Stock Updated',
-      stockData: {
-        menuItemId: stockDoc.menuItemId,
-        calculatedStock: stockDoc.calculatedStock,
-        manualStock: stockDoc.manualStock,
-        effectiveStock,
-        isActive: menuItem.isActive,
-        statusChange,
-        lastAdjustedAt: stockDoc.lastAdjustedAt
-      },
-      phase: 'instant',
-      timestamp: new Date()
-    });
+    // ✅ Emit socket dengan informasi warehouse
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('stock_updated', {
+        menuItemId: menuItemId.toString(),
+        warehouseId: targetWarehouseId.toString(),
+        message: 'Stock Updated',
+        stockData: {
+          menuItemId: stockDoc.menuItemId,
+          warehouseId: targetWarehouseId,
+          calculatedStock: stockDoc.calculatedStock,
+          manualStock: stockDoc.manualStock,
+          effectiveStock,
+          totalAvailableStock,
+          isActive: menuItem.isActive,
+          statusChange,
+          lastAdjustedAt: stockDoc.lastAdjustedAt
+        },
+        phase: 'instant',
+        timestamp: new Date()
+      });
 
-    // Emit khusus ke cashier room
-    io.to('join_cashier_room').emit('update_stock', {
-      message: 'Stock Updated',
-      data: {
-        ...stockDoc.toJSON(),
-        effectiveStock,
-        isActive: menuItem.isActive,
-        statusChange
-      }
-    });
+      // Emit khusus ke cashier room
+      io.to('join_cashier_room').emit('update_stock', {
+        message: 'Stock Updated',
+        data: {
+          ...stockDoc.toJSON(),
+          effectiveStock,
+          totalAvailableStock,
+          isActive: menuItem.isActive,
+          statusChange
+        }
+      });
+    }
 
-    // ✅ Kalibrasi background (non-blocking) untuk validasi & sync
+    // ✅ Kalibrasi background untuk semua warehouse
     console.log(`🔄 Memulai kalibrasi background untuk ${menuItemId} setelah adjust stock...`);
-    calibrateSingleMenuStock(menuItemId.toString())
+    calibrateSingleMenuStockForAllWarehouses(menuItemId.toString())
       .then((calibrationResult) => {
         console.log(`✅ Kalibrasi background berhasil:`, calibrationResult);
 
-        // Emit socket KEDUA: Update setelah kalibrasi (untuk validasi)
-        io.emit('stock_calibrated', {
-          menuItemId: menuItemId.toString(),
-          message: 'Stock Calibrated',
-          data: calibrationResult,
-          phase: 'calibrated',
-          timestamp: new Date()
-        });
+        // Emit socket KEDUA: Update setelah kalibrasi
+        if (io) {
+          io.emit('stock_calibrated', {
+            menuItemId: menuItemId.toString(),
+            message: 'Stock Calibrated',
+            data: calibrationResult,
+            phase: 'calibrated',
+            timestamp: new Date()
+          });
 
-        io.to('join_cashier_room').emit('stock_calibrated', {
-          message: 'Stock Calibrated',
-          menuItemId,
-          data: calibrationResult
-        });
+          io.to('join_cashier_room').emit('stock_calibrated', {
+            message: 'Stock Calibrated',
+            menuItemId,
+            data: calibrationResult
+          });
+        }
       })
       .catch((calibrationError) => {
         console.error(`⚠️ Kalibrasi background gagal (non-blocking):`, calibrationError.message);
@@ -486,26 +825,31 @@ export const adjustMenuStock = async (req, res) => {
     // ✅ Response langsung tanpa menunggu kalibrasi
     res.status(200).json({
       success: true,
-      message: `Stok menu berhasil disesuaikan${statusChange ? ' dan menu ' + (statusChange === 'activated' ? 'diaktifkan' : 'dinonaktifkan') : ''}`,
+      message: `Stok menu berhasil disesuaikan untuk warehouse ini${statusChange ? ' dan menu ' + (statusChange === 'activated' ? 'diaktifkan' : 'dinonaktifkan') : ''}`,
       data: {
         ...stockDoc.toJSON(),
         effectiveStock,
+        totalAvailableStock,
         isActive: menuItem.isActive,
-        statusChange
+        statusChange,
+        warehouseStocks: menuItem.warehouseStocks
       }
     });
 
   } catch (error) {
     await session.abortTransaction();
     console.error('Error adjusting menu stock:', error);
-    res.status(500).json({ success: false, message: 'Gagal menyesuaikan stok' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Gagal menyesuaikan stok' 
+    });
   } finally {
     session.endSession();
   }
 };
 
 /**
- * Fungsi untuk menangani waste/pengurangan stok dan mencatat di ProductStock Movement
+ * Fungsi untuk menangani waste/pengurangan stok dan mencatat di ProductStock Movement (multi-warehouse)
  */
 const handleWasteStockMovement = async (
   menuItemId,
@@ -515,22 +859,20 @@ const handleWasteStockMovement = async (
   notes,
   previousStock,
   currentStock,
+  warehouseId, // Tambahkan warehouseId parameter
   session
 ) => {
   try {
-    // Dapatkan informasi menu item
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     if (!menuItem) {
       throw new Error('Menu item tidak ditemukan');
     }
 
-    // Dapatkan resep untuk mendapatkan bahan-bahan yang digunakan
     const recipe = await Recipe.findOne({ menuItemId }).session(session);
     if (!recipe || !recipe.baseIngredients || recipe.baseIngredients.length === 0) {
       throw new Error('Resep tidak ditemukan untuk menu item ini');
     }
 
-    // Hitung pengurangan bahan berdasarkan waste quantity
     const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
 
     for (const ingredient of defaultIngredients) {
@@ -538,18 +880,19 @@ const handleWasteStockMovement = async (
       const quantityPerPortion = ingredient.quantity;
       const totalWasteQuantity = quantityPerPortion * wasteQuantity;
 
-      // Cari atau buat ProductStock untuk product ini
+      // Cari ProductStock untuk warehouse ini
       let productStock = await ProductStock.findOne({
-        productId: productId
+        productId: productId,
+        warehouse: warehouseId
       }).session(session);
 
       if (!productStock) {
-        // Jika belum ada, buat baru dengan stok 0
+        // Jika belum ada di warehouse ini, buat baru
         productStock = new ProductStock({
           productId: productId,
           currentStock: 0,
           minStock: 0,
-          warehouse: '68bfb3643cf2055fbfad6a00'
+          warehouse: warehouseId
         });
         await productStock.save({ session });
       }
@@ -559,8 +902,8 @@ const handleWasteStockMovement = async (
         quantity: totalWasteQuantity,
         type: 'out',
         referenceId: menuItemId,
-        notes: `Waste: ${reason} - ${notes || 'Pengurangan stok karena barang tidak layak'}. Menu: ${menuItem.name}, Qty: ${wasteQuantity}`,
-        sourceWarehouse: productStock.warehouse,
+        notes: `Waste: ${reason} - ${notes || 'Pengurangan stok karena barang tidak layak'}. Menu: ${menuItem.name}, Qty: ${wasteQuantity}, Warehouse: ${warehouseId}`,
+        sourceWarehouse: warehouseId,
         handledBy: handledBy || 'system',
         date: new Date()
       };
@@ -571,12 +914,13 @@ const handleWasteStockMovement = async (
 
       await productStock.save({ session });
 
-      console.log(`Waste recorded for product ${productId}: ${totalWasteQuantity} ${reason}`);
+      console.log(`Waste recorded for product ${productId} in warehouse ${warehouseId}: ${totalWasteQuantity} ${reason}`);
     }
 
-    // Juga catat di MenuStock Movement jika diperlukan
+    // Catat juga di MenuStock Movement
     await recordMenuStockMovement(
       menuItemId,
+      warehouseId,
       'waste',
       wasteQuantity,
       reason,
@@ -594,10 +938,11 @@ const handleWasteStockMovement = async (
 };
 
 /**
- * Fungsi untuk mencatat movement di MenuStock
+ * Fungsi untuk mencatat movement di MenuStock (multi-warehouse)
  */
 const recordMenuStockMovement = async (
   menuItemId,
+  warehouseId,
   type,
   quantity,
   reason,
@@ -608,53 +953,81 @@ const recordMenuStockMovement = async (
   session
 ) => {
   try {
-    // Jika Anda memiliki schema untuk MenuStockMovement, tambahkan di sini
-    // Contoh implementasi:
-    const MenuStockMovement = mongoose.model('MenuStockMovement');
-
-    const movement = new MenuStockMovement({
-      menuItemId: menuItemId,
-      type: type,
-      quantity: quantity,
-      reason: reason,
-      previousStock: previousStock,
-      currentStock: currentStock,
-      handledBy: handledBy || 'system',
-      notes: notes,
-      date: new Date()
-    });
-
-    await movement.save({ session });
+    // Update MenuStock dengan movement info
+    await MenuStock.findOneAndUpdate(
+      {
+        menuItemId: menuItemId,
+        warehouseId: warehouseId
+      },
+      {
+        $push: {
+          movements: {
+            type: type,
+            quantity: quantity,
+            reason: reason,
+            previousStock: previousStock,
+            currentStock: currentStock,
+            handledBy: handledBy || 'system',
+            notes: notes,
+            date: new Date()
+          }
+        }
+      },
+      { session }
+    );
 
   } catch (error) {
     console.error('Error recording menu stock movement:', error);
-    // Jangan throw error di sini agar tidak mengganggu proses utama
   }
 };
 
-// Endpoint khusus untuk waste/pengurangan stok
+// Endpoint khusus untuk waste/pengurangan stok (multi-warehouse)
 export const recordWasteStock = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const { menuItemId } = req.params;
-    const { wasteQuantity, reason, notes, handledBy } = req.body;
+    const { 
+      wasteQuantity, 
+      reason, 
+      notes, 
+      handledBy,
+      warehouseId // Tambahkan warehouseId
+    } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(menuItemId)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID Menu tidak valid' 
+      });
+    }
+
+    // Validasi warehouseId
+    if (!warehouseId || !mongoose.Types.ObjectId.isValid(warehouseId)) {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Warehouse ID tidak valid' 
+      });
     }
 
     // Validasi input
     if (!wasteQuantity || wasteQuantity <= 0) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, message: 'Quantity waste harus lebih dari 0' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Quantity waste harus lebih dari 0' 
+      });
     }
 
     if (!reason) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, message: 'Reason wajib diisi' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Reason wajib diisi' 
+      });
     }
 
     const validReasons = ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya'];
@@ -666,28 +1039,48 @@ export const recordWasteStock = async (req, res) => {
       });
     }
 
-    // Dapatkan current stock
-    const menuStock = await MenuStock.findOne({ menuItemId }).session(session);
+    // Dapatkan current stock untuk warehouse ini
+    const menuStock = await MenuStock.findOne({ 
+      menuItemId, 
+      warehouseId 
+    }).session(session);
+    
     if (!menuStock) {
       await session.abortTransaction();
-      return res.status(404).json({ success: false, message: 'Stok menu tidak ditemukan' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Stok menu tidak ditemukan untuk warehouse ini' 
+      });
     }
 
     const previousStock = menuStock.effectiveStock;
 
-    // Kurangi manual stock
+    // Kurangi manual stock untuk warehouse ini
     const newManualStock = Math.max(0, (menuStock.manualStock || menuStock.calculatedStock) - wasteQuantity);
     menuStock.manualStock = newManualStock;
     menuStock.lastAdjustedAt = new Date();
-
     await menuStock.save({ session });
 
-    // Update MenuItem
-    await MenuItem.findByIdAndUpdate(menuItemId, {
-      availableStock: menuStock.effectiveStock
-    }, { session });
+    // Update MenuItem warehouse stock
+    const menuItem = await MenuItem.findById(menuItemId).session(session);
+    if (menuItem) {
+      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+        ws.warehouseId.toString() === warehouseId.toString()
+      );
+      
+      if (warehouseIndex >= 0) {
+        menuItem.warehouseStocks[warehouseIndex].stock = menuStock.effectiveStock;
+      }
+      
+      // Update total available stock
+      const totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
+      menuItem.availableStock = totalAvailableStock;
+      menuItem.isActive = totalAvailableStock > 0;
+      
+      await menuItem.save({ session });
+    }
 
-    // Catat di ProductStock Movement
+    // Catat di ProductStock Movement untuk warehouse ini
     await handleWasteStockMovement(
       menuItemId,
       wasteQuantity,
@@ -696,6 +1089,7 @@ export const recordWasteStock = async (req, res) => {
       notes,
       previousStock,
       menuStock.effectiveStock,
+      warehouseId,
       session
     );
 
@@ -703,65 +1097,127 @@ export const recordWasteStock = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Waste stok berhasil dicatat: ${wasteQuantity} porsi (${reason})`,
+      message: `Waste stok berhasil dicatat: ${wasteQuantity} porsi (${reason}) di warehouse ${warehouseId}`,
       data: {
+        menuItemId,
+        warehouseId,
         previousStock,
         currentStock: menuStock.effectiveStock,
         wasteQuantity,
-        reason
+        reason,
+        totalAvailableStock: menuItem?.availableStock || 0,
+        isActive: menuItem?.isActive || false
       }
     });
 
   } catch (error) {
     await session.abortTransaction();
     console.error('Error recording waste stock:', error);
-    res.status(500).json({ success: false, message: 'Gagal mencatat waste stok' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Gagal mencatat waste stok' 
+    });
   } finally {
     session.endSession();
   }
 };
 
 /**
- * Lihat detail stok menu beserta komponen bahan
+ * Lihat detail stok menu beserta komponen bahan (multi-warehouse)
  */
 export const getMenuStockDetails = async (req, res) => {
   try {
     const { menuItemId } = req.params;
+    const { warehouseId } = req.query; // Optional filter by warehouse
 
     if (!menuItemId || !mongoose.Types.ObjectId.isValid(menuItemId)) {
-      return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID Menu tidak valid' 
+      });
     }
 
-    const menuItem = await MenuItem.findById(menuItemId).populate('toppings.name', 'name');
+    const menuItem = await MenuItem.findById(menuItemId)
+      .populate('toppings.name', 'name')
+      .populate('warehouseStocks.warehouseId', 'name code');
+    
     const recipe = await Recipe.findOne({ menuItemId }).populate('baseIngredients.productId');
-    const menuStock = await MenuStock.findOne({ menuItemId });
+    
+    let menuStocks;
+    if (warehouseId) {
+      menuStocks = await MenuStock.find({ 
+        menuItemId, 
+        warehouseId 
+      }).populate('warehouseId', 'name code');
+    } else {
+      menuStocks = await MenuStock.find({ 
+        menuItemId 
+      }).populate('warehouseId', 'name code');
+    }
 
     if (!recipe) {
-      return res.status(404).json({ success: false, message: 'Resep tidak ditemukan' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Resep tidak ditemukan' 
+      });
+    }
+
+    // Get all warehouses for this menu item's workstation
+    let allWarehouses = [];
+    if (menuItem.workstation) {
+      const warehouseMapping = await getWorkstationWarehouseMapping(menuItem.workstation);
+      allWarehouses = Object.entries(warehouseMapping).map(([type, id]) => ({
+        type,
+        warehouseId: id
+      }));
     }
 
     const details = {
       menuItem: {
         _id: menuItem._id,
         name: menuItem.name,
-        availableStock: menuItem.availableStock
+        availableStock: menuItem.availableStock,
+        workstation: menuItem.workstation,
+        warehouseStocks: menuItem.warehouseStocks,
+        isActive: menuItem.isActive
       },
-      stockInfo: {
-        calculatedStock: menuStock?.calculatedStock || 0,
-        manualStock: menuStock?.manualStock,
-        effectiveStock: menuStock?.effectiveStock || 0,
-        lastCalculatedAt: menuStock?.lastCalculatedAt,
-        lastAdjustedAt: menuStock?.lastAdjustedAt
-      },
-      baseIngredients: recipe.baseIngredients.map(ing => ({
-        productId: ing.productId._id,
-        productName: ing.productName,
-        productSku: ing.productSku,
-        quantityRequired: ing.quantity,
-        unit: ing.unit,
-        currentStock: 0,
-        portionFromThisItem: 0
+      allWarehouses: allWarehouses.map(w => ({
+        warehouseType: w.type,
+        warehouseId: w.warehouseId
       })),
+      stockInfo: menuStocks.map(stock => ({
+        warehouseId: stock.warehouseId?._id,
+        warehouseName: stock.warehouseId?.name,
+        warehouseCode: stock.warehouseId?.code,
+        calculatedStock: stock.calculatedStock || 0,
+        manualStock: stock.manualStock,
+        effectiveStock: stock.effectiveStock || 0,
+        lastCalculatedAt: stock.lastCalculatedAt,
+        lastAdjustedAt: stock.lastAdjustedAt
+      })),
+      baseIngredients: recipe.baseIngredients.map(ing => {
+        const ingredientDetails = {
+          productId: ing.productId._id,
+          productName: ing.productName,
+          productSku: ing.productSku,
+          quantityRequired: ing.quantity,
+          unit: ing.unit,
+          isDefault: ing.isDefault || false,
+          warehouseStocks: []
+        };
+
+        // Add stock info for each warehouse
+        allWarehouses.forEach(w => {
+          ingredientDetails.warehouseStocks.push({
+            warehouseId: w.warehouseId,
+            warehouseType: w.type,
+            currentStock: 0,
+            portionFromThisItem: 0
+          });
+        });
+
+        return ingredientDetails;
+      }),
       toppingOptions: recipe.toppingOptions.map(t => ({
         toppingName: t.toppingName,
         ingredients: t.ingredients.map(i => ({
@@ -783,24 +1239,250 @@ export const getMenuStockDetails = async (req, res) => {
       }))
     };
 
-    // Isi stok aktual & hitung portion dari tiap bahan
+    // Isi stok aktual & hitung portion dari tiap bahan per warehouse
     for (const ing of details.baseIngredients) {
-      const stockDoc = await ProductStock.findOne({ productId: ing.productId });
-      ing.currentStock = stockDoc?.currentStock ?? 0;
-      if (ing.quantityRequired > 0) {
-        ing.portionFromThisItem = Math.floor(ing.currentStock / ing.quantityRequired);
+      for (const ws of ing.warehouseStocks) {
+        const stockDoc = await ProductStock.findOne({ 
+          productId: ing.productId,
+          warehouse: ws.warehouseId 
+        });
+        
+        ws.currentStock = stockDoc?.currentStock ?? 0;
+        if (ing.quantityRequired > 0) {
+          ws.portionFromThisItem = Math.floor(ws.currentStock / ing.quantityRequired);
+        }
       }
     }
 
-    res.status(200).json({ success: true, data: details });
+    res.status(200).json({ 
+      success: true, 
+      data: details 
+    });
 
   } catch (error) {
     console.error('Error fetching menu stock details:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengambil detail stok menu' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Gagal mengambil detail stok menu' 
+    });
   }
 };
 
-// 🔹 Membuat resep baru
+/**
+ * Transfer stock antar warehouse untuk menu item
+ */
+export const transferMenuStock = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { menuItemId } = req.params;
+    const { 
+      fromWarehouseId, 
+      toWarehouseId, 
+      quantity, 
+      reason, 
+      handledBy,
+      notes 
+    } = req.body;
+
+    if (!menuItemId || !mongoose.Types.ObjectId.isValid(menuItemId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID Menu tidak valid' 
+      });
+    }
+
+    // Validasi input
+    if (!fromWarehouseId || !toWarehouseId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Warehouse sumber dan tujuan harus diisi' 
+      });
+    }
+
+    if (fromWarehouseId === toWarehouseId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Warehouse sumber dan tujuan tidak boleh sama' 
+      });
+    }
+
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Quantity harus lebih dari 0' 
+      });
+    }
+
+    // Cek stok di warehouse sumber
+    const sourceStock = await MenuStock.findOne({
+      menuItemId,
+      warehouseId: fromWarehouseId
+    }).session(session);
+
+    if (!sourceStock || sourceStock.effectiveStock < quantity) {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Stok tidak mencukupi di warehouse sumber' 
+      });
+    }
+
+    // Kurangi stok di warehouse sumber
+    const sourcePreviousStock = sourceStock.effectiveStock;
+    const sourceNewStock = sourcePreviousStock - quantity;
+    
+    sourceStock.manualStock = sourceNewStock;
+    sourceStock.lastAdjustedAt = new Date();
+    sourceStock.adjustmentNote = `Transfer ke ${toWarehouseId}: ${notes || reason}`;
+    sourceStock.adjustedBy = handledBy || 'system';
+    await sourceStock.save({ session });
+
+    // Tambah stok di warehouse tujuan
+    let targetStock = await MenuStock.findOne({
+      menuItemId,
+      warehouseId: toWarehouseId
+    }).session(session);
+
+    const targetPreviousStock = targetStock ? targetStock.effectiveStock : 0;
+    const targetNewStock = targetPreviousStock + quantity;
+
+    if (!targetStock) {
+      targetStock = new MenuStock({
+        menuItemId,
+        warehouseId: toWarehouseId,
+        manualStock: targetNewStock,
+        adjustmentNote: `Transfer dari ${fromWarehouseId}: ${notes || reason}`,
+        adjustedBy: handledBy || 'system',
+        lastAdjustedAt: new Date()
+      });
+    } else {
+      targetStock.manualStock = targetNewStock;
+      targetStock.adjustmentNote = `Transfer dari ${fromWarehouseId}: ${notes || reason}`;
+      targetStock.adjustedBy = handledBy || 'system';
+      targetStock.lastAdjustedAt = new Date();
+    }
+
+    await targetStock.save({ session });
+
+    // Update MenuItem warehouse stocks
+    const menuItem = await MenuItem.findById(menuItemId).session(session);
+    
+    // Update source warehouse stock
+    const sourceIndex = menuItem.warehouseStocks.findIndex(ws => 
+      ws.warehouseId.toString() === fromWarehouseId.toString()
+    );
+    
+    if (sourceIndex >= 0) {
+      menuItem.warehouseStocks[sourceIndex].stock = sourceNewStock;
+    } else {
+      menuItem.warehouseStocks.push({
+        warehouseId: fromWarehouseId,
+        stock: sourceNewStock,
+        workstation: menuItem.workstation
+      });
+    }
+
+    // Update target warehouse stock
+    const targetIndex = menuItem.warehouseStocks.findIndex(ws => 
+      ws.warehouseId.toString() === toWarehouseId.toString()
+    );
+    
+    if (targetIndex >= 0) {
+      menuItem.warehouseStocks[targetIndex].stock = targetNewStock;
+    } else {
+      menuItem.warehouseStocks.push({
+        warehouseId: toWarehouseId,
+        stock: targetNewStock,
+        workstation: menuItem.workstation
+      });
+    }
+
+    // Update total available stock
+    const totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
+    menuItem.availableStock = totalAvailableStock;
+    menuItem.isActive = totalAvailableStock > 0;
+    
+    await menuItem.save({ session });
+
+    // Catat transfer history
+    await recordMenuStockMovement(
+      menuItemId,
+      fromWarehouseId,
+      'transfer_out',
+      quantity,
+      reason || 'stock_transfer',
+      handledBy,
+      `Transfer ke ${toWarehouseId}: ${notes || ''}`,
+      sourcePreviousStock,
+      sourceNewStock,
+      session
+    );
+
+    await recordMenuStockMovement(
+      menuItemId,
+      toWarehouseId,
+      'transfer_in',
+      quantity,
+      reason || 'stock_transfer',
+      handledBy,
+      `Transfer dari ${fromWarehouseId}: ${notes || ''}`,
+      targetPreviousStock,
+      targetNewStock,
+      session
+    );
+
+    await session.commitTransaction();
+
+    // Emit socket update
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('stock_transferred', {
+        menuItemId: menuItemId.toString(),
+        message: 'Stock Transferred',
+        data: {
+          fromWarehouseId,
+          toWarehouseId,
+          quantity,
+          sourceNewStock,
+          targetNewStock,
+          totalAvailableStock,
+          isActive: menuItem.isActive
+        },
+        timestamp: new Date()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Transfer stok berhasil: ${quantity} porsi dari ${fromWarehouseId} ke ${toWarehouseId}`,
+      data: {
+        menuItemId,
+        fromWarehouseId,
+        toWarehouseId,
+        quantity,
+        sourceStock: sourceNewStock,
+        targetStock: targetNewStock,
+        totalAvailableStock,
+        isActive: menuItem.isActive,
+        timestamp: new Date()
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error transferring menu stock:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Gagal transfer stok' 
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// 🔹 Membuat resep baru (dengan warehouse context)
 export const createRecipe = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -808,19 +1490,21 @@ export const createRecipe = async (req, res) => {
   try {
     const { menuItemId, baseIngredients, toppingOptions, addonOptions } = req.body;
 
-    // Validasi bahwa menu ada DAN memiliki mainCategory
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     if (!menuItem) {
-      return res.status(404).json({ success: false, message: 'Menu tidak ditemukan' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Menu tidak ditemukan' 
+      });
     }
 
-
-    // Validasi minimal baseIngredients
     if (!Array.isArray(baseIngredients) || baseIngredients.length === 0) {
-      return res.status(400).json({ success: false, message: 'Harus ada bahan utama' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Harus ada bahan utama' 
+      });
     }
 
-    // Cek apakah resep sudah ada untuk menu ini
     const existingRecipe = await Recipe.findOne({ menuItemId }).session(session);
     if (existingRecipe) {
       return res.status(400).json({
@@ -829,7 +1513,6 @@ export const createRecipe = async (req, res) => {
       });
     }
 
-    // Buat resep baru
     const newRecipe = new Recipe({
       menuItemId,
       baseIngredients,
@@ -839,22 +1522,67 @@ export const createRecipe = async (req, res) => {
 
     await newRecipe.save({ session });
 
-    // Update status menu jika belum aktif
+    // Update status menu
     if (!menuItem.isActive) {
       menuItem.isActive = true;
-      await menuItem.save({ session });
     }
 
     // Hitung HPP
     const newCostPrice = await calculateCostPrice(menuItemId, newRecipe);
     menuItem.costPrice = newCostPrice;
+    
+    // Jika ada workstation, hitung initial stock untuk semua warehouse
+    if (menuItem.workstation) {
+      const warehouses = await getWorkstationWarehouseMapping(menuItem.workstation);
+      const warehouseStocksUpdate = [];
+      let totalAvailableStock = 0;
+
+      for (const [warehouseType, whId] of Object.entries(warehouses)) {
+        const defaultIngredients = newRecipe.baseIngredients.filter(ing => ing.isDefault);
+        let calculatedStock = 0;
+        
+        if (defaultIngredients.length) {
+          calculatedStock = await calculateMaxPortionsForWarehouse(defaultIngredients, whId);
+        }
+
+        // Buat MenuStock untuk setiap warehouse
+        await MenuStock.create([{
+          menuItemId,
+          warehouseId: whId,
+          calculatedStock,
+          currentStock: calculatedStock,
+          lastCalculatedAt: new Date()
+        }], { session });
+
+        totalAvailableStock += calculatedStock;
+        warehouseStocksUpdate.push({
+          warehouseId: whId,
+          stock: calculatedStock,
+          workstation: menuItem.workstation
+        });
+      }
+
+      // Update MenuItem dengan warehouse stocks
+      menuItem.warehouseStocks = warehouseStocksUpdate;
+      menuItem.availableStock = totalAvailableStock;
+      menuItem.isActive = totalAvailableStock > 0;
+    }
+
     await menuItem.save({ session });
 
     await session.commitTransaction();
 
     res.status(201).json({
       success: true,
-      data: newRecipe
+      data: newRecipe,
+      menuItem: {
+        _id: menuItem._id,
+        name: menuItem.name,
+        costPrice: menuItem.costPrice,
+        availableStock: menuItem.availableStock,
+        warehouseStocks: menuItem.warehouseStocks,
+        isActive: menuItem.isActive
+      }
     });
 
   } catch (error) {
@@ -870,6 +1598,7 @@ export const createRecipe = async (req, res) => {
   }
 };
 
+  
 // 🔹 Lihat semua resep
 export const getAllRecipes = async (req, res) => {
   try {
