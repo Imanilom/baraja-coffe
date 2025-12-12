@@ -17,6 +17,16 @@ import {
   updateMenuActivated,
   getMenuItemsBackOffice,
 } from '../controllers/menu.controller.js';
+import { 
+  manualStockCalibration,
+  calibrateSingleMenuStockForAllWarehouses,
+  calibrateSingleMenuStockForWarehouse,
+  calibrateMenuStocksByWorkstation,
+  getMenuCalibrationStatus,
+  resetMinusManualStockForWarehouse
+} from '../jobs/stockCalibration.job.js';
+
+import { menuStockController } from '../controllers/menuStock.controller.js';
 
 import { assignMenuItemsToCategory, createCategory, filterMenuByCategory, getCategories, updateCategory, deleteCategory, getCategoryById } from '../controllers/category.controller.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
@@ -50,7 +60,123 @@ router.get('/categories', getCategories); // Get all categories
 router.get('/categories/filter', filterMenuByCategory); // Filter menu items by category
 router.get('/categories/:id', getCategoryById); // Get category by ID
 router.put('/categories/:id', updateCategory); // Update a category
-router.delete('/categories/:id', deleteCategory); // Delete a category
+router.delete('/categories/:id', deleteCategory); // Delete a 
+
+// Get stock for specific menu item
+router.get('/:menuItemId/stock', menuStockController.getMenuItemStock);
+
+// Recalculate stock
+router.post('/:menuItemId/recalculate', menuStockController.recalculateStock);
+
+// Adjust stock manually
+router.post('/:menuItemId/warehouse/:warehouseId/adjust', menuStockController.adjustStock);
+
+// Transfer stock between warehouses
+router.post('/:menuItemId/transfer', menuStockController.transferStock);
+
+// Get stock for POS
+router.get('/:menuItemId/pos-stock', menuStockController.getStockForPOS);
+
+// Get all menu items stock
+router.get('/all/stocks', menuStockController.getAllMenuStocks);
+
+// Manual calibration endpoint
+router.post('/calibrate/manual', manualStockCalibration);
+
+// Calibrate specific menu item for all warehouses
+router.post('/calibrate/menu/:menuItemId', async (req, res) => {
+  try {
+    const { menuItemId } = req.params;
+    const result = await calibrateSingleMenuStockForAllWarehouses(menuItemId);
+    
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Calibration failed',
+      error: error.message
+    });
+  }
+});
+
+// Calibrate specific menu item for specific warehouse
+router.post('/calibrate/menu/:menuItemId/warehouse/:warehouseId', async (req, res) => {
+  try {
+    const { menuItemId, warehouseId } = req.params;
+    const result = await calibrateSingleMenuStockForWarehouse(menuItemId, warehouseId);
+    
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Calibration failed',
+      error: error.message
+    });
+  }
+});
+
+// Calibrate all menu items for specific workstation
+router.post('/calibrate/workstation/:workstation', async (req, res) => {
+  try {
+    const { workstation } = req.params;
+    const result = await calibrateMenuStocksByWorkstation(workstation);
+    
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Calibration failed',
+      error: error.message
+    });
+  }
+});
+
+// Get calibration status for menu item
+router.get('/status/menu/:menuItemId', async (req, res) => {
+  try {
+    const { menuItemId } = req.params;
+    const result = await getMenuCalibrationStatus(menuItemId);
+    
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get status',
+      error: error.message
+    });
+  }
+});
+
+// Reset minus stock for specific warehouse
+router.post('/reset/minus/menu/:menuItemId/warehouse/:warehouseId', async (req, res) => {
+  try {
+    const { menuItemId, warehouseId } = req.params;
+    const result = await resetMinusManualStockForWarehouse(menuItemId, warehouseId);
+    
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Reset failed',
+      error: error.message
+    });
+  }
+});
 
 router.get('/menu-items/:id/stock-status', async (req, res) => {
   try {

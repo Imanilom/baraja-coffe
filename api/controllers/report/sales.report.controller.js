@@ -1,5 +1,6 @@
 import Category from '../../models/Category.model.js';
 import { Order } from '../../models/order.model.js';
+import Payment from '../../models/Payment.model.js';
 import {
   processOrderItems,
   getSafeMenuItemData,
@@ -652,6 +653,132 @@ class DailyProfitController {
       });
     }
   }
+
+  /**
+  * Get order report - DUKUNG SPLIT PAYMENT
+  */
+  async getOrdersWithPayments(req, res) {
+    try {
+      // Fetch all orders with populated data
+      const orders = await Order.find()
+        .populate('items.menuItem')
+        .populate({
+          path: 'items.menuItem',
+          populate: {
+            path: 'category',
+            model: 'Category',
+            select: 'name'
+          }
+        })
+        .populate('outlet')
+        .populate('user_id')
+        .populate({
+          path: 'cashierId',
+          populate: {
+            path: 'outlet.outletId',
+            model: 'Outlet',
+            select: 'name address',
+          },
+        })
+        .sort({ createdAt: -1 });
+
+      // Fetch all payments in one query
+      const orderIds = orders.map(order => order.order_id);
+      const allPayments = await Payment.find({
+        order_id: { $in: orderIds }
+      });
+
+      const paymentMap = {};
+      allPayments.forEach(payment => {
+        if (!paymentMap[payment.order_id]) {
+          paymentMap[payment.order_id] = [];
+        }
+        paymentMap[payment.order_id].push(payment);
+      });
+
+      // Combine orders with payments dan populate menuItemData runtime
+      const ordersWithPayments = orders.map(order => {
+        const orderObj = order.toObject();
+
+        // ✅ Populate menuItemData jika kosong (untuk order lama)
+        if (orderObj.items && Array.isArray(orderObj.items)) {
+          orderObj.items = orderObj.items.map(item => {
+            if (!item.menuItemData || !item.menuItemData.name) {
+              // Ambil dari menuItem yang sudah di-populate
+              if (item.menuItem) {
+                item.menuItemData = {
+                  name: item.menuItem.name || 'Unknown Item',
+                  price: item.menuItem.price || 0,
+                  category: item.menuItem.category?.name || item.menuItem.mainCategory || 'Uncategorized',
+                  sku: item.menuItem.sku || '',
+                  isActive: item.menuItem.isActive !== false,
+                  selectedAddons: item.addons || [],
+                  selectedToppings: item.toppings || []
+                };
+              } else {
+                item.menuItemData = {
+                  name: 'Unknown Item',
+                  price: item.subtotal / (item.quantity || 1) || 0,
+                  category: 'Unknown',
+                  sku: 'N/A',
+                  isActive: false,
+                  selectedAddons: item.addons || [],
+                  selectedToppings: item.toppings || []
+                };
+              }
+            } else if (!item.menuItemData.selectedAddons) {
+              // Update hanya addons/toppings jika belum ada
+              item.menuItemData.selectedAddons = item.addons || [];
+              item.menuItemData.selectedToppings = item.toppings || [];
+            }
+
+            return item;
+          });
+        }
+
+        const relatedPayments = paymentMap[order.order_id] || [];
+
+        let paymentDetails = null;
+        let actualPaymentMethod = orderObj.paymentMethod || 'N/A';
+
+        if (orderObj.orderType !== "Reservation") {
+          paymentDetails = relatedPayments.find(p =>
+            p.status === 'pending' || p.status === 'settlement'
+          );
+        } else {
+          paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+            relatedPayments.find(p => p.status === 'settlement') ||
+            relatedPayments.find(p =>
+              p.paymentType === 'Final Payment' &&
+              p.relatedPaymentId &&
+              (p.status === 'pending' || p.status === 'settlement')
+            );
+        }
+
+        if (paymentDetails) {
+          actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
+        }
+
+        return {
+          ...orderObj,
+          paymentDetails: paymentDetails || null,
+          actualPaymentMethod
+        };
+      });
+
+      res.status(200).json({
+        success: true,
+        data: ordersWithPayments
+      });
+    } catch (error) {
+      console.error('Get orders with payments error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch orders with payments',
+        error: error.message
+      });
+    }
+  };
 
   /**
    * Get detailed order report dengan handling deleted items - DUKUNG SPLIT PAYMENT

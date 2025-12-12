@@ -127,53 +127,23 @@ const SalesTransaction = () => {
         setSearchParams(params);
     };
 
-    // Fungsi untuk fetch payment details berdasarkan order_id
-    const fetchPaymentDetails = async (orderId) => {
-        try {
-            const response = await axios.get(`/api/getPaymentStatus/${orderId}`);
-            if (response.data && response.data.success) {
-                return response.data.data;
-            }
-            return null;
-        } catch (err) {
-            console.error(`Error fetching payment for order ${orderId}:`, err);
-            return null;
-        }
-    };
-
-    // Fetch products and outlets data with payment details
+    // Fetch products with payments - SINGLE ENDPOINT
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const response = await axios.get('/api/orders');
-            const productsData = Array.isArray(response.data)
-                ? response.data
-                : response.data?.data ?? [];
+            // Menggunakan endpoint baru yang sudah menggabungkan orders + payments
+            const response = await axios.get('/api/report/orders');
 
+            const productsData = Array.isArray(response.data?.data)
+                ? response.data.data
+                : [];
+
+            // Filter hanya yang status Completed
             const completedData = productsData.filter(item => item.status === "Completed");
 
-            // Fetch payment details untuk setiap order
-            const productsWithPayment = await Promise.all(
-                completedData.map(async (product) => {
-                    try {
-                        const paymentDetails = await fetchPaymentDetails(product.order_id);
-                        return {
-                            ...product,
-                            paymentDetails: paymentDetails || null,
-                            actualPaymentMethod: paymentDetails?.method_type || product.paymentMethod || 'N/A'
-                        };
-                    } catch (err) {
-                        console.error(`Error processing payment for ${product.order_id}:`, err);
-                        return {
-                            ...product,
-                            paymentDetails: null,
-                            actualPaymentMethod: product.paymentMethod || 'N/A'
-                        };
-                    }
-                })
-            );
+            console.log('Orders with payments:', completedData);
 
-            setProducts(productsWithPayment);
+            setProducts(completedData);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);
@@ -351,7 +321,7 @@ const SalesTransaction = () => {
         return totals;
     }, [filteredData]);
 
-    // Handle Export - langsung dari filtered data
+    // Handle Export - SAMA PERSIS dengan logika di table
     const handleExport = async () => {
         setIsExporting(true);
 
@@ -381,38 +351,79 @@ const SalesTransaction = () => {
                     (order.discounts?.manualDiscount || 0) +
                     (order.discounts?.voucherDiscount || 0);
 
-                return order.items.map((item, index) => ({
-                    "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
-                    "ID Struk": order.order_id || '-',
-                    "Status Order": order.status || '-',
-                    "Status Pembayaran": paymentStatus,
-                    "ID / Kode Outlet": outletCode,
-                    "Outlet": outletName,
-                    "Tipe Penjualan": order.orderType || '-',
-                    "Kasir": order.cashierId?.username || '-',
-                    "No. Hp Pelanggan": order.cashierId?.phone || '-',
-                    "Nama Pelanggan": order.user || '-',
-                    "SKU": item.menuItem?.sku || '-',
-                    "Nama Produk": item.menuItem?.name || '-',
-                    "Kategori": item.menuItem?.category?.name || '-',
-                    "Jumlah Produk": item.quantity || 0,
-                    "Harga Produk": item.menuItem?.price || 0,
-                    "Penjualan Kotor": Number(item.subtotal) || 0,
-                    "Diskon Produk": 0,
-                    "Subtotal": index === 0 ? filteredItemsSubtotal : '',
-                    "Diskon Transaksi": index === 0 ? totalDiscount : '',
-                    "Pajak": index === 0 ? Math.round(proportionalTax) : '',
-                    "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '',
-                    "Pembulatan": 0,
-                    "Poin Ditukar": 0,
-                    "Biaya Admin": 0,
-                    "Total": index === 0 ? Math.round(filteredGrandTotal) : '',
-                    "Metode Pembayaran": index === 0 ? paymentMethod : '',
-                    "Kode Pembayaran": index === 0 ? paymentCode : '',
-                    "Transaction ID": index === 0 ? transactionId : '',
-                    "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
-                    "Kode Voucher": order.appliedVoucher?.code || '-'
-                }));
+                return order.items.map((item, index) => {
+                    // Ambil nama menu (prioritas: menuItemData → menuItem → fallback) - SAMA seperti di table
+                    const itemName = item.menuItemData?.name || item.menuItem?.name || 'Produk tidak diketahui';
+                    const itemSKU = item.menuItemData?.sku || item.menuItem?.sku || '-';
+                    const itemPrice = item.menuItemData?.price || item.menuItem?.price || 0;
+
+                    // Handle kategori dengan fallback
+                    let itemCategory = '-';
+                    if (item.menuItemData?.category) {
+                        itemCategory = typeof item.menuItemData.category === 'object'
+                            ? item.menuItemData.category.name
+                            : item.menuItemData.category;
+                    } else if (item.menuItem?.category) {
+                        itemCategory = typeof item.menuItem.category === 'object'
+                            ? item.menuItem.category.name
+                            : item.menuItem.category;
+                    } else if (item.menuItem?.mainCategory) {
+                        itemCategory = item.menuItem.mainCategory;
+                    }
+
+                    // Ambil addon labels yang dipilih - SAMA PERSIS seperti di table
+                    const addonLabels = [];
+                    if (Array.isArray(item?.addons)) {
+                        item.addons.forEach(addon => {
+                            if (Array.isArray(addon?.options)) {
+                                addon.options.forEach(option => {
+                                    if (option?.label) {
+                                        addonLabels.push(option.label);
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    // Gabungkan nama menu dengan addons (jika ada) - SAMA seperti di table
+                    let fullProductName = itemName;
+                    if (addonLabels.length > 0) {
+                        fullProductName = `${itemName} ( ${addonLabels.join(', ')} )`;
+                    }
+
+                    return {
+                        "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
+                        "ID Struk": order.order_id || '-',
+                        "Status Order": order.status || '-',
+                        "Status Pembayaran": paymentStatus,
+                        "ID / Kode Outlet": outletCode,
+                        "Outlet": outletName,
+                        "Tipe Penjualan": order.orderType || '-',
+                        "Kasir": order.cashierId?.username || '-',
+                        "No. Hp Pelanggan": order.cashierId?.phone || '-',
+                        "Nama Pelanggan": order.user || '-',
+                        "SKU": itemSKU,
+                        "Nama Produk": fullProductName,
+                        "Kategori": itemCategory,
+                        "Jumlah Produk": item.quantity || 0,
+                        "Harga Produk": itemPrice,
+                        "Penjualan Kotor": Number(item.subtotal) || 0,
+                        "Diskon Produk": 0,
+                        "Subtotal": index === 0 ? filteredItemsSubtotal : '',
+                        "Diskon Transaksi": index === 0 ? totalDiscount : '',
+                        "Pajak": index === 0 ? Math.round(proportionalTax) : '',
+                        "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '',
+                        "Pembulatan": 0,
+                        "Poin Ditukar": 0,
+                        "Biaya Admin": 0,
+                        "Total": index === 0 ? Math.round(filteredGrandTotal) : '',
+                        "Metode Pembayaran": index === 0 ? paymentMethod : '',
+                        "Kode Pembayaran": index === 0 ? paymentCode : '',
+                        "Transaction ID": index === 0 ? transactionId : '',
+                        "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
+                        "Kode Voucher": order.appliedVoucher?.code || '-'
+                    };
+                });
             });
 
             const formatDate = (dateStr) => {

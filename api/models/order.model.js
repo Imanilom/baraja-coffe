@@ -82,6 +82,19 @@ const OrderItemSchema = new mongoose.Schema({
     price: { type: Number, default: 0 },
     category: { type: String, default: '' },
     sku: { type: String, default: '' },
+    selectedAddons: [{
+      name: { type: String },
+      price: { type: Number },
+      options: [{
+        label: { type: String },
+        price: { type: Number }
+      }]
+    }],
+    selectedToppings: [{
+      _id: { type: String },
+      name: { type: String },
+      price: { type: Number }
+    }],
     isActive: { type: Boolean, default: true }
   },
   quantity: { type: Number, min: 1 },
@@ -474,7 +487,9 @@ OrderSchema.pre('save', async function (next) {
               price: menuItemDoc.price || 0,
               category: menuItemDoc.category || 'Uncategorized',
               sku: menuItemDoc.sku || '',
-              isActive: menuItemDoc.isActive !== false
+              selectedAddons: item.addons || [],
+              selectedToppings: item.toppings || [],
+              isActive: menuItemDoc.isActive !== false,
             };
           } else {
             // Jika menu item tidak ditemukan, gunakan data fallback
@@ -483,7 +498,9 @@ OrderSchema.pre('save', async function (next) {
               price: item.subtotal / (item.quantity || 1) || 0,
               category: 'Deleted Items',
               sku: 'DELETED',
-              isActive: false
+              selectedAddons: item.addons || [],
+              selectedToppings: item.toppings || [],
+              isActive: false,
             };
           }
         } else if (!item.menuItem && (!item.menuItemData || !item.menuItemData.name)) {
@@ -493,6 +510,8 @@ OrderSchema.pre('save', async function (next) {
             price: item.subtotal / (item.quantity || 1) || 0,
             category: 'Custom',
             sku: 'CUSTOM',
+            selectedAddons: item.addons || [],
+            selectedToppings: item.toppings || [],
             isActive: true
           };
         }
