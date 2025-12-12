@@ -173,6 +173,8 @@ const SalesTransaction = () => {
                 })
             );
 
+            console.log(productsWithPayment)
+
             setProducts(productsWithPayment);
             setError(null);
         } catch (err) {
