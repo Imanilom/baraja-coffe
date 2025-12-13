@@ -7,6 +7,7 @@ import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/affected_item.model.dart';
 import 'package:kasirbaraja/models/applied_promos.model.dart';
+import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
@@ -34,12 +35,16 @@ import 'package:kasirbaraja/models/user.model.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
+    registerAdapter(ActiveHoursAdapter());
     registerAdapter(AddonModelAdapter());
     registerAdapter(AddonOptionModelAdapter());
     registerAdapter(AffectedItemModelAdapter());
     registerAdapter(AppliedPromosModelAdapter());
+    registerAdapter(AutoPromoModelAdapter());
     registerAdapter(BluetoothPrinterModelAdapter());
+    registerAdapter(BundleProductAdapter());
     registerAdapter(CashierModelAdapter());
+    registerAdapter(ConditionsAdapter());
     registerAdapter(CustomAmountItemsModelAdapter());
     registerAdapter(DeviceModelAdapter());
     registerAdapter(DiscountModelAdapter());
@@ -52,11 +57,14 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
+    registerAdapter(OutletAdapter());
     registerAdapter(OutletInfoModelAdapter());
     registerAdapter(PaymentActionModelAdapter());
     registerAdapter(PaymentMethodModelAdapter());
     registerAdapter(PaymentModelAdapter());
     registerAdapter(PaymentTypeModelAdapter());
+    registerAdapter(ProductConditionAdapter());
+    registerAdapter(ScheduleAdapter());
     registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(TaxServiceDetailModelAdapter());
     registerAdapter(ToppingModelAdapter());
@@ -67,12 +75,16 @@ extension HiveRegistrar on HiveInterface {
 
 extension IsolatedHiveRegistrar on IsolatedHiveInterface {
   void registerAdapters() {
+    registerAdapter(ActiveHoursAdapter());
     registerAdapter(AddonModelAdapter());
     registerAdapter(AddonOptionModelAdapter());
     registerAdapter(AffectedItemModelAdapter());
     registerAdapter(AppliedPromosModelAdapter());
+    registerAdapter(AutoPromoModelAdapter());
     registerAdapter(BluetoothPrinterModelAdapter());
+    registerAdapter(BundleProductAdapter());
     registerAdapter(CashierModelAdapter());
+    registerAdapter(ConditionsAdapter());
     registerAdapter(CustomAmountItemsModelAdapter());
     registerAdapter(DeviceModelAdapter());
     registerAdapter(DiscountModelAdapter());
@@ -85,11 +97,14 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
+    registerAdapter(OutletAdapter());
     registerAdapter(OutletInfoModelAdapter());
     registerAdapter(PaymentActionModelAdapter());
     registerAdapter(PaymentMethodModelAdapter());
     registerAdapter(PaymentModelAdapter());
     registerAdapter(PaymentTypeModelAdapter());
+    registerAdapter(ProductConditionAdapter());
+    registerAdapter(ScheduleAdapter());
     registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(TaxServiceDetailModelAdapter());
     registerAdapter(ToppingModelAdapter());

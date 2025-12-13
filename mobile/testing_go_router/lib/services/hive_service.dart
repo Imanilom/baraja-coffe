@@ -14,6 +14,7 @@ import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
+import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
 class HiveService {
@@ -36,6 +37,7 @@ class HiveService {
     Hive.registerAdapter(EventAdapter());
     Hive.registerAdapter(DeviceModelAdapter());
     Hive.registerAdapter(MenuStockModelAdapter());
+    Hive.registerAdapter(AutoPromoModelAdapter());
 
     await _openBoxes();
   }
@@ -49,6 +51,7 @@ class HiveService {
     await Hive.openBox<Event>('eventsBox');
     await Hive.openBox<DeviceModel>('devices');
     await Hive.openBox<OrderDetailModel>('offlineOrdersBox');
+    await Hive.openBox<AutoPromoModel>('autoPromosBox');
     // await Hive.openBox<DeviceModel>('loginDeviceBox');
   }
 
@@ -64,6 +67,8 @@ class HiveService {
   static Box<DeviceModel> get deviceBox => Hive.box<DeviceModel>('devices');
   static Box<OrderDetailModel> get offlineOrdersBox =>
       Hive.box<OrderDetailModel>('offlineOrdersBox');
+  static Box<AutoPromoModel> get autoPromosBox =>
+      Hive.box<AutoPromoModel>('autoPromosBox');
 
   //login device box
   // static Box<DeviceModel> get loginDeviceBox =>
@@ -78,6 +83,7 @@ class HiveService {
     await eventBox.clear();
     await deviceBox.clear();
     await offlineOrdersBox.clear();
+    await autoPromosBox.clear();
     // await loginDeviceBox.clear();
   }
 
@@ -89,6 +95,7 @@ class HiveService {
     await eventBox.close();
     await deviceBox.close();
     await offlineOrdersBox.close();
+    await autoPromosBox.close();
     // await loginDeviceBox.close();
   }
 
@@ -98,7 +105,8 @@ class HiveService {
         taxAndServiceBox.isNotEmpty ||
         paymentMethodBox.isNotEmpty ||
         eventBox.isNotEmpty ||
-        deviceBox.isNotEmpty;
+        deviceBox.isNotEmpty ||
+        autoPromosBox.isNotEmpty;
   }
 
   // Get data count for each type
@@ -109,6 +117,7 @@ class HiveService {
       'paymentMethods': paymentMethodBox.length,
       'eventsBox': eventBox.length,
       'devices': deviceBox.length,
+      'autoPromos': autoPromosBox.length,
     };
   }
 
