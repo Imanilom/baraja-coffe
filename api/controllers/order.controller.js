@@ -7404,7 +7404,7 @@ export const processPaymentCashier = async (req, res) => {
             // Jika belum ada, buat baru
             payment.actions = [{
               name: payment_type,
-              method: QRIS, // Diisi kosong karena cashier tidak memiliki method detail
+              method: "QRIS", // Diisi kosong karena cashier tidak memiliki method detail
               url: '' // Diisi kosong karena cashier tidak memiliki URL
             }];
           }

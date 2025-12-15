@@ -123,4 +123,6 @@ router.get('/daily-profit/dashboard', DailyProfitController.getProfitDashboard);
 
 router.get('/order-details/:orderId', DailyProfitController.getOrderDetailReport);
 
+router.get('/orders', DailyProfitController.getOrdersWithPayments);
+
 export default router;

@@ -289,7 +289,7 @@ export const getWorkstationOrders = async (req, res) => {
     const orders = await Order.find({
       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
     })
-      .select('order_id customer_name status items createdAt updatedAt order_type reservation tableNumber')
+      .select('order_id customer_name status items createdAt updatedAt order_type reservation tableNumber createdAtWIB updatedAtWIB')
       .populate({
         path: 'items.menuItem',
         select: 'name workstation category',
@@ -434,31 +434,31 @@ export const getWorkstationOrders = async (req, res) => {
     console.log(`📦 Filtered orders for ${workstationType}: ${filteredOrders.length} orders`);
 
     // Log detail setiap order yang akan dikirim
-    console.log(`\n🔍 ===== DATA YANG DIKIRIM KE FRONTEND (${workstationType.toUpperCase()}) =====`);
-    filteredOrders.forEach((order, index) => {
-      console.log(`\n📋 Order ${index + 1}:`);
-      console.log(`   Order ID: ${order.order_id}`);
-      console.log(`   Customer: ${order.displayInfo.customerName}`);
-      console.log(`   Status: ${order.status}`);
-      console.log(`   Location: ${order.displayInfo.location}`);
-      console.log(`   Order Type: ${order.displayInfo.orderType}`);
-      console.log(`   Items Count: ${order.items.length}`);
-      console.log(`   Items:`, order.items.map(item => ({
-        name: item.menuItem?.name || 'Unknown',
-        quantity: item.quantity,
-        workstation: item.menuItem?.workstation,
-        status: item.status
-      })));
-      console.log(`   Serving Option: ${order.displayInfo.servingOption}`);
-      if (order.displayInfo.servingTime) {
-        console.log(`   Serving Time: ${order.displayInfo.servingTime}`);
-        console.log(`   Should Start Prep: ${order.displayInfo.shouldStartPreparation}`);
-        console.log(`   Time Until Prep: ${order.displayInfo.timeUntilPreparation} mins`);
-      }
-      console.log(`   Created At: ${order.createdAt}`);
-    });
-    console.log(`\n📊 Total orders dikirim: ${filteredOrders.length}`);
-    console.log(`============================================\n`);
+    // console.log(`\n🔍 ===== DATA YANG DIKIRIM KE FRONTEND (${workstationType.toUpperCase()}) =====`);
+    // filteredOrders.forEach((order, index) => {
+    //   console.log(`\n📋 Order ${index + 1}:`);
+    //   console.log(`   Order ID: ${order.order_id}`);
+    //   console.log(`   Customer: ${order.displayInfo.customerName}`);
+    //   console.log(`   Status: ${order.status}`);
+    //   console.log(`   Location: ${order.displayInfo.location}`);
+    //   console.log(`   Order Type: ${order.displayInfo.orderType}`);
+    //   console.log(`   Items Count: ${order.items.length}`);
+    //   console.log(`   Items:`, order.items.map(item => ({
+    //     name: item.menuItem?.name || 'Unknown',
+    //     quantity: item.quantity,
+    //     workstation: item.menuItem?.workstation,
+    //     status: item.status
+    //   })));
+    //   console.log(`   Serving Option: ${order.displayInfo.servingOption}`);
+    //   if (order.displayInfo.servingTime) {
+    //     console.log(`   Serving Time: ${order.displayInfo.servingTime}`);
+    //     console.log(`   Should Start Prep: ${order.displayInfo.shouldStartPreparation}`);
+    //     console.log(`   Time Until Prep: ${order.displayInfo.timeUntilPreparation} mins`);
+    //   }
+    //   console.log(`   Created At: ${order.createdAt}`);
+    // });
+    // console.log(`\n📊 Total orders dikirim: ${filteredOrders.length}`);
+    // console.log(`============================================\n`);
 
     const responseData = {
       success: true,

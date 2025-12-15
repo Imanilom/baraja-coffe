@@ -1,5 +1,6 @@
 import Category from '../../models/Category.model.js';
 import { Order } from '../../models/order.model.js';
+import Payment from '../../models/Payment.model.js';
 import {
   processOrderItems,
   getSafeMenuItemData,
@@ -648,6 +649,229 @@ class DailyProfitController {
       res.status(500).json({
         success: false,
         message: 'Internal server error',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+  * Get order report - DUKUNG SPLIT PAYMENT
+  */
+  async getOrdersWithPayments(req, res) {
+    try {
+      // Ambil query params
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 20;
+      const mode = req.query.mode || 'paginated'; // paginated, all, recent, count, ids
+
+      // Setup filters dari query params
+      const filters = {};
+
+      if (req.query.status) filters.status = req.query.status;
+      if (req.query.orderType) filters.orderType = req.query.orderType;
+      if (req.query.outlet) filters.outlet = req.query.outlet;
+
+      // Date range filter
+      if (req.query.startDate || req.query.endDate) {
+        filters.createdAt = {};
+        if (req.query.startDate) {
+          const startDate = new Date(req.query.startDate);
+          startDate.setHours(0, 0, 0, 0);
+          filters.createdAt.$gte = startDate;
+        }
+        if (req.query.endDate) {
+          const endDate = new Date(req.query.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          filters.createdAt.$lte = endDate;
+        }
+      }
+
+      // Base query builder function
+      const buildQuery = () => {
+        return Order.find(filters)
+          .populate('items.menuItem')
+          .populate({
+            path: 'items.menuItem',
+            populate: {
+              path: 'category',
+              model: 'Category',
+              select: 'name'
+            }
+          })
+          .populate('outlet')
+          .populate('user_id')
+          .populate({
+            path: 'cashierId',
+            populate: {
+              path: 'outlet.outletId',
+              model: 'Outlet',
+              select: 'name address',
+            },
+          })
+          .sort({ createdAt: -1 })
+          .lean();
+      };
+
+      let orders, totalOrders, paginationInfo = null;
+
+      // Eksekusi berdasarkan mode
+      switch (mode) {
+        case 'all':
+          // Ambil semua data (untuk export)
+          orders = await buildQuery();
+          totalOrders = orders.length;
+          console.log(`Fetching ALL orders: ${totalOrders} records`);
+          break;
+
+        case 'recent':
+          // Ambil 10 data terbaru
+          orders = await buildQuery().limit(10);
+          totalOrders = await Order.countDocuments(filters);
+          paginationInfo = {
+            mode: 'recent',
+            showing: orders.length,
+            total: totalOrders
+          };
+          break;
+
+        case 'count':
+          // Hanya hitung jumlah
+          totalOrders = await Order.countDocuments(filters);
+          return res.status(200).json({
+            success: true,
+            count: totalOrders
+          });
+
+        case 'ids':
+          // Ambil hanya order IDs
+          const orderIds = await Order.find(filters)
+            .select('order_id createdAt status')
+            .sort({ createdAt: -1 })
+            .lean();
+          return res.status(200).json({
+            success: true,
+            data: orderIds
+          });
+
+        case 'paginated':
+        default:
+          // Mode pagination (default)
+          const skip = (page - 1) * limit;
+
+          totalOrders = await Order.countDocuments(filters);
+          const totalPages = Math.ceil(totalOrders / limit);
+
+          orders = await buildQuery().skip(skip).limit(limit);
+
+          console.log(`Fetching page ${page}: ${orders.length} records (Total: ${totalOrders})`);
+
+          paginationInfo = {
+            currentPage: page,
+            totalPages: totalPages,
+            totalOrders: totalOrders,
+            limit: limit,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1
+          };
+          break;
+      }
+
+      // Fetch payments hanya untuk orders yang ditampilkan
+      const orderIds = orders.map(order => order.order_id);
+      const allPayments = await Payment.find({
+        order_id: { $in: orderIds }
+      }).lean();
+
+      // Buat payment map
+      const paymentMap = {};
+      allPayments.forEach(payment => {
+        if (!paymentMap[payment.order_id]) {
+          paymentMap[payment.order_id] = [];
+        }
+        paymentMap[payment.order_id].push(payment);
+      });
+
+      // Combine orders dengan payments dan populate menuItemData
+      const ordersWithPayments = orders.map(order => {
+        // Populate menuItemData jika kosong (untuk order lama)
+        if (order.items && Array.isArray(order.items)) {
+          order.items = order.items.map(item => {
+            if (!item.menuItemData || !item.menuItemData.name) {
+              if (item.menuItem) {
+                item.menuItemData = {
+                  name: item.menuItem.name || 'Unknown Item',
+                  price: item.menuItem.price || 0,
+                  category: item.menuItem.category?.name || item.menuItem.mainCategory || 'Uncategorized',
+                  sku: item.menuItem.sku || '',
+                  isActive: item.menuItem.isActive !== false,
+                  selectedAddons: item.addons || [],
+                  selectedToppings: item.toppings || []
+                };
+              } else {
+                item.menuItemData = {
+                  name: 'Unknown Item',
+                  price: item.subtotal / (item.quantity || 1) || 0,
+                  category: 'Unknown',
+                  sku: 'N/A',
+                  isActive: false,
+                  selectedAddons: item.addons || [],
+                  selectedToppings: item.toppings || []
+                };
+              }
+            } else if (!item.menuItemData.selectedAddons) {
+              item.menuItemData.selectedAddons = item.addons || [];
+              item.menuItemData.selectedToppings = item.toppings || [];
+            }
+            return item;
+          });
+        }
+
+        const relatedPayments = paymentMap[order.order_id] || [];
+        let paymentDetails = null;
+        let actualPaymentMethod = order.paymentMethod || 'N/A';
+
+        if (order.orderType !== "Reservation") {
+          paymentDetails = relatedPayments.find(p =>
+            p.status === 'pending' || p.status === 'settlement'
+          );
+        } else {
+          paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+            relatedPayments.find(p => p.status === 'settlement') ||
+            relatedPayments.find(p =>
+              p.paymentType === 'Final Payment' &&
+              p.relatedPaymentId &&
+              (p.status === 'pending' || p.status === 'settlement')
+            );
+        }
+
+        if (paymentDetails) {
+          actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
+        }
+
+        return {
+          ...order,
+          paymentDetails: paymentDetails || null,
+          actualPaymentMethod
+        };
+      });
+
+      // Response
+      const response = {
+        success: true,
+        data: ordersWithPayments
+      };
+
+      if (paginationInfo) {
+        response.pagination = paginationInfo;
+      }
+
+      res.status(200).json(response);
+
+    } catch (error) {
+      console.error('Get orders with payments error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch orders with payments',
         error: error.message
       });
     }

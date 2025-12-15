@@ -6,7 +6,6 @@ export const generateSalesReport = async (req, res) => {
   try {
     const { startDate, endDate, outletId, groupBy = 'daily' } = req.query;
 
-    // Validasi tanggal
     if (!startDate || !endDate) {
       return res.status(400).json({
         success: false,
@@ -14,12 +13,10 @@ export const generateSalesReport = async (req, res) => {
       });
     }
 
-    // Parse tanggal
     const start = new Date(startDate);
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    // Validasi tanggal
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({
         success: false,
@@ -34,14 +31,12 @@ export const generateSalesReport = async (req, res) => {
       });
     }
 
-    // Build query untuk orders dalam periode
     const orderQuery = {
       createdAt: { $gte: start, $lte: end },
       status: { $in: ['Completed'] },
       ...(outletId && { outlet: new mongoose.Types.ObjectId(outletId) })
     };
 
-    // Find orders yang completed dengan populate
     const orders = await Order.find(orderQuery)
       .populate({
         path: 'items.menuItem',
@@ -55,13 +50,28 @@ export const generateSalesReport = async (req, res) => {
 
     console.log(`📊 Found ${orders.length} orders for report`);
 
-    // Process orders untuk menangani split payment dan single payment
+    // ✅ FETCH PAYMENT RECORDS LEBIH AWAL
+    const orderIds = orders.map(o => o.order_id).filter(id => id);
+    const paymentRecords = await Payment.find({
+      order_id: { $in: orderIds },
+      status: { $in: ['settlement', 'paid', 'capture'] },
+      isAdjustment: { $ne: true }
+    }).lean();
+
+    // Create map untuk quick lookup
+    const paymentRecordMap = new Map();
+    paymentRecords.forEach(payment => {
+      if (!paymentRecordMap.has(payment.order_id)) {
+        paymentRecordMap.set(payment.order_id, []);
+      }
+      paymentRecordMap.get(payment.order_id).push(payment);
+    });
+
+    // Process orders
     const processedOrders = orders.map(order => {
-      // Process items untuk handle deleted menu items
       const processedItems = order.items.map(item => {
         const menuItem = item.menuItem;
 
-        // Jika menuItem null atau deleted, create fallback object
         if (!menuItem) {
           return {
             ...item,
@@ -85,22 +95,30 @@ export const generateSalesReport = async (req, res) => {
         };
       });
 
-      // HITUNG PAYMENT DETAILS DARI ORDER
+      // ✅ AMBIL PAYMENT RECORDS UNTUK ORDER INI
+      const externalPayments = paymentRecordMap.get(order.order_id) || [];
+
       let paymentDetails = [];
       let totalOrderPaid = 0;
 
       if (order.isSplitPayment && order.payments && Array.isArray(order.payments)) {
-        // SPLIT PAYMENT: Gunakan data dari order.payments
-        paymentDetails = order.payments.map(payment => {
+        // SPLIT PAYMENT
+        paymentDetails = order.payments.map((payment, idx) => {
           const amount = payment.amount || 0;
           totalOrderPaid += amount;
+
+          // ✅ CARI MATCHING PAYMENT RECORD
+          const matchingPayment = externalPayments.find(ep =>
+            ep.method === payment.paymentMethod &&
+            Math.abs(ep.amount - amount) < 100
+          );
 
           return {
             method: payment.paymentMethod || order.paymentMethod || 'Cash',
             displayName: getDisplayName(
               payment.paymentMethod || order.paymentMethod || 'Cash',
-              payment.va_numbers || [],
-              payment.actions || []
+              payment.va_numbers || matchingPayment?.va_numbers || [],
+              payment.actions || matchingPayment?.actions || []
             ),
             amount: amount,
             status: payment.status || 'completed',
@@ -109,21 +127,26 @@ export const generateSalesReport = async (req, res) => {
             tenderedAmount: payment.paymentDetails?.cashTendered || amount,
             changeAmount: payment.paymentDetails?.change || 0,
             processedAt: payment.processedAt || order.createdAt,
-            va_numbers: payment.va_numbers || [],
-            actions: payment.actions || []
+            va_numbers: payment.va_numbers || matchingPayment?.va_numbers || [],
+            actions: payment.actions || matchingPayment?.actions || []
           };
         });
       } else {
-        // SINGLE PAYMENT: Cek payment dari collection Payment atau dari order
+        // SINGLE PAYMENT
         const singlePaymentAmount = order.grandTotal || 0;
         totalOrderPaid = singlePaymentAmount;
+
+        // ✅ CARI PAYMENT RECORD UNTUK SINGLE PAYMENT
+        const matchingPayment = externalPayments.find(ep =>
+          ep.method === order.paymentMethod
+        ) || externalPayments[0]; // fallback ke payment pertama
 
         paymentDetails = [{
           method: order.paymentMethod || 'Cash',
           displayName: getDisplayName(
             order.paymentMethod || 'Cash',
-            order.payments?.[0]?.va_numbers || [],
-            order.payments?.[0]?.actions || []
+            matchingPayment?.va_numbers || [],
+            matchingPayment?.actions || []
           ),
           amount: singlePaymentAmount,
           status: 'completed',
@@ -131,8 +154,8 @@ export const generateSalesReport = async (req, res) => {
           tenderedAmount: order.payments?.[0]?.paymentDetails?.cashTendered || singlePaymentAmount,
           changeAmount: order.payments?.[0]?.paymentDetails?.change || 0,
           processedAt: order.createdAt,
-          va_numbers: order.payments?.[0]?.va_numbers || [],
-          actions: order.payments?.[0]?.actions || []
+          va_numbers: matchingPayment?.va_numbers || [],
+          actions: matchingPayment?.actions || []
         }];
       }
 
@@ -141,90 +164,18 @@ export const generateSalesReport = async (req, res) => {
         items: processedItems,
         paymentDetails: paymentDetails,
         totalPaid: totalOrderPaid,
-        // Flag untuk menunjukkan ini adalah single atau split payment
         hasSplitPayment: order.isSplitPayment || false,
-        splitPaymentCount: order.isSplitPayment ? (order.payments?.length || 0) : 1
+        splitPaymentCount: order.isSplitPayment ? (order.payments?.length || 0) : 1,
+        externalPayments: externalPayments
       };
     });
 
-    // Cari payment records untuk cross-check dan tambahan info
-    const orderIds = orders.map(o => o.order_id).filter(id => id);
-    const paymentRecords = await Payment.find({
-      order_id: { $in: orderIds },
-      status: { $in: ['settlement', 'paid', 'capture'] },
-      isAdjustment: { $ne: true }
-    }).lean();
+    // GENERATE REPORTS (rest of the code remains the same)
+    const paymentMethodBreakdown = generateDetailedPaymentMethodBreakdown(processedOrders);
+    const periodSummary = generatePeriodSummary(processedOrders, groupBy);
+    const itemSalesBreakdown = generateItemSalesBreakdown(processedOrders);
+    const splitPaymentAnalysis = generateSplitPaymentAnalysis(processedOrders);
 
-    // Combine payment records dengan orders
-    const paymentRecordMap = new Map();
-    paymentRecords.forEach(payment => {
-      if (!paymentRecordMap.has(payment.order_id)) {
-        paymentRecordMap.set(payment.order_id, []);
-      }
-      paymentRecordMap.get(payment.order_id).push(payment);
-    });
-
-    // Merge payment records dengan processed orders
-    const finalOrders = processedOrders.map(order => {
-      const externalPayments = paymentRecordMap.get(order.order_id) || [];
-
-      // Jika ada payment records external, merge dengan order payment details
-      if (externalPayments.length > 0) {
-        const mergedPaymentDetails = [...order.paymentDetails];
-
-        externalPayments.forEach(extPayment => {
-          // Cek apakah payment ini sudah ada di order.paymentDetails
-          const existingIndex = mergedPaymentDetails.findIndex(p =>
-            p.method === extPayment.method &&
-            Math.abs(p.amount - extPayment.amount) < 100
-          );
-
-          if (existingIndex === -1) {
-            // Tambahkan sebagai payment tambahan
-            mergedPaymentDetails.push({
-              method: extPayment.method,
-              displayName: getDisplayName(
-                extPayment.method,
-                extPayment.va_numbers || [],
-                extPayment.actions || []
-              ),
-              amount: extPayment.amount,
-              status: extPayment.status,
-              isExternalPayment: true,
-              paymentType: extPayment.paymentType,
-              transaction_id: extPayment.transaction_id,
-              processedAt: extPayment.createdAt,
-              va_numbers: extPayment.va_numbers || [],
-              actions: extPayment.actions || []
-            });
-          }
-        });
-
-        return {
-          ...order,
-          paymentDetails: mergedPaymentDetails,
-          externalPayments: externalPayments,
-          totalPaid: mergedPaymentDetails.reduce((sum, p) => sum + p.amount, 0)
-        };
-      }
-
-      return order;
-    });
-
-    // GENERATE REPORTS
-    // 1. Payment Method Breakdown dengan handling split payment
-    const paymentMethodBreakdown = generateDetailedPaymentMethodBreakdown(finalOrders);
-
-    // 2. Group by period
-    const periodSummary = generatePeriodSummary(finalOrders, groupBy);
-
-    // 3. Item sales breakdown
-    const itemSalesBreakdown = generateItemSalesBreakdown(finalOrders);
-
-    // 4. Split payment analysis
-    const splitPaymentAnalysis = generateSplitPaymentAnalysis(finalOrders);
-
-    // Final report
     const finalReport = {
       period: {
         startDate: start.toISOString().split('T')[0],
@@ -233,21 +184,21 @@ export const generateSalesReport = async (req, res) => {
         groupBy
       },
       summary: {
-        totalRevenue: finalOrders.reduce((sum, order) => sum + order.totalPaid, 0),
-        totalTransactions: finalOrders.reduce((sum, order) => sum + order.splitPaymentCount, 0),
-        totalOrders: finalOrders.length,
-        totalItemsSold: finalOrders.reduce((sum, order) =>
+        totalRevenue: processedOrders.reduce((sum, order) => sum + order.totalPaid, 0),
+        totalTransactions: processedOrders.reduce((sum, order) => sum + order.splitPaymentCount, 0),
+        totalOrders: processedOrders.length,
+        totalItemsSold: processedOrders.reduce((sum, order) =>
           sum + order.items.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0), 0),
-        averageTransaction: finalOrders.length > 0 ?
-          finalOrders.reduce((sum, order) => sum + order.totalPaid, 0) / finalOrders.length : 0,
-        splitPaymentOrders: finalOrders.filter(o => o.hasSplitPayment).length,
-        singlePaymentOrders: finalOrders.filter(o => !o.hasSplitPayment).length
+        averageTransaction: processedOrders.length > 0 ?
+          processedOrders.reduce((sum, order) => sum + order.totalPaid, 0) / processedOrders.length : 0,
+        splitPaymentOrders: processedOrders.filter(o => o.hasSplitPayment).length,
+        singlePaymentOrders: processedOrders.filter(o => !o.hasSplitPayment).length
       },
       paymentMethods: paymentMethodBreakdown,
       splitPaymentAnalysis: splitPaymentAnalysis,
       itemSales: itemSalesBreakdown,
       periodBreakdown: periodSummary,
-      rawDataCount: finalOrders.length
+      rawDataCount: processedOrders.length
     };
 
     return res.status(200).json({

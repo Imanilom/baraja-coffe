@@ -144,7 +144,40 @@ const TypeTransactionTable = ({
                                         let totalSubtotal = 0;
 
                                         if (Array.isArray(product?.items)) {
-                                            menuNames = product.items.map((i) => i?.menuItem.name || "N/A");
+                                            // ✅ Perbaikan: Ambil nama menu + addons yang dipilih
+                                            menuNames = product.items.map((item) => {
+                                                try {
+                                                    // Nama menu (prioritas: menuItemData → menuItem → fallback)
+                                                    const menuName = item?.menuItemData?.name ||
+                                                        item?.menuItem?.name ||
+                                                        "Produk tidak diketahui";
+
+                                                    // Ambil addon labels yang dipilih
+                                                    const addonLabels = [];
+                                                    if (Array.isArray(item?.addons)) {
+                                                        item.addons.forEach(addon => {
+                                                            if (Array.isArray(addon?.options)) {
+                                                                addon.options.forEach(option => {
+                                                                    if (option?.label) {
+                                                                        addonLabels.push(option.label);
+                                                                    }
+                                                                });
+                                                            }
+                                                        });
+                                                    }
+
+                                                    // Gabungkan nama menu dengan addons (jika ada)
+                                                    if (addonLabels.length > 0) {
+                                                        return `${menuName} ( ${addonLabels.join(', ')} )`;
+                                                    }
+
+                                                    return menuName;
+                                                } catch (err) {
+                                                    console.error('Error processing menu item:', err, item);
+                                                    return "Error";
+                                                }
+                                            });
+
                                             totalSubtotal = product.items.reduce((sum, i) => {
                                                 return sum + (Number(i?.subtotal) || 0);
                                             }, 0);
