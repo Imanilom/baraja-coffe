@@ -511,15 +511,7 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
                     critical: manualStock === 0 // GUNAKAN manualStock untuk pengecekan
                 };
 
-                // Log low stock sebagai problematic - GUNAKAN manualStock
-                if (manualStock <= 5) {
-                    console.log(`⚠️ [PROBLEMATIC PRINT ATTEMPT]
-menuItemId: ${menuItemId}
-manualStock: ${stockStatus.manualStock}
-effectiveStock: ${stockStatus.effectiveStock}
-Stock Status: ${stockStatus.status}
-Issues: STOCK RENDAH`);
-                }
+                // Note: Problematic logging is handled in logPrintAttempt() to avoid duplication
 
                 return stockStatus;
             }
