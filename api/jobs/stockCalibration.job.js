@@ -52,15 +52,15 @@ const ensureValidManualStock = (manualStock) => {
   if (manualStock === null || manualStock === undefined) {
     return null;
   }
-  
+
   // Jika bukan number, konversi ke number
   const numStock = Number(manualStock);
-  
+
   // Jika NaN atau minus, set ke 0
   if (isNaN(numStock) || numStock < 0) {
     return 0;
   }
-  
+
   // Bulatkan ke integer
   return Math.floor(numStock);
 };
@@ -128,7 +128,7 @@ export const calibrateAllMenuStocks = async () => {
             if (result.statusChange === 'activated') activatedCount++;
             if (result.statusChange === 'deactivated') deactivatedCount++;
           }
-          
+
           if (result.manualStockResets && result.manualStockResets > 0) {
             resetMinusCount += result.manualStockResets;
           }
@@ -246,7 +246,7 @@ export const calibrateSingleMenuStockForAllWarehouses = async (menuItemId) => {
     for (const [warehouseType, warehouseId] of Object.entries(warehouses)) {
       try {
         const result = await calibrateSingleMenuStockForWarehouse(
-          menuItemId, 
+          menuItemId,
           warehouseId.toString(),
           recipe
         );
@@ -258,7 +258,7 @@ export const calibrateSingleMenuStockForAllWarehouses = async (menuItemId) => {
         });
 
         totalEffectiveStock += result.effectiveStock;
-        
+
         if (result.manualStockReset) {
           manualStockResets++;
         }
@@ -296,11 +296,11 @@ export const calibrateSingleMenuStockForAllWarehouses = async (menuItemId) => {
         workstation: workstation
       }));
 
-    // ✅ Update MenuItem dengan version check
+    // ✅ Update MenuItem (Removed version check to prevent sync failure)
+    // Calibration allows overwriting stock/status as it is the source of truth
     const menuItemUpdateResult = await MenuItem.findOneAndUpdate(
       {
-        _id: menuItem._id,
-        __v: menuItemVersion
+        _id: menuItem._id
       },
       {
         $set: {
@@ -314,7 +314,8 @@ export const calibrateSingleMenuStockForAllWarehouses = async (menuItemId) => {
     );
 
     if (!menuItemUpdateResult) {
-      throw new Error('Version conflict: MenuItem was modified during status sync');
+      // Should rarely happen if we remove __v check, unless deleted
+      throw new Error('MenuItem not found during update');
     }
 
     return {
@@ -366,11 +367,11 @@ export const calibrateSingleMenuStockForWarehouse = async (menuItemId, warehouse
     }
 
     // ✅ Baca MenuStock untuk warehouse ini dengan version
-    let menuStock = await MenuStock.findOne({ 
+    let menuStock = await MenuStock.findOne({
       menuItemId: menuItem._id,
       warehouseId: warehouseId
     });
-    
+
     const menuStockVersion = menuStock?.__v;
     let manualStockReset = false;
     let previousManualStock = null;
@@ -379,7 +380,7 @@ export const calibrateSingleMenuStockForWarehouse = async (menuItemId, warehouse
     let normalizedManualStock = null;
     if (menuStock?.manualStock !== null && menuStock?.manualStock !== undefined) {
       normalizedManualStock = ensureValidManualStock(menuStock.manualStock);
-      
+
       // Cek apakah perlu reset jika berbeda dari yang sebelumnya
       if (normalizedManualStock !== menuStock.manualStock) {
         previousManualStock = menuStock.manualStock;
@@ -539,7 +540,7 @@ export const resetManualStockForWarehouse = async (menuItemId, warehouseId) => {
         message: 'manualStock sudah null, tidak perlu reset'
       };
     }
-    
+
     // Jika minus atau bukan number, set ke 0
     if (newManualStock !== menuStock.manualStock) {
       updateData = {
@@ -550,7 +551,7 @@ export const resetManualStockForWarehouse = async (menuItemId, warehouseId) => {
           adjustedBy: 'system'
         }
       };
-      
+
       notes = `Auto-normalize manual stock: ${menuStock.manualStock} → ${newManualStock}`;
     }
 
@@ -573,8 +574,8 @@ export const resetManualStockForWarehouse = async (menuItemId, warehouseId) => {
       },
       {
         ...updateData,
-        $set: { 
-          ...updateData.$set, 
+        $set: {
+          ...updateData.$set,
           notes,
           relatedWarehouse: menuStock.relatedWarehouse || null, // ✅ Pastikan null jika tidak ada
           transferId: menuStock.transferId || null // ✅ Pastikan null jika tidak ada
@@ -593,25 +594,25 @@ export const resetManualStockForWarehouse = async (menuItemId, warehouseId) => {
     // Update MenuItem warehouse stock
     const menuItem = await MenuItem.findById(menuItemId);
     if (menuItem) {
-      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws =>
         ws.warehouseId.toString() === warehouseId.toString()
       );
-      
+
       if (warehouseIndex >= 0) {
         menuItem.warehouseStocks[warehouseIndex].stock = result.currentStock || 0;
         menuItem.availableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
-        
+
         // Deactivate if total stock is 0
         if (menuItem.availableStock <= 0 && menuItem.isActive) {
           menuItem.isActive = false;
         }
-        
+
         await menuItem.save();
       }
     }
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       reset: true,
       menuItemId,
       warehouseId,
@@ -636,8 +637,8 @@ export const bulkResetInvalidManualStocks = async () => {
         { manualStock: { $exists: false } } // Undefined (bukan null)
       ]
     })
-    .populate('menuItemId', 'name')
-    .populate('warehouseId', 'name code');
+      .populate('menuItemId', 'name')
+      .populate('warehouseId', 'name code');
 
     console.log(`📊 Ditemukan ${invalidStocks.length} stock dengan manual stock invalid`);
 
@@ -651,7 +652,7 @@ export const bulkResetInvalidManualStocks = async () => {
           stock.menuItemId?._id?.toString() || stock.menuItemId?.toString(),
           stock.warehouseId?._id?.toString() || stock.warehouseId?.toString()
         );
-        
+
         if (result.reset) {
           resetCount++;
           const menuItemName = stock.menuItemId?.name || 'Unknown';
@@ -843,7 +844,7 @@ export const calibrateSelectedMenuStocks = async (menuItemIds, warehouseId = nul
       const batchPromises = batch.map(async (menuItemId) => {
         try {
           let result;
-          
+
           if (warehouseId) {
             // Calibrate for specific warehouse
             result = await calibrateSingleMenuStockForWarehouse(menuItemId, warehouseId);
@@ -856,7 +857,7 @@ export const calibrateSelectedMenuStocks = async (menuItemIds, warehouseId = nul
             if (result.statusChange === 'activated') activatedCount++;
             if (result.statusChange === 'deactivated') deactivatedCount++;
           }
-          
+
           if (result.manualStockResets && result.manualStockResets > 0) {
             resetMinusCount += result.manualStockResets;
           } else if (result.manualStockReset) {
@@ -911,11 +912,11 @@ export const manualStockCalibration = async (req, res) => {
   try {
     console.log('🎛️ Manual stock calibration requested');
 
-    const { 
-      type, 
-      menuItemIds, 
+    const {
+      type,
+      menuItemIds,
       warehouseId,
-      includeStatusFix = true, 
+      includeStatusFix = true,
       resetInvalidFirst = true,
       fixIncompleteFirst = true
     } = req.body;
@@ -939,18 +940,18 @@ export const manualStockCalibration = async (req, res) => {
           message: 'menuItemIds tidak boleh kosong'
         });
       }
-      
+
       result = await calibrateSelectedMenuStocks(menuItemIds, warehouseId);
-    
+
     } else if (type === 'warehouse' && warehouseId) {
       // Calibrate all menu items for specific warehouse
       const menuItems = await MenuItem.find({ workstation: { $exists: true } })
         .select('_id')
         .lean();
-      
+
       const menuItemIds = menuItems.map(m => m._id.toString());
       result = await calibrateSelectedMenuStocks(menuItemIds, warehouseId);
-    
+
     } else {
       // Calibrate all
       result = await calibrateAllMenuStocks();
@@ -979,15 +980,15 @@ export const calibrateMenuStocksByWorkstation = async (workstation) => {
     console.log(`🔄 Memulai kalibrasi stok untuk workstation: ${workstation}`);
 
     // Get menu items for this workstation
-    const menuItems = await MenuItem.find({ 
+    const menuItems = await MenuItem.find({
       workstation,
-      isActive: true 
+      isActive: true
     }).select('_id name');
 
     console.log(`📊 Found ${menuItems.length} menu items for workstation ${workstation}`);
 
     const menuItemIds = menuItems.map(m => m._id.toString());
-    
+
     const result = await calibrateSelectedMenuStocks(menuItemIds);
 
     return {
@@ -1025,16 +1026,16 @@ export const getMenuCalibrationStatus = async (menuItemId) => {
     const recipe = await Recipe.findOne({ menuItemId });
 
     const warehouses = await getWorkstationWarehouseMapping(menuItem.workstation);
-    
+
     const calibrationStatus = [];
 
     for (const [warehouseType, warehouseId] of Object.entries(warehouses)) {
-      const menuStock = menuStocks.find(ms => 
+      const menuStock = menuStocks.find(ms =>
         ms.warehouseId?._id.toString() === warehouseId.toString()
       );
-      
+
       const warehouse = await Warehouse.findById(warehouseId);
-      
+
       let calculatedStock = 0;
       if (recipe?.baseIngredients?.length > 0) {
         const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
@@ -1044,7 +1045,7 @@ export const getMenuCalibrationStatus = async (menuItemId) => {
       }
 
       // Normalisasi manualStock untuk ditampilkan
-      const manualStock = menuStock?.manualStock !== undefined 
+      const manualStock = menuStock?.manualStock !== undefined
         ? ensureValidManualStock(menuStock.manualStock)
         : null;
 
@@ -1074,8 +1075,8 @@ export const getMenuCalibrationStatus = async (menuItemId) => {
       isActive: menuItem.isActive,
       warehouses: calibrationStatus,
       lastCalibration: new Date(),
-      needsCalibration: calibrationStatus.some(cs => 
-        !cs.hasStockRecord || 
+      needsCalibration: calibrationStatus.some(cs =>
+        !cs.hasStockRecord ||
         !cs.isValid ||
         Date.now() - new Date(cs.lastCalculatedAt).getTime() > 3600000 // 1 hour
       )
@@ -1124,10 +1125,10 @@ export const forceSetManualStockToZero = async (req, res) => {
     // Update MenuItem
     const menuItem = await MenuItem.findById(menuItemId);
     if (menuItem) {
-      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws =>
         ws.warehouseId.toString() === warehouseId.toString()
       );
-      
+
       if (warehouseIndex >= 0) {
         menuItem.warehouseStocks[warehouseIndex].stock = 0;
       } else {
@@ -1136,13 +1137,13 @@ export const forceSetManualStockToZero = async (req, res) => {
           stock: 0
         });
       }
-      
+
       menuItem.availableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
-      
+
       if (menuItem.availableStock <= 0 && menuItem.isActive) {
         menuItem.isActive = false;
       }
-      
+
       await menuItem.save();
     }
 
@@ -1180,9 +1181,9 @@ export const getInvalidManualStocks = async (req, res) => {
         { manualStock: { $exists: false } }
       ]
     })
-    .populate('menuItemId', 'name')
-    .populate('warehouseId', 'name code')
-    .sort({ lastAdjustedAt: -1 });
+      .populate('menuItemId', 'name')
+      .populate('warehouseId', 'name code')
+      .sort({ lastAdjustedAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -1224,9 +1225,9 @@ export const getIncompleteMenuStocks = async (req, res) => {
         { manualStock: { $exists: false } }
       ]
     })
-    .populate('menuItemId', 'name')
-    .populate('warehouseId', 'name code')
-    .sort({ lastAdjustedAt: -1 });
+      .populate('menuItemId', 'name')
+      .populate('warehouseId', 'name code')
+      .sort({ lastAdjustedAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -1271,11 +1272,11 @@ const getStockIssue = (manualStock) => {
  */
 const getMissingFields = (stock) => {
   const missing = [];
-  
+
   if (stock.relatedWarehouse === undefined) missing.push('relatedWarehouse');
   if (stock.transferId === undefined) missing.push('transferId');
   if (stock.adjustedBy === undefined) missing.push('adjustedBy');
   if (stock.manualStock === undefined) missing.push('manualStock');
-  
+
   return missing;
 };
