@@ -6521,7 +6521,7 @@ const toISOJakartaWithOffset = (date) => {
   if (!date) return null;
   const d = new Date(date);
 
-  const parts = new Intl.DateTimeFormat('en-CA', {
+  const parts = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: '2-digit',
