@@ -16,7 +16,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
   // ✅ IMPLEMENTASI ATOMIC LOCK UNTUK INVENTORY UPDATE
   return await LockUtil.withOrderLock(`inventory-${orderId}`, async () => {
     const session = await mongoose.startSession();
-    
+
     // ✅ PERBAIKAN: Deklarasi variabel di scope yang tepat
     let failedItems = [];
     let successItems = [];
@@ -24,12 +24,18 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     let productUpdateResult = null;
     let menuStockUpdateResult = null;
 
-    // Retry mechanism untuk handle write conflicts
-    const MAX_RETRIES = 3;
+    // ✅ ENHANCED: Retry mechanism untuk handle write conflicts dan stock calibration collisions
+    const MAX_RETRIES = 8; // Increased from 3 to handle stock calibration conflicts
     let retryCount = 0;
 
     while (retryCount < MAX_RETRIES) {
       try {
+        // ✅ ADD JITTER: Random delay to reduce collision probability during stock calibration
+        if (retryCount > 0) {
+          const jitter = Math.random() * 100; // 0-100ms random jitter
+          await new Promise(resolve => setTimeout(resolve, jitter));
+        }
+
         await session.startTransaction();
         console.log(`🔄 Transaction attempt ${retryCount + 1} dengan LOCK`);
 
@@ -286,7 +292,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
             const existingStock = menuStockMap.get(menuItemIdStr);
             const currentManualStock = existingStock?.manualStock ?? null;
             const currentCalculatedStock = existingStock?.calculatedStock ?? 0;
-            
+
             // ✅ VALIDASI STOK TIDAK BOLEH MINUS
             let newManualStock = currentManualStock;
             let newCalculatedStock = currentCalculatedStock;
@@ -296,7 +302,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               newManualStock = currentManualStock - quantity;
 
               stockReductionType = 'manual';
-              
+
               if (newManualStock < 0) {
                 console.warn(`⚠️ Stok manual ${menuItemName} akan minus, adjust ke 0 (was: ${currentManualStock}, reduce: ${quantity})`);
                 newManualStock = 0;
@@ -305,7 +311,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               newCalculatedStock = currentCalculatedStock - quantity;
 
               stockReductionType = 'calculated';
-              
+
               if (newCalculatedStock < 0) {
                 console.warn(`⚠️ Stok calculated ${menuItemName} akan minus, adjust ke 0 (was: ${currentCalculatedStock}, reduce: ${quantity})`);
                 newCalculatedStock = 0;
@@ -342,7 +348,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               setOnInsertFields.createdAt = new Date();
               setOnInsertFields.reason = 'initial_setup';
               setOnInsertFields.handledBy = 'system';
-              
+
               if (currentManualStock === null) {
                 setOnInsertFields.manualStock = null;
                 setOnInsertFields.calculatedStock = newCalculatedStock;
@@ -398,7 +404,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
               // ✅ UPDATE STOK MENU MESKIPUN TIDAK ADA RESEP (DENGAN FUNGSI BARU)
               const stockUpdateResult = updateMenuStock(menuItemObjectId, menuItemIdStr, item.quantity, menuItemName);
-              
+
               if (!stockUpdateResult.success) {
                 throw new Error(`Gagal update stok menu: ${stockUpdateResult.error}`);
               }
@@ -504,7 +510,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
             // ✅ UPDATE STOK MENU ITEM - DENGAN FUNGSI BARU YANG LEBIH AMAN
             const stockUpdateResult = updateMenuStock(menuItemObjectId, menuItemIdStr, item.quantity, menuItemName);
-            
+
             if (!stockUpdateResult.success) {
               throw new Error(`Gagal update stok menu: ${stockUpdateResult.error}`);
             }
@@ -588,10 +594,25 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         await session.abortTransaction();
         console.error(`❌ Transaction attempt ${retryCount + 1} failed:`, error.message);
 
-        if (error.message.includes('Write conflict') && retryCount < MAX_RETRIES - 1) {
+        // ✅ ENHANCED: Detect berbagai jenis konflik yang bisa terjadi saat stock calibration
+        const isRetryableError =
+          error.message.includes('Write conflict') ||
+          error.message.includes('version') ||
+          error.message.includes('_v') ||
+          error.message.includes('conflict') ||
+          error.message.includes('duplicate key') ||
+          error.code === 11000 || // Duplicate key error
+          error.code === 112 || // WriteConflict
+          error.name === 'VersionError' ||
+          error.name === 'MongoServerError';
+
+        if (isRetryableError && retryCount < MAX_RETRIES - 1) {
           retryCount++;
-          console.log(`🔄 Retrying transaction (${retryCount}/${MAX_RETRIES})...`);
-          await new Promise(resolve => setTimeout(resolve, 200 * retryCount)); // Exponential backoff
+          // ✅ ENHANCED: Longer backoff untuk menghindari collision dengan stock calibration
+          const backoffDelay = 500 * Math.pow(1.5, retryCount); // 500ms, 750ms, 1125ms, 1687ms, 2531ms, 3796ms, 5694ms
+          console.log(`🔄 Retrying transaction (${retryCount}/${MAX_RETRIES}) after ${Math.round(backoffDelay)}ms...`);
+          console.log(`   Error type: ${error.name || 'Unknown'}, Code: ${error.code || 'N/A'}`);
+          await new Promise(resolve => setTimeout(resolve, backoffDelay));
           continue;
         } else {
           // Final failure after all retries
@@ -705,7 +726,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
   }).catch(lockError => {
     // Handle lock acquisition failure
     console.error(`❌ [LOCK] Failed to acquire lock for inventory update:`, lockError.message);
-    
+
     return {
       success: false,
       orderId,
