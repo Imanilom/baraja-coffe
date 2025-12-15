@@ -228,8 +228,43 @@ export const getMenuStocks = async (req, res) => {
         });
       }
 
-      const effectiveStock = s.manualStock !== null ? s.manualStock : s.calculatedStock;
+      // ✅ STRICT VALIDATION: Must have warehouseId
+      // User confirmed that records without warehouseId are invalid/legacy.
+      if (!s.warehouseId) {
+        return;
+      }
+
+      const rawManual = s.manualStock;
+      const rawCalculated = s.calculatedStock;
+      // Use loose equality to catch null AND undefined
+      const hasManual = rawManual != null;
+
+      // ✅ VALIDATION: Filter warehouse based on workstation
+      // Only include stock if the warehouse matches the menu item's workstation
+      // This prevents double counting if an item has records in multiple unrelated warehouses
+      const workstation = s.menuItemId?.workstation?.toLowerCase();
+      const warehouseCode = s.warehouseId?.code?.toLowerCase();
+
+      if (workstation && warehouseCode) {
+        const isKitchen = workstation === 'kitchen' && warehouseCode.includes('kitchen');
+        const isBar = workstation === 'bar' && warehouseCode.includes('bar');
+
+        // If it's a known workstation type but warehouse doesn't match, SKIP this record
+        if ((workstation === 'kitchen' || workstation === 'bar') && !isKitchen && !isBar) {
+          // console.log(`[STOCK DEDUPE] Skip ${s.menuItemId?.name} (WS: ${workstation}) in WH: ${warehouseCode}`);
+          return; // Skip this iteration of forEach
+        }
+      }
+
+      const effectiveStock = hasManual ? rawManual : rawCalculated;
       const currentItem = menuItemMap.get(menuItemId);
+
+      // ✅ STRICT SINGLE RECORD: User requested to only show one record even if multiple valid ones exist.
+      // If we already have a valid stock record for this item, ignore subsequent ones.
+      if (currentItem.warehouseStocks.length > 0) {
+        // console.log(`[STOCK DEDUPE] strict mode: ignoring duplicate for ${currentItem.name}`);
+        return;
+      }
 
       currentItem.warehouseStocks.push({
         warehouseId: s.warehouseId?._id,

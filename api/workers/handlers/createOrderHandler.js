@@ -123,12 +123,12 @@ export async function createOrderHandler({
       // Determine initial status based on source and payment method
       let initialStatus = 'Pending';
       let paymentMethodData = 'Cash';
-      
+
       // Handle split payment status determination
       if (source === 'Cashier') {
         console.log('Source Cashier - isOpenBill:', isOpenBill);
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
-        
+
         // Untuk split payment, gunakan metode pertama atau 'Multiple'
         if (Array.isArray(orderPaymentDetails) && orderPaymentDetails.length > 0) {
           paymentMethodData = orderPaymentDetails[0].method || 'Multiple';
@@ -151,9 +151,9 @@ export async function createOrderHandler({
       });
 
       // ⚠️ PERBAIKAN: Validasi payment details vs order total
-      const totalPaymentAmount = orderPaymentDetails ? 
-        (Array.isArray(orderPaymentDetails) ? 
-          orderPaymentDetails.reduce((sum, p) => sum + (p.amount || 0), 0) : 
+      const totalPaymentAmount = orderPaymentDetails ?
+        (Array.isArray(orderPaymentDetails) ?
+          orderPaymentDetails.reduce((sum, p) => sum + (p.amount || 0), 0) :
           (orderPaymentDetails.amount || 0)) : 0;
 
       const totalCustomAmount = processedCustomAmountItems.reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -184,7 +184,7 @@ export async function createOrderHandler({
         // Process split payment details
         payments = orderPaymentDetails.map((payment, index) => {
           const paymentStatus = mapPaymentStatus(payment.status || 'completed');
-          
+
           console.log(`Creating payment ${index + 1}:`, {
             method: payment.method,
             amount: payment.amount,
@@ -234,9 +234,9 @@ export async function createOrderHandler({
         });
       } else {
         // Single payment (legacy) - handle both array dengan 1 element dan object
-        const effectivePayment = Array.isArray(orderPaymentDetails) ? 
+        const effectivePayment = Array.isArray(orderPaymentDetails) ?
           orderPaymentDetails[0] : orderPaymentDetails;
-        
+
         payments = [{
           paymentMethod: effectivePayment?.method || paymentMethodData,
           amount: effectivePayment?.amount || totals.grandTotal,
@@ -412,6 +412,27 @@ export async function createOrderHandler({
       }
 
       await newOrder.save({ session });
+
+      // ✅ LOG ORDER CREATION SUCCESS (User-Friendly Format)
+      console.log(`\n✅ ========== ORDER CREATED ==========`);
+      console.log(`📋 Order ID: ${newOrder.order_id}`);
+      console.log(`🪑 Table: ${newOrder.tableNumber || 'N/A'}`);
+      console.log(`👤 Customer: ${newOrder.user || 'Guest'}`);
+      console.log(`📦 Items: ${newOrder.items.length} items`);
+      if (newOrder.customAmountItems && newOrder.customAmountItems.length > 0) {
+        console.log(`💵 Custom Amounts: ${newOrder.customAmountItems.length} items`);
+      }
+      console.log(`💰 Total: Rp ${newOrder.grandTotal.toLocaleString('id-ID')}`);
+      console.log(`📱 Source: ${newOrder.source}`);
+      console.log(`🔖 Status: ${newOrder.status}`);
+      console.log(`💳 Payment: ${newOrder.paymentMethod}`);
+      if (newOrder.isSplitPayment) {
+        console.log(`💳 Split Payment: ${newOrder.payments.length} methods`);
+      }
+      if (newOrder.isOpenBill) {
+        console.log(`📝 Type: Open Bill`);
+      }
+      console.log(`=====================================\n`);
 
       console.log('Order created successfully:', {
         orderId: newOrder._id.toString(),

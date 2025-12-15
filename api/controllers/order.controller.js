@@ -800,6 +800,23 @@ export const createAppOrder = async (req, res) => {
       isOpenBill: isOpenBill || false
     };
 
+    // ✅ LOG ORDER CREATION SUCCESS
+    console.log(`\n✅ ========== ORDER CREATED ==========`);
+    console.log(`📋 Order ID: ${newOrder.order_id}`);
+    console.log(`🪑 Table: ${newOrder.tableNumber || 'N/A'}`);
+    console.log(`👤 Customer: ${newOrder.user || 'Guest'}`);
+    console.log(`📦 Items: ${newOrder.items.length} items`);
+    console.log(`💰 Total: Rp ${newOrder.grandTotal.toLocaleString('id-ID')}`);
+    console.log(`📱 Source: ${newOrder.source}`);
+    console.log(`🔖 Status: ${newOrder.status}`);
+    console.log(`💳 Payment: ${newOrder.paymentMethod}`);
+    if (isOpenBill) {
+      console.log(`📝 Type: Open Bill (items added to existing order)`);
+    } else if (reservationRecord) {
+      console.log(`📅 Type: Reservation`);
+    }
+    console.log(`=====================================\n`);
+
     // Emit to cashier application
     if (isOpenBill) {
       io.to('cashier_room').emit('open_bill_order', {
@@ -807,8 +824,10 @@ export const createAppOrder = async (req, res) => {
         originalReservation: existingReservation,
         message: 'Additional items added to existing reservation'
       });
+      console.log(`📤 Socket emitted: open_bill_order → cashier_room`);
     } else {
       io.to('cashier_room').emit('new_order', { mappedOrders });
+      console.log(`📤 Socket emitted: new_order → cashier_room`);
     }
 
     res.status(201).json(responseData);
