@@ -86,8 +86,8 @@ const ensureCompleteMenuStockData = (menuStockData, warehouseId, menuItemId) => 
     relatedWarehouse: menuStockData.relatedWarehouse || null, // ✅ Explicit null jika tidak ada
     transferId: menuStockData.transferId || null, // ✅ Explicit null jika tidak ada
     lastCalculatedAt: menuStockData.lastCalculatedAt || new Date(),
-    lastAdjustedAt: menuStockData.lastAdjustedAt || new Date(),
-    __v: menuStockData.__v || 0
+    lastAdjustedAt: menuStockData.lastAdjustedAt || new Date()
+    // ✅ REMOVED __v to prevent conflict with $inc: { __v: 1 }
   };
 
   return completeData;
@@ -1077,7 +1077,7 @@ export const getMenuCalibrationStatus = async (menuItemId) => {
       lastCalibration: new Date(),
       needsCalibration: calibrationStatus.some(cs =>
         !cs.hasStockRecord ||
-        !cs.isValid ||
+        cs.manualStock === null ||
         Date.now() - new Date(cs.lastCalculatedAt).getTime() > 3600000 // 1 hour
       )
     };
