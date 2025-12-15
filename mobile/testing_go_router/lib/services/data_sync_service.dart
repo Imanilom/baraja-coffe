@@ -7,6 +7,7 @@ import 'package:kasirbaraja/repositories/event_repository.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/repositories/payment_method_repository.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
+import 'package:kasirbaraja/repositories/auto_promo_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 // import 'package:kasirbaraja/services/hive_service.dart';
 
@@ -49,7 +50,7 @@ class DataSyncService {
     required Function(DataSyncProgress) onProgress,
     // String? token,
   }) async {
-    const totalSteps = 5;
+    const totalSteps = 6;
     int currentStep = 0;
 
     try {
@@ -116,6 +117,16 @@ class DataSyncService {
         ),
       );
       await PaymentMethodRepository().getPaymentMethods();
+
+      currentStep++;
+      onProgress(
+        DataSyncProgress(
+          currentStep: currentStep,
+          totalSteps: totalSteps,
+          currentTask: 'Downloading Auto Promos...',
+        ),
+      );
+      await AutoPromoRepository().getAutoPromos();
 
       // Completed
       onProgress(
