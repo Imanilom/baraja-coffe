@@ -915,9 +915,7 @@ export async function allocateDeltaToPayments({
                 delta: grandDelta
             });
 
-            const newAmount = Math.max(0, Number(pending.amount) + grandDelta);
-
-            pending.amount = newAmount;
+            pending.amount = Math.max(0, Number(pending.amount) + grandDelta);
             pending.totalAmount = Math.max(
                 0,
                 Number(pending.totalAmount || 0) + grandDelta
