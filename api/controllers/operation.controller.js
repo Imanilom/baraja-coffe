@@ -426,11 +426,23 @@ export const getWorkstationOrders = async (req, res) => {
     }, []);
 
     const queryTime = Date.now() - startTime;
-    
-    // Only log if query is slow or there are new orders
-    if (queryTime > 1000 || filteredOrders.length !== (global[`last_${workstationType}_count`] || 0)) {
-      console.log(`📦 [${workstationType.toUpperCase()}] ${filteredOrders.length} orders (${queryTime}ms)`);
-      global[`last_${workstationType}_count`] = filteredOrders.length;
+
+    // Track workstation stats globally for consolidated logging
+    if (!global.workstationStats) {
+      global.workstationStats = {};
+    }
+
+    const previousCount = global.workstationStats[workstationType] || 0;
+    const hasChange = filteredOrders.length !== previousCount;
+    global.workstationStats[workstationType] = filteredOrders.length;
+
+    // Consolidated logging - show all workstations in one line
+    if (queryTime > 1000 || hasChange) {
+      const statsArray = Object.entries(global.workstationStats)
+        .map(([type, count]) => `${type.toUpperCase()}:${count}`)
+        .join(' | ');
+
+      console.log(`📦 [WORKSTATIONS] ${statsArray} (${queryTime}ms)`);
     }
 
     const responseData = {

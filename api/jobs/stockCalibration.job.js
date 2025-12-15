@@ -1139,7 +1139,7 @@ export const getMenuCalibrationStatus = async (menuItemId) => {
       lastCalibration: new Date(),
       needsCalibration: calibrationStatus.some(cs =>
         !cs.hasStockRecord ||
-        !cs.isValid ||
+        cs.manualStock === null ||
         Date.now() - new Date(cs.lastCalculatedAt).getTime() > 3600000 // 1 hour
       )
     };
