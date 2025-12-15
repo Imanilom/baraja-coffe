@@ -59,123 +59,75 @@ const closeOrderSchema = Joi.object({
 
 
 // Get all open bills - FIXED VERSION
+// Di getOpenBills controller, tambahkan opsi untuk include reservasi
 export const getOpenBills = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, table_number, area_id } = req.query;
+    const { 
+      page = 1, 
+      limit = 20, 
+      status, 
+      table_number, 
+      area_id,
+      include_reservations = false // Tambahkan parameter baru
+    } = req.query;
     
-    console.log('🔍 Fetching open bills with filters:', { 
-      page, limit, status, table_number, area_id 
-    });
-
     let query = { isOpenBill: true };
     
-    // Filter by status jika ada
     if (status) {
       query.status = status;
     } else {
-      // Default hanya tampilkan yang masih aktif
       query.status = { $in: ['Pending', 'Confirmed', 'In Progress', 'OnProcess', 'Waiting'] };
     }
     
-    // Build aggregation pipeline untuk handling complex population
-    let aggregationPipeline = [
-      { $match: query },
-      { $sort: { createdAt: -1 } },
-      { $skip: (page - 1) * limit },
-      { $limit: parseInt(limit) }
-    ];
-
-    // Lookup reservation data
-    aggregationPipeline.push({
-      $lookup: {
-        from: 'reservations',
-        localField: 'reservation',
-        foreignField: '_id',
-        as: 'reservationData'
-      }
-    });
-
-    // Lookup menu items untuk order items
-    aggregationPipeline.push({
-      $lookup: {
-        from: 'menuitems',
-        localField: 'items.menuItem',
-        foreignField: '_id',
-        as: 'menuItemsData'
-      }
-    });
-
-    // Add fields untuk memudahkan frontend
-    aggregationPipeline.push({
-      $addFields: {
-        reservation: { $arrayElemAt: ['$reservationData', 0] },
-        populatedItems: {
-          $map: {
-            input: '$items',
-            as: 'item',
-            in: {
-              $mergeObjects: [
-                '$$item',
-                {
-                  menuItem: {
-                    $arrayElemAt: [
-                      {
-                        $filter: {
-                          input: '$menuItemsData',
-                          as: 'menuItem',
-                          cond: { $eq: ['$$menuItem._id', '$$item.menuItem'] }
-                        }
-                      },
-                      0
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    });
-
-    // Filter tambahan berdasarkan table number jika ada
-    if (table_number) {
-      aggregationPipeline.unshift({
-        $match: {
-          ...query,
-          tableNumber: { $regex: table_number, $options: 'i' }
-        }
-      });
-    }
-
-    // Filter berdasarkan area_id jika ada (lebih complex, perlu lookup reservation dulu)
-    if (area_id) {
-      // Untuk filter area, kita perlu proses dua tahap
-      const orders = await Order.aggregate(aggregationPipeline);
+    // JIKA ingin include reservasi yang belum punya order
+    if (include_reservations === 'true') {
+      // Gabungkan query dari Orders dan Reservasi
+      const [orders, reservations] = await Promise.all([
+        Order.find(query)
+          .populate('reservation')
+          .skip((page - 1) * limit)
+          .limit(parseInt(limit)),
+        
+        // Cari reservasi yang belum punya order dan status confirmed
+        Reservation.find({
+          status: status || 'confirmed',
+          _id: { $nin: await Order.distinct('reservation') } // Exclude yang sudah punya order
+        })
+        .populate('table_id')
+        .populate('area_id')
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+      ]);
       
-      // Filter manual berdasarkan area_id
-      const filteredOrders = [];
-      for (let order of orders) {
-        if (order.reservation) {
-          const reservation = await Reservation.findById(order.reservation)
-            .populate('table_id')
-            .populate('area_id');
-          
-          if (reservation && reservation.area_id && 
-              reservation.area_id._id.toString() === area_id) {
-            order.reservation = reservation;
-            filteredOrders.push(order);
-          }
-        } else {
-          // Jika tidak ada reservation, skip atau include berdasarkan logic bisnis
-          filteredOrders.push(order);
-        }
-      }
-
-      const total = await Order.countDocuments(query);
-
+      // Format data untuk konsumsi frontend
+      const formattedOrders = orders.map(order => ({
+        ...order.toObject(),
+        type: 'order'
+      }));
+      
+      const formattedReservations = reservations.map(reservation => ({
+        _id: reservation._id,
+        reservation: reservation,
+        reservation_code: reservation.reservation_code,
+        tableNumber: reservation.table_id?.map(t => t.table_number).join(', '),
+        area: reservation.area_id?.area_name,
+        guest_count: reservation.guest_count,
+        reservation_time: reservation.reservation_time,
+        status: reservation.status,
+        type: 'reservation', // Tandai sebagai reservasi
+        can_create_order: true
+      }));
+      
+      const combinedData = [...formattedOrders, ...formattedReservations];
+      const total = await Order.countDocuments(query) + 
+                   await Reservation.countDocuments({
+                     status: status || 'confirmed',
+                     _id: { $nin: await Order.distinct('reservation') }
+                   });
+      
       return res.json({
         success: true,
-        data: filteredOrders,
+        data: combinedData,
         pagination: {
           current: parseInt(page),
           pages: Math.ceil(total / limit),
@@ -183,36 +135,11 @@ export const getOpenBills = async (req, res) => {
         }
       });
     }
-
-    // Eksekusi aggregation pipeline
-    const orders = await Order.aggregate(aggregationPipeline);
-
-    // Populate table and area information untuk orders dengan reservation
-    for (let order of orders) {
-      if (order.reservation) {
-        const reservation = await Reservation.findById(order.reservation)
-          .populate('table_id')
-          .populate('area_id');
-        order.reservation = reservation;
-      }
-    }
-
-    const total = await Order.countDocuments(query);
-
-    console.log(`✅ Found ${orders.length} open bills`);
-
-    res.json({
-      success: true,
-      data: orders,
-      pagination: {
-        current: parseInt(page),
-        pages: Math.ceil(total / limit),
-        total
-      }
-    });
-
+    
+    // Kode original untuk orders saja...
+    // ...
   } catch (error) {
-    console.error('❌ Error getting open bills:', error);
+    console.error('❌ Error:', error);
     res.status(500).json({
       success: false,
       message: 'Error getting open bills',

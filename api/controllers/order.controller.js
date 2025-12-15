@@ -5705,7 +5705,7 @@ export const getPendingOrders = async (req, res) => {
     log.timeStart('select_orders');
     const selectedOrders = pendingOrders.filter((order) => {
       if (order.status === 'Pending' || order.status === 'Reserved') return true;
-      console.log('bukan pending order');
+      // console.log('bukan pending order');
       if (order.status === 'OnProcess' || order.status === 'Waiting' || order.status === 'Completed') {
         const details = paymentDetailsMap.get(String(order.order_id)) || [];
         const hasPendingPayment = details.some(
