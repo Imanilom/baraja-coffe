@@ -62,7 +62,7 @@ class SocketManagement {
         const device = this.connectedDevices.get(socketId);
         if (device) {
             console.log(`❌ Device disconnected: ${device.deviceName}`);
-            
+
             // ✅ OPTIMIZATION: Clean up indexes
             if (this.devicesByRole.has(device.role)) {
                 this.devicesByRole.get(device.role).delete(socketId);
@@ -70,7 +70,7 @@ class SocketManagement {
                     this.devicesByRole.delete(device.role);
                 }
             }
-            
+
             const outletKey = device.outletId.toString();
             if (this.devicesByOutlet.has(outletKey)) {
                 this.devicesByOutlet.get(outletKey).delete(socketId);
@@ -78,7 +78,7 @@ class SocketManagement {
                     this.devicesByOutlet.delete(outletKey);
                 }
             }
-            
+
             this.connectedDevices.delete(socketId);
         }
     }
@@ -312,7 +312,7 @@ class SocketManagement {
             // ✅ STEP 2: NON-BLOCKING DELAY for kitchen (prioritize bar)
             if (barDevices.length > 0 && kitchenDevices.length > 0 && beverageItems.length > 0 && kitchenItems.length > 0) {
                 console.log(`\n⏱️  STEP 2: Scheduling kitchen broadcast in 800ms (non-blocking)...`);
-                
+
                 // ✅ OPTIMIZATION: Non-blocking setTimeout
                 setTimeout(() => {
                     console.log('\n🍳 STEP 3: Broadcasting to KITCHEN devices (delayed)...');
@@ -339,7 +339,7 @@ class SocketManagement {
                         console.log(`      Socket ID: ${device.socketId}`);
                         console.log(`      Items: ${relevantItems.length}`);
                     }
-                }, 800);
+                }, 500);
             } else {
                 // ✅ STEP 3: Send to KITCHEN devices immediately (no bar items)
                 console.log('\n🍳 STEP 3: Broadcasting to KITCHEN devices (immediate)...');
