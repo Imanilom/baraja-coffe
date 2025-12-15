@@ -1,6 +1,6 @@
-// services/print-logger.service.js - Enhanced dengan Problematic Tracking
 import { PrintLog } from '../models/print-log.model.js';
 import mongoose from 'mongoose';
+import workstationConfig from '../utils/workstationConfig.js';
 
 export class PrintLogger {
     static async logPrintAttempt(orderId, item, workstation, printerConfig, stockInfo = {}) {
@@ -9,7 +9,7 @@ export class PrintLogger {
             const menuItemId = item.menuItemId || item._id || item.id;
             console.log('🔄 Using menuItemId for stock check:', menuItemId);
 
-            const stockStatus = await this.checkMenuItemStock(menuItemId);
+            const stockStatus = await this.checkMenuItemStock(menuItemId, workstation);
 
             // Determine print status based on problematic details
             let printStatus = 'pending';
@@ -88,7 +88,14 @@ Stock Status: ${stockStatus.status}`);
 
                 // Technical context
                 consecutive_failures: printerConfig?.consecutive_failures || 0,
-                printer_health: printerConfig?.health_status || 'unknown'
+                printer_health: (() => {
+                    const status = (printerConfig?.health_status || 'unknown').toLowerCase();
+                    if (status.includes('healthy')) return 'healthy';
+                    if (status.includes('warning')) return 'warning';
+                    if (status.includes('offline')) return 'offline';
+                    if (status.includes('not_configured')) return 'not_configured';
+                    return 'unknown';
+                })()
             });
 
             const savedLog = await log.save();
@@ -425,11 +432,62 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
     }
 
     // Enhanced stock check method dengan better error handling - GUNAKAN manualStock
-    static async checkMenuItemStock(menuItemId) {
+    static async checkMenuItemStock(menuItemId, workstation = null) {
         try {
-            const menuStock = await mongoose.model('MenuStock').findOne({
-                menuItemId: menuItemId
-            });
+            let menuStock = null;
+
+            // 1. Try to find specific stock for the workstation if provided
+            if (workstation) {
+                try {
+                    // normalize workstation string if needed (some pass "Bar Depan", logic expects "bar")
+                    // but getWorkstationWarehouseMapping handles "kitchen" and "bar" keys.
+                    // workstationConfig.getPrimaryWarehouseForWorkstation uses "kitchen" or "bar".
+
+                    // Simple normalization: if it contains "bar", use "bar". if "kitchen", use "kitchen".
+                    const wsType = workstation.toLowerCase().includes('bar') ? 'bar' :
+                        workstation.toLowerCase().includes('kitchen') ? 'kitchen' : null;
+
+                    if (wsType) {
+                        const warehouses = await workstationConfig.getWorkstationWarehouseMapping(wsType);
+                        // warehouses is object { "bar-depan": id, ... } or { "kitchen": id }
+                        const warehouseIds = Object.values(warehouses);
+
+                        if (warehouseIds.length > 0) {
+                            // Find ANY stock for these warehouses. 
+                            // If multiple (e.g. Bar has 2), we ideally sum them, but for now let's pick the one with highest stock 
+                            // or just the first one if strict logic not defined.
+                            // Let's sort by effectiveStock desc to be generous.
+                            const stocks = await mongoose.model('MenuStock').find({
+                                menuItemId: menuItemId,
+                                warehouseId: { $in: warehouseIds }
+                            });
+
+                            if (stocks.length > 0) {
+                                // Calculate total stock across all valid warehouses for this workstation
+                                // This assumes "Bar" printer can grab from "Bar Depan" OR "Bar Belakang"
+                                const totalManual = stocks.reduce((sum, s) => sum + (s.manualStock !== null ? s.manualStock : 0), 0);
+                                const totalCalculated = stocks.reduce((sum, s) => sum + (s.calculatedStock || 0), 0);
+
+                                // Create a composite "menuStock" object
+                                menuStock = {
+                                    manualStock: totalManual,
+                                    calculatedStock: totalCalculated,
+                                    updatedAt: stocks[0].updatedAt // just take one timestamp
+                                };
+                            }
+                        }
+                    }
+                } catch (configErr) {
+                    console.warn(`⚠️ Error mapping workstation '${workstation}' to warehouse:`, configErr.message);
+                }
+            }
+
+            // 2. Fallback: If no specific workstation stock found, use global findOne (old behavior, risk of ambiguity)
+            if (!menuStock) {
+                menuStock = await mongoose.model('MenuStock').findOne({
+                    menuItemId: menuItemId
+                });
+            }
 
             if (menuStock) {
                 // GUNAKAN manualStock sebagai primary, default ke 0 jika null
