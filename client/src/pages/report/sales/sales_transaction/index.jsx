@@ -55,11 +55,12 @@ const SalesTransaction = () => {
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
 
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
+    // Pagination state dari backend
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalOrders, setTotalOrders] = useState(0);
+    const [limit, setLimit] = useState(20);
 
     const dropdownRef = useRef(null);
     const receiptRef = useRef();
@@ -68,13 +69,14 @@ const SalesTransaction = () => {
         documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
     });
 
-    // Initialize from URL params or set default to today
+    // Initialize from URL params
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
         const outletParam = searchParams.get('outletId');
         const searchParam = searchParams.get('search');
         const pageParam = searchParams.get('page');
+        const limitParam = searchParams.get('limit');
 
         if (startDateParam && endDateParam) {
             setDateRange({
@@ -99,10 +101,14 @@ const SalesTransaction = () => {
         if (pageParam) {
             setCurrentPage(parseInt(pageParam, 10));
         }
+
+        if (limitParam) {
+            setLimit(parseInt(limitParam, 10));
+        }
     }, []);
 
     // Update URL when filters change
-    const updateURLParams = (newDateRange, newOutlet, newSearch, newPage) => {
+    const updateURLParams = (newDateRange, newOutlet, newSearch, newPage, newLimit) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
@@ -124,26 +130,54 @@ const SalesTransaction = () => {
             params.set('page', newPage.toString());
         }
 
+        if (newLimit && newLimit !== 20) {
+            params.set('limit', newLimit.toString());
+        }
+
         setSearchParams(params);
     };
 
-    // Fetch products with payments - SINGLE ENDPOINT
+    // Fetch products dengan pagination dari backend - MENGGUNAKAN QUERY PARAMS
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            // Menggunakan endpoint baru yang sudah menggabungkan orders + payments
-            const response = await axios.get('/api/report/orders');
+            // Build query parameters
+            const params = new URLSearchParams();
+
+            // Mode pagination (default)
+            params.append('mode', 'paginated');
+            params.append('page', currentPage);
+            params.append('limit', limit);
+            params.append('status', 'Completed'); // Filter completed orders
+
+            if (selectedOutlet) {
+                params.append('outlet', selectedOutlet);
+            }
+
+            if (dateRange?.startDate && dateRange?.endDate) {
+                params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+                params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+            }
+
+            // Single endpoint dengan query params
+            const response = await axios.get(`/api/report/orders?${params.toString()}`);
 
             const productsData = Array.isArray(response.data?.data)
                 ? response.data.data
                 : [];
 
-            // Filter hanya yang status Completed
-            const completedData = productsData.filter(item => item.status === "Completed");
 
-            console.log('Orders with payments:', completedData);
+            const completedOrders = productsData.filter(order => order.status === "Completed");
 
-            setProducts(completedData);
+            // Set data dan pagination info
+            setProducts(productsData);
+
+            if (response.data?.pagination) {
+                setTotalPages(response.data.pagination.totalPages);
+                setTotalOrders(response.data.pagination.totalOrders);
+            }
+
+            console.log(`Loaded page ${currentPage}: ${productsData.length} orders`);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);
@@ -173,8 +207,12 @@ const SalesTransaction = () => {
         }
     };
 
+    // Fetch data saat filters berubah
     useEffect(() => {
         fetchProducts();
+    }, [currentPage, limit, selectedOutlet, dateRange]);
+
+    useEffect(() => {
         fetchOutlets();
     }, []);
 
@@ -190,105 +228,56 @@ const SalesTransaction = () => {
     const handleDateRangeChange = (newValue) => {
         setDateRange(newValue);
         setCurrentPage(1);
-        updateURLParams(newValue, selectedOutlet, searchTerm, 1);
+        updateURLParams(newValue, selectedOutlet, searchTerm, 1, limit);
     };
 
     const handleOutletChange = (selected) => {
         const newOutlet = selected.value;
         setSelectedOutlet(newOutlet);
         setCurrentPage(1);
-        updateURLParams(dateRange, newOutlet, searchTerm, 1);
+        updateURLParams(dateRange, newOutlet, searchTerm, 1, limit);
     };
 
     const handleSearchChange = (newSearch) => {
         setSearchTerm(newSearch);
-        setCurrentPage(1);
-        updateURLParams(dateRange, selectedOutlet, newSearch, 1);
+        updateURLParams(dateRange, selectedOutlet, newSearch, currentPage, limit);
     };
 
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
-        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage);
+        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage, limit);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-        let filtered = ensureArray([...products]);
+    const handleLimitChange = (newLimit) => {
+        setLimit(newLimit);
+        setCurrentPage(1);
+        updateURLParams(dateRange, selectedOutlet, searchTerm, 1, newLimit);
+    };
 
-        // Filter by search term
-        if (searchTerm) {
-            filtered = filtered.filter(product => {
-                try {
-                    const searchTermLower = searchTerm.toLowerCase();
-                    return product.items?.some(item => {
-                        const menuItem = item?.menuItem;
-                        if (!menuItem) return false;
-                        const name = (menuItem.name || '').toLowerCase();
-                        const customer = (product.user || '').toLowerCase();
-                        const receipt = (product.order_id || '').toLowerCase();
-                        return name.includes(searchTermLower) ||
-                            receipt.includes(searchTermLower) ||
-                            customer.includes(searchTermLower);
-                    });
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
+    // Filter hanya untuk search term (client-side untuk data yang sudah difetch)
+    const filteredData = useMemo(() => {
+        if (!searchTerm) return products;
 
-        // Filter by outlet
-        if (selectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    const outletId = product.outlet?._id;
-                    return outletId === selectedOutlet;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (dateRange && dateRange.startDate && dateRange.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) return false;
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(dateRange.startDate);
-                    const endDate = new Date(dateRange.endDate);
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-                    return productDate >= startDate && productDate <= endDate;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, searchTerm, selectedOutlet, dateRange]);
-
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Paginate the filtered data
-    const paginatedData = useMemo(() => {
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return filteredData.slice(startIndex, endIndex);
-    }, [currentPage, filteredData]);
+        return products.filter(product => {
+            try {
+                const searchTermLower = searchTerm.toLowerCase();
+                return product.items?.some(item => {
+                    const menuItem = item?.menuItem;
+                    if (!menuItem) return false;
+                    const name = (menuItem.name || '').toLowerCase();
+                    const customer = (product.user || '').toLowerCase();
+                    const receipt = (product.order_id || '').toLowerCase();
+                    return name.includes(searchTermLower) ||
+                        receipt.includes(searchTermLower) ||
+                        customer.includes(searchTermLower);
+                });
+            } catch (err) {
+                console.error("Error filtering by search:", err);
+                return false;
+            }
+        });
+    }, [products, searchTerm]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -305,8 +294,6 @@ const SalesTransaction = () => {
         return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
     const { grandTotalFinal } = useMemo(() => {
         const totals = { grandTotalFinal: 0 };
         if (!Array.isArray(filteredData)) return totals;
@@ -321,18 +308,58 @@ const SalesTransaction = () => {
         return totals;
     }, [filteredData]);
 
-    // Handle Export - SAMA PERSIS dengan logika di table
+    // Handle Export - Fetch ALL data dengan mode=all
     const handleExport = async () => {
         setIsExporting(true);
 
         try {
+            // Build query parameters untuk fetch ALL data
+            const params = new URLSearchParams();
+            params.append('mode', 'all'); // Mode ALL untuk export
+            params.append('status', 'Completed');
+
+            if (selectedOutlet) {
+                params.append('outlet', selectedOutlet);
+            }
+
+            if (dateRange?.startDate && dateRange?.endDate) {
+                params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+                params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+            }
+
+            console.log('Exporting all data with params:', params.toString());
+
+            // Single endpoint dengan mode=all
+            const response = await axios.get(`/api/report/orders?${params.toString()}`);
+            const allData = Array.isArray(response.data?.data) ? response.data.data : [];
+
+            console.log(`Exporting ${allData.length} orders`);
+
+            // Filter by search term if needed
+            let exportData = allData;
+            if (searchTerm) {
+                exportData = allData.filter(product => {
+                    const searchTermLower = searchTerm.toLowerCase();
+                    return product.items?.some(item => {
+                        const menuItem = item?.menuItem;
+                        if (!menuItem) return false;
+                        const name = (menuItem.name || '').toLowerCase();
+                        const customer = (product.user || '').toLowerCase();
+                        const receipt = (product.order_id || '').toLowerCase();
+                        return name.includes(searchTermLower) ||
+                            receipt.includes(searchTermLower) ||
+                            customer.includes(searchTermLower);
+                    });
+                });
+            }
+
             const formatDateTimeExport = (isoString) => {
                 const date = new Date(isoString);
                 const pad = (num) => String(num).padStart(2, '0');
                 return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
             };
 
-            const exportData = filteredData.flatMap((order) => {
+            const formattedExportData = exportData.flatMap((order) => {
                 const outletObj = outlets.find(o => o._id === order.outlet._id);
                 const outletName = outletObj?.name || '';
                 const outletCode = outletObj?._id || '';
@@ -352,12 +379,10 @@ const SalesTransaction = () => {
                     (order.discounts?.voucherDiscount || 0);
 
                 return order.items.map((item, index) => {
-                    // Ambil nama menu (prioritas: menuItemData → menuItem → fallback) - SAMA seperti di table
                     const itemName = item.menuItemData?.name || item.menuItem?.name || 'Produk tidak diketahui';
                     const itemSKU = item.menuItemData?.sku || item.menuItem?.sku || '-';
                     const itemPrice = item.menuItemData?.price || item.menuItem?.price || 0;
 
-                    // Handle kategori dengan fallback
                     let itemCategory = '-';
                     if (item.menuItemData?.category) {
                         itemCategory = typeof item.menuItemData.category === 'object'
@@ -371,7 +396,6 @@ const SalesTransaction = () => {
                         itemCategory = item.menuItem.mainCategory;
                     }
 
-                    // Ambil addon labels yang dipilih - SAMA PERSIS seperti di table
                     const addonLabels = [];
                     if (Array.isArray(item?.addons)) {
                         item.addons.forEach(addon => {
@@ -385,7 +409,6 @@ const SalesTransaction = () => {
                         });
                     }
 
-                    // Gabungkan nama menu dengan addons (jika ada) - SAMA seperti di table
                     let fullProductName = itemName;
                     if (addonLabels.length > 0) {
                         fullProductName = `${itemName} ( ${addonLabels.join(', ')} )`;
@@ -447,7 +470,7 @@ const SalesTransaction = () => {
                 ["Tanggal", `${startLabel} - ${endLabel}`],
                 ["Outlet", outletLabel],
                 ["Status Transaksi", "Completed"],
-                ["Total Data", `${exportData.length} baris`],
+                ["Total Data", `${formattedExportData.length} baris`],
             ];
 
             if (searchTerm) {
@@ -456,7 +479,7 @@ const SalesTransaction = () => {
 
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            exportToExcel(exportData, fileName, headerInfo);
+            exportToExcel(formattedExportData, fileName, headerInfo);
         } catch (error) {
             console.error('Error exporting:', error);
             alert('Terjadi kesalahan saat mengekspor data');
@@ -522,7 +545,7 @@ const SalesTransaction = () => {
                 <SalesTransactionTableSkeleton />
             ) : (
                 <SalesTransactionTable
-                    paginatedData={paginatedData}
+                    paginatedData={filteredData}
                     grandTotalFinal={grandTotalFinal}
                     setSelectedTrx={setSelectedTrx}
                     selectedTrx={selectedTrx}
@@ -540,8 +563,10 @@ const SalesTransaction = () => {
                     currentPage={currentPage}
                     handlePageChange={handlePageChange}
                     totalPages={totalPages}
-                    ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+                    ITEMS_PER_PAGE={limit}
                     filteredData={filteredData}
+                    handleLimitChange={handleLimitChange}
+                    totalOrders={totalOrders}
                 />
             )}
         </div>

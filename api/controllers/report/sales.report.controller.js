@@ -659,35 +659,130 @@ class DailyProfitController {
   */
   async getOrdersWithPayments(req, res) {
     try {
-      // Fetch all orders with populated data
-      const orders = await Order.find()
-        .populate('items.menuItem')
-        .populate({
-          path: 'items.menuItem',
-          populate: {
-            path: 'category',
-            model: 'Category',
-            select: 'name'
-          }
-        })
-        .populate('outlet')
-        .populate('user_id')
-        .populate({
-          path: 'cashierId',
-          populate: {
-            path: 'outlet.outletId',
-            model: 'Outlet',
-            select: 'name address',
-          },
-        })
-        .sort({ createdAt: -1 });
+      // Ambil query params
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 20;
+      const mode = req.query.mode || 'paginated'; // paginated, all, recent, count, ids
 
-      // Fetch all payments in one query
+      // Setup filters dari query params
+      const filters = {};
+
+      if (req.query.status) filters.status = req.query.status;
+      if (req.query.orderType) filters.orderType = req.query.orderType;
+      if (req.query.outlet) filters.outlet = req.query.outlet;
+
+      // Date range filter
+      if (req.query.startDate || req.query.endDate) {
+        filters.createdAt = {};
+        if (req.query.startDate) {
+          const startDate = new Date(req.query.startDate);
+          startDate.setHours(0, 0, 0, 0);
+          filters.createdAt.$gte = startDate;
+        }
+        if (req.query.endDate) {
+          const endDate = new Date(req.query.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          filters.createdAt.$lte = endDate;
+        }
+      }
+
+      // Base query builder function
+      const buildQuery = () => {
+        return Order.find(filters)
+          .populate('items.menuItem')
+          .populate({
+            path: 'items.menuItem',
+            populate: {
+              path: 'category',
+              model: 'Category',
+              select: 'name'
+            }
+          })
+          .populate('outlet')
+          .populate('user_id')
+          .populate({
+            path: 'cashierId',
+            populate: {
+              path: 'outlet.outletId',
+              model: 'Outlet',
+              select: 'name address',
+            },
+          })
+          .sort({ createdAt: -1 })
+          .lean();
+      };
+
+      let orders, totalOrders, paginationInfo = null;
+
+      // Eksekusi berdasarkan mode
+      switch (mode) {
+        case 'all':
+          // Ambil semua data (untuk export)
+          orders = await buildQuery();
+          totalOrders = orders.length;
+          console.log(`Fetching ALL orders: ${totalOrders} records`);
+          break;
+
+        case 'recent':
+          // Ambil 10 data terbaru
+          orders = await buildQuery().limit(10);
+          totalOrders = await Order.countDocuments(filters);
+          paginationInfo = {
+            mode: 'recent',
+            showing: orders.length,
+            total: totalOrders
+          };
+          break;
+
+        case 'count':
+          // Hanya hitung jumlah
+          totalOrders = await Order.countDocuments(filters);
+          return res.status(200).json({
+            success: true,
+            count: totalOrders
+          });
+
+        case 'ids':
+          // Ambil hanya order IDs
+          const orderIds = await Order.find(filters)
+            .select('order_id createdAt status')
+            .sort({ createdAt: -1 })
+            .lean();
+          return res.status(200).json({
+            success: true,
+            data: orderIds
+          });
+
+        case 'paginated':
+        default:
+          // Mode pagination (default)
+          const skip = (page - 1) * limit;
+
+          totalOrders = await Order.countDocuments(filters);
+          const totalPages = Math.ceil(totalOrders / limit);
+
+          orders = await buildQuery().skip(skip).limit(limit);
+
+          console.log(`Fetching page ${page}: ${orders.length} records (Total: ${totalOrders})`);
+
+          paginationInfo = {
+            currentPage: page,
+            totalPages: totalPages,
+            totalOrders: totalOrders,
+            limit: limit,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1
+          };
+          break;
+      }
+
+      // Fetch payments hanya untuk orders yang ditampilkan
       const orderIds = orders.map(order => order.order_id);
       const allPayments = await Payment.find({
         order_id: { $in: orderIds }
-      });
+      }).lean();
 
+      // Buat payment map
       const paymentMap = {};
       allPayments.forEach(payment => {
         if (!paymentMap[payment.order_id]) {
@@ -696,15 +791,12 @@ class DailyProfitController {
         paymentMap[payment.order_id].push(payment);
       });
 
-      // Combine orders with payments dan populate menuItemData runtime
+      // Combine orders dengan payments dan populate menuItemData
       const ordersWithPayments = orders.map(order => {
-        const orderObj = order.toObject();
-
-        // ✅ Populate menuItemData jika kosong (untuk order lama)
-        if (orderObj.items && Array.isArray(orderObj.items)) {
-          orderObj.items = orderObj.items.map(item => {
+        // Populate menuItemData jika kosong (untuk order lama)
+        if (order.items && Array.isArray(order.items)) {
+          order.items = order.items.map(item => {
             if (!item.menuItemData || !item.menuItemData.name) {
-              // Ambil dari menuItem yang sudah di-populate
               if (item.menuItem) {
                 item.menuItemData = {
                   name: item.menuItem.name || 'Unknown Item',
@@ -727,21 +819,18 @@ class DailyProfitController {
                 };
               }
             } else if (!item.menuItemData.selectedAddons) {
-              // Update hanya addons/toppings jika belum ada
               item.menuItemData.selectedAddons = item.addons || [];
               item.menuItemData.selectedToppings = item.toppings || [];
             }
-
             return item;
           });
         }
 
         const relatedPayments = paymentMap[order.order_id] || [];
-
         let paymentDetails = null;
-        let actualPaymentMethod = orderObj.paymentMethod || 'N/A';
+        let actualPaymentMethod = order.paymentMethod || 'N/A';
 
-        if (orderObj.orderType !== "Reservation") {
+        if (order.orderType !== "Reservation") {
           paymentDetails = relatedPayments.find(p =>
             p.status === 'pending' || p.status === 'settlement'
           );
@@ -760,16 +849,24 @@ class DailyProfitController {
         }
 
         return {
-          ...orderObj,
+          ...order,
           paymentDetails: paymentDetails || null,
           actualPaymentMethod
         };
       });
 
-      res.status(200).json({
+      // Response
+      const response = {
         success: true,
         data: ordersWithPayments
-      });
+      };
+
+      if (paginationInfo) {
+        response.pagination = paginationInfo;
+      }
+
+      res.status(200).json(response);
+
     } catch (error) {
       console.error('Get orders with payments error:', error);
       res.status(500).json({
@@ -778,7 +875,7 @@ class DailyProfitController {
         error: error.message
       });
     }
-  };
+  }
 
   /**
    * Get detailed order report dengan handling deleted items - DUKUNG SPLIT PAYMENT

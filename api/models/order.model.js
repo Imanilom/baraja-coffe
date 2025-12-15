@@ -22,6 +22,18 @@ const SplitPaymentSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+
+  // ✅ TAMBAHKAN FIELD INI
+  va_numbers: [{
+    bank: String,
+    va_number: String
+  }],
+  actions: [{
+    name: String,
+    method: String,
+    url: String
+  }],
+
   paymentDetails: {
     // Untuk cash
     cashTendered: { type: Number, default: 0 },
