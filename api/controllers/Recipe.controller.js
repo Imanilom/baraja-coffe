@@ -5,7 +5,7 @@ import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import Warehouse from '../models/modul_market/Warehouse.model.js';
 import mongoose from 'mongoose';
-import { 
+import {
   calculateMaxPortionsForWarehouse,
   getWorkstationWarehouseMapping,
   calculateMenuItemStockForWarehouse
@@ -75,10 +75,10 @@ export const updateMenuAvailableStock = async (req, res) => {
         const workstation = menuItem.workstation;
         if (workstation) {
           const warehouses = await getWorkstationWarehouseMapping(workstation);
-          
+
           for (const [warehouseType, warehouseId] of Object.entries(warehouses)) {
             await MenuStock.findOneAndUpdate(
-              { 
+              {
                 menuItemId: menuItem._id,
                 warehouseId: warehouseId
               },
@@ -94,7 +94,7 @@ export const updateMenuAvailableStock = async (req, res) => {
 
         menuItem.availableStock = 0;
         menuItem.isActive = false;
-        
+
         // Reset warehouse stocks
         menuItem.warehouseStocks = [];
         await menuItem.save({ session });
@@ -107,19 +107,19 @@ export const updateMenuAvailableStock = async (req, res) => {
 
       if (workstation) {
         const warehouses = await getWorkstationWarehouseMapping(workstation);
-        
+
         for (const [warehouseType, warehouseId] of Object.entries(warehouses)) {
           // Filter hanya baseIngredients yang isDefault = true
           const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
           let calculatedStock = 0;
-          
+
           if (defaultIngredients.length) {
             calculatedStock = await calculateMaxPortionsForWarehouse(defaultIngredients, warehouseId);
           }
 
           // Update atau buat MenuStock untuk warehouse ini
           const menuStock = await MenuStock.findOneAndUpdate(
-            { 
+            {
               menuItemId: menuItem._id,
               warehouseId: warehouseId
             },
@@ -137,7 +137,7 @@ export const updateMenuAvailableStock = async (req, res) => {
           );
 
           totalAvailableStock += menuStock.effectiveStock;
-          
+
           warehouseStocksUpdate.push({
             warehouseId: warehouseId,
             stock: menuStock.effectiveStock,
@@ -150,7 +150,7 @@ export const updateMenuAvailableStock = async (req, res) => {
       menuItem.warehouseStocks = warehouseStocksUpdate;
       menuItem.availableStock = totalAvailableStock;
       menuItem.isActive = totalAvailableStock > 0;
-      
+
       await menuItem.save({ session });
     }
 
@@ -172,9 +172,9 @@ export const updateMenuAvailableStock = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Error updating menu available stock:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Gagal mengupdate stok menu' 
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengupdate stok menu'
     });
   } finally {
     session.endSession();
@@ -185,7 +185,7 @@ export const updateMenuAvailableStock = async (req, res) => {
 export const getMenuStocks = async (req, res) => {
   try {
     const { warehouseId } = req.query;
-    
+
     let query = {};
     if (warehouseId && mongoose.Types.ObjectId.isValid(warehouseId)) {
       query.warehouseId = warehouseId;
@@ -195,9 +195,9 @@ export const getMenuStocks = async (req, res) => {
       .populate({
         path: "menuItemId",
         select: "name category availableStock workstation warehouseStocks",
-        populate: { 
-          path: "category", 
-          select: "name" 
+        populate: {
+          path: "category",
+          select: "name"
         }
       })
       .populate({
@@ -208,26 +208,30 @@ export const getMenuStocks = async (req, res) => {
 
     // Group by menu item untuk agregasi multi-warehouse
     const menuItemMap = new Map();
-    
+
     stocks.forEach(s => {
       const menuItemId = s.menuItemId?._id?.toString();
       if (!menuItemId) return;
-      
+
       if (!menuItemMap.has(menuItemId)) {
         menuItemMap.set(menuItemId, {
           _id: menuItemId,
+          menuItemId: menuItemId, // Added for frontend compatibility
           name: s.menuItemId?.name,
           category: s.menuItemId?.category?.name || "-",
           workstation: s.menuItemId?.workstation,
           availableStock: s.menuItemId?.availableStock || 0,
           warehouseStocks: [],
-          totalEffectiveStock: 0
+          totalEffectiveStock: 0,
+          calculatedStock: 0, // Init
+          manualStock: 0, // Init
         });
       }
-      
+
       const effectiveStock = s.manualStock !== null ? s.manualStock : s.calculatedStock;
-      
-      menuItemMap.get(menuItemId).warehouseStocks.push({
+      const currentItem = menuItemMap.get(menuItemId);
+
+      currentItem.warehouseStocks.push({
         warehouseId: s.warehouseId?._id,
         warehouseName: s.warehouseId?.name || "Unknown",
         warehouseCode: s.warehouseId?.code,
@@ -239,11 +243,19 @@ export const getMenuStocks = async (req, res) => {
         lastCalculatedAt: s.lastCalculatedAt,
         lastAdjustedAt: s.lastAdjustedAt
       });
-      
-      menuItemMap.get(menuItemId).totalEffectiveStock += effectiveStock;
+
+      currentItem.totalEffectiveStock += effectiveStock;
+      currentItem.calculatedStock += (s.calculatedStock || 0);
+      if (s.manualStock !== null) {
+        currentItem.manualStock += s.manualStock;
+      }
     });
 
-    const result = Array.from(menuItemMap.values());
+    const result = Array.from(menuItemMap.values()).map(item => ({
+      ...item,
+      effectiveStock: item.totalEffectiveStock, // Map this for frontend
+      currentStock: item.totalEffectiveStock    // Map this too just in case
+    }));
 
     res.status(200).json({
       success: true,
@@ -285,17 +297,17 @@ export const updateSingleMenuStock = async (req, res) => {
     const { warehouseId } = req.query; // Optional: jika ingin update untuk warehouse tertentu
 
     if (!menuItemId || !mongoose.Types.ObjectId.isValid(menuItemId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'ID Menu tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'ID Menu tidak valid'
       });
     }
 
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     if (!menuItem) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Menu tidak ditemukan' 
+      return res.status(404).json({
+        success: false,
+        message: 'Menu tidak ditemukan'
       });
     }
 
@@ -331,11 +343,11 @@ export const updateSingleMenuStock = async (req, res) => {
       }
 
       // Update MenuStock untuk warehouse tertentu
-      let menuStockDoc = await MenuStock.findOne({ 
-        menuItemId, 
-        warehouseId 
+      let menuStockDoc = await MenuStock.findOne({
+        menuItemId,
+        warehouseId
       }).session(session);
-      
+
       if (!menuStockDoc) {
         menuStockDoc = new MenuStock({
           menuItemId,
@@ -350,15 +362,15 @@ export const updateSingleMenuStock = async (req, res) => {
         }
         menuStockDoc.lastCalculatedAt = new Date();
       }
-      
+
       await menuStockDoc.save({ session });
-      
+
       // Update warehouse stock in menu item
       const effectiveStock = menuStockDoc.effectiveStock;
-      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws =>
         ws.warehouseId.toString() === warehouseId.toString()
       );
-      
+
       if (warehouseIndex >= 0) {
         menuItem.warehouseStocks[warehouseIndex].stock = effectiveStock;
       } else {
@@ -368,9 +380,9 @@ export const updateSingleMenuStock = async (req, res) => {
           workstation
         });
       }
-      
+
       totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
-      
+
     } else {
       // Update untuk semua warehouse terkait
       for (const [warehouseType, whId] of Object.entries(warehouses)) {
@@ -383,11 +395,11 @@ export const updateSingleMenuStock = async (req, res) => {
         }
 
         // Update MenuStock untuk setiap warehouse
-        let menuStockDoc = await MenuStock.findOne({ 
-          menuItemId, 
-          warehouseId: whId 
+        let menuStockDoc = await MenuStock.findOne({
+          menuItemId,
+          warehouseId: whId
         }).session(session);
-        
+
         if (!menuStockDoc) {
           menuStockDoc = new MenuStock({
             menuItemId,
@@ -402,12 +414,12 @@ export const updateSingleMenuStock = async (req, res) => {
           }
           menuStockDoc.lastCalculatedAt = new Date();
         }
-        
+
         await menuStockDoc.save({ session });
-        
+
         const effectiveStock = menuStockDoc.effectiveStock;
         totalAvailableStock += effectiveStock;
-        
+
         warehouseStocksUpdate.push({
           warehouseId: whId,
           stock: effectiveStock,
@@ -439,9 +451,9 @@ export const updateSingleMenuStock = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Error updating single menu stock:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Gagal mengupdate stok menu' 
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengupdate stok menu'
     });
   } finally {
     session.endSession();
@@ -455,20 +467,20 @@ export const adjustMenuStock = async (req, res) => {
 
   try {
     const { menuItemId } = req.params;
-    const { 
-      manualStock, 
-      adjustmentNote, 
-      adjustedBy, 
-      reason, 
+    const {
+      manualStock,
+      adjustmentNote,
+      adjustedBy,
+      reason,
       wasteQuantity,
       warehouseId // Tambahkan warehouseId untuk multi-warehouse
     } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(menuItemId)) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'ID Menu tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'ID Menu tidak valid'
       });
     }
 
@@ -479,30 +491,30 @@ export const adjustMenuStock = async (req, res) => {
       const menuItem = await MenuItem.findById(menuItemId).session(session);
       if (!menuItem) {
         await session.abortTransaction();
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Menu tidak ditemukan' 
+        return res.status(404).json({
+          success: false,
+          message: 'Menu tidak ditemukan'
         });
       }
-      
+
       const workstation = menuItem.workstation;
       if (!workstation) {
         await session.abortTransaction();
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Menu tidak memiliki workstation' 
+        return res.status(400).json({
+          success: false,
+          message: 'Menu tidak memiliki workstation'
         });
       }
-      
+
       const warehouses = await getWorkstationWarehouseMapping(workstation);
       // Gunakan primary warehouse (biasanya yang pertama)
       targetWarehouseId = Object.values(warehouses)[0];
-      
+
       if (!targetWarehouseId) {
         await session.abortTransaction();
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Tidak ada warehouse untuk workstation ini' 
+        return res.status(400).json({
+          success: false,
+          message: 'Tidak ada warehouse untuk workstation ini'
         });
       }
     }
@@ -511,9 +523,9 @@ export const adjustMenuStock = async (req, res) => {
     if (reason && wasteQuantity) {
       if (wasteQuantity <= 0) {
         await session.abortTransaction();
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Quantity waste harus lebih dari 0' 
+        return res.status(400).json({
+          success: false,
+          message: 'Quantity waste harus lebih dari 0'
         });
       }
 
@@ -529,23 +541,23 @@ export const adjustMenuStock = async (req, res) => {
 
     // Handle reset stock untuk warehouse tertentu
     if (manualStock === '' || manualStock === null) {
-      const menuStock = await MenuStock.findOne({ 
-        menuItemId, 
-        warehouseId: targetWarehouseId 
+      const menuStock = await MenuStock.findOne({
+        menuItemId,
+        warehouseId: targetWarehouseId
       }).session(session);
-      
+
       if (!menuStock) {
         await session.abortTransaction();
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Stok menu tidak ditemukan untuk warehouse ini' 
+        return res.status(404).json({
+          success: false,
+          message: 'Stok menu tidak ditemukan untuk warehouse ini'
         });
       }
 
       // Hitung calculated stock berdasarkan bahan di warehouse ini
       const recipe = await Recipe.findOne({ menuItemId }).session(session);
       let calculatedStock = 0;
-      
+
       if (recipe?.baseIngredients?.length) {
         const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
         if (defaultIngredients.length) {
@@ -569,10 +581,10 @@ export const adjustMenuStock = async (req, res) => {
       const previousStatus = menuItem.isActive;
 
       // Update warehouse stock di array
-      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws =>
         ws.warehouseId.toString() === targetWarehouseId.toString()
       );
-      
+
       if (warehouseIndex >= 0) {
         menuItem.warehouseStocks[warehouseIndex].stock = effectiveStock;
       } else {
@@ -587,7 +599,7 @@ export const adjustMenuStock = async (req, res) => {
       const totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
       menuItem.availableStock = totalAvailableStock;
       menuItem.isActive = totalAvailableStock > 0; // Aktif jika ada stok di salah satu warehouse
-      
+
       await menuItem.save({ session });
 
       const statusChange = previousStatus !== menuItem.isActive
@@ -657,18 +669,18 @@ export const adjustMenuStock = async (req, res) => {
     // Validasi untuk input manual stock
     if (manualStock < 0) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Stok manual harus angka ≥ 0' 
+      return res.status(400).json({
+        success: false,
+        message: 'Stok manual harus angka ≥ 0'
       });
     }
 
     // Cari atau buat MenuStock untuk warehouse ini
-    let stockDoc = await MenuStock.findOne({ 
-      menuItemId, 
-      warehouseId: targetWarehouseId 
+    let stockDoc = await MenuStock.findOne({
+      menuItemId,
+      warehouseId: targetWarehouseId
     }).session(session);
-    
+
     const previousStock = stockDoc ? stockDoc.effectiveStock : 0;
 
     if (!stockDoc) {
@@ -710,10 +722,10 @@ export const adjustMenuStock = async (req, res) => {
     const previousStatus = menuItem.isActive;
 
     // Update warehouse stock di array
-    const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+    const warehouseIndex = menuItem.warehouseStocks.findIndex(ws =>
       ws.warehouseId.toString() === targetWarehouseId.toString()
     );
-    
+
     if (warehouseIndex >= 0) {
       menuItem.warehouseStocks[warehouseIndex].stock = effectiveStock;
     } else {
@@ -839,9 +851,9 @@ export const adjustMenuStock = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Error adjusting menu stock:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Gagal menyesuaikan stok' 
+    res.status(500).json({
+      success: false,
+      message: 'Gagal menyesuaikan stok'
     });
   } finally {
     session.endSession();
@@ -988,45 +1000,45 @@ export const recordWasteStock = async (req, res) => {
 
   try {
     const { menuItemId } = req.params;
-    const { 
-      wasteQuantity, 
-      reason, 
-      notes, 
+    const {
+      wasteQuantity,
+      reason,
+      notes,
       handledBy,
       warehouseId // Tambahkan warehouseId
     } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(menuItemId)) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'ID Menu tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'ID Menu tidak valid'
       });
     }
 
     // Validasi warehouseId
     if (!warehouseId || !mongoose.Types.ObjectId.isValid(warehouseId)) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Warehouse ID tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'Warehouse ID tidak valid'
       });
     }
 
     // Validasi input
     if (!wasteQuantity || wasteQuantity <= 0) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Quantity waste harus lebih dari 0' 
+      return res.status(400).json({
+        success: false,
+        message: 'Quantity waste harus lebih dari 0'
       });
     }
 
     if (!reason) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Reason wajib diisi' 
+      return res.status(400).json({
+        success: false,
+        message: 'Reason wajib diisi'
       });
     }
 
@@ -1040,16 +1052,16 @@ export const recordWasteStock = async (req, res) => {
     }
 
     // Dapatkan current stock untuk warehouse ini
-    const menuStock = await MenuStock.findOne({ 
-      menuItemId, 
-      warehouseId 
+    const menuStock = await MenuStock.findOne({
+      menuItemId,
+      warehouseId
     }).session(session);
-    
+
     if (!menuStock) {
       await session.abortTransaction();
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Stok menu tidak ditemukan untuk warehouse ini' 
+      return res.status(404).json({
+        success: false,
+        message: 'Stok menu tidak ditemukan untuk warehouse ini'
       });
     }
 
@@ -1064,19 +1076,19 @@ export const recordWasteStock = async (req, res) => {
     // Update MenuItem warehouse stock
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     if (menuItem) {
-      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws => 
+      const warehouseIndex = menuItem.warehouseStocks.findIndex(ws =>
         ws.warehouseId.toString() === warehouseId.toString()
       );
-      
+
       if (warehouseIndex >= 0) {
         menuItem.warehouseStocks[warehouseIndex].stock = menuStock.effectiveStock;
       }
-      
+
       // Update total available stock
       const totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
       menuItem.availableStock = totalAvailableStock;
       menuItem.isActive = totalAvailableStock > 0;
-      
+
       await menuItem.save({ session });
     }
 
@@ -1113,9 +1125,9 @@ export const recordWasteStock = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Error recording waste stock:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Gagal mencatat waste stok' 
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mencatat waste stok'
     });
   } finally {
     session.endSession();
@@ -1131,34 +1143,34 @@ export const getMenuStockDetails = async (req, res) => {
     const { warehouseId } = req.query; // Optional filter by warehouse
 
     if (!menuItemId || !mongoose.Types.ObjectId.isValid(menuItemId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'ID Menu tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'ID Menu tidak valid'
       });
     }
 
     const menuItem = await MenuItem.findById(menuItemId)
       .populate('toppings.name', 'name')
       .populate('warehouseStocks.warehouseId', 'name code');
-    
+
     const recipe = await Recipe.findOne({ menuItemId }).populate('baseIngredients.productId');
-    
+
     let menuStocks;
     if (warehouseId) {
-      menuStocks = await MenuStock.find({ 
-        menuItemId, 
-        warehouseId 
+      menuStocks = await MenuStock.find({
+        menuItemId,
+        warehouseId
       }).populate('warehouseId', 'name code');
     } else {
-      menuStocks = await MenuStock.find({ 
-        menuItemId 
+      menuStocks = await MenuStock.find({
+        menuItemId
       }).populate('warehouseId', 'name code');
     }
 
     if (!recipe) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Resep tidak ditemukan' 
+      return res.status(404).json({
+        success: false,
+        message: 'Resep tidak ditemukan'
       });
     }
 
@@ -1242,11 +1254,11 @@ export const getMenuStockDetails = async (req, res) => {
     // Isi stok aktual & hitung portion dari tiap bahan per warehouse
     for (const ing of details.baseIngredients) {
       for (const ws of ing.warehouseStocks) {
-        const stockDoc = await ProductStock.findOne({ 
+        const stockDoc = await ProductStock.findOne({
           productId: ing.productId,
-          warehouse: ws.warehouseId 
+          warehouse: ws.warehouseId
         });
-        
+
         ws.currentStock = stockDoc?.currentStock ?? 0;
         if (ing.quantityRequired > 0) {
           ws.portionFromThisItem = Math.floor(ws.currentStock / ing.quantityRequired);
@@ -1254,16 +1266,16 @@ export const getMenuStockDetails = async (req, res) => {
       }
     }
 
-    res.status(200).json({ 
-      success: true, 
-      data: details 
+    res.status(200).json({
+      success: true,
+      data: details
     });
 
   } catch (error) {
     console.error('Error fetching menu stock details:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Gagal mengambil detail stok menu' 
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengambil detail stok menu'
     });
   }
 };
@@ -1277,41 +1289,41 @@ export const transferMenuStock = async (req, res) => {
 
   try {
     const { menuItemId } = req.params;
-    const { 
-      fromWarehouseId, 
-      toWarehouseId, 
-      quantity, 
-      reason, 
+    const {
+      fromWarehouseId,
+      toWarehouseId,
+      quantity,
+      reason,
       handledBy,
-      notes 
+      notes
     } = req.body;
 
     if (!menuItemId || !mongoose.Types.ObjectId.isValid(menuItemId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'ID Menu tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'ID Menu tidak valid'
       });
     }
 
     // Validasi input
     if (!fromWarehouseId || !toWarehouseId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Warehouse sumber dan tujuan harus diisi' 
+      return res.status(400).json({
+        success: false,
+        message: 'Warehouse sumber dan tujuan harus diisi'
       });
     }
 
     if (fromWarehouseId === toWarehouseId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Warehouse sumber dan tujuan tidak boleh sama' 
+      return res.status(400).json({
+        success: false,
+        message: 'Warehouse sumber dan tujuan tidak boleh sama'
       });
     }
 
     if (!quantity || quantity <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Quantity harus lebih dari 0' 
+      return res.status(400).json({
+        success: false,
+        message: 'Quantity harus lebih dari 0'
       });
     }
 
@@ -1323,16 +1335,16 @@ export const transferMenuStock = async (req, res) => {
 
     if (!sourceStock || sourceStock.effectiveStock < quantity) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Stok tidak mencukupi di warehouse sumber' 
+      return res.status(400).json({
+        success: false,
+        message: 'Stok tidak mencukupi di warehouse sumber'
       });
     }
 
     // Kurangi stok di warehouse sumber
     const sourcePreviousStock = sourceStock.effectiveStock;
     const sourceNewStock = sourcePreviousStock - quantity;
-    
+
     sourceStock.manualStock = sourceNewStock;
     sourceStock.lastAdjustedAt = new Date();
     sourceStock.adjustmentNote = `Transfer ke ${toWarehouseId}: ${notes || reason}`;
@@ -1368,12 +1380,12 @@ export const transferMenuStock = async (req, res) => {
 
     // Update MenuItem warehouse stocks
     const menuItem = await MenuItem.findById(menuItemId).session(session);
-    
+
     // Update source warehouse stock
-    const sourceIndex = menuItem.warehouseStocks.findIndex(ws => 
+    const sourceIndex = menuItem.warehouseStocks.findIndex(ws =>
       ws.warehouseId.toString() === fromWarehouseId.toString()
     );
-    
+
     if (sourceIndex >= 0) {
       menuItem.warehouseStocks[sourceIndex].stock = sourceNewStock;
     } else {
@@ -1385,10 +1397,10 @@ export const transferMenuStock = async (req, res) => {
     }
 
     // Update target warehouse stock
-    const targetIndex = menuItem.warehouseStocks.findIndex(ws => 
+    const targetIndex = menuItem.warehouseStocks.findIndex(ws =>
       ws.warehouseId.toString() === toWarehouseId.toString()
     );
-    
+
     if (targetIndex >= 0) {
       menuItem.warehouseStocks[targetIndex].stock = targetNewStock;
     } else {
@@ -1403,7 +1415,7 @@ export const transferMenuStock = async (req, res) => {
     const totalAvailableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
     menuItem.availableStock = totalAvailableStock;
     menuItem.isActive = totalAvailableStock > 0;
-    
+
     await menuItem.save({ session });
 
     // Catat transfer history
@@ -1473,9 +1485,9 @@ export const transferMenuStock = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Error transferring menu stock:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Gagal transfer stok' 
+    res.status(500).json({
+      success: false,
+      message: 'Gagal transfer stok'
     });
   } finally {
     session.endSession();
@@ -1492,16 +1504,16 @@ export const createRecipe = async (req, res) => {
 
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     if (!menuItem) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Menu tidak ditemukan' 
+      return res.status(404).json({
+        success: false,
+        message: 'Menu tidak ditemukan'
       });
     }
 
     if (!Array.isArray(baseIngredients) || baseIngredients.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Harus ada bahan utama' 
+      return res.status(400).json({
+        success: false,
+        message: 'Harus ada bahan utama'
       });
     }
 
@@ -1530,7 +1542,7 @@ export const createRecipe = async (req, res) => {
     // Hitung HPP
     const newCostPrice = await calculateCostPrice(menuItemId, newRecipe);
     menuItem.costPrice = newCostPrice;
-    
+
     // Jika ada workstation, hitung initial stock untuk semua warehouse
     if (menuItem.workstation) {
       const warehouses = await getWorkstationWarehouseMapping(menuItem.workstation);
@@ -1540,7 +1552,7 @@ export const createRecipe = async (req, res) => {
       for (const [warehouseType, whId] of Object.entries(warehouses)) {
         const defaultIngredients = newRecipe.baseIngredients.filter(ing => ing.isDefault);
         let calculatedStock = 0;
-        
+
         if (defaultIngredients.length) {
           calculatedStock = await calculateMaxPortionsForWarehouse(defaultIngredients, whId);
         }
@@ -1598,7 +1610,7 @@ export const createRecipe = async (req, res) => {
   }
 };
 
-  
+
 // 🔹 Lihat semua resep
 export const getAllRecipes = async (req, res) => {
   try {
