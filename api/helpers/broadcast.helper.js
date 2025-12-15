@@ -169,10 +169,14 @@ export const triggerImmediatePrint = async (orderInfo) => {
   try {
     const { orderId, tableNumber, orderData, outletId, source, isAppOrder, isWebOrder } = orderInfo;
 
-    console.log(`🖨️ [IMMEDIATE PRINT] Triggering print for ${orderId}`);
+    console.log(`\n🖨️ ========== PRINT TRIGGER ==========`);
+    console.log(`📋 Order ID: ${orderId}`);
+    console.log(`🪑 Table: ${tableNumber || 'N/A'}`);
+    console.log(`📱 Source: ${isAppOrder ? 'App' : isWebOrder ? 'Web' : source || 'Cashier'}`);
 
     if (!global.io) {
       console.warn('❌ Socket IO not available for immediate print');
+      console.log(`====================================\n`);
       return false;
     }
 
@@ -187,36 +191,40 @@ export const triggerImmediatePrint = async (orderInfo) => {
       source: isAppOrder ? 'App' : isWebOrder ? 'Web' : source || 'Cashier',
       orderType: orderData.orderType || 'dine-in',
       timestamp: new Date(),
-      printTrigger: 'immediate', // Flag untuk kitchen tahu ini print pertama
+      printTrigger: 'immediate',
       paymentMethod: orderData.paymentMethod || 'Cash'
     };
 
+    // Count items by workstation
+    const kitchenItems = printData.orderItems.filter(item => item.workstation === 'kitchen');
+    const barItems = printData.orderItems.filter(item =>
+      item.workstation === 'bar' || item.category === 'beverage' || item.category === 'drink'
+    );
+
     // 🔥 EMIT ke kitchen IMMEDIATELY untuk print
-    global.io.to('kitchen_room').emit('kitchen_immediate_print', printData);
-    global.io.to(`kitchen_${outletId}`).emit('kitchen_immediate_print', printData);
-
-    // 🔥 EMIT ke bar IMMEDIATELY untuk beverage items
-    if (areaCode) {
-      const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
-      const beverageItems = (orderData.items || []).filter(item =>
-        item.category === 'beverage' ||
-        item.category === 'drink' ||
-        item.workstation === 'bar'
-      );
-
-      if (beverageItems.length > 0) {
-        global.io.to(barRoom).emit('beverage_immediate_print', {
-          ...printData,
-          orderItems: beverageItems,
-          assignedBar: barRoom
-        });
-      }
+    if (kitchenItems.length > 0) {
+      global.io.to('kitchen_room').emit('kitchen_immediate_print', printData);
+      global.io.to(`kitchen_${outletId}`).emit('kitchen_immediate_print', printData);
+      console.log(`🍳 → Kitchen: ${kitchenItems.length} items sent to kitchen_room`);
     }
 
-    console.log(`✅ [IMMEDIATE PRINT] Print triggered for ${orderId}`);
+    // 🔥 EMIT ke bar IMMEDIATELY untuk beverage items
+    if (areaCode && barItems.length > 0) {
+      const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
+      global.io.to(barRoom).emit('beverage_immediate_print', {
+        ...printData,
+        orderItems: barItems,
+        assignedBar: barRoom
+      });
+      console.log(`🍹 → Bar: ${barItems.length} items sent to ${barRoom}`);
+    }
+
+    console.log(`✅ Print commands sent successfully`);
+    console.log(`====================================\n`);
     return true;
   } catch (error) {
     console.error('❌ Error triggering immediate print:', error);
+    console.log(`====================================\n`);
     return false;
   }
 };
@@ -321,7 +329,11 @@ export const broadcastOrderCreation = async (orderId, orderData) => {
       return;
     }
 
-    console.log(`📢 Broadcasting order ${orderId} from ${source} for table ${tableNumber}`);
+    console.log(`\n📡 ========== ORDER BROADCAST ==========`);
+    console.log(`📋 Order ID: ${orderId}`);
+    console.log(`🪑 Table: ${tableNumber}`);
+    console.log(`📱 Source: ${source}`);
+    console.log(`💳 Payment: ${paymentDetails?.method || 'N/A'}`);
 
     // ✅ BROADCAST KE AREAS UNTUK SEMUA ORDER (Web & App)
     await broadcastNewOrderToAreas({
@@ -336,7 +348,7 @@ export const broadcastOrderCreation = async (orderId, orderData) => {
     // ✅ OPTIMIZATION: Single broadcast path via socketManagement (no duplicate)
     const isCashPayment = paymentDetails?.method?.toLowerCase() === 'cash';
     if (isCashPayment) {
-      // Use only socketManagement.broadcastOrder - no duplicate broadcast
+      console.log(`💰 Cash payment detected - broadcasting to kitchen/bar`);
       await broadcastCashOrderToKitchen({
         orderId,
         tableNumber,
@@ -347,10 +359,12 @@ export const broadcastOrderCreation = async (orderId, orderData) => {
       });
     }
 
-    console.log(`✅ Order ${orderId} broadcast completed for ${source}`);
+    console.log(`✅ Broadcast completed`);
+    console.log(`======================================\n`);
 
   } catch (error) {
     console.error('❌ Error in broadcastOrderCreation:', error);
+    console.log(`======================================\n`);
   }
 };
 
@@ -367,8 +381,6 @@ export const broadcastNewOrderToAreas = async (orderInfo) => {
     const areaCode = tableNumber.charAt(0).toUpperCase();
     const areaRoom = `area_${areaCode}`;
     const areaGroup = getAreaGroup(areaCode);
-
-    console.log(`📍 Broadcasting ${source} order ${orderId} to area ${areaCode}, table ${tableNumber}`);
 
     // Prepare broadcast data
     const broadcastData = {
@@ -401,12 +413,10 @@ export const broadcastNewOrderToAreas = async (orderInfo) => {
       // ✅ Broadcast ke outlet-specific room
       global.io.to(`outlet_${outletId}`).emit('new_order', broadcastData);
 
-      console.log(`✅ ${source} Order ${orderId} broadcasted to area ${areaCode}`);
-
-      // Log connected devices di area ini untuk debugging
+      // Log connected devices
       const areaRoomClients = global.io.sockets.adapter.rooms.get(areaRoom)?.size || 0;
       const cashierRoomClients = global.io.sockets.adapter.rooms.get('cashier_room')?.size || 0;
-      console.log(`📊 Connected devices - Area ${areaCode}: ${areaRoomClients}, Cashier room: ${cashierRoomClients}`);
+      console.log(`📍 → Area ${areaCode}: ${areaRoomClients} devices | Cashier room: ${cashierRoomClients} devices`);
 
     } else {
       console.warn('❌ Socket IO not available for broadcasting');
