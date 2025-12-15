@@ -42,7 +42,7 @@ export const midtransWebhook = async (req, res) => {
     // ✅ IMPLEMENTASI ATOMIC LOCK UNTUK WEBHOOK PROCESSING
     const result = await LockUtil.withOrderLock(`webhook-${order_id}`, async () => {
       // ✅ PERBAIKAN: Cari payment record dengan multiple criteria
-      let existingPayment = await Payment.findOne({ 
+      let existingPayment = await Payment.findOne({
         $or: [
           { order_id: order_id },           // Untuk order reguler
           { payment_code: order_id },       // Untuk reservation order
@@ -52,7 +52,7 @@ export const midtransWebhook = async (req, res) => {
 
       if (!existingPayment) {
         console.error(`[WEBHOOK ${requestId}] Payment record not found for: ${order_id}`);
-        
+
         // ✅ TAMBAHAN: Coba cari order langsung untuk debugging
         const orderCheck = await Order.findOne({ order_id: order_id });
         if (orderCheck) {
@@ -62,7 +62,7 @@ export const midtransWebhook = async (req, res) => {
             status: orderCheck.status
           });
         }
-        
+
         throw new Error('Payment record not found');
       }
 
@@ -97,7 +97,7 @@ export const midtransWebhook = async (req, res) => {
 
       // ✅ PERBAIKAN: Update payment dengan criteria yang sama
       const updatedPayment = await Payment.findOneAndUpdate(
-        { 
+        {
           $or: [
             { order_id: order_id },
             { payment_code: order_id },
@@ -124,7 +124,7 @@ export const midtransWebhook = async (req, res) => {
 
       // ✅ PERBAIKAN: Cari order berdasarkan order_id dari payment record
       const targetOrderId = updatedPayment.order_id; // Selalu gunakan order_id dari payment
-      
+
       const order = await Order.findOne({ order_id: targetOrderId })
         .populate('user_id', 'name email phone')
         .populate('cashierId', 'name')
@@ -164,11 +164,11 @@ export const midtransWebhook = async (req, res) => {
                 paymentStatus: 'Paid',
                 status: 'Confirmed' // ✅ Ubah status order reservation jadi Confirmed
               };
-              
+
               // Tandai untuk update reservation juga
               shouldUpdateReservation = true;
               console.log(`[WEBHOOK ${requestId}] Down Payment successful for reservation order ${targetOrderId}`);
-              
+
             } else {
               // Untuk order reguler
               orderUpdateData = {
@@ -178,7 +178,7 @@ export const midtransWebhook = async (req, res) => {
               console.log(`[WEBHOOK ${requestId}] Payment successful for regular order ${targetOrderId}`);
             }
             shouldUpdateOrder = true;
-            
+
           } else if (fraud_status === 'challenge') {
             orderUpdateData = {
               paymentStatus: 'Challenged'
@@ -238,8 +238,8 @@ export const midtransWebhook = async (req, res) => {
       }
 
       // ✅ PERBAIKAN: Update payment remaining amount untuk reservation
-      if (transaction_status === 'settlement' && fraud_status === 'accept' && 
-          order.orderType === 'Reservation' && updatedPayment.paymentType === 'Down Payment') {
+      if (transaction_status === 'settlement' && fraud_status === 'accept' &&
+        order.orderType === 'Reservation' && updatedPayment.paymentType === 'Down Payment') {
         try {
           // Mark down payment as settled
           updatedPayment.remainingAmount = updatedPayment.totalAmount - updatedPayment.amount;
@@ -287,7 +287,7 @@ export const midtransWebhook = async (req, res) => {
       // ✅ TAMBAHAN: Untuk reservation order yang berhasil, log saja
       if (transaction_status === 'settlement' && fraud_status === 'accept' && order.orderType === 'Reservation') {
         console.log(`[WEBHOOK ${requestId}] ✅ Reservation order ${targetOrderId} down payment completed successfully`);
-        
+
         // Bisa tambahkan notifikasi khusus untuk reservation di sini
         io.to(`reservation_${order.reservation?._id}`).emit('reservation_payment_completed', {
           reservation_code: order.reservation?.reservation_code,
@@ -316,7 +316,7 @@ export const midtransWebhook = async (req, res) => {
     });
 
     console.log(`[WEBHOOK ${requestId}] Webhook processed successfully dengan LOCK untuk ${order_id}`);
-    
+
     res.status(200).json({
       status: 'ok',
       message: 'Webhook processed successfully',
@@ -359,10 +359,10 @@ export const midtransWebhook = async (req, res) => {
 
 export const handleGoSendWebhook = async (req, res) => {
   const requestId = Math.random().toString(36).substr(2, 9);
-  
+
   try {
     const webhookData = req.body;
-    
+
     console.log(`[GOSEND WEBHOOK ${requestId}] Received GoSend webhook:`, {
       booking_id: webhookData.booking_id,
       status: webhookData.status,
@@ -375,17 +375,17 @@ export const handleGoSendWebhook = async (req, res) => {
 
     if (!receivedToken) {
       console.warn(`[GOSEND WEBHOOK ${requestId}] ❌ X-Callback-Token header missing`);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'X-Callback-Token header required' 
+      return res.status(401).json({
+        success: false,
+        message: 'X-Callback-Token header required'
       });
     }
 
     if (receivedToken !== expectedToken) {
       console.warn(`[GOSEND WEBHOOK ${requestId}] ❌ Invalid X-Callback-Token received:`, receivedToken);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid token' 
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
       });
     }
 
@@ -395,17 +395,17 @@ export const handleGoSendWebhook = async (req, res) => {
     if (!webhookData.booking_id || !webhookData.status) {
       console.warn(`[GOSEND WEBHOOK ${requestId}] ⚠️ Incomplete webhook payload:`, webhookData);
       // Tetap return 200 ke GoSend tapi log warning
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Webhook received but missing required fields' 
+      return res.status(200).json({
+        success: true,
+        message: 'Webhook received but missing required fields'
       });
     }
 
     // ✅ IMPLEMENTASI ATOMIC LOCK UNTUK GOSEND WEBHOOK
     const result = await LockUtil.withOrderLock(`gosend-${webhookData.booking_id}`, async () => {
       // 3. CARI BOOKING DI DATABASE
-      const goSendBooking = await GoSendBooking.findOne({ 
-        goSend_order_no: webhookData.booking_id 
+      const goSendBooking = await GoSendBooking.findOne({
+        goSend_order_no: webhookData.booking_id
       });
 
       if (!goSendBooking) {
@@ -501,19 +501,19 @@ export const handleGoSendWebhook = async (req, res) => {
     console.log(`[GOSEND WEBHOOK ${requestId}] ✅ Webhook processed successfully dengan LOCK untuk ${webhookData.booking_id}`);
 
     // 7. SELALU RETURN 200 KE GOSEND
-    return res.status(200).json({ 
+    return res.status(200).json({
       success: true,
       message: 'Webhook processed successfully'
     });
 
   } catch (error) {
     console.error(`[GOSEND WEBHOOK ${requestId}] ❌ Error handling GoSend webhook:`, error);
-    
+
     // Handle lock-specific errors
     if (error.message.includes('Failed to acquire lock')) {
       console.log(`[GOSEND WEBHOOK ${requestId}] 🔄 GoSend webhook sedang diproses, skip processing`);
       // Tetap return 200 ke GoSend untuk menghindari retry
-      return res.status(200).json({ 
+      return res.status(200).json({
         success: true,
         message: 'Webhook sedang diproses'
       });
@@ -522,7 +522,7 @@ export const handleGoSendWebhook = async (req, res) => {
     // Handle other errors
     if (error.message.includes('Booking not found')) {
       // Tetap return 200 ke GoSend meskipun booking tidak ditemukan
-      return res.status(200).json({ 
+      return res.status(200).json({
         success: true,
         message: 'Webhook received (booking not found)'
       });
@@ -530,7 +530,7 @@ export const handleGoSendWebhook = async (req, res) => {
 
     // IMPORTANT: Tetap return 200 ke GoSend meskipun error lainnya
     // Untuk menghindari retry mechanism GoSend
-    return res.status(200).json({ 
+    return res.status(200).json({
       success: true,
       message: 'Webhook received (error logged internally)'
     });
@@ -541,7 +541,7 @@ export const handleGoSendWebhook = async (req, res) => {
 const mapGoSendStatus = (goSendStatus) => {
   const statusMap = {
     'confirmed': 'pending',
-    'allocated': 'driver_assigned', 
+    'allocated': 'driver_assigned',
     'out_for_pickup': 'pickup_started',
     'picked': 'picked_up',
     'out_for_delivery': 'on_delivery',
@@ -551,7 +551,7 @@ const mapGoSendStatus = (goSendStatus) => {
     'rejected': 'failed',
     'no_driver': 'failed'
   };
-  
+
   return statusMap[goSendStatus];
 };
 

@@ -19,7 +19,7 @@ export default function ReservationPage() {
             const result = await response.json();
 
             if (result.success) {
-                setReservations(result.data);
+                setReservations(result.data.data ? result.data.data : result.data);
             }
         } catch (error) {
             console.error('Error fetching reservations:', error);
@@ -61,17 +61,17 @@ export default function ReservationPage() {
 
     const filteredReservations = reservations.filter(reservation => {
         const matchesSearch =
-            reservation.reservation_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            reservation.reservation_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             reservation.guest_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            reservation.area_id.area_name.toLowerCase().includes(searchQuery.toLowerCase());
+            reservation.area_id?.area_name?.toLowerCase().includes(searchQuery.toLowerCase());
 
         const matchesStatus = statusFilter === 'all' || reservation.status === statusFilter;
 
-        const reservationDate = new Date(reservation.reservation_date).toDateString();
+        const reservationDate = reservation.reservation_date ? new Date(reservation.reservation_date).toDateString() : null;
         const today = new Date().toDateString();
         const matchesDate = dateFilter === 'all' ||
             (dateFilter === 'today' && reservationDate === today) ||
-            (dateFilter === 'upcoming' && new Date(reservation.reservation_date) >= new Date());
+            (dateFilter === 'upcoming' && reservationDate && new Date(reservation.reservation_date) >= new Date());
 
         return matchesSearch && matchesStatus && matchesDate;
     });

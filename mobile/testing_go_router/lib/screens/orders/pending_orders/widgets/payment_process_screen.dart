@@ -57,19 +57,19 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final paymentTypesAsync = ref.watch(paymentTypesProvider);
+    final paymentMethodsAsync = ref.watch(paymentMethodsProvider);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: _buildAppBar(),
       // 👉 Bedakan layout landscape-tablet vs lainnya
-      body: paymentTypesAsync.when(
+      body: paymentMethodsAsync.when(
         data:
-            (paymentTypes) =>
+            (paymentMethod) =>
                 _isLandscapeTablet
-                    ? _buildLandscapeLayout(paymentTypes) // 👉 baru
+                    ? _buildLandscapeLayout(paymentMethod) // 👉 baru
                     : _buildPortraitLayout(
-                      paymentTypes,
+                      paymentMethod,
                     ), // 👉 layout lama dipertahankan
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _buildErrorState(error),
@@ -82,7 +82,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   // =========
   // LANDSCAPE TABLET LAYOUT (BARU)
   // =========
-  Widget _buildLandscapeLayout(List<PaymentTypeModel> paymentTypes) {
+  Widget _buildLandscapeLayout(List<PaymentMethodModel> paymentMethods) {
     final processState = ref.watch(paymentProcessProvider);
 
     return Row(
@@ -98,8 +98,8 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             physics: const NeverScrollableScrollPhysics(),
             onPageChanged: (index) => setState(() => _currentStep = index),
             children: [
-              _buildPaymentTypeSelection(paymentTypes),
-              _buildPaymentMethodSelection(),
+              _buildPaymentMethodSelection(paymentMethods),
+              _buildPaymentTypeSelection(),
               _buildPaymentConfirmation(),
             ],
           ),
@@ -188,14 +188,14 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
               _kv(
                 'Metode',
                 [
-                  processState.selectedType?.name,
                   processState.selectedMethod?.name,
+                  processState.selectedType?.name,
                 ].where((e) => (e ?? '').isNotEmpty).join(' - '),
               ),
               const SizedBox(height: 4),
               _kv(
                 'Tipe Pembayaran',
-                processState.selectedMethod?.isDigital == true
+                processState.selectedType?.isDigital == true
                     ? 'Digital'
                     : 'Manual',
               ),
@@ -396,7 +396,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   // =========
   // PORTRAIT / DEFAULT LAYOUT (lama, sedikit penyesuaian)
   // =========
-  Widget _buildPortraitLayout(List<PaymentTypeModel> paymentTypes) {
+  Widget _buildPortraitLayout(List<PaymentMethodModel> paymentMethods) {
     return Column(
       children: [
         _buildProgressIndicator(),
@@ -406,8 +406,8 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             physics: const NeverScrollableScrollPhysics(),
             onPageChanged: (index) => setState(() => _currentStep = index),
             children: [
-              _buildPaymentTypeSelection(paymentTypes),
-              _buildPaymentMethodSelection(),
+              _buildPaymentMethodSelection(paymentMethods),
+              _buildPaymentTypeSelection(),
               _buildPaymentConfirmation(),
             ],
           ),
@@ -592,7 +592,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   // =========
   // CONTENT
   // =========
-  Widget _buildPaymentTypeSelection(List<PaymentTypeModel> paymentTypes) {
+  Widget _buildPaymentMethodSelection(List<PaymentMethodModel> paymentMethods) {
     final processState = ref.watch(paymentProcessProvider);
 
     // 👉 grid adaptif untuk tablet landscape
@@ -642,11 +642,11 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
             ),
-            itemCount: paymentTypes.length,
+            itemCount: paymentMethods.length,
             itemBuilder: (context, index) {
-              final type = paymentTypes[index];
-              final isSelected = processState.selectedType?.id == type.id;
-              return _buildPaymentTypeCard(type, isSelected);
+              final method = paymentMethods[index];
+              final isSelected = processState.selectedMethod?.id == method.id;
+              return _buildPaymentMethodCard(method, isSelected);
             },
           ),
         ],
@@ -654,7 +654,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     );
   }
 
-  Widget _buildPaymentTypeCard(PaymentTypeModel type, bool isSelected) {
+  Widget _buildPaymentMethodCard(PaymentMethodModel method, bool isSelected) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       decoration: BoxDecoration(
@@ -679,10 +679,12 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            ref.read(paymentProcessProvider.notifier).selectPaymentType(type);
+            ref
+                .read(paymentProcessProvider.notifier)
+                .selectPaymentMethod(method);
             ref
                 .read(processPaymentRequestProvider.notifier)
-                .selectedPaymentType(null, type.id);
+                .selectedPaymentMethod(null, method.id);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -710,7 +712,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      _getPaymentTypeIcon(type.id),
+                      _getPaymentMethodIcon(method.id),
                       size: 28, // Fixed icon size
                       color: isSelected ? Colors.white : Colors.grey.shade600,
                     ),
@@ -721,7 +723,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                 Flexible(
                   flex: 1,
                   child: Text(
-                    type.name,
+                    method.name,
                     style: TextStyle(
                       fontSize: 14, // Reduced font size
                       fontWeight: FontWeight.bold,
@@ -736,7 +738,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
 
                 // Methods count
                 Text(
-                  '${type.paymentMethods.length} metode',
+                  '${method.paymentTypes.length} metode',
                   style: TextStyle(
                     fontSize: 11, // Reduced font size
                     color: Colors.grey.shade600,
@@ -788,7 +790,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     );
   }
 
-  Widget _buildPaymentMethodSelection() {
+  Widget _buildPaymentTypeSelection() {
     final processState = ref.watch(paymentProcessProvider);
 
     if (processState.selectedType == null) {
@@ -818,11 +820,11 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: processState.selectedType!.paymentMethods.length,
+            itemCount: processState.selectedMethod!.paymentTypes.length,
             itemBuilder: (context, index) {
-              final method = processState.selectedType!.paymentMethods[index];
-              final isSelected = processState.selectedMethod?.id == method.id;
-              return _buildPaymentMethodCard(method, isSelected);
+              final type = processState.selectedMethod!.paymentTypes[index];
+              final isSelected = processState.selectedMethod?.id == type.id;
+              return _buildPaymentTypeCard(type, isSelected);
             },
           ),
         ],
@@ -830,7 +832,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     );
   }
 
-  Widget _buildPaymentMethodCard(PaymentMethodModel method, bool isSelected) {
+  Widget _buildPaymentTypeCard(PaymentTypeModel type, bool isSelected) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.only(bottom: 12),
@@ -856,12 +858,10 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            ref
-                .read(paymentProcessProvider.notifier)
-                .selectPaymentMethod(method);
+            ref.read(paymentProcessProvider.notifier).selectPaymentType(type);
             ref
                 .read(processPaymentRequestProvider.notifier)
-                .selectedPaymentMethod(null, method.name);
+                .selectedPaymentType(null, type.name);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -881,7 +881,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    _getPaymentMethodIcon(method.id),
+                    _getPaymentTypeIcon(type.id),
                     size: 28,
                     color: isSelected ? Colors.white : Colors.grey.shade600,
                   ),
@@ -892,7 +892,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        method.name,
+                        type.name,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -901,13 +901,13 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        method.name,
+                        type.name,
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade600,
                         ),
                       ),
-                      if (method.isDigital) ...[
+                      if (type.isDigital) ...[
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -1025,12 +1025,12 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                 const SizedBox(height: 8),
                 _buildSummaryRow(
                   'Metode',
-                  '${processState.selectedType?.name} - ${processState.selectedMethod?.name}',
+                  '${processState.selectedMethod?.name} - ${processState.selectedType?.name}',
                 ),
                 const SizedBox(height: 8),
                 _buildSummaryRow(
                   'Tipe Pembayaran',
-                  processState.selectedMethod?.isDigital == true
+                  processState.selectedType?.isDigital == true
                       ? 'Digital'
                       : 'Manual',
                 ),

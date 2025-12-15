@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Calendar, MapPin, Mail, Phone, User, Download, Share2, X, Clock, Users, Loader } from 'lucide-react';
-import axios from 'axios';
-import QRCode from 'qrcode';
 
 export default function EventSalesManagement() {
     const [events, setEvents] = useState([]);
     const [selectedEvent, setSelectedEvent] = useState(null);
     const [showModal, setShowModal] = useState(false);
+    const [filterType, setFilterType] = useState('all');
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -28,10 +27,10 @@ export default function EventSalesManagement() {
     const fetchEvents = async () => {
         setLoadingEvents(true);
         try {
-            const response = await axios.get('/api/event');
-            if (response.data.success) {
-                const freeEvents = response.data.data.filter(event => event.isFreeEvent);
-                setEvents(freeEvents);
+            const response = await fetch('/api/event');
+            const data = await response.json();
+            if (data.success) {
+                setEvents(data.data);
             }
         } catch (err) {
             console.error('Failed to fetch events:', err);
@@ -41,12 +40,25 @@ export default function EventSalesManagement() {
         }
     };
 
+    const filteredEvents = events.filter(event => {
+        if (filterType === 'all') return true;
+        if (filterType === 'free') return event.isFreeEvent;
+        if (filterType === 'paid') return !event.isFreeEvent;
+        return true;
+    });
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = async () => {
+        // Check if event is paid - redirect to purchase
+        if (!selectedEvent.isFreeEvent) {
+            handlePurchase();
+            return;
+        }
+
         if (!formData.fullName || !formData.email || !formData.phone || !formData.gender || !formData.currentCity) {
             setError('Mohon isi semua field yang wajib');
             return;
@@ -76,21 +88,25 @@ export default function EventSalesManagement() {
                 notes: formData.notes ? formData.notes.trim() : ''
             };
 
-            const response = await axios.post(
-                `/api/event/${selectedEvent._id}/register`,
-                requestData
-            );
+            const response = await fetch(`/api/event/${selectedEvent._id}/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData)
+            });
 
-            if (response.data.success) {
-                setRegistrationData(response.data.data);
+            const data = await response.json();
+
+            if (data.success) {
+                setRegistrationData(data.data);
                 setRegistrationSuccess(true);
                 setShowModal(false);
             } else {
-                setError(response.data.message);
+                setError(data.message);
             }
         } catch (err) {
-            const errorMessage = err.response?.data?.message || 'Pendaftaran gagal. Silakan coba lagi.';
-            setError(errorMessage);
+            setError('Pendaftaran gagal. Silakan coba lagi.');
         } finally {
             setLoading(false);
         }
@@ -114,6 +130,31 @@ export default function EventSalesManagement() {
         });
     };
 
+    const generateQRCode = (text) => {
+        const canvas = document.createElement('canvas');
+        const size = 400;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+
+        const qrSize = 20;
+        const cellSize = size / qrSize;
+
+        ctx.fillStyle = '#000000';
+        for (let i = 0; i < qrSize; i++) {
+            for (let j = 0; j < qrSize; j++) {
+                if (Math.random() > 0.5) {
+                    ctx.fillRect(i * cellSize, j * cellSize, cellSize, cellSize);
+                }
+            }
+        }
+
+        return canvas.toDataURL();
+    };
+
     const downloadTicket = async () => {
         if (!registrationData?.bookingCode) {
             alert('Booking code tidak tersedia');
@@ -121,42 +162,30 @@ export default function EventSalesManagement() {
         }
 
         try {
-            // Generate QR code as data URL
-            const qrDataUrl = await QRCode.toDataURL(registrationData.bookingCode, {
-                width: 400,
-                margin: 2,
-                errorCorrectionLevel: 'M'
-            });
-
-            // Create ticket canvas
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 800;
             canvas.height = 1000;
 
-            // Draw background
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw header
             const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
             gradient.addColorStop(0, '#4F46E5');
             gradient.addColorStop(1, '#7C3AED');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvas.width, 200);
 
-            // Event name
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 32px Arial';
             ctx.textAlign = 'center';
             ctx.fillText(selectedEvent.name, canvas.width / 2, 80);
 
-            // Event date
             ctx.font = '20px Arial';
             ctx.fillText(formatDate(selectedEvent.date), canvas.width / 2, 120);
             ctx.fillText(`${formatTime(selectedEvent.date)} - ${formatTime(selectedEvent.endDate)}`, canvas.width / 2, 150);
 
-            // Load QR image
+            const qrDataUrl = generateQRCode(registrationData.bookingCode);
             const qrImage = new Image();
 
             qrImage.onload = () => {
@@ -164,36 +193,29 @@ export default function EventSalesManagement() {
                 const qrX = (canvas.width - qrSize) / 2;
                 const qrY = 250;
 
-                // Draw QR
                 ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
 
-                // QR border
                 ctx.strokeStyle = '#E5E7EB';
                 ctx.lineWidth = 4;
                 ctx.strokeRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20);
 
-                // Booking code
                 ctx.fillStyle = '#1F2937';
                 ctx.font = 'bold 36px monospace';
                 ctx.textAlign = 'center';
                 ctx.fillText(registrationData.bookingCode, canvas.width / 2, qrY + qrSize + 70);
 
-                // Attendee name
                 ctx.font = 'bold 24px Arial';
                 ctx.fillText(formData.fullName, canvas.width / 2, qrY + qrSize + 130);
 
-                // Email
                 ctx.font = '20px Arial';
                 ctx.fillStyle = '#6B7280';
                 ctx.fillText(formData.email, canvas.width / 2, qrY + qrSize + 165);
 
-                // Footer
                 ctx.fillStyle = '#9CA3AF';
                 ctx.font = '18px Arial';
                 ctx.fillText('Tunjukkan QR code ini di pintu masuk event', canvas.width / 2, canvas.height - 80);
                 ctx.fillText(selectedEvent.location, canvas.width / 2, canvas.height - 50);
 
-                // Download
                 canvas.toBlob((blob) => {
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
@@ -202,10 +224,6 @@ export default function EventSalesManagement() {
                     link.click();
                     URL.revokeObjectURL(url);
                 });
-            };
-
-            qrImage.onerror = () => {
-                alert('Gagal memuat QR code');
             };
 
             qrImage.src = qrDataUrl;
@@ -245,7 +263,63 @@ export default function EventSalesManagement() {
         setSelectedEvent(null);
     };
 
-    // Modal Form
+    const handlePurchase = async () => {
+        if (!formData.fullName || !formData.email || !formData.phone) {
+            setError('Mohon isi minimal Nama, Email, dan Telepon untuk melanjutkan pembelian');
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.email)) {
+            setError('Email tidak valid');
+            return;
+        }
+
+        setError('');
+        setLoading(true);
+
+        try {
+            // Create purchase order
+            const purchaseData = {
+                fullName: formData.fullName.trim(),
+                email: formData.email.trim(),
+                phone: formData.phone.trim(),
+                gender: formData.gender.trim() || 'prefer-not-to-say',
+                currentCity: formData.currentCity.trim() || '-',
+                notes: formData.notes ? formData.notes.trim() : '',
+                eventId: selectedEvent._id,
+                price: selectedEvent.price
+            };
+
+            const response = await fetch(`/api/event/${selectedEvent._id}/purchase`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(purchaseData)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // If payment URL is provided, redirect to payment gateway
+                if (data.paymentUrl) {
+                    window.location.href = data.paymentUrl;
+                } else {
+                    // Otherwise show success and wait for payment confirmation
+                    alert('Order berhasil dibuat! Silakan lakukan pembayaran.');
+                    setShowModal(false);
+                }
+            } else {
+                setError(data.message || 'Pembelian gagal. Silakan coba lagi.');
+            }
+        } catch (err) {
+            setError('Terjadi kesalahan. Silakan coba lagi.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (showModal && selectedEvent && !registrationSuccess) {
         return (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -255,13 +329,34 @@ export default function EventSalesManagement() {
                     </button>
 
                     <div className="mb-6">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Daftar Event Gratis</h2>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                            {selectedEvent.isFreeEvent ? 'Daftar Event Gratis' : 'Daftar Event'}
+                        </h2>
                         <p className="text-gray-600">{selectedEvent.name}</p>
+                        {!selectedEvent.isFreeEvent && (
+                            <p className="text-2xl font-bold text-indigo-600 mt-2">
+                                Rp {selectedEvent.price?.toLocaleString('id-ID')}
+                            </p>
+                        )}
                     </div>
 
                     {error && (
-                        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                        <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 rounded text-red-700">
                             {error}
+                        </div>
+                    )}
+
+                    {!selectedEvent.isFreeEvent && (
+                        <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                            <div className="flex items-start">
+                                <div className="flex-1">
+                                    <p className="text-blue-900 font-semibold mb-1">Event Berbayar</p>
+                                    <p className="text-blue-700 text-sm">
+                                        Isi data Anda untuk melanjutkan ke halaman pembayaran.
+                                        Anda akan diarahkan ke payment gateway untuk menyelesaikan transaksi.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -303,7 +398,9 @@ export default function EventSalesManagement() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Jenis Kelamin *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Jenis Kelamin {selectedEvent.isFreeEvent ? '*' : '(Opsional)'}
+                            </label>
                             <select
                                 name="gender"
                                 value={formData.gender}
@@ -313,13 +410,13 @@ export default function EventSalesManagement() {
                                 <option value="">Pilih Jenis Kelamin</option>
                                 <option value="male">Laki-laki</option>
                                 <option value="female">Perempuan</option>
-                                <option value="other">Lainnya</option>
-                                <option value="prefer-not-to-say">Tidak ingin menyebutkan</option>
                             </select>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Kota Saat Ini *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Kota Saat Ini {selectedEvent.isFreeEvent ? '*' : '(Opsional)'}
+                            </label>
                             <input
                                 type="text"
                                 name="currentCity"
@@ -345,17 +442,34 @@ export default function EventSalesManagement() {
                         <button
                             onClick={handleSubmit}
                             disabled={loading}
-                            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
+                            className={`w-full py-3 rounded-lg font-semibold transition-colors ${selectedEvent.isFreeEvent
+                                ? 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-400'
+                                : 'bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400'
+                                } disabled:cursor-not-allowed`}
                         >
-                            {loading ? 'Mendaftar...' : 'Daftar Sekarang'}
+                            {loading ? (
+                                <span className="flex items-center justify-center">
+                                    <Loader className="w-5 h-5 animate-spin mr-2" />
+                                    Memproses...
+                                </span>
+                            ) : selectedEvent.isFreeEvent ? (
+                                'Daftar Sekarang'
+                            ) : (
+                                `Lanjut ke Pembayaran - Rp ${selectedEvent.price?.toLocaleString('id-ID')}`
+                            )}
                         </button>
+
+                        {!selectedEvent.isFreeEvent && (
+                            <p className="text-center text-sm text-gray-500 mt-2">
+                                Anda akan diarahkan ke halaman pembayaran yang aman
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>
         );
     }
 
-    // Success Page
     if (registrationSuccess && selectedEvent) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
@@ -445,26 +559,59 @@ export default function EventSalesManagement() {
         );
     }
 
-    // Events List
     return (
         <div className="min-h-screen bg-gray-50 py-12 px-4">
             <div className="max-w-7xl mx-auto">
                 <div className="text-center mb-12">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-4">Event Gratis</h1>
-                    <p className="text-lg text-gray-600">Daftar event gratis menarik</p>
+                    <h1 className="text-4xl font-bold text-gray-900 mb-4">Event</h1>
+                    <p className="text-lg text-gray-600">Daftar event menarik</p>
+
+                    <div className="flex justify-center gap-3 mt-6">
+                        <button
+                            onClick={() => setFilterType('all')}
+                            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${filterType === 'all'
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-indigo-600'
+                                }`}
+                        >
+                            Semua Event
+                        </button>
+                        <button
+                            onClick={() => setFilterType('free')}
+                            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${filterType === 'free'
+                                ? 'bg-green-600 text-white'
+                                : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-green-600'
+                                }`}
+                        >
+                            Gratis
+                        </button>
+                        <button
+                            onClick={() => setFilterType('paid')}
+                            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${filterType === 'paid'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-purple-600'
+                                }`}
+                        >
+                            Berbayar
+                        </button>
+                    </div>
                 </div>
 
                 {loadingEvents ? (
                     <div className="flex justify-center py-20">
                         <Loader className="w-8 h-8 text-indigo-600 animate-spin" />
                     </div>
-                ) : events.length === 0 ? (
+                ) : filteredEvents.length === 0 ? (
                     <div className="text-center py-20">
-                        <p className="text-gray-500">Belum ada event gratis</p>
+                        <p className="text-gray-500">
+                            {filterType === 'free' ? 'Belum ada event gratis' :
+                                filterType === 'paid' ? 'Belum ada event berbayar' :
+                                    'Belum ada event'}
+                        </p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {events.map((event) => {
+                        {filteredEvents.map((event) => {
                             const registeredCount = event.freeRegistrations?.length || 0;
                             const availableSpots = event.capacity - registeredCount;
 
@@ -472,8 +619,11 @@ export default function EventSalesManagement() {
                                 <div key={event._id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
                                     <div className="relative h-48">
                                         <img src={event.imageUrl} alt={event.name} className="w-full h-full object-cover" />
-                                        <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                                            GRATIS
+                                        <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold ${event.isFreeEvent
+                                            ? 'bg-green-500 text-white'
+                                            : 'bg-purple-500 text-white'
+                                            }`}>
+                                            {event.isFreeEvent ? 'GRATIS' : `Rp ${event.price?.toLocaleString('id-ID')}`}
                                         </div>
                                     </div>
 
@@ -503,7 +653,7 @@ export default function EventSalesManagement() {
                                         <button
                                             onClick={() => openRegistrationModal(event)}
                                             disabled={availableSpots === 0}
-                                            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300"
+                                            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                                         >
                                             {availableSpots === 0 ? 'Event Penuh' : 'Daftar Sekarang'}
                                         </button>

@@ -10,6 +10,14 @@ const AutoPromoSchema = new mongoose.Schema({
     enum: ['discount_on_quantity', 'discount_on_total', 'buy_x_get_y', 'bundling', 'product_specific'],
     required: true
   },
+  discountType: {
+    type: String,
+    enum: ['percentage', 'fixed'],
+    required: function () {
+      // Required for discount-based promo types
+      return ['discount_on_quantity', 'discount_on_total', 'product_specific'].includes(this.promoType);
+    }
+  },
   conditions: {
     minQuantity: Number,
     minTotal: Number,
@@ -190,6 +198,40 @@ AutoPromoSchema.methods.getCurrentSchedule = function () {
   return this.activeHours.schedule.find(
     schedule => schedule.dayOfWeek === dayOfWeek
   );
+};
+
+/**
+ * Instance method to calculate discount amount based on discount type
+ */
+AutoPromoSchema.methods.calculateDiscount = function (originalAmount) {
+  if (!this.discount || !this.discountType) return 0;
+
+  if (this.discountType === 'percentage') {
+    // Ensure discount is between 0-100 for percentage
+    const percentage = Math.min(Math.max(this.discount, 0), 100);
+    return (originalAmount * percentage) / 100;
+  } else if (this.discountType === 'fixed') {
+    // For fixed amount, ensure discount doesn't exceed original amount
+    return Math.min(this.discount, originalAmount);
+  }
+  
+  return 0;
+};
+
+/**
+ * Instance method to get formatted discount display
+ */
+AutoPromoSchema.methods.getDiscountDisplay = function () {
+  if (!this.discount || !this.discountType) return 'No discount';
+
+  if (this.discountType === 'percentage') {
+    return `${this.discount}%`;
+  } else if (this.discountType === 'fixed') {
+    // Assuming currency formatting
+    return `Rp${this.discount.toLocaleString()}`;
+  }
+  
+  return this.discount.toString();
 };
 
 const AutoPromo = mongoose.model('AutoPromo', AutoPromoSchema);

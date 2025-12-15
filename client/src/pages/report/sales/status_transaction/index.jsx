@@ -148,51 +148,18 @@ const TypeTransaction = () => {
         setSearchParams(params);
     };
 
-    // Fungsi untuk fetch payment details berdasarkan order_id
-    const fetchPaymentDetails = async (orderId) => {
-        try {
-            const response = await axios.get(`/api/getPaymentStatus/${orderId}`);
-            if (response.data && response.data.success) {
-                return response.data.data;
-            }
-            return null;
-        } catch (err) {
-            console.error(`Error fetching payment for order ${orderId}:`, err);
-            return null;
-        }
-    };
-
     // Fetch products with payment details
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const response = await axios.get('/api/orders');
-            const productsData = Array.isArray(response.data)
-                ? response.data
-                : response.data?.data ?? [];
+            // Menggunakan endpoint baru yang sudah menggabungkan orders + payments
+            const response = await axios.get('/api/report/orders');
 
-            // Fetch payment details untuk setiap order
-            const productsWithPayment = await Promise.all(
-                productsData.map(async (product) => {
-                    try {
-                        const paymentDetails = await fetchPaymentDetails(product.order_id);
-                        return {
-                            ...product,
-                            paymentDetails: paymentDetails || null,
-                            actualPaymentMethod: paymentDetails?.method || product.paymentMethod || 'N/A'
-                        };
-                    } catch (err) {
-                        console.error(`Error processing payment for ${product.order_id}:`, err);
-                        return {
-                            ...product,
-                            paymentDetails: null,
-                            actualPaymentMethod: product.paymentMethod || 'N/A'
-                        };
-                    }
-                })
-            );
+            const productsData = Array.isArray(response.data?.data)
+                ? response.data.data
+                : [];
 
-            setProducts(productsWithPayment);
+            setProducts(productsData);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);

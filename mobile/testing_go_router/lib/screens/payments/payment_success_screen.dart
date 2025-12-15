@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/models/payments/payment_action.model.dart';
+import 'package:kasirbaraja/models/payments/va_number.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
+import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:kasirbaraja/utils/payment_details_utils.dart';
 
 class PaymentSuccessScreen extends ConsumerWidget {
   const PaymentSuccessScreen({super.key});
@@ -112,7 +117,7 @@ class PaymentSuccessScreen extends ConsumerWidget {
         const SizedBox(height: 40),
 
         // Change Amount Card
-        _buildChangeCard(context, arguments),
+        _buildChangeCard(context, orderDetail),
 
         const SizedBox(height: 40),
 
@@ -195,7 +200,7 @@ class PaymentSuccessScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Change Amount Card
-              _buildChangeCard(context, arguments),
+              _buildChangeCard(context, orderDetail),
 
               const SizedBox(height: 24),
 
@@ -208,12 +213,28 @@ class PaymentSuccessScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildChangeCard(
-    BuildContext context,
-    Map<String, dynamic> arguments,
-  ) {
+  Widget _buildChangeCard(BuildContext context, OrderDetailModel? orderDetail) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
+
+    // Ambil list payments dari orderDetail
+    // TODO: sesuaikan dengan field di OrderDetailModel kamu
+    final payments = orderDetail?.payments ?? [];
+
+    // Hitung kembalian
+    double changeValue = 0;
+    for (var payment in payments) {
+      changeValue += payment.changeAmount ?? 0;
+    }
+
+    String changeText;
+    if (changeValue == 0) {
+      changeText = 'Tidak ada kembalian';
+    } else if (changeValue < 0) {
+      changeText = 'Kembalian tidak valid';
+    } else {
+      changeText = formatRupiah(changeValue.toInt());
+    }
 
     return Container(
       width: double.infinity,
@@ -223,35 +244,110 @@ class PaymentSuccessScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.shade200,
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Kembalian',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: isLandscape ? 4 : 8),
-          FittedBox(
-            child: Text(
-              arguments['change'] == null
-                  ? 'Tidak ada kembalian'
-                  : arguments['change'] == 0
-                  ? 'Tidak ada kembalian'
-                  : arguments['change'] < 0
-                  ? 'Kembalian tidak valid'
-                  : 'Rp ${arguments['change']?.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.green.shade600,
+          // Detail metode pembayaran
+          if (payments.isNotEmpty) ...[
+            Text(
+              'Detail Pembayaran',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
               ),
+            ),
+            const SizedBox(height: 8),
+            Column(
+              children:
+                  payments.map<Widget>((p) {
+                    final String methodLabel =
+                        PaymentDetails.buildPaymentMethodLabel(p);
+
+                    final num paidAmount =
+                        p.amount; // misal: p.amount / p.paidAmount
+                    final num? paymentChange =
+                        p.changeAmount; // kalau tidak ada, hapus saja logika ini
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Label metode (sudah diatur logikanya di helper)
+                                Text(
+                                  methodLabel,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Dibayar: ${formatRupiah(paidAmount.toInt())}',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: Colors.grey[600]),
+                                ),
+                                if (paymentChange != null &&
+                                    paymentChange > 0) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Kembalian: ${formatRupiah(paymentChange.toInt())}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall?.copyWith(
+                                      color: Colors.green[700],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+            ),
+          ] else
+            Text(
+              'Tidak ada data pembayaran',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+            ),
+
+          const SizedBox(height: 16),
+          const Divider(),
+          // Title kembalian
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  'Kembalian',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: isLandscape ? 4 : 8),
+                FittedBox(
+                  child: Text(
+                    changeText,
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -266,37 +362,9 @@ class PaymentSuccessScreen extends ConsumerWidget {
   ) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
-    // final orderDetail = ref.watch(orderDetailProvider);
-    final savedPrinter = ref.read(savedPrintersProvider.notifier);
 
     return Row(
       children: [
-        // Print Receipt Button
-        // Expanded(
-        //   child: OutlinedButton.icon(
-        //     onPressed: () {
-        //       savedPrinter.printToPrinter(
-        //         orderDetail: orderDetail!,
-        //         printType: 'all',
-        //       );
-        // Implementasi print receipt
-        //     },
-        //     icon: const Icon(Icons.print),
-        //     label: const Text('Print Struk'),
-        //     style: OutlinedButton.styleFrom(
-        //       padding: EdgeInsets.symmetric(vertical: isLandscape ? 12 : 16),
-        //       shape: RoundedRectangleBorder(
-        //         borderRadius: BorderRadius.circular(12),
-        //       ),
-        //       side: BorderSide(color: Colors.blue.shade300),
-        //       foregroundColor: Colors.blue.shade600,
-        //     ),
-        //   ),
-        // ),
-
-        // const SizedBox(width: 16),
-
-        // New Transaction Button
         Expanded(
           flex: 2,
           child: ElevatedButton.icon(
@@ -318,98 +386,6 @@ class PaymentSuccessScreen extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-
-  // Widget untuk section print (optional)
-  Widget _buildPrintSection(BuildContext context, savedPrinter, orderDetail) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Opsi Cetak',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Print to Bar
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                savedPrinter.printToPrinter(orderDetail!, 'bar');
-              },
-              icon: const Icon(Icons.local_bar),
-              label: const Text('Print ke Bar'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Print to Kitchen
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                savedPrinter.printToPrinter(orderDetail!, 'kitchen');
-              },
-              icon: const Icon(Icons.restaurant),
-              label: const Text('Print ke Kitchen'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Print to All
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                savedPrinter.printToPrinter(orderDetail!, 'all');
-              },
-              icon: const Icon(Icons.print),
-              label: const Text('Print ke Semua'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange.shade600,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

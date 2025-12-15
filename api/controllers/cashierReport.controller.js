@@ -174,21 +174,250 @@ const toObjectId = (id) => {
 //     }
 // };
 
+// export const getSalesSummary = async (req, res) => {
+//     try {
+//         const {
+//             startDate,
+//             endDate,
+//             cashierId,
+//             outletId,
+//             paymentMethod,
+//             orderType
+//         } = req.query;
+
+//         // Build filter
+//         const filter = {
+//             status: 'Completed'
+//         };
+
+//         // Date filter
+//         if (startDate || endDate) {
+//             filter.createdAt = {};
+//             if (startDate) {
+//                 filter.createdAt.$gte = moment(startDate).startOf('day').toDate();
+//             }
+//             if (endDate) {
+//                 filter.createdAt.$lte = moment(endDate).endOf('day').toDate();
+//             }
+//         }
+
+//         // Convert ObjectId fields properly
+//         if (cashierId) {
+//             const cashierObjectId = toObjectId(cashierId);
+//             if (cashierObjectId) {
+//                 filter.cashierId = cashierObjectId;
+//             }
+//         }
+
+//         if (outletId) {
+//             const outletObjectId = toObjectId(outletId);
+//             if (outletObjectId) {
+//                 filter.outlet = outletObjectId;
+//             }
+//         }
+
+//         if (orderType) filter.orderType = { $in: orderType.split(',') };
+
+//         // Summary stats dengan lookup ke Payment
+//         const summaryPipeline = [
+//             { $match: filter },
+//             {
+//                 $lookup: {
+//                     from: 'payments',
+//                     localField: 'order_id',
+//                     foreignField: 'order_id',
+//                     as: 'payments'
+//                 }
+//             },
+//             {
+//                 $addFields: {
+//                     // Ambil payment method dari payment yang settled/paid
+//                     actualPaymentMethod: {
+//                         $arrayElemAt: [
+//                             {
+//                                 $map: {
+//                                     input: {
+//                                         $filter: {
+//                                             input: '$payments',
+//                                             as: 'payment',
+//                                             cond: {
+//                                                 $in: ['$$payment.status', ['settlement', 'paid']]
+//                                             }
+//                                         }
+//                                     },
+//                                     as: 'p',
+//                                     in: '$$p.method'
+//                                 }
+//                             },
+//                             0
+//                         ]
+//                     }
+//                 }
+//             },
+//             // Filter berdasarkan payment method jika ada
+//             ...(paymentMethod ? [{
+//                 $match: {
+//                     actualPaymentMethod: { $in: paymentMethod.split(',') }
+//                 }
+//             }] : []),
+//             {
+//                 $group: {
+//                     _id: null,
+//                     totalSales: { $sum: '$grandTotal' },
+//                     totalTransactions: { $sum: 1 },
+//                     totalTax: { $sum: '$totalTax' },
+//                     totalServiceFee: { $sum: '$totalServiceFee' },
+//                     totalItems: { $sum: { $size: '$items' } },
+//                     avgOrderValue: { $avg: '$grandTotal' },
+//                     totalDiscount: {
+//                         $sum: {
+//                             $add: [
+//                                 '$discounts.autoPromoDiscount',
+//                                 '$discounts.manualDiscount',
+//                                 '$discounts.voucherDiscount'
+//                             ]
+//                         }
+//                     }
+//                 }
+//             }
+//         ];
+
+//         // Payment method breakdown dengan detail payment type
+//         const paymentBreakdownPipeline = [
+//             { $match: filter },
+//             {
+//                 $lookup: {
+//                     from: 'payments',
+//                     localField: 'order_id',
+//                     foreignField: 'order_id',
+//                     as: 'payments'
+//                 }
+//             },
+//             { $unwind: '$payments' },
+//             {
+//                 $match: {
+//                     'payments.status': { $in: ['settlement', 'paid'] },
+//                     'payments.isAdjustment': { $ne: true }, // Exclude adjustment payments
+//                     ...(paymentMethod && { 'payments.method': { $in: paymentMethod.split(',') } })
+//                 }
+//             },
+//             {
+//                 $group: {
+//                     _id: {
+//                         method: '$payments.method',
+//                         paymentType: '$payments.paymentType'
+//                     },
+//                     total: { $sum: '$payments.amount' },
+//                     count: { $sum: 1 }
+//                 }
+//             },
+//             {
+//                 $group: {
+//                     _id: '$_id.method',
+//                     total: { $sum: '$total' },
+//                     count: { $sum: '$count' },
+//                     breakdown: {
+//                         $push: {
+//                             paymentType: '$_id.paymentType',
+//                             amount: '$total',
+//                             count: '$count'
+//                         }
+//                     }
+//                 }
+//             }
+//         ];
+
+//         // Order type breakdown tetap sama
+//         const orderTypeBreakdownPipeline = [
+//             { $match: filter },
+//             ...(paymentMethod ? [{
+//                 $lookup: {
+//                     from: 'payments',
+//                     localField: 'order_id',
+//                     foreignField: 'order_id',
+//                     as: 'payments'
+//                 }
+//             }, {
+//                 $match: {
+//                     'payments.method': { $in: paymentMethod.split(',') },
+//                     'payments.status': { $in: ['settlement', 'paid'] }
+//                 }
+//             }] : []),
+//             {
+//                 $group: {
+//                     _id: '$orderType',
+//                     count: { $sum: 1 },
+//                     total: { $sum: '$grandTotal' }
+//                 }
+//             }
+//         ];
+
+//         const [summaryResult, paymentBreakdown, orderTypeBreakdown] = await Promise.all([
+//             Order.aggregate(summaryPipeline),
+//             Order.aggregate(paymentBreakdownPipeline),
+//             Order.aggregate(orderTypeBreakdownPipeline)
+//         ]);
+
+//         const summary = summaryResult[0] || {
+//             totalSales: 0,
+//             totalTransactions: 0,
+//             totalTax: 0,
+//             totalServiceFee: 0,
+//             avgOrderValue: 0,
+//             totalDiscount: 0
+//         };
+
+//         // Calculate percentages for payment methods
+//         const totalSalesForPayment = paymentBreakdown.reduce((sum, item) => sum + item.total, 0);
+//         const paymentMethodData = paymentBreakdown.map(item => ({
+//             method: item._id,
+//             amount: item.total,
+//             count: item.count,
+//             percentage: totalSalesForPayment > 0 ? ((item.total / totalSalesForPayment) * 100).toFixed(1) : '0.0'
+//         }));
+
+//         // Calculate percentages for order types
+//         const totalOrdersForType = orderTypeBreakdown.reduce((sum, item) => sum + item.count, 0);
+//         const orderTypeData = orderTypeBreakdown.map(item => ({
+//             type: item._id,
+//             count: item.count,
+//             total: item.total,
+//             percentage: totalOrdersForType > 0 ? ((item.count / totalOrdersForType) * 100).toFixed(1) : '0.0'
+//         }));
+
+//         res.status(200).json({
+//             success: true,
+//             data: {
+//                 summary: {
+//                     totalSales: summary.totalSales,
+//                     totalTransactions: summary.totalTransactions,
+//                     avgOrderValue: Math.round(summary.avgOrderValue),
+//                     totalTax: summary.totalTax,
+//                     totalServiceFee: summary.totalServiceFee,
+//                     totalDiscount: summary.totalDiscount,
+//                     totalItems: summary.totalItems
+//                 },
+//                 paymentMethodBreakdown: paymentMethodData,
+//                 orderTypeBreakdown: orderTypeData
+//             }
+//         });
+
+//     } catch (error) {
+//         console.error('Error in getSalesSummary:', error);
+//         res.status(500).json({
+//             success: false,
+//             message: 'Internal server error',
+//             error: error.message
+//         });
+//     }
+// };
+
 export const getSalesSummary = async (req, res) => {
     try {
-        const {
-            startDate,
-            endDate,
-            cashierId,
-            outletId,
-            paymentMethod,
-            orderType
-        } = req.query;
+        const { startDate, endDate, cashierId, outletId, paymentMethod, orderType } = req.query;
 
         // Build filter
-        const filter = {
-            status: 'Completed'
-        };
+        const filter = { status: 'Completed' };
 
         // Date filter
         if (startDate || endDate) {
@@ -231,7 +460,7 @@ export const getSalesSummary = async (req, res) => {
             },
             {
                 $addFields: {
-                    // Ambil payment method dari payment yang settled/paid
+                    // Ambil method_type dari payment yang settled/paid
                     actualPaymentMethod: {
                         $arrayElemAt: [
                             {
@@ -240,13 +469,11 @@ export const getSalesSummary = async (req, res) => {
                                         $filter: {
                                             input: '$payments',
                                             as: 'payment',
-                                            cond: {
-                                                $in: ['$$payment.status', ['settlement', 'paid']]
-                                            }
+                                            cond: { $in: ['$$payment.status', ['settlement', 'paid']] }
                                         }
                                     },
                                     as: 'p',
-                                    in: '$$p.method'
+                                    in: '$$p.method_type'
                                 }
                             },
                             0
@@ -254,12 +481,8 @@ export const getSalesSummary = async (req, res) => {
                     }
                 }
             },
-            // Filter berdasarkan payment method jika ada
-            ...(paymentMethod ? [{
-                $match: {
-                    actualPaymentMethod: { $in: paymentMethod.split(',') }
-                }
-            }] : []),
+            // Filter berdasarkan method_type jika ada
+            ...(paymentMethod ? [{ $match: { actualPaymentMethod: { $in: paymentMethod.split(',') } } }] : []),
             {
                 $group: {
                     _id: null,
@@ -282,7 +505,7 @@ export const getSalesSummary = async (req, res) => {
             }
         ];
 
-        // Payment method breakdown dengan detail payment type
+        // Payment method breakdown dengan detail payment type (menggunakan method_type)
         const paymentBreakdownPipeline = [
             { $match: filter },
             {
@@ -298,13 +521,13 @@ export const getSalesSummary = async (req, res) => {
                 $match: {
                     'payments.status': { $in: ['settlement', 'paid'] },
                     'payments.isAdjustment': { $ne: true }, // Exclude adjustment payments
-                    ...(paymentMethod && { 'payments.method': { $in: paymentMethod.split(',') } })
+                    ...(paymentMethod && { 'payments.method_type': { $in: paymentMethod.split(',') } })
                 }
             },
             {
                 $group: {
                     _id: {
-                        method: '$payments.method',
+                        method_type: '$payments.method_type',
                         paymentType: '$payments.paymentType'
                     },
                     total: { $sum: '$payments.amount' },
@@ -313,7 +536,7 @@ export const getSalesSummary = async (req, res) => {
             },
             {
                 $group: {
-                    _id: '$_id.method',
+                    _id: '$_id.method_type',
                     total: { $sum: '$total' },
                     count: { $sum: '$count' },
                     breakdown: {
@@ -327,7 +550,7 @@ export const getSalesSummary = async (req, res) => {
             }
         ];
 
-        // Order type breakdown tetap sama
+        // Order type breakdown
         const orderTypeBreakdownPipeline = [
             { $match: filter },
             ...(paymentMethod ? [{
@@ -339,7 +562,7 @@ export const getSalesSummary = async (req, res) => {
                 }
             }, {
                 $match: {
-                    'payments.method': { $in: paymentMethod.split(',') },
+                    'payments.method_type': { $in: paymentMethod.split(',') },
                     'payments.status': { $in: ['settlement', 'paid'] }
                 }
             }] : []),
@@ -373,7 +596,8 @@ export const getSalesSummary = async (req, res) => {
             method: item._id,
             amount: item.total,
             count: item.count,
-            percentage: totalSalesForPayment > 0 ? ((item.total / totalSalesForPayment) * 100).toFixed(1) : '0.0'
+            percentage: totalSalesForPayment > 0 ? ((item.total / totalSalesForPayment) * 100).toFixed(1) : '0.0',
+            breakdown: item.breakdown
         }));
 
         // Calculate percentages for order types
@@ -401,7 +625,6 @@ export const getSalesSummary = async (req, res) => {
                 orderTypeBreakdown: orderTypeData
             }
         });
-
     } catch (error) {
         console.error('Error in getSalesSummary:', error);
         res.status(500).json({

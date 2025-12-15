@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from 'axios';
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash, FaChevronRight } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash, FaChevronRight, FaPlus } from 'react-icons/fa';
 import Paginated from '../../../components/paginated';
 
 const CategoryIndex = () => {
@@ -20,79 +20,52 @@ const CategoryIndex = () => {
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedType, setSelectedType] = useState('all'); // State untuk menyimpan tipe yang dipilih
-  const [currentPage, setCurrentPage] = useState(1); // Halaman saat ini
-  const ITEMS_PER_PAGE = 50;
+  const [selectedType, setSelectedType] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [limit] = useState(250);
   const [offset, setOffset] = useState(0);
 
-  // const fetchMenuItems = async (limit, offset) => {
-  //   const menuResponse = await axios.get('/api/menu/menu-items', {
-  //     params: { limit, offset }
-  //   });
-  //   return {
-  //     data: menuResponse.data.data,
-  //     meta: menuResponse.data.meta
-  //   };
-  // };
-  // Fungsi untuk mengambil daftar kategori dari API
+  // ✅ FIX: Sesuaikan dengan backend response baru
   const fetchData = async (type) => {
     setLoading(true);
     try {
+      // Backend response: { success: true, data: categories }
+      const categoryResponse = await axios.get('/api/menu/categories');
 
-      const categoryResponse = await axios.get('/api/storage/categories');
+      // ✅ Ambil data langsung dari response.data.data (array categories)
+      const categoriesData = categoryResponse.data.data || [];
 
-      const categoryData = categoryResponse.data;
+      setCategories(categoriesData);
+      setFilteredCategories(categoriesData);
 
-      setCategories(categoryData.mainCategories);
-      setFilteredCategories(categoryData.mainCategories);
-
-      // const { data, meta } = await fetchMenuItems(limit, offset);
-      // setMenuItems(data);
-      // setTotalItems(meta.totalItems);
-
-      const menuResponse = await axios.get('/api/menu/menu-items');
-      setMenuItems(menuResponse.data.data);
-
-      // Hitung jumlah menu per kategori sekali saja di sini
-      // const counts = {};
-      // menuItems.forEach((menu) => {
-      //   if (Array.isArray(menu.category)) {
-      //     // Jika array of object (pakai .name) atau string langsung
-      //     menu.category.forEach((cat) => {
-      //       const name =
-      //         typeof cat === 'string' ? cat : cat?.name;
-      //       const key = (name || '').toLowerCase().trim();
-      //       if (key) {
-      //         counts[key] = (counts[key] || 0) + 1;
-      //       }
-      //     });
-      //   } else {
-      //     // Jika kategori single string atau object
-      //     const name =
-      //       typeof menu.category === 'string'
-      //         ? menu.category
-      //         : menu.category?.name;
-      //     const key = (name || '').toLowerCase().trim();
-      //     if (key) {
-      //       counts[key] = (counts[key] || 0) + 1;
-      //     }
-      //   }
-      // });
-      // setCategoryCounts(counts);
+      // Fetch menu items
+      const menuResponse = await axios.get('/api/menu/all-menu-items-backoffice');
+      setMenuItems(menuResponse.data.data || []);
 
     } catch (err) {
       setError('Failed to fetch categories');
       setMenuItems([]);
       setCategories([]);
+      setFilteredCategories([]); // ✅ PENTING: Set ini juga!
       console.error('Error fetching categories:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  // ✅ FIX: Tambahkan pengecekan untuk menuItems
   useEffect(() => {
     const counts = {};
+
+    if (!Array.isArray(menuItems)) {
+      setCategoryCounts({});
+      return;
+    }
+
     menuItems.forEach((menu) => {
+      if (!menu) return; // Skip jika menu null/undefined
+
       if (Array.isArray(menu.category)) {
         menu.category.forEach((cat) => {
           const name = typeof cat === 'string' ? cat : cat?.name;
@@ -101,7 +74,7 @@ const CategoryIndex = () => {
             counts[key] = (counts[key] || 0) + 1;
           }
         });
-      } else {
+      } else if (menu.category) {
         const name =
           typeof menu.category === 'string'
             ? menu.category
@@ -131,18 +104,30 @@ const CategoryIndex = () => {
     setShowModal(true);
   };
 
-  // Search filtering
   useEffect(() => {
+    if (!Array.isArray(categories)) {
+      setFilteredCategories([]);
+      return;
+    }
+
     const filtered = categories.filter((category) =>
-      (category.name || '').toLowerCase().includes(tempSearch.toLowerCase())
+      (category?.name || '').toLowerCase().includes(tempSearch.toLowerCase())
     );
-    setFilteredCategories(filtered);
-    setCurrentPage(1); // reset page saat pencarian
+
+    // ✅ Urutkan berdasarkan abjad (A-Z)
+    const sorted = filtered.sort((a, b) => {
+      const nameA = (a?.name || '').toLowerCase();
+      const nameB = (b?.name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    setFilteredCategories(sorted);
+    setCurrentPage(1);
   }, [tempSearch, categories]);
 
   const handleConfirmDelete = async () => {
     try {
-      await axios.delete(`/api/storage/categories/${selectedCategoryId}`);
+      await axios.delete(`/api/menu/categories/${selectedCategoryId}`);
       setCategories((prev) => prev.filter((c) => c._id !== selectedCategoryId));
       setFilteredCategories((prev) => prev.filter((c) => c._id !== selectedCategoryId));
     } catch (err) {
@@ -151,40 +136,51 @@ const CategoryIndex = () => {
     } finally {
       setShowModal(false);
       setSelectedCategoryId(null);
-      fetchData(); // ⬅️ Refresh data setelah hapus
+      fetchData();
     }
   };
 
+  // ✅ FIX: Tambahkan guard untuk undefined
   const paginatedData = useMemo(() => {
+    if (!filteredCategories || !Array.isArray(filteredCategories)) {
+      return [];
+    }
+
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return filteredCategories?.slice(startIndex, endIndex) || [];
+    return filteredCategories.slice(startIndex, endIndex);
   }, [filteredCategories, currentPage]);
 
-  // Calculate total pages based on filtered data
-  const totalPages = Math.ceil(filteredCategories.length / ITEMS_PER_PAGE);
+  // ✅ FIX: Guard untuk totalPages
+  const totalPages = Math.ceil((filteredCategories?.length || 0) / ITEMS_PER_PAGE);
 
-  // Show loading state
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+      <div className="flex justify-center items-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#005429] border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Memuat data...</p>
+        </div>
       </div>
     );
   }
 
-  // Show error state
   if (error) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="text-red-500 text-center">
-          <p className="text-xl font-semibold mb-2">Error</p>
-          <p>{error}</p>
+      <div className="flex justify-center items-center h-screen bg-gray-50">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
+          <div className="bg-red-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">Terjadi Kesalahan</h3>
+          <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+            className="bg-[#005429] text-white px-6 py-2.5 rounded-lg font-medium hover:bg-[#003d1f] transition-colors"
           >
-            Refresh
+            Muat Ulang
           </button>
         </div>
       </div>
@@ -195,39 +191,30 @@ const CategoryIndex = () => {
     if (!isOpen) return null;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-          <div className="flex items-center mb-4">
-            <div className="flex-shrink-0 bg-blue-100 text-blue-600 rounded-full p-2">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"
-                />
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+          <div className="flex items-start mb-5">
+            <div className="flex-shrink-0 bg-red-100 text-red-600 rounded-full p-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h2 className="ml-3 text-lg font-semibold text-gray-800">{title}</h2>
+            <div className="ml-4 flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">{title}</h3>
+              <p className="text-sm text-gray-600">{message}</p>
+            </div>
           </div>
 
-          <p className="text-sm text-gray-600 mb-6">{message}</p>
-
-          <div className="flex justify-end space-x-3">
+          <div className="flex justify-end space-x-3 mt-6">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
+              className="px-5 py-2.5 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Batal
             </button>
             <button
               onClick={onConfirm}
-              className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+              className="px-5 py-2.5 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
             >
               Hapus
             </button>
@@ -238,154 +225,153 @@ const CategoryIndex = () => {
   };
 
   return (
-    <div className="pb-[60px]">
-      {/* {message && (
-        <div className="px-3 py-4">
-          <p className="text-green-500 mb-4">{message}</p>
-        </div>
-      )} */}
-      <div className="flex justify-between items-center px-6 py-3 my-3">
-        <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-          <span>Menu</span>
-          <FaChevronRight size={22} />
-          <span>Kategori</span>
-        </div>
-        <div className="flex space-x-2">
-          <Link
-            to="/admin/category-create"
-            className="bg-[#005429] text-white px-4 py-2 rounded inline-block text-[13px]"
-          >
-            Tambah Kategori
-          </Link>
-          {/* <Link
-            to="/admin/subcategory-create"
-            className="bg-[#005429] text-white px-4 py-2 rounded inline-block text-[13px]"
-          >
-            Tambah Sub Kategori
-          </Link> */}
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50 pb-8">
 
-      <div className="px-6">
-        <div className="flex flex-wrap gap-4 md:justify-end items-center py-3">
-          <div className="flex flex-col col-span-5 w-1/5">
-            <div className="relative">
-              <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Kategori"
-                value={tempSearch}
-                onChange={(e) => setTempSearch(e.target.value)}
-                className="text-[13px] border py-2 pl-[30px] pr-[12px] rounded w-full"
-              />
+      {/* Main Content */}
+      <div className="mx-auto px-6 py-6">
+        {/* Stats Card */}
+        <div className="bg-gradient-to-br from-[#005429] to-[#003d1f] rounded-xl shadow-lg p-6 mb-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-green-100 mb-1">Total Kategori</p>
+              <h2 className="text-4xl font-bold">{filteredCategories?.length || 0}</h2>
+            </div>
+            <div className="bg-white bg-opacity-20 rounded-full p-4">
+              <FaLayerGroup size={32} />
             </div>
           </div>
         </div>
-        <div className="rounded shadow-md bg-white shadow-slate-200">
-          <table className="min-w-full table-auto">
-            <thead className="text-gray-400">
-              <tr className="text-left text-[13px]">
-                <th className="px-6 py-4 font-normal">
-                  Waktu Submit
-                </th>
-                <th className="px-6 py-4 font-normal">
-                  Nama Kategori
-                </th>
-                <th className="px-6 py-4 font-normal text-right">
-                  Jumlah Produk
-                </th>
-                <th className="px-6 py-4 font-normal text-right">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="text-sm text-gray-400">
-              {paginatedData.length > 0 ? (
-                paginatedData.map((category) => {
-                  const key = category.name.toLowerCase().trim();
-                  const count = categoryCounts[key] || 0;
 
-                  return (
-                    <tr className="text-sm" key={category._id}>
-                      <td className="px-6 py-4 whitespace-nowrap">{formatDateTime(category.createdAt)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{category.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">{count}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        {/* Dropdown Menu */}
-                        {/* <div className="relative text-right">
-                          <button
-                            className="px-2 bg-white border border-gray-200 hover:border-[#005429] hover:bg-[#005429] rounded-sm"
-                            onClick={() =>
-                              setOpenDropdown(openDropdown === category._id ? null : category._id)
-                            }
-                          >
-                            <span className="text-xl text-gray-200 hover:text-white">•••</span>
-                          </button>
-                          {openDropdown === category._id && (
-                            <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-52 z-10">
-                              <ul>
-                                <Link
-                                  className="px-4 py-4 text-sm cursor-pointer bg-transparent flex items-center space-x-4 text-[14px] hover:bg-gray-100"
-                                  to={`/admin/category-update/${category._id}`}
-                                >
-                                  <FaPencilAlt size={18} />
-                                  <span>Ubah</span>
-                                </Link>
-                                <button
-                                  className="w-full px-4 py-4 text-sm cursor-pointer hover:bg-gray-100 text-red-600 flex items-center space-x-4 text-[14px]"
-                                  onClick={() => openDeleteModal(category._id, category.name)}
-                                >
-                                  <FaTrash size={18} />
-                                  <span>Hapus</span>
-                                </button>
-                              </ul>
+        {/* Search Bar */}
+        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex justify-between">
+          <div className="relative w-1/2">
+            <FaSearch className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari kategori..."
+              value={tempSearch}
+              onChange={(e) => setTempSearch(e.target.value)}
+              className="w-full text-sm border border-gray-300 py-3 pl-11 pr-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005429] focus:border-transparent transition-all"
+            />
+          </div>
+
+          {/* Action Button */}
+          <Link
+            to="/admin/category-create"
+            className="bg-[#005429] text-white px-5 py-2.5 rounded-lg inline-flex items-center gap-2 font-medium hover:bg-[#003d1f] transition-colors shadow-sm"
+          >
+            <FaPlus size={14} />
+            <span>Tambah Kategori</span>
+          </Link>
+        </div>
+
+        {/* Table Card */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Waktu Submit
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Nama Kategori
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Jumlah Produk
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {paginatedData.length > 0 ? (
+                  paginatedData.map((category) => {
+                    // ✅ Guard untuk category undefined
+                    if (!category || !category.name) return null;
+
+                    const key = category.name.toLowerCase().trim();
+                    const count = categoryCounts[key] || 0;
+
+                    return (
+                      <tr key={category._id || Math.random()} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {formatDateTime(category.createdAt)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 bg-[#005429] bg-opacity-10 rounded-lg flex items-center justify-center">
+                              <FaTag className="text-[#005429]" size={16} />
                             </div>
-                          )}
-                        </div> */}
-                        <div className="flex justify-end items-center">
-                          <div className="flex gap-2">
+                            <span className="ml-3 text-sm font-medium text-gray-900">{category._id} - {category.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {count} produk
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="flex justify-end items-center gap-2">
                             <Link
-                              className="p-3 text-sm bg-green-900 text-white rounded cursor-pointer flex items-center space-x-4 text-[14px]"
                               to={`/admin/category-update/${category._id}`}
+                              className="p-2.5 bg-[#005429] text-white rounded-lg hover:bg-[#003d1f] transition-colors"
+                              title="Edit"
                             >
-                              <FaPencilAlt />
+                              <FaPencilAlt size={14} />
                             </Link>
                             <button
-                              className="w-full p-3 text-sm cursor-pointer rounded hover:bg-gray-100 bg-red-600 text-white flex items-center space-x-4 text-[14px]"
                               onClick={() => openDeleteModal(category._id, category.name)}
+                              className="p-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                              title="Hapus"
                             >
-                              <FaTrash />
+                              <FaTrash size={14} />
                             </button>
                           </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="bg-gray-100 rounded-full p-6 mb-4">
+                          <FaSearch className="text-gray-400" size={32} />
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan="3" className="text-center py-4 text-gray-500">
-                    Tidak ada kategori ditemukan.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                        <p className="text-gray-500 font-medium">Tidak ada kategori ditemukan</p>
+                        <p className="text-gray-400 text-sm mt-1">Coba ubah kata kunci pencarian Anda</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <Paginated
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          totalPages={totalPages}
-        />
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="mt-6">
+            <Paginated
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
+              totalPages={totalPages}
+            />
+          </div>
+        )}
       </div>
-      {/* Modal Konfirmasi */}
+
+      {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         onConfirm={handleConfirmDelete}
-        message={`Apakah Anda yakin ingin menghapus "${selectedCategoryName}"?`}
+        title="Hapus Kategori"
+        message={`Apakah Anda yakin ingin menghapus kategori "${selectedCategoryName}"? Tindakan ini tidak dapat dibatalkan.`}
       />
-    </div >
+    </div>
   );
 };
 

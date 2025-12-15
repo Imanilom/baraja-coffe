@@ -1,4 +1,3 @@
-// models/MenuItem.js
 import mongoose from 'mongoose';
 
 const MenuItemSchema = new mongoose.Schema({
@@ -42,7 +41,43 @@ const MenuItemSchema = new mongoose.Schema({
     default: 0
   },
 
-  // ✅ NEW: Event-specific fields
+  // ✅ NEW: Warehouse specific stocks
+  warehouseStocks: [
+    {
+      warehouseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Warehouse',
+        required: true
+      },
+      stock: {
+        type: Number,
+        default: 0,
+        min: 0
+      },
+      workstation: String // workstation yang bertanggung jawab
+    }
+  ],
+
+  // ✅ NEW: Mapping workstation ke warehouse
+  workstationMapping: [
+    {
+      workstation: {
+        type: String,
+        enum: ['kitchen', 'bar'],
+        required: true
+      },
+      warehouseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Warehouse',
+        required: true
+      },
+      isPrimary: {
+        type: Boolean,
+        default: true
+      }
+    }
+  ],
+
   event: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Event'
@@ -109,9 +144,51 @@ const MenuItemSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Auto-update costPrice (disesuaikan untuk event)
+// Virtual: Get primary warehouse based on workstation
+MenuItemSchema.virtual('primaryWarehouseId').get(function() {
+  if (!this.workstation || !this.workstationMapping || this.workstationMapping.length === 0) {
+    return null;
+  }
+  
+  const mapping = this.workstationMapping.find(m => 
+    m.workstation === this.workstation && m.isPrimary
+  );
+  
+  return mapping ? mapping.warehouseId : null;
+});
+
+// Method: Get stock for specific warehouse
+MenuItemSchema.methods.getStockForWarehouse = function(warehouseId) {
+  const warehouseStock = this.warehouseStocks.find(ws => 
+    ws.warehouseId.toString() === warehouseId.toString()
+  );
+  
+  return warehouseStock ? warehouseStock.stock : 0;
+};
+
+// Method: Update stock for specific warehouse
+MenuItemSchema.methods.updateStockForWarehouse = function(warehouseId, newStock) {
+  const index = this.warehouseStocks.findIndex(ws => 
+    ws.warehouseId.toString() === warehouseId.toString()
+  );
+  
+  if (index >= 0) {
+    this.warehouseStocks[index].stock = Math.max(0, newStock);
+  } else {
+    this.warehouseStocks.push({
+      warehouseId,
+      stock: Math.max(0, newStock)
+    });
+  }
+  
+  // Update total available stock
+  this.availableStock = this.warehouseStocks.reduce((total, ws) => total + ws.stock, 0);
+  
+  return this.save();
+};
+
+// Auto-update costPrice
 MenuItemSchema.pre('save', async function (next) {
-  // Skip cost calculation for event items
   if (this.isEventItem) {
     return next();
   }

@@ -10,6 +10,78 @@ const toWIB = (date) => {
   return new Date(date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
 };
 
+// Schema untuk split payment
+const SplitPaymentSchema = new mongoose.Schema({
+  paymentMethod: {
+    type: String,
+    enum: ['Cash', 'cash', 'Card', 'QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+
+  // ✅ TAMBAHKAN FIELD INI
+  va_numbers: [{
+    bank: String,
+    va_number: String
+  }],
+  actions: [{
+    name: String,
+    method: String,
+    url: String
+  }],
+
+  paymentDetails: {
+    // Untuk cash
+    cashTendered: { type: Number, default: 0 },
+    change: { type: Number, default: 0 },
+
+    // Untuk card
+    cardType: { type: String },
+    cardLast4: { type: String },
+    cardTransactionId: { type: String },
+
+    // Untuk QRIS/E-Wallet
+    qrCode: { type: String },
+    ewallets: {
+      type: String,
+      enum: ['Gopay', 'OVO', 'Dana', 'ShopeePay', 'LinkAja', 'Other']
+    },
+    transactionId: { type: String },
+
+    // Untuk bank transfer
+    bankName: { type: String },
+    accountNumber: { type: String },
+    transferReference: { type: String }
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed', 'refunded'],
+    default: 'pending'
+  },
+  processedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  processedAt: {
+    type: Date,
+    default: () => getWIBNow()
+  },
+  notes: {
+    type: String,
+    default: ''
+  },
+  refundDetails: {
+    refundAmount: { type: Number, default: 0 },
+    refundReason: { type: String },
+    refundedAt: { type: Date },
+    refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }
+});
+
 const OrderItemSchema = new mongoose.Schema({
   menuItem: {
     type: mongoose.Schema.Types.ObjectId,
@@ -22,6 +94,19 @@ const OrderItemSchema = new mongoose.Schema({
     price: { type: Number, default: 0 },
     category: { type: String, default: '' },
     sku: { type: String, default: '' },
+    selectedAddons: [{
+      name: { type: String },
+      price: { type: Number },
+      options: [{
+        label: { type: String },
+        price: { type: Number }
+      }]
+    }],
+    selectedToppings: [{
+      _id: { type: String },
+      name: { type: String },
+      price: { type: Number }
+    }],
     isActive: { type: Boolean, default: true }
   },
   quantity: { type: Number, min: 1 },
@@ -72,7 +157,7 @@ const OrderItemSchema = new mongoose.Schema({
   },
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
   outletName: { type: String },
-  payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
+  // Hapus payment_id dari OrderItem karena sekarang payment di level order
 });
 
 // Model Order
@@ -106,10 +191,16 @@ const OrderSchema = new mongoose.Schema({
     enum: ['Pending', 'Waiting', 'Reserved', 'OnProcess', 'Completed', 'Canceled'],
     default: 'Pending'
   },
+
+  // MODIFIKASI: Payment diubah menjadi array untuk split payment
+  payments: [SplitPaymentSchema],
+
+  // Field legacy untuk kompatibilitas (opsional)
   paymentMethod: {
     type: String,
     enum: ['Cash', 'cash', 'Card', 'QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
   },
+
   orderType: {
     type: String,
     enum: ['Dine-In', 'Pickup', 'Delivery', 'Take Away', 'Reservation', 'Event'],
@@ -182,7 +273,12 @@ const OrderSchema = new mongoose.Schema({
   totalAfterDiscount: { type: Number, required: true },
   totalCustomAmount: { type: Number, default: 0 },
   grandTotal: { type: Number, required: true },
-  change: { type: Number, default: 0 },
+
+  // MODIFIKASI: Change sekarang dihitung dari total payments
+  change: {
+    type: Number,
+    default: 0
+  },
 
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter', 'Gro'], required: true },
@@ -255,9 +351,16 @@ const OrderSchema = new mongoose.Schema({
     coordinates: String,
     note: String
   },
+
+  // MODIFIKASI: Tambah field untuk tracking split payment
   isSplitPayment: {
     type: Boolean,
     default: false
+  },
+  splitPaymentStatus: {
+    type: String,
+    enum: ['not_started', 'partial', 'completed', 'overpaid'],
+    default: 'not_started'
   },
 
   // Riwayat pemindahan meja
@@ -326,6 +429,34 @@ OrderSchema.virtual('updatedAtWIBFormatted').get(function () {
   return this.updatedAt ? this.formatToWIB(this.updatedAt) : null;
 });
 
+// Virtual untuk total paid amount dari semua payments
+OrderSchema.virtual('totalPaid').get(function () {
+  if (!this.payments || !Array.isArray(this.payments)) {
+    return 0;
+  }
+  return this.payments.reduce((total, payment) => {
+    if (payment.status === 'completed' || payment.status === 'pending') {
+      return total + (payment.amount || 0);
+    }
+    return total;
+  }, 0);
+});
+
+// Virtual untuk remaining balance
+OrderSchema.virtual('remainingBalance').get(function () {
+  const totalPaid = this.totalPaid;
+  const grandTotal = this.grandTotal || 0;
+  return Math.max(0, grandTotal - totalPaid);
+});
+
+// Virtual untuk totalPrice dari items
+OrderSchema.virtual('totalPrice').get(function () {
+  if (!this.items || !Array.isArray(this.items)) {
+    return 0;
+  }
+  return this.items.reduce((total, item) => total + (item.subtotal || 0), 0);
+});
+
 // Method untuk format WIB
 OrderSchema.methods.formatToWIB = function (date) {
   if (!date) return null;
@@ -351,7 +482,7 @@ OrderSchema.methods.getWIBDate = function () {
   });
 };
 
-// MIDDLEWARE UTAMA: Backup data menu item secara otomatis
+// MIDDLEWARE UTAMA: Backup data menu item secara otomatis dan update payment status
 OrderSchema.pre('save', async function (next) {
   try {
     // Backup data menu item untuk setiap item yang ada
@@ -361,14 +492,16 @@ OrderSchema.pre('save', async function (next) {
           // Populate data menu item secara manual
           const MenuItem = mongoose.model('MenuItem');
           const menuItemDoc = await MenuItem.findById(item.menuItem).lean();
-          
+
           if (menuItemDoc) {
             item.menuItemData = {
               name: menuItemDoc.name || 'Unknown Item',
               price: menuItemDoc.price || 0,
               category: menuItemDoc.category || 'Uncategorized',
               sku: menuItemDoc.sku || '',
-              isActive: menuItemDoc.isActive !== false
+              selectedAddons: item.addons || [],
+              selectedToppings: item.toppings || [],
+              isActive: menuItemDoc.isActive !== false,
             };
           } else {
             // Jika menu item tidak ditemukan, gunakan data fallback
@@ -377,7 +510,9 @@ OrderSchema.pre('save', async function (next) {
               price: item.subtotal / (item.quantity || 1) || 0,
               category: 'Deleted Items',
               sku: 'DELETED',
-              isActive: false
+              selectedAddons: item.addons || [],
+              selectedToppings: item.toppings || [],
+              isActive: false,
             };
           }
         } else if (!item.menuItem && (!item.menuItemData || !item.menuItemData.name)) {
@@ -387,14 +522,16 @@ OrderSchema.pre('save', async function (next) {
             price: item.subtotal / (item.quantity || 1) || 0,
             category: 'Custom',
             sku: 'CUSTOM',
+            selectedAddons: item.addons || [],
+            selectedToppings: item.toppings || [],
             isActive: true
           };
         }
       }
     }
-    
+
     this.updatedAtWIB = getWIBNow();
-    
+
     // Hitung total dari semua custom amount items
     if (this.customAmountItems && Array.isArray(this.customAmountItems)) {
       this.totalCustomAmount = this.customAmountItems.reduce((total, item) => {
@@ -404,19 +541,45 @@ OrderSchema.pre('save', async function (next) {
       this.totalCustomAmount = 0;
     }
 
+    // Update split payment status
+    if (this.payments && Array.isArray(this.payments)) {
+      const totalPaid = this.payments.reduce((total, payment) => {
+        if (payment.status === 'completed') {
+          return total + (payment.amount || 0);
+        }
+        return total;
+      }, 0);
+
+      const grandTotal = this.grandTotal || 0;
+
+      // Tentukan status split payment
+      if (totalPaid === 0) {
+        this.splitPaymentStatus = 'not_started';
+        this.isSplitPayment = false;
+      } else if (totalPaid < grandTotal) {
+        this.splitPaymentStatus = 'partial';
+        this.isSplitPayment = this.payments.length > 1;
+      } else if (totalPaid === grandTotal) {
+        this.splitPaymentStatus = 'completed';
+        this.isSplitPayment = this.payments.length > 1;
+      } else {
+        this.splitPaymentStatus = 'overpaid';
+        this.isSplitPayment = this.payments.length > 1;
+        // Hitung change untuk overpayment
+        this.change = totalPaid - grandTotal;
+      }
+
+      // Update legacy paymentMethod untuk kompatibilitas (gunakan metode pertama)
+      if (this.payments.length > 0) {
+        this.paymentMethod = this.payments[0].paymentMethod;
+      }
+    }
+
     next();
   } catch (error) {
     console.error('Error in order pre-save middleware:', error);
     next();
   }
-});
-
-// Virtual untuk totalPrice
-OrderSchema.virtual('totalPrice').get(function () {
-  if (!this.items || !Array.isArray(this.items)) {
-    return 0;
-  }
-  return this.items.reduce((total, item) => total + (item.subtotal || 0), 0);
 });
 
 // Indeks untuk performa
@@ -426,6 +589,8 @@ OrderSchema.index({ reservation: 1 });
 OrderSchema.index({ createdAtWIB: -1 });
 OrderSchema.index({ stockRolledBack: 1, status: 1 });
 OrderSchema.index({ tableReleased: 1, orderType: 1 });
+OrderSchema.index({ 'payments.status': 1 }); // Index untuk query payment status
+OrderSchema.index({ splitPaymentStatus: 1 }); // Index untuk query split payment
 
 // Middleware untuk auto-sync table status
 OrderSchema.post('save', async function (doc, next) {

@@ -1,4 +1,4 @@
-// operation.controller.js
+// operation.controller.js - COMPLETE VERSION FOR DEVICE-BASED SCALING
 
 import { Order } from '../models/order.model.js';
 import { io } from '../index.js';
@@ -7,19 +7,18 @@ import dotenv from 'dotenv';
 import { PrintLogger } from '../services/print-logger.service.js';
 dotenv.config();
 
+// ============================================
+// PRINT TRACKING FUNCTIONS
+// ============================================
 
-// Tambahkan function print tracking di operation controller
 export const trackPrintAttempt = async (orderId, workstation, printerConfig) => {
   try {
-    // Untuk sekarang, kita log order secara keseluruhan dulu
-    // Bisa dikembangkan untuk log per item jika diperlukan
     const logId = await PrintLogger.logPrintAttempt(
       orderId,
-      null, // itemId - bisa diisi jika perlu tracking per item
+      null,
       workstation,
       printerConfig
     );
-
     return logId;
   } catch (error) {
     console.error('Error in trackPrintAttempt:', error);
@@ -35,7 +34,6 @@ export const trackPrintFailure = async (logId, reason, details = '') => {
   await PrintLogger.logPrintFailure(logId, reason, details);
 };
 
-// di operation.controller.js
 export const logProblematicItem = async (req, res) => {
   try {
     const { order_id, item, workstation, issues, details, stock_info } = req.body;
@@ -58,9 +56,7 @@ export const logProblematicItem = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        log_id: logId
-      }
+      data: { log_id: logId }
     });
   } catch (error) {
     console.error('Error logging problematic item:', error);
@@ -71,17 +67,9 @@ export const logProblematicItem = async (req, res) => {
   }
 };
 
-// Enhanced logPrintAttempt endpoint
-// Di operation.controller.js - perbaiki endpoint logPrintAttempt
 export const logPrintAttempt = async (req, res) => {
   try {
-    const {
-      order_id,
-      item,
-      workstation,
-      printer_config,
-      stock_info
-    } = req.body;
+    const { order_id, item, workstation, printer_config, stock_info } = req.body;
 
     if (!order_id || !item || !workstation) {
       return res.status(400).json({
@@ -90,7 +78,6 @@ export const logPrintAttempt = async (req, res) => {
       });
     }
 
-    // Enhanced logging dengan problematic details
     const logId = await PrintLogger.logPrintAttempt(
       order_id,
       item,
@@ -115,7 +102,6 @@ export const logPrintAttempt = async (req, res) => {
   }
 };
 
-// New endpoint untuk problematic reports
 export const getProblematicPrintReport = async (req, res) => {
   try {
     const { hours = 24, workstation } = req.query;
@@ -123,7 +109,6 @@ export const getProblematicPrintReport = async (req, res) => {
     const problematicReport = await PrintLogger.getProblematicItemsReport(parseInt(hours));
     const technicalReport = await PrintLogger.getTechnicalIssuesReport(parseInt(hours));
 
-    // Filter by workstation jika provided
     let filteredProblematic = problematicReport;
     let filteredTechnical = technicalReport;
 
@@ -157,7 +142,7 @@ export const getProblematicPrintReport = async (req, res) => {
     });
   }
 };
-// Endpoint untuk log print success
+
 export const logPrintSuccess = async (req, res) => {
   try {
     const { log_id, duration } = req.body;
@@ -184,7 +169,6 @@ export const logPrintSuccess = async (req, res) => {
   }
 };
 
-// di operation.controller.js
 export const logSkippedItem = async (req, res) => {
   try {
     const { order_id, item, workstation, reason, details } = req.body;
@@ -211,7 +195,6 @@ export const logSkippedItem = async (req, res) => {
   }
 };
 
-// Endpoint untuk log print failure
 export const logPrintFailure = async (req, res) => {
   try {
     const { log_id, reason, details } = req.body;
@@ -238,7 +221,6 @@ export const logPrintFailure = async (req, res) => {
   }
 };
 
-// Tambahkan endpoint untuk print monitoring
 export const getPrintStats = async (req, res) => {
   try {
     const { hours = 24 } = req.query;
@@ -286,25 +268,31 @@ export const getOrderPrintHistory = async (req, res) => {
   }
 };
 
-// ! Start Kitchen sections
-
-
 // ============================================
-// GET KITCHEN ORDERS (Optimized with lean + indexes)
+// ✅ NEW: GET WORKSTATION ORDERS (UNIFIED)
 // ============================================
 
-export const getKitchenOrder = async (req, res) => {
+export const getWorkstationOrders = async (req, res) => {
   try {
+    const { workstationType } = req.params;
     const startTime = Date.now();
 
-    // Use lean() for 10x faster queries
+    if (!workstationType || !['kitchen', 'bar', 'general'].includes(workstationType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid workstation type. Must be: kitchen, bar, or general'
+      });
+    }
+
+    console.log(`📡 Fetching orders for workstation: ${workstationType}`);
+
     const orders = await Order.find({
-      status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] },
+      status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
     })
-      .select('order_id customer_name status items createdAt updatedAt order_type reservation')
+      .select('order_id customer_name status items createdAt updatedAt order_type reservation tableNumber createdAtWIB updatedAtWIB')
       .populate({
         path: 'items.menuItem',
-        select: 'name workstation',
+        select: 'name workstation category',
       })
       .populate({
         path: 'reservation',
@@ -316,22 +304,23 @@ export const getKitchenOrder = async (req, res) => {
         options: { strictPopulate: false }
       })
       .sort({ createdAt: -1 })
-      .lean(); // Convert to plain objects (much faster)
+      .lean();
 
-    // Batch auto-confirm (non-blocking)
+    console.log(`📊 Total orders fetched from DB: ${orders.length}`);
+
+    // Batch auto-confirm waiting orders
     const waitingOrderIds = orders
       .filter(order => order.status === 'Waiting')
       .map(order => order.order_id);
 
     if (waitingOrderIds.length > 0) {
       console.log(`🔥 [AUTO-CONFIRM] Found ${waitingOrderIds.length} Waiting orders`);
+      console.log(`🔥 [AUTO-CONFIRM] Order IDs:`, waitingOrderIds);
 
-      // Fire and forget
       _batchConfirmWaitingOrders(waitingOrderIds).catch(err => {
         console.error('❌ Background auto-confirm failed:', err);
       });
 
-      // Optimistic update
       orders.forEach(order => {
         if (order.status === 'Waiting') {
           order.status = 'OnProcess';
@@ -339,15 +328,45 @@ export const getKitchenOrder = async (req, res) => {
       });
     }
 
-    // Filter & map in single pass (more efficient)
+    // Filter items based on workstation type
     const filteredOrders = orders.reduce((acc, order) => {
-      const kitchenItems = order.items.filter(
-        (item) => item.menuItem?.workstation === 'kitchen'
-      );
+      let relevantItems = [];
 
-      if (kitchenItems.length === 0) return acc;
+      if (workstationType === 'kitchen') {
+        relevantItems = order.items.filter(
+          item => item.menuItem?.workstation === 'kitchen'
+        );
+      } else if (workstationType === 'bar') {
+        relevantItems = order.items.filter(item => {
+          const menuItem = item.menuItem;
+          if (!menuItem) return false;
 
-      // Calculate preparation timing
+          if (menuItem.workstation === 'bar' || menuItem.workstation === 'beverage') {
+            return true;
+          }
+
+          if (menuItem.category) {
+            const categoryStr = String(menuItem.category).toLowerCase();
+            return ['minuman', 'beverage', 'drink'].includes(categoryStr);
+          }
+
+          return false;
+        });
+      } else if (workstationType === 'general') {
+        relevantItems = order.items.filter(item => {
+          const menuItem = item.menuItem;
+          if (!menuItem) return false;
+
+          const isKitchen = menuItem.workstation === 'kitchen';
+          const isBar = menuItem.workstation === 'bar' || menuItem.workstation === 'beverage';
+
+          return !isKitchen && !isBar;
+        });
+      }
+
+      if (relevantItems.length === 0) return acc;
+
+      // Calculate preparation timing for reservations
       let shouldStartPreparation = false;
       let timeUntilPreparation = null;
 
@@ -379,14 +398,26 @@ export const getKitchenOrder = async (req, res) => {
         }
       }
 
+      // Determine location display
+      let location = '';
+      const orderType = (order.order_type || '').toLowerCase();
+
+      if (['takeaway', 'pickup', 'delivery', 'take away'].includes(orderType)) {
+        location = orderType.toUpperCase();
+      } else if (order.reservation) {
+        location = `${order.reservation.area_id?.area_name || '-'} - Table ${order.reservation.table_id?.table_number || '-'}`;
+      } else if (order.tableNumber) {
+        location = `Table ${order.tableNumber}`;
+      } else {
+        location = 'DINE-IN';
+      }
+
       acc.push({
         ...order,
-        items: kitchenItems,
+        items: relevantItems,
         displayInfo: {
           orderType: order.order_type || 'dine-in',
-          location: order.reservation
-            ? `${order.reservation.area_id?.area_name || '-'} - Table ${order.reservation.table_id?.table_number || '-'}`
-            : (order.order_type || 'TAKEAWAY').toUpperCase(),
+          location: location,
           customerName: order.customer_name || order.customer?.name || 'Guest',
           servingOption: order.reservation?.food_serving_option || 'immediate',
           servingTime: order.reservation?.food_serving_time,
@@ -399,28 +430,87 @@ export const getKitchenOrder = async (req, res) => {
     }, []);
 
     const queryTime = Date.now() - startTime;
-    console.log(`⚡ Kitchen query completed in ${queryTime}ms`);
+    console.log(`⚡ ${workstationType} query completed in ${queryTime}ms`);
+    console.log(`📦 Filtered orders for ${workstationType}: ${filteredOrders.length} orders`);
 
-    res.status(200).json({
+    // Log detail setiap order yang akan dikirim
+    // console.log(`\n🔍 ===== DATA YANG DIKIRIM KE FRONTEND (${workstationType.toUpperCase()}) =====`);
+    // filteredOrders.forEach((order, index) => {
+    //   console.log(`\n📋 Order ${index + 1}:`);
+    //   console.log(`   Order ID: ${order.order_id}`);
+    //   console.log(`   Customer: ${order.displayInfo.customerName}`);
+    //   console.log(`   Status: ${order.status}`);
+    //   console.log(`   Location: ${order.displayInfo.location}`);
+    //   console.log(`   Order Type: ${order.displayInfo.orderType}`);
+    //   console.log(`   Items Count: ${order.items.length}`);
+    //   console.log(`   Items:`, order.items.map(item => ({
+    //     name: item.menuItem?.name || 'Unknown',
+    //     quantity: item.quantity,
+    //     workstation: item.menuItem?.workstation,
+    //     status: item.status
+    //   })));
+    //   console.log(`   Serving Option: ${order.displayInfo.servingOption}`);
+    //   if (order.displayInfo.servingTime) {
+    //     console.log(`   Serving Time: ${order.displayInfo.servingTime}`);
+    //     console.log(`   Should Start Prep: ${order.displayInfo.shouldStartPreparation}`);
+    //     console.log(`   Time Until Prep: ${order.displayInfo.timeUntilPreparation} mins`);
+    //   }
+    //   console.log(`   Created At: ${order.createdAt}`);
+    // });
+    // console.log(`\n📊 Total orders dikirim: ${filteredOrders.length}`);
+    // console.log(`============================================\n`);
+
+    const responseData = {
       success: true,
       data: filteredOrders,
       meta: {
+        workstationType,
         queryTime: `${queryTime}ms`,
         totalOrders: orders.length,
         filteredOrders: filteredOrders.length
       }
+    };
+
+    console.log(`✅ Response summary:`, {
+      success: responseData.success,
+      ordersCount: responseData.data.length,
+      meta: responseData.meta
     });
+
+    res.status(200).json(responseData);
   } catch (error) {
-    console.error('❌ Error fetching kitchen orders:', error);
+    console.error(`❌ Error fetching ${workstationType} orders:`, error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch kitchen orders',
+      message: `Failed to fetch ${workstationType} orders`,
     });
   }
 };
 
 // ============================================
-// BATCH AUTO-CONFIRM (Non-blocking)
+// ✅ DEPRECATED: Keep old endpoints for backward compatibility
+// ============================================
+
+export const getKitchenOrder = async (req, res) => {
+  console.warn('⚠️ getKitchenOrder is deprecated. Use getWorkstationOrders instead.');
+  req.params.workstationType = 'kitchen';
+  return getWorkstationOrders(req, res);
+};
+
+export const getBarOrder = async (req, res) => {
+  console.warn('⚠️ getBarOrder is deprecated. Use getWorkstationOrders instead.');
+  req.params.workstationType = 'bar';
+  return getWorkstationOrders(req, res);
+};
+
+export const getAllBeverageOrders = async (req, res) => {
+  console.warn('⚠️ getAllBeverageOrders is deprecated. Use getWorkstationOrders instead.');
+  req.params.workstationType = 'bar';
+  return getWorkstationOrders(req, res);
+};
+
+// ============================================
+// BATCH AUTO-CONFIRM
 // ============================================
 
 async function _batchConfirmWaitingOrders(orderIds) {
@@ -429,7 +519,6 @@ async function _batchConfirmWaitingOrders(orderIds) {
   try {
     console.log(`🔄 [BATCH CONFIRM] Processing ${orderIds.length} orders...`);
 
-    // Single bulk update
     const result = await Order.updateMany(
       {
         order_id: { $in: orderIds },
@@ -442,7 +531,6 @@ async function _batchConfirmWaitingOrders(orderIds) {
 
     console.log(`✅ [BATCH CONFIRM] Updated ${result.modifiedCount} orders`);
 
-    // Emit socket events in parallel
     if (global.io) {
       const emitPromises = orderIds.map(orderId => {
         return global.io.to(`order_${orderId}`).emit('status_confirmed', {
@@ -454,8 +542,7 @@ async function _batchConfirmWaitingOrders(orderIds) {
 
       await Promise.all(emitPromises);
 
-      // Single emit to kitchen room
-      global.io.to('kitchen_outlet-1').emit('order_status_updated', {
+      global.io.emit('order_status_updated', {
         orderIds,
         status: 'OnProcess',
         count: result.modifiedCount,
@@ -469,7 +556,7 @@ async function _batchConfirmWaitingOrders(orderIds) {
 }
 
 // ============================================
-// UPDATE ORDER STATUS (Immediate response)
+// UPDATE ORDER STATUS
 // ============================================
 
 export const updateKitchenOrderStatus = async (req, res) => {
@@ -484,7 +571,6 @@ export const updateKitchenOrderStatus = async (req, res) => {
   }
 
   try {
-    // Emit socket IMMEDIATELY
     const updateData = {
       order_id: orderId,
       orderStatus: status,
@@ -499,14 +585,12 @@ export const updateKitchenOrderStatus = async (req, res) => {
       global.io.to('kitchen_room').emit('kitchen_order_updated', updateData);
     }
 
-    // Response IMMEDIATE
     res.status(200).json({
       success: true,
       message: 'Status update broadcasted',
       data: { orderId, status }
     });
 
-    // DB update in background
     setImmediate(async () => {
       try {
         const order = await Order.findOne({ order_id: orderId })
@@ -519,7 +603,6 @@ export const updateKitchenOrderStatus = async (req, res) => {
           return;
         }
 
-        // Validation: active reservation
         if (status === 'Completed' && order.reservation) {
           const reservation = order.reservation;
           if (reservation.status &&
@@ -537,7 +620,6 @@ export const updateKitchenOrderStatus = async (req, res) => {
           }
         }
 
-        // Update DB
         await Order.updateOne(
           { order_id: orderId },
           { $set: { status: status } }
@@ -559,10 +641,6 @@ export const updateKitchenOrderStatus = async (req, res) => {
   }
 };
 
-// ============================================
-// BATCH AUTO-CONFIRM ENDPOINT
-// ============================================
-
 export const batchAutoConfirmOrders = async (req, res) => {
   const { orderIds } = req.body;
 
@@ -574,14 +652,12 @@ export const batchAutoConfirmOrders = async (req, res) => {
   }
 
   try {
-    // Response IMMEDIATELY
     res.status(200).json({
       success: true,
       message: `Confirming ${orderIds.length} orders`,
       orderIds: orderIds
     });
 
-    // Background processing
     setImmediate(async () => {
       try {
         const result = await Order.updateMany(
@@ -597,7 +673,6 @@ export const batchAutoConfirmOrders = async (req, res) => {
         console.log(`✅ Batch confirmed ${result.modifiedCount} orders`);
 
         if (global.io) {
-          // Parallel socket emissions
           const emitPromises = orderIds.map(orderId =>
             global.io.to(`order_${orderId}`).emit('order_status_update', {
               order_id: orderId,
@@ -608,7 +683,7 @@ export const batchAutoConfirmOrders = async (req, res) => {
 
           await Promise.all(emitPromises);
 
-          global.io.to('kitchen_room').emit('batch_orders_confirmed', {
+          global.io.emit('batch_orders_confirmed', {
             orderIds,
             count: result.modifiedCount,
             timestamp: new Date()
@@ -630,7 +705,7 @@ export const batchAutoConfirmOrders = async (req, res) => {
 };
 
 // ============================================
-// UPDATE KITCHEN ITEM STATUS
+// UPDATE ITEM STATUS
 // ============================================
 
 export const updateKitchenItemStatus = async (req, res) => {
@@ -682,14 +757,12 @@ export const updateKitchenItemStatus = async (req, res) => {
 
     await order.save();
 
-    // Populate for response
     const updatedOrder = await Order.findOne({ order_id: orderId })
       .populate('items.menuItem')
       .populate('reservation');
 
     const updatedItem = updatedOrder.items.id(itemId);
 
-    // Emit socket events
     const updateData = {
       order_id: orderId,
       item_id: itemId,
@@ -731,10 +804,6 @@ export const updateKitchenItemStatus = async (req, res) => {
     });
   }
 };
-
-// ============================================
-// BULK UPDATE KITCHEN ITEMS
-// ============================================
 
 export const bulkUpdateKitchenItems = async (req, res) => {
   const { orderId } = req.params;
@@ -813,7 +882,6 @@ export const bulkUpdateKitchenItems = async (req, res) => {
       .populate('items.menuItem')
       .populate('reservation');
 
-    // Emit socket events
     const bulkUpdateData = {
       order_id: orderId,
       updates: updateResults.filter(result => result.success),
@@ -847,200 +915,13 @@ export const bulkUpdateKitchenItems = async (req, res) => {
   }
 };
 
-// ! End Kitchen sections
+// ============================================
+// ✅ NEW: UPDATE WORKSTATION ORDER STATUS (UNIFIED)
+// ============================================
 
-// ! Start Bar sections
-
-export const getBarOrder = async (req, res) => {
-  try {
-    const { barType } = req.params; // 'depan' atau 'belakang'
-
-    if (!barType || !['depan', 'belakang'].includes(barType)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Bar type harus "depan" atau "belakang"'
-      });
-    }
-
-    // ✅ Ambil data order terbaru
-    const orders = await Order.find({
-      status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
-    })
-      .populate({
-        path: 'items.menuItem',
-        select: 'name workstation category',
-      })
-      .populate({
-        path: 'reservation',
-        populate: [
-          { path: 'area_id', select: 'area_name' },
-          { path: 'table_id', select: 'table_number' },
-        ],
-        // 🔥 TAMBAHKAN INI - Skip populate jika reservation null
-        options: { strictPopulate: false }
-      })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // 🔥 Filter: hanya ambil item dengan workstation bar/beverage
-    const beverageOrders = orders
-      .map((order) => ({
-        ...order,
-        items: order.items.filter(
-          (item) => item.menuItem?.workstation === 'bar' ||
-            item.menuItem?.workstation === 'beverage' ||
-            (item.menuItem?.category &&
-              ['minuman', 'beverage', 'drink'].includes(item.menuItem.category.toLowerCase()))
-        ),
-        // 🎯 Tambahan: Info untuk display di bar
-        displayInfo: {
-          orderType: order.orderType || order.order_type || 'dine-in',
-          location: order.reservation
-            ? `${order.reservation.area_id?.area_name || '-'} - Table ${order.reservation.table_id?.table_number || '-'}`
-            : (order.orderType || 'TAKEAWAY').toUpperCase(),
-          customerName: order.customer_name || order.user || 'Guest'
-        }
-      }))
-      .filter((order) => order.items.length > 0); // hanya order yang punya beverage items
-
-    // 🔥 Filter berdasarkan area meja untuk bar depan/belakang
-    const filteredOrders = beverageOrders.filter((order) => {
-      // 🎯 HANDLE TAKEAWAY/PICKUP/DELIVERY - tampilkan di semua bar
-      const orderType = (order.orderType || order.order_type || '').toLowerCase();
-      if (['takeaway', 'pickup', 'delivery', 'take away'].includes(orderType)) {
-        console.log(`📦 ${orderType.toUpperCase()} order ${order.order_id} - showing in all bars`);
-        return true; // Tampilkan di semua bar
-      }
-
-      // 🎯 HANDLE DINE-IN & RESERVATION - filter berdasarkan table
-      if (!order.tableNumber && !order.reservation) {
-        console.log(`⚠️ Order ${order.order_id} has no table info - skipping`);
-        return false;
-      }
-
-      let tableNumber = '';
-
-      // Ambil table number dari reservation atau langsung dari order
-      if (order.reservation && order.reservation.table_id) {
-        const tableData = order.reservation.table_id;
-        tableNumber = tableData.table_number || tableData;
-      } else if (order.tableNumber) {
-        tableNumber = order.tableNumber;
-      } else {
-        return false;
-      }
-
-      // Convert ke string dan ambil karakter pertama
-      const tableStr = tableNumber.toString().toUpperCase();
-      const firstChar = tableStr.charAt(0);
-
-      if (barType === 'depan') {
-        // Bar depan: meja A-I
-        return firstChar >= 'A' && firstChar <= 'I';
-      } else if (barType === 'belakang') {
-        // Bar belakang: meja J-Z
-        return firstChar >= 'J' && firstChar <= 'Z';
-      }
-
-      return false;
-    });
-
-    console.log(`✅ Bar ${barType} orders: ${filteredOrders.length} orders found`);
-
-    res.status(200).json({
-      success: true,
-      data: filteredOrders,
-      barType: barType,
-      total: filteredOrders.length
-    });
-  } catch (error) {
-    console.error(`❌ Error fetching ${barType} bar orders:`, error);
-    res.status(500).json({
-      success: false,
-      message: `Failed to fetch ${barType} bar orders`,
-    });
-  }
-};
-
-export const getAllBeverageOrders = async (req, res) => {
-  try {
-    const orders = await Order.find({
-      status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
-    })
-      .populate({
-        path: 'items.menuItem',
-        select: 'name workstation category',
-      })
-      .populate({
-        path: 'reservation',
-        populate: [
-          { path: 'area_id', select: 'area_name' },
-          { path: 'table_id', select: 'table_number' },
-        ],
-        // 🔥 TAMBAHKAN INI - Skip populate jika reservation null
-        options: { strictPopulate: false }
-      })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // Filter hanya item beverage/bar - VERSI AMAN
-    const beverageOrders = orders
-      .map((order) => ({
-        ...order,
-        items: order.items.filter((item) => {
-          const menuItem = item.menuItem;
-
-          // Skip jika menuItem null/undefined
-          if (!menuItem) return false;
-
-          // Cek workstation
-          if (menuItem.workstation === 'bar' || menuItem.workstation === 'beverage') {
-            return true;
-          }
-
-          // Cek category dengan safe check
-          if (menuItem.category) {
-            const categoryStr = String(menuItem.category).toLowerCase();
-            return ['minuman', 'beverage', 'drink'].includes(categoryStr);
-          }
-
-          return false;
-        }),
-        // 🎯 Tambahan: Info untuk display
-        displayInfo: {
-          orderType: order.orderType || order.order_type || 'dine-in',
-          location: order.reservation
-            ? `${order.reservation.area_id?.area_name || '-'} - Table ${order.reservation.table_id?.table_number || '-'}`
-            : (order.orderType || 'TAKEAWAY').toUpperCase(),
-          customerName: order.customer_name || order.user || 'Guest'
-        }
-      }))
-      .filter((order) => order.items.length > 0);
-
-    console.log(`✅ All beverage orders: ${beverageOrders.length} orders found`);
-
-    res.status(200).json({
-      success: true,
-      data: beverageOrders,
-      total: beverageOrders.length
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching beverage orders:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch beverage orders',
-      error: error.message
-    });
-  }
-};
-
-// ✅ Update bar order status
-export const updateBarOrderStatus = async (req, res) => {
+export const updateWorkstationOrderStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { status, bartenderId, bartenderName, completedItems } = req.body;
-
-  console.log('Updating bar order status for orderId:', orderId, 'to status:', status);
+  const { status, workstationId, workstationName, workstationType } = req.body;
 
   if (!orderId || !status) {
     return res.status(400).json({
@@ -1050,266 +931,117 @@ export const updateBarOrderStatus = async (req, res) => {
   }
 
   try {
-    const order = await Order.findOne({ order_id: orderId })
-      .populate('items.menuItem')
-      .populate('reservation');
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    // 🚫 CEK: Jika status ingin diubah ke Completed dan ada reservasi aktif
-    // ⚠️ Hanya cek jika order punya reservation (dine-in)
-    if (status === 'Completed' && order.reservation) {
-      const reservation = order.reservation;
-
-      // Cek apakah reservasi masih aktif
-      if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cannot complete order with active reservation. Reservation might have additional orders.'
-        });
-      }
-
-      // Atau cek berdasarkan waktu reservasi
-      const now = new Date();
-      const reservationEnd = new Date(reservation.reservation_end || reservation.end_time);
-      if (reservationEnd > now) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cannot complete order while reservation is still active.'
-        });
-      }
-    }
-
-    // Update status order
-    order.status = status;
-    await order.save();
-
-    // 🔥 EMIT SOCKET EVENTS
     const updateData = {
       order_id: orderId,
       orderStatus: status,
-      orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
-      bartender: { id: bartenderId, name: bartenderName },
-      completedItems: completedItems || [],
-      hasActiveReservation: !!order.reservation,
-      timestamp: new Date()
+      workstation: {
+        id: workstationId,
+        name: workstationName,
+        type: workstationType
+      },
+      timestamp: new Date(),
     };
 
-    // Emit ke room customer
-    io.to(`order_${orderId}`).emit('order_status_update', updateData);
+    if (global.io) {
+      global.io.to(`order_${orderId}`).emit('order_status_update', updateData);
+      global.io.to('cashier_room').emit('workstation_order_updated', updateData);
 
-    // Emit ke cashier
-    io.to('cashier_room').emit('beverage_order_updated', updateData);
-
-    // Emit ke bar room sesuai type
-    const tableNumber = order.tableNumber?.toString() ||
-      order.reservation?.table_id?.table_number || '';
-
-    if (tableNumber) {
-      const firstChar = tableNumber.charAt(0).toUpperCase();
-      const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-      io.to(barRoom).emit('beverage_order_updated', updateData);
-    } else {
-      // Jika tidak ada table number (takeaway/pickup/delivery), emit ke semua bar
-      io.to('bar_depan').emit('beverage_order_updated', updateData);
-      io.to('bar_belakang').emit('beverage_order_updated', updateData);
+      // Emit to specific workstation room
+      if (workstationType) {
+        global.io.to(`${workstationType}_room`).emit('workstation_order_updated', updateData);
+      }
     }
-
-    console.log(`✅ Bar order ${orderId} updated to ${status} by ${bartenderName}`);
 
     res.status(200).json({
       success: true,
-      data: order,
-      message: status === 'Completed' && order.reservation
-        ? 'Order completed but reservation is still active'
-        : `Order status updated to ${status}`
+      message: 'Status update broadcasted',
+      data: { orderId, status }
     });
+
+    // Background DB update
+    setImmediate(async () => {
+      try {
+        const order = await Order.findOne({ order_id: orderId })
+          .select('order_id status reservation')
+          .populate('reservation', 'status')
+          .lean();
+
+        if (!order) {
+          console.error(`Order ${orderId} not found`);
+          return;
+        }
+
+        if (status === 'Completed' && order.reservation) {
+          const reservation = order.reservation;
+          if (reservation.status &&
+            ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
+            console.warn(`Order ${orderId} has active reservation`);
+
+            if (global.io) {
+              global.io.to(`order_${orderId}`).emit('status_update_corrected', {
+                order_id: orderId,
+                status: 'OnProcess',
+                reason: 'Active reservation'
+              });
+            }
+            return;
+          }
+        }
+
+        await Order.updateOne(
+          { order_id: orderId },
+          { $set: { status: status } }
+        );
+
+        console.log(`✅ Order ${orderId} status updated to ${status} for workstation ${workstationType}`);
+
+      } catch (error) {
+        console.error(`❌ Background DB update failed for ${orderId}:`,// operation.controller.js - PART 2 (continuation from Part 1)
+
+          // ============================================
+          // ✅ CONTINUATION: UPDATE WORKSTATION ORDER STATUS
+          // ============================================
+
+          error);
+      }
+    });
+
   } catch (error) {
-    console.error('❌ Error updating bar order status:', error);
+    console.error('Error in updateWorkstationOrderStatus:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update bar order status'
+      message: 'Failed to update workstation order status'
     });
   }
 };
 
-// ✅ Start preparing beverage order
-export const startBeverageOrder = async (req, res) => {
-  const { orderId } = req.params;
-  const { bartenderName } = req.body;
+// ============================================
+// ✅ NEW: UPDATE WORKSTATION ITEM STATUS (UNIFIED)
+// ============================================
 
-  console.log('Starting beverage preparation for orderId:', orderId, 'by:', bartenderName);
-
-  if (!orderId || !bartenderName) {
-    return res.status(400).json({
-      success: false,
-      message: 'orderId and bartenderName are required'
-    });
-  }
-
-  try {
-    const order = await Order.findOne({ order_id: orderId })
-      .populate('reservation');
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    // Update status ke OnProcess
-    order.status = 'OnProcess';
-    await order.save();
-
-    // 🔥 EMIT SOCKET EVENTS
-    const startData = {
-      order_id: orderId,
-      orderStatus: 'OnProcess',
-      orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
-      bartenderName: bartenderName,
-      message: 'Beverage order started preparation',
-      timestamp: new Date()
-    };
-
-    // Emit ke customer
-    io.to(`order_${orderId}`).emit('beverage_preparation_started', startData);
-
-    // Emit ke cashier
-    io.to('cashier_room').emit('beverage_preparation_started', startData);
-
-    // Emit ke bar room
-    const tableNumber = order.tableNumber?.toString() ||
-      order.reservation?.table_id?.table_number || '';
-
-    if (tableNumber) {
-      const firstChar = tableNumber.charAt(0).toUpperCase();
-      const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-      io.to(barRoom).emit('beverage_preparation_started', startData);
-    } else {
-      // Emit ke semua bar untuk non-table orders
-      io.to('bar_depan').emit('beverage_preparation_started', startData);
-      io.to('bar_belakang').emit('beverage_preparation_started', startData);
-    }
-
-    console.log(`✅ Beverage order ${orderId} started preparation by ${bartenderName}`);
-
-    res.status(200).json({
-      success: true,
-      data: order,
-      message: 'Beverage preparation started'
-    });
-  } catch (error) {
-    console.error('❌ Error starting beverage order:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to start beverage order'
-    });
-  }
-};
-
-// ✅ Complete beverage order (mark as ready)
-export const completeBeverageOrder = async (req, res) => {
-  const { orderId } = req.params;
-  const { bartenderName, completedItems } = req.body;
-
-  console.log('Completing beverage order for orderId:', orderId, 'by:', bartenderName);
-
-  if (!orderId || !bartenderName) {
-    return res.status(400).json({
-      success: false,
-      message: 'orderId and bartenderName are required'
-    });
-  }
-
-  try {
-    const order = await Order.findOne({ order_id: orderId })
-      .populate('reservation');
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    // Update status ke Ready
-    order.status = 'Ready';
-    await order.save();
-
-    // 🔥 EMIT SOCKET EVENTS
-    const completeData = {
-      order_id: orderId,
-      orderStatus: 'Ready',
-      orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
-      bartenderName: bartenderName,
-      completedItems: completedItems || [],
-      message: 'Beverage order is ready to serve',
-      timestamp: new Date()
-    };
-
-    // Emit ke customer
-    io.to(`order_${orderId}`).emit('beverage_ready', completeData);
-
-    // Emit ke cashier
-    io.to('cashier_room').emit('beverage_ready', completeData);
-
-    // Emit ke bar room
-    const tableNumber = order.tableNumber?.toString() ||
-      order.reservation?.table_id?.table_number || '';
-
-    if (tableNumber) {
-      const firstChar = tableNumber.charAt(0).toUpperCase();
-      const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-      io.to(barRoom).emit('beverage_ready', completeData);
-    } else {
-      // Emit ke semua bar untuk non-table orders
-      io.to('bar_depan').emit('beverage_ready', completeData);
-      io.to('bar_belakang').emit('beverage_ready', completeData);
-    }
-
-    // Juga emit ke waitstaff/runner room
-    io.to('waitstaff_room').emit('beverage_ready_for_serve', completeData);
-
-    console.log(`✅ Beverage order ${orderId} completed by ${bartenderName}`);
-
-    res.status(200).json({
-      success: true,
-      data: order,
-      message: 'Beverage order marked as ready'
-    });
-  } catch (error) {
-    console.error('❌ Error completing beverage order:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to complete beverage order'
-    });
-  }
-};
-
-// ✅ Update individual beverage item status
-export const updateBeverageItemStatus = async (req, res) => {
+export const updateWorkstationItemStatus = async (req, res) => {
   const { orderId, itemId } = req.params;
-  const { status, bartenderName } = req.body;
+  const { status, workstationId, workstationName, workstationType } = req.body;
 
-  console.log('Updating beverage item status for orderId:', orderId, 'itemId:', itemId, 'to:', status);
+  console.log(`Updating item ${itemId} in order ${orderId} to ${status} for workstation ${workstationType}`);
 
   if (!orderId || !itemId || !status) {
     return res.status(400).json({
       success: false,
-      message: 'orderId, itemId and status are required'
+      message: 'orderId, itemId, and status are required'
+    });
+  }
+
+  const validStatuses = ['pending', 'printed', 'cooking', 'ready', 'served'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
     });
   }
 
   try {
-    const order = await Order.findOne({ order_id: orderId })
-      .populate('items.menuItem')
-      .populate('reservation');
+    const order = await Order.findOne({ order_id: orderId });
 
     if (!order) {
       return res.status(404).json({
@@ -1318,62 +1050,199 @@ export const updateBeverageItemStatus = async (req, res) => {
       });
     }
 
-    // Find and update the specific item
-    const item = order.items.id(itemId);
-    if (!item) {
+    const itemToUpdate = order.items.id(itemId);
+    if (!itemToUpdate) {
       return res.status(404).json({
         success: false,
-        message: 'Item not found in order'
+        message: 'Order item not found'
       });
     }
 
-    // Update item status
-    item.kitchenStatus = status; // Gunakan kitchenStatus sesuai schema
+    const previousStatus = itemToUpdate.kitchenStatus;
+    itemToUpdate.kitchenStatus = status;
+
     if (status === 'served') {
-      item.isPrinted = true;
-      item.printedAt = new Date();
+      itemToUpdate.isPrinted = true;
+      itemToUpdate.printedAt = new Date();
     }
+
     await order.save();
 
-    // 🔥 EMIT SOCKET EVENTS
-    const itemUpdateData = {
+    const updatedOrder = await Order.findOne({ order_id: orderId })
+      .populate('items.menuItem')
+      .populate('reservation');
+
+    const updatedItem = updatedOrder.items.id(itemId);
+
+    const updateData = {
       order_id: orderId,
       item_id: itemId,
-      item_name: item.menuItem?.name || item.name,
       status: status,
-      orderType: order.orderType || order.order_type || 'dine-in', // 🎯 Tambahkan order type
-      bartenderName: bartenderName,
-      timestamp: new Date()
+      previousStatus: previousStatus,
+      orderType: updatedOrder.order_type || 'dine-in',
+      workstation: {
+        id: workstationId,
+        name: workstationName,
+        type: workstationType
+      },
+      timestamp: new Date(),
+      itemDetails: {
+        menuItem: updatedItem.menuItem,
+        quantity: updatedItem.quantity,
+        notes: updatedItem.notes,
+        batchNumber: updatedItem.batchNumber
+      },
+      orderStatus: updatedOrder.status,
+      hasActiveReservation: !!updatedOrder.reservation
     };
 
-    // Emit ke bar room untuk update real-time
-    const tableNumber = order.tableNumber?.toString() ||
-      order.reservation?.table_id?.table_number || '';
+    if (global.io) {
+      global.io.to(`order_${orderId}`).emit('workstation_item_status_update', updateData);
+      global.io.to('cashier_room').emit('workstation_item_updated', updateData);
 
-    if (tableNumber) {
-      const firstChar = tableNumber.charAt(0).toUpperCase();
-      const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-      io.to(barRoom).emit('beverage_item_status_updated', itemUpdateData);
-    } else {
-      // Emit ke semua bar untuk non-table orders
-      io.to('bar_depan').emit('beverage_item_status_updated', itemUpdateData);
-      io.to('bar_belakang').emit('beverage_item_status_updated', itemUpdateData);
+      // Emit to specific workstation room
+      if (workstationType) {
+        global.io.to(`${workstationType}_room`).emit('workstation_item_updated', updateData);
+      }
     }
-
-    console.log(`✅ Beverage item ${itemId} in order ${orderId} updated to ${status}`);
 
     res.status(200).json({
       success: true,
-      data: { order, updatedItem: item },
+      data: {
+        order: updatedOrder,
+        updatedItem: updatedItem
+      },
       message: `Item status updated to ${status}`
     });
+
   } catch (error) {
-    console.error('❌ Error updating beverage item status:', error);
+    console.error('Error updating workstation item status:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update beverage item status'
+      message: 'Failed to update workstation item status'
     });
   }
 };
 
-// ! End Bar sections
+// ============================================
+// ✅ NEW: BULK UPDATE WORKSTATION ITEMS (UNIFIED)
+// ============================================
+
+export const bulkUpdateWorkstationItems = async (req, res) => {
+  const { orderId } = req.params;
+  const { items, workstationId, workstationName, workstationType } = req.body;
+
+  if (!orderId || !items || !Array.isArray(items)) {
+    return res.status(400).json({
+      success: false,
+      message: 'orderId and items array are required'
+    });
+  }
+
+  try {
+    const order = await Order.findOne({ order_id: orderId });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const updateResults = [];
+    const validStatuses = ['pending', 'printed', 'cooking', 'ready', 'served'];
+
+    for (const itemUpdate of items) {
+      const { itemId, status } = itemUpdate;
+
+      if (!itemId || !status) {
+        updateResults.push({
+          itemId,
+          success: false,
+          message: 'itemId and status required'
+        });
+        continue;
+      }
+
+      if (!validStatuses.includes(status)) {
+        updateResults.push({
+          itemId,
+          success: false,
+          message: `Invalid status: ${status}`
+        });
+        continue;
+      }
+
+      const itemToUpdate = order.items.id(itemId);
+      if (!itemToUpdate) {
+        updateResults.push({
+          itemId,
+          success: false,
+          message: 'Order item not found'
+        });
+        continue;
+      }
+
+      const previousStatus = itemToUpdate.kitchenStatus;
+      itemToUpdate.kitchenStatus = status;
+
+      if (status === 'served') {
+        itemToUpdate.isPrinted = true;
+        itemToUpdate.printedAt = new Date();
+      }
+
+      updateResults.push({
+        itemId,
+        success: true,
+        previousStatus,
+        newStatus: status
+      });
+    }
+
+    await order.save();
+
+    const updatedOrder = await Order.findOne({ order_id: orderId })
+      .populate('items.menuItem')
+      .populate('reservation');
+
+    const bulkUpdateData = {
+      order_id: orderId,
+      updates: updateResults.filter(result => result.success),
+      orderType: updatedOrder.order_type || 'dine-in',
+      workstation: {
+        id: workstationId,
+        name: workstationName,
+        type: workstationType
+      },
+      timestamp: new Date(),
+      orderStatus: updatedOrder.status
+    };
+
+    if (global.io) {
+      global.io.to(`order_${orderId}`).emit('workstation_items_bulk_update', bulkUpdateData);
+
+      // Emit to specific workstation room
+      if (workstationType) {
+        global.io.to(`${workstationType}_room`).emit('workstation_items_bulk_updated', bulkUpdateData);
+      }
+
+      global.io.to('cashier_room').emit('workstation_items_bulk_updated', bulkUpdateData);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        order: updatedOrder,
+        updateResults: updateResults
+      },
+      message: `Bulk update completed for ${updateResults.filter(r => r.success).length} items`
+    });
+
+  } catch (error) {
+    console.error('Error in bulk updating workstation items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk update workstation items'
+    });
+  }
+};

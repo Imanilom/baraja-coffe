@@ -5,8 +5,9 @@ import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/repositories/auth_repository.dart';
 import 'package:kasirbaraja/repositories/event_repository.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
-import 'package:kasirbaraja/repositories/payment_type_repository.dart';
+import 'package:kasirbaraja/repositories/payment_method_repository.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
+import 'package:kasirbaraja/repositories/auto_promo_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 // import 'package:kasirbaraja/services/hive_service.dart';
 
@@ -49,7 +50,7 @@ class DataSyncService {
     required Function(DataSyncProgress) onProgress,
     // String? token,
   }) async {
-    const totalSteps = 5;
+    const totalSteps = 6;
     int currentStep = 0;
 
     try {
@@ -115,7 +116,17 @@ class DataSyncService {
           currentTask: 'Downloading payment methods...',
         ),
       );
-      await PaymentTypeRepository().getPaymentTypes();
+      await PaymentMethodRepository().getPaymentMethods();
+
+      currentStep++;
+      onProgress(
+        DataSyncProgress(
+          currentStep: currentStep,
+          totalSteps: totalSteps,
+          currentTask: 'Downloading Auto Promos...',
+        ),
+      );
+      await AutoPromoRepository().getAutoPromos();
 
       // Completed
       onProgress(
@@ -131,7 +142,7 @@ class DataSyncService {
       print('Event data count: ${HiveService.eventBox.length}');
       print('MenuItem data count: ${HiveService.menuItemsBox.length}');
       print('TaxAndService data count: ${HiveService.taxAndServiceBox.length}');
-      print('PaymentType data count: ${HiveService.paymentTypeBox.length}');
+      print('PaymentType data count: ${HiveService.paymentMethodBox.length}');
     } catch (e) {
       onProgress(
         DataSyncProgress(

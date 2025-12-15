@@ -4,21 +4,62 @@ import Recipe from '../models/modul_menu/Recipe.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Warehouse from '../models/modul_market/Warehouse.model.js';
+import { MenuItem } from '../models/MenuItem.model.js';
 
 /**
- * Recalculate available stock for a menu item based on ingredient availability
- * @param {string} menuItemId - ID of the menu item
- * @returns {number} calculated stock quantity
+ * Get Workstation-Warehouse Mapping
  */
-export async function calculateMenuItemStock(menuItemId) {
+export async function getWorkstationWarehouseMapping(workstation, outlet = 'amphi') {
+  const warehouseCodes = {
+    'kitchen': `kitchen-${outlet}`,
+    'bar': {
+      'bar-depan': `bar-depan-${outlet}`,
+      'bar-belakang': `bar-belakang-${outlet}`
+    }
+  };
+
+  const warehouses = {};
+
+  if (workstation === 'kitchen') {
+    const kitchenWarehouse = await Warehouse.findOne({ 
+      code: warehouseCodes.kitchen 
+    });
+    if (kitchenWarehouse) {
+      warehouses.kitchen = kitchenWarehouse._id;
+    }
+  } else if (workstation === 'bar') {
+    const barDepan = await Warehouse.findOne({ 
+      code: warehouseCodes.bar['bar-depan'] 
+    });
+    const barBelakang = await Warehouse.findOne({ 
+      code: warehouseCodes.bar['bar-belakang'] 
+    });
+    
+    if (barDepan) warehouses.barDepan = barDepan._id;
+    if (barBelakang) warehouses.barBelakang = barBelakang._id;
+  }
+
+  return warehouses;
+}
+
+/**
+ * Recalculate available stock for a menu item in specific warehouse
+ * @param {string} menuItemId - ID of the menu item
+ * @param {string} warehouseId - ID of the warehouse
+ * @returns {number} calculated stock quantity for the warehouse
+ */
+export async function calculateMenuItemStockForWarehouse(menuItemId, warehouseId) {
   const session = await mongoose.startSession();
 
   try {
     session.startTransaction();
 
-    // Find central warehouse to exclude it from calculations
-    const centralWarehouse = await Warehouse.findOne({ code: 'gudang-pusat' }).session(session);
-    const centralWarehouseId = centralWarehouse?._id?.toString();
+    // Get menu item to determine workstation
+    const menuItem = await MenuItem.findById(menuItemId).session(session);
+    if (!menuItem) {
+      console.log(`Menu item not found: ${menuItemId}`);
+      return 0;
+    }
 
     // Get recipe for menu item
     const recipe = await Recipe.findOne({ menuItemId }).session(session);
@@ -29,106 +70,58 @@ export async function calculateMenuItemStock(menuItemId) {
 
     let maxPossiblePortions = Infinity;
 
-    // Calculate based on base ingredients
+    // Calculate based on base ingredients in specific warehouse
     for (const ingredient of recipe.baseIngredients) {
-      // Get product stock from ALL warehouses EXCEPT central warehouse
-      const productStocks = await ProductStock.find({
+      // Get product stock from specific warehouse
+      const productStock = await ProductStock.findOne({
         productId: ingredient.productId,
-        warehouse: { $ne: centralWarehouseId }
-      })
-        .populate('warehouse')
-        .session(session);
+        warehouse: warehouseId
+      }).session(session);
 
-      // Calculate total stock from all non-central warehouses
-      const totalStock = productStocks.reduce((sum, stock) => {
-        // Only count stock from active warehouses
-        if (stock.warehouse?.is_active !== false) {
-          return sum + (stock.currentStock || 0);
-        }
-        return sum;
-      }, 0);
-
-      console.log(`Product ${ingredient.productId} total stock from non-central warehouses: ${totalStock}`);
+      const warehouseStock = productStock?.currentStock || 0;
+      
+      console.log(`Product ${ingredient.productId} stock in warehouse ${warehouseId}: ${warehouseStock}`);
 
       // Calculate how many portions can be made with available stock
       const requiredQuantity = ingredient.quantity || 1;
       if (requiredQuantity <= 0) continue;
 
-      const portions = Math.floor(totalStock / requiredQuantity);
-
+      const portions = Math.floor(warehouseStock / requiredQuantity);
       maxPossiblePortions = Math.min(maxPossiblePortions, portions);
 
-      console.log(`Ingredient ${ingredient.productId}: ${totalStock} stock / ${requiredQuantity} required = ${portions} portions`);
+      console.log(`Ingredient ${ingredient.productId}: ${warehouseStock} stock / ${requiredQuantity} required = ${portions} portions`);
     }
 
     // Consider toppings if they are required in recipe
     if (recipe.toppings && recipe.toppings.length > 0) {
       for (const topping of recipe.toppings) {
         if (topping.isRequired) {
-          const toppingStocks = await ProductStock.find({
+          const toppingStock = await ProductStock.findOne({
             productId: topping.productId,
-            warehouse: { $ne: centralWarehouseId }
-          })
-            .populate('warehouse')
-            .session(session);
+            warehouse: warehouseId
+          }).session(session);
 
-          const totalToppingStock = toppingStocks.reduce((sum, stock) => {
-            if (stock.warehouse?.is_active !== false) {
-              return sum + (stock.currentStock || 0);
-            }
-            return sum;
-          }, 0);
-
+          const toppingQty = toppingStock?.currentStock || 0;
           const requiredToppingQty = topping.quantity || 1;
+          
           if (requiredToppingQty <= 0) continue;
 
-          const toppingPortions = Math.floor(totalToppingStock / requiredToppingQty);
+          const toppingPortions = Math.floor(toppingQty / requiredToppingQty);
           maxPossiblePortions = Math.min(maxPossiblePortions, toppingPortions);
-
-          console.log(`Topping ${topping.productId}: ${totalToppingStock} stock / ${requiredToppingQty} required = ${toppingPortions} portions`);
-        }
-      }
-    }
-
-    // Consider addons if they affect stock calculation
-    if (recipe.addons && recipe.addons.length > 0) {
-      for (const addon of recipe.addons) {
-        if (addon.affectsStock) {
-          const addonStocks = await ProductStock.find({
-            productId: addon.productId,
-            warehouse: { $ne: centralWarehouseId }
-          })
-            .populate('warehouse')
-            .session(session);
-
-          const totalAddonStock = addonStocks.reduce((sum, stock) => {
-            if (stock.warehouse?.is_active !== false) {
-              return sum + (stock.currentStock || 0);
-            }
-            return sum;
-          }, 0);
-
-          const requiredAddonQty = addon.quantity || 1;
-          if (requiredAddonQty <= 0) continue;
-
-          const addonPortions = Math.floor(totalAddonStock / requiredAddonQty);
-          maxPossiblePortions = Math.min(maxPossiblePortions, addonPortions);
-
-          console.log(`Addon ${addon.productId}: ${totalAddonStock} stock / ${requiredAddonQty} required = ${addonPortions} portions`);
         }
       }
     }
 
     const finalStock = Math.max(0, maxPossiblePortions === Infinity ? 0 : maxPossiblePortions);
 
-    console.log(`Final calculated stock for menu item ${menuItemId}: ${finalStock}`);
+    console.log(`Final calculated stock for menu item ${menuItemId} in warehouse ${warehouseId}: ${finalStock}`);
 
     await session.commitTransaction();
     return finalStock;
 
   } catch (error) {
     await session.abortTransaction();
-    console.error('Error calculating menu item stock:', error);
+    console.error('Error calculating menu item stock for warehouse:', error);
     return 0;
   } finally {
     await session.endSession();
@@ -136,158 +129,341 @@ export async function calculateMenuItemStock(menuItemId) {
 }
 
 /**
- * Calculate max portions for specific ingredients (standalone function)
- * @param {Array} ingredients - Array of ingredients with productId and quantity
- * @returns {number} maximum portions possible
+ * Calculate max portions for specific ingredients in specific warehouse
  */
-export const calculateMaxPortions = async (ingredients) => {
+export const calculateMaxPortionsForWarehouse = async (ingredients, warehouseId) => {
   try {
-    // Find central warehouse to exclude
-    const centralWarehouse = await Warehouse.findOne({ code: 'gudang-pusat' });
-    const centralWarehouseId = centralWarehouse?._id?.toString();
-
     let maxPortion = Infinity;
 
     for (const ing of ingredients) {
-      // Get stocks from all warehouses except central
-      const stockDocs = await ProductStock.find({
+      const stockDoc = await ProductStock.findOne({
         productId: ing.productId,
-        warehouse: { $ne: centralWarehouseId }
-      }).populate('warehouse');
+        warehouse: warehouseId
+      });
 
-      if (!stockDocs || stockDocs.length === 0) {
-        // Tidak ada stok di warehouse manapun (selain central) → tidak bisa buat
-        return 0;
-      }
-
-      // Calculate total available stock from all non-central warehouses
-      const availableQty = stockDocs.reduce((sum, stock) => {
-        if (stock.warehouse?.is_active !== false) {
-          return sum + (stock.currentStock || 0);
-        }
-        return sum;
-      }, 0);
-
+      const availableQty = stockDoc?.currentStock || 0;
       const requiredPerPortion = ing.quantity || 1;
 
       if (requiredPerPortion <= 0) continue;
+      if (availableQty === 0) return 0;
 
       const possiblePortion = Math.floor(availableQty / requiredPerPortion);
       maxPortion = Math.min(maxPortion, possiblePortion);
-
-      // console.log(`Ingredient ${ing.productId}: ${availableQty} available / ${requiredPerPortion} required = ${possiblePortion} portions`);
     }
 
-    const result = isNaN(maxPortion) || maxPortion < 0 || maxPortion === Infinity ? 0 : maxPortion;
-    // console.log(`Max portions calculated: ${result}`);
-
-    return result;
-
+    return isNaN(maxPortion) || maxPortion < 0 || maxPortion === Infinity ? 0 : maxPortion;
   } catch (error) {
-    console.error('Error in calculateMaxPortions:', error);
+    console.error('Error in calculateMaxPortionsForWarehouse:', error);
     return 0;
   }
 };
 
 /**
- * Get detailed stock information for a menu item
- * @param {string} menuItemId - ID of the menu item
- * @returns {Object} detailed stock information
+ * Recalculate stock for menu item across all relevant warehouses
  */
-export async function getDetailedMenuItemStock(menuItemId) {
+export async function recalculateMenuItemStocks(menuItemId) {
   try {
-    const centralWarehouse = await Warehouse.findOne({ code: 'gudang-pusat' });
-    const centralWarehouseId = centralWarehouse?._id?.toString();
-
-    const recipe = await Recipe.findOne({ menuItemId });
-    if (!recipe) {
-      return { availableStock: 0, ingredients: [] };
+    const menuItem = await MenuItem.findById(menuItemId);
+    if (!menuItem) {
+      console.log(`Menu item not found: ${menuItemId}`);
+      return;
     }
 
-    const ingredientDetails = [];
+    // Get relevant warehouses based on workstation
+    const workstation = menuItem.workstation;
+    const warehouses = await getWorkstationWarehouseMapping(workstation);
+    
+    const bulkOps = [];
+    const warehouseStockUpdates = [];
 
-    for (const ingredient of recipe.baseIngredients) {
-      const productStocks = await ProductStock.find({
-        productId: ingredient.productId,
-        warehouse: { $ne: centralWarehouseId }
-      }).populate('warehouse');
+    // Calculate stock for each warehouse
+    for (const [warehouseType, warehouseId] of Object.entries(warehouses)) {
+      const calculatedStock = await calculateMenuItemStockForWarehouse(menuItemId, warehouseId);
+      
+      // Update MenuStock collection
+      bulkOps.push({
+        updateOne: {
+          filter: { menuItemId, warehouseId },
+          update: {
+            $set: {
+              calculatedStock,
+              currentStock: calculatedStock,
+              lastCalculatedAt: new Date()
+            }
+          },
+          upsert: true
+        }
+      });
 
-      const warehouseStocks = productStocks.map(stock => ({
-        warehouseName: stock.warehouse?.name || 'Unknown',
-        stock: stock.currentStock || 0,
-        isActive: stock.warehouse?.is_active !== false
-      }));
-
-      const totalStock = warehouseStocks.reduce((sum, ws) => ws.isActive ? sum + ws.stock : sum, 0);
-
-      ingredientDetails.push({
-        productId: ingredient.productId,
-        productName: ingredient.productName,
-        requiredQuantity: ingredient.quantity,
-        totalAvailable: totalStock,
-        maxPortions: Math.floor(totalStock / (ingredient.quantity || 1)),
-        warehouseStocks
+      // Track for MenuItem update
+      warehouseStockUpdates.push({
+        warehouseId,
+        stock: calculatedStock,
+        workstation: workstation
       });
     }
 
-    const availableStock = Math.min(...ingredientDetails.map(ing => ing.maxPortions));
+    // Update MenuStock collection
+    if (bulkOps.length > 0) {
+      await MenuStock.bulkWrite(bulkOps);
+    }
+
+    // Update MenuItem warehouse stocks
+    await MenuItem.findByIdAndUpdate(menuItemId, {
+      $set: {
+        warehouseStocks: warehouseStockUpdates,
+        availableStock: warehouseStockUpdates.reduce((sum, ws) => sum + ws.stock, 0)
+      }
+    });
+
+    console.log(`Updated stocks for menu item ${menuItemId} across ${warehouseStockUpdates.length} warehouses`);
+    return warehouseStockUpdates;
+
+  } catch (error) {
+    console.error('Error recalculating menu item stocks:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get detailed stock information for a menu item per warehouse
+ */
+export async function getDetailedMenuItemStockPerWarehouse(menuItemId) {
+  try {
+    const menuItem = await MenuItem.findById(menuItemId);
+    if (!menuItem) {
+      return { availableStock: 0, warehouses: [] };
+    }
+
+    const recipe = await Recipe.findOne({ menuItemId });
+    if (!recipe) {
+      return { availableStock: 0, warehouses: [] };
+    }
+
+    // Get workstation and relevant warehouses
+    const workstation = menuItem.workstation;
+    const warehouses = await getWorkstationWarehouseMapping(workstation);
+    
+    const warehouseDetails = [];
+
+    for (const [warehouseType, warehouseId] of Object.entries(warehouses)) {
+      const warehouse = await Warehouse.findById(warehouseId);
+      
+      const ingredientDetails = [];
+
+      // Calculate stock for each ingredient in this warehouse
+      for (const ingredient of recipe.baseIngredients) {
+        const productStock = await ProductStock.findOne({
+          productId: ingredient.productId,
+          warehouse: warehouseId
+        });
+
+        const stockQty = productStock?.currentStock || 0;
+        const requiredQty = ingredient.quantity || 1;
+        
+        ingredientDetails.push({
+          productId: ingredient.productId,
+          productName: ingredient.productName,
+          requiredQuantity: requiredQty,
+          available: stockQty,
+          maxPortions: Math.floor(stockQty / requiredQty)
+        });
+      }
+
+      // Calculate total portions possible in this warehouse
+      const maxPortions = Math.min(...ingredientDetails.map(ing => ing.maxPortions));
+      const availableStock = Math.max(0, maxPortions);
+
+      warehouseDetails.push({
+        warehouseId,
+        warehouseName: warehouse?.name || warehouseType,
+        warehouseCode: warehouse?.code,
+        stock: availableStock,
+        ingredients: ingredientDetails
+      });
+    }
 
     return {
-      availableStock: Math.max(0, availableStock),
-      ingredients: ingredientDetails,
-      calculatedAt: new Date()
+      menuItemId,
+      menuItemName: menuItem.name,
+      workstation: menuItem.workstation,
+      totalStock: warehouseDetails.reduce((sum, wd) => sum + wd.stock, 0),
+      warehouses: warehouseDetails
     };
 
   } catch (error) {
-    console.error('Error getting detailed menu item stock:', error);
-    return { availableStock: 0, ingredients: [] };
+    console.error('Error getting detailed menu item stock per warehouse:', error);
+    return { availableStock: 0, warehouses: [] };
   }
 }
 
 /**
- * Recalculate stock for multiple menu items
- * @param {Array} menuItemIds - Array of menu item IDs
+ * Transfer stock between warehouses
  */
-export async function recalculateMultipleMenuStocks(menuItemIds) {
-  const bulkOps = [];
+export async function transferMenuStock(menuItemId, fromWarehouseId, toWarehouseId, quantity, reason, handledBy) {
+  const session = await mongoose.startSession();
 
-  for (const menuItemId of menuItemIds) {
-    const calculatedStock = await calculateMenuItemStock(menuItemId);
-
-    bulkOps.push({
-      updateOne: {
-        filter: { menuItemId },
-        update: {
-          $set: {
-            calculatedStock,
-            lastCalculatedAt: new Date()
-          }
-        },
-        upsert: true
-      }
-    });
-  }
-
-  if (bulkOps.length > 0) {
-    await MenuStock.bulkWrite(bulkOps);
-    console.log(`Updated stock for ${bulkOps.length} menu items`);
-  }
-}
-
-/**
- * Recalculate stock for all menu items with recipes
- */
-export async function recalculateAllMenuStocks() {
   try {
-    const recipes = await Recipe.find().select('menuItemId');
-    const menuItemIds = recipes.map(recipe => recipe.menuItemId);
+    session.startTransaction();
 
-    console.log(`Recalculating stock for ${menuItemIds.length} menu items`);
+    // Check source stock
+    const sourceStock = await MenuStock.findOne({
+      menuItemId,
+      warehouseId: fromWarehouseId
+    }).session(session);
 
-    await recalculateMultipleMenuStocks(menuItemIds);
+    if (!sourceStock || sourceStock.currentStock < quantity) {
+      throw new Error('Insufficient stock in source warehouse');
+    }
 
-    console.log('Completed recalculating all menu stocks');
+    // Update source warehouse stock (out)
+    await MenuStock.findOneAndUpdate(
+      { menuItemId, warehouseId: fromWarehouseId },
+      {
+        $inc: { currentStock: -quantity, calculatedStock: -quantity },
+        $set: { lastAdjustedAt: new Date() }
+      },
+      { session }
+    );
+
+    // Create transfer out record
+    await new MenuStock({
+      menuItemId,
+      warehouseId: fromWarehouseId,
+      type: 'transfer',
+      quantity: -quantity,
+      reason: 'transfer_out',
+      previousStock: sourceStock.currentStock,
+      currentStock: sourceStock.currentStock - quantity,
+      handledBy,
+      notes: `Transfer to ${toWarehouseId}: ${reason}`
+    }).save({ session });
+
+    // Update destination warehouse stock (in)
+    const destStock = await MenuStock.findOneAndUpdate(
+      { menuItemId, warehouseId: toWarehouseId },
+      {
+        $inc: { currentStock: quantity, calculatedStock: quantity },
+        $setOnInsert: { 
+          menuItemId, 
+          warehouseId: toWarehouseId 
+        },
+        $set: { lastAdjustedAt: new Date() }
+      },
+      { upsert: true, new: true, session }
+    );
+
+    // Create transfer in record
+    await new MenuStock({
+      menuItemId,
+      warehouseId: toWarehouseId,
+      type: 'transfer',
+      quantity: quantity,
+      reason: 'transfer_in',
+      previousStock: destStock.currentStock - quantity,
+      currentStock: destStock.currentStock,
+      handledBy,
+      notes: `Transfer from ${fromWarehouseId}: ${reason}`
+    }).save({ session });
+
+    // Update MenuItem warehouse stocks
+    const menuItem = await MenuItem.findById(menuItemId).session(session);
+    if (menuItem) {
+      // Update source warehouse stock
+      const sourceIndex = menuItem.warehouseStocks.findIndex(ws => 
+        ws.warehouseId.toString() === fromWarehouseId.toString()
+      );
+      if (sourceIndex >= 0) {
+        menuItem.warehouseStocks[sourceIndex].stock -= quantity;
+      }
+
+      // Update destination warehouse stock
+      const destIndex = menuItem.warehouseStocks.findIndex(ws => 
+        ws.warehouseId.toString() === toWarehouseId.toString()
+      );
+      if (destIndex >= 0) {
+        menuItem.warehouseStocks[destIndex].stock += quantity;
+      } else {
+        menuItem.warehouseStocks.push({
+          warehouseId: toWarehouseId,
+          stock: quantity
+        });
+      }
+
+      // Update total available stock
+      menuItem.availableStock = menuItem.warehouseStocks.reduce((sum, ws) => sum + ws.stock, 0);
+      await menuItem.save({ session });
+    }
+
+    await session.commitTransaction();
+    console.log(`Transferred ${quantity} of menu item ${menuItemId} from ${fromWarehouseId} to ${toWarehouseId}`);
+
+    return {
+      success: true,
+      message: 'Transfer completed successfully'
+    };
+
   } catch (error) {
-    console.error('Error recalculating all menu stocks:', error);
+    await session.abortTransaction();
+    console.error('Error transferring menu stock:', error);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+}
+
+/**
+ * Get stock summary for POS
+ */
+export async function getMenuStockForPOS(menuItemId, workstation) {
+  try {
+    const menuItem = await MenuItem.findById(menuItemId);
+    if (!menuItem) {
+      return { available: false, stock: 0, message: 'Menu item not found' };
+    }
+
+    // Get primary warehouse for this workstation
+    const workstationWarehouses = await getWorkstationWarehouseMapping(workstation);
+    
+    if (Object.keys(workstationWarehouses).length === 0) {
+      return { available: false, stock: 0, message: 'No warehouse configured for this workstation' };
+    }
+
+    // For kitchen, use kitchen warehouse
+    // For bar, use both bar depan and belakang
+    let totalStock = 0;
+    const warehouseStocks = [];
+
+    for (const [type, warehouseId] of Object.entries(workstationWarehouses)) {
+      const stock = await MenuStock.findOne({
+        menuItemId,
+        warehouseId
+      });
+
+      const currentStock = stock?.currentStock || 0;
+      totalStock += currentStock;
+      
+      warehouseStocks.push({
+        warehouse: type,
+        warehouseId,
+        stock: currentStock
+      });
+    }
+
+    return {
+      available: totalStock > 0,
+      stock: totalStock,
+      warehouseStocks,
+      menuItem: {
+        id: menuItem._id,
+        name: menuItem.name,
+        price: menuItem.price,
+        workstation: menuItem.workstation
+      }
+    };
+
+  } catch (error) {
+    console.error('Error getting menu stock for POS:', error);
+    return { available: false, stock: 0, message: 'Error checking stock' };
   }
 }

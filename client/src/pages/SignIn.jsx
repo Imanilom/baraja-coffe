@@ -68,10 +68,15 @@ export default function SignIn() {
         data.role === 'marketing' ||
         data.role === 'hrd' ||
         data.role === 'gro' ||
-        data.role === 'inventory'
+        data.role === 'inventory' ||
+        data.role === 'cashier senior'
       ) {
         if (data.isActive === true) {
-          navigate('/admin/dashboard');
+          if (data.role === "cashier senior") {
+            navigate('/admin/menu');
+          } else {
+            navigate('/admin/dashboard');
+          }
         } else {
           dispatch(signInFailure({ message: "User tidak aktif!" }))
         }

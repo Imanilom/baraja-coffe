@@ -17,13 +17,14 @@ import {
     // Ganti nama method controller ke versi "dine-in"
     checkInDineInOrder,
     checkOutDineInOrder,
-    getOrderDetail,
     cancelDineInOrder,
     debugTableStatus,
     syncTableStatus,
     forceResetTableStatus,
     getAllAvailableTables,
-    transferOrderToTable
+    transferOrderToTable,
+    getOrderDetailById,
+    editReservation
 } from '../controllers/gro.controller.js';
 import { authMiddleware } from '../utils/verifyUser.js';
 
@@ -59,7 +60,7 @@ router.put('/orders/:orderId/cancel', authMiddleware, cancelDineInOrder);
 router.put('/orders/:orderId/dine-in/check-out', authMiddleware, checkOutDineInOrder);
 
 // Order detail (used by tracking, GRO, etc.)
-router.get('/orders/:orderId', authMiddleware, getOrderDetail);
+router.get('/orders/:orderId', authMiddleware, getOrderDetailById);
 
 // Table Availability
 router.get('/tables/availability', authMiddleware, getTableAvailability);
@@ -67,6 +68,7 @@ router.get('/tables/availability', authMiddleware, getTableAvailability);
 // routes/gro.js
 router.get('/tables/available', getAllAvailableTables);
 router.put('/orders/:orderId/transfer-table', transferOrderToTable);
+router.put('/reservations/:id/edit', authMiddleware, editReservation);
 
 // Transfer table (note: seharusnya PUT, bukan GET — diperbaiki di sini)
 // router.put('/reservations/:id/transfer-table', authMiddleware, transferTable);

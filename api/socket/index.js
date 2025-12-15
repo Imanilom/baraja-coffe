@@ -34,16 +34,17 @@ export default function socketHandler(io) {
                     throw new Error('Session ID dan Device ID diperlukan');
                 }
 
-                // Validasi session dengan transaction-like approach
+                // ✅ OPTIMIZATION: Validasi session dengan lean() dan selective populate
                 const session = await DeviceSession.findOne({
                     _id: sessionId,
                     device: deviceId,
                     isActive: true
                 })
-                    .populate('device')
-                    .populate('user')
-                    .populate('outlet')
-                    .populate('role');
+                    .lean() // ✅ Faster query, less memory
+                    .populate('device', 'deviceId deviceName location assignedAreas assignedTables orderTypes')
+                    .populate('user', 'name email')
+                    .populate('outlet', '_id name')
+                    .populate('role', 'name');
 
                 if (!session) {
                     throw new Error('Session tidak valid atau sudah logout');
@@ -54,17 +55,22 @@ export default function socketHandler(io) {
                     device: deviceId,
                     isActive: true,
                     socketId: { $exists: true, $ne: '' }
-                });
+                }).lean();
+
+                // ✅ OPTIMIZATION: Batch updates dengan Promise.all()
+                const updatePromises = [];
 
                 if (existingSocketSession && existingSocketSession.socketId !== socket.id) {
                     console.warn(`⚠️ Device ${deviceId} sudah memiliki session aktif: ${existingSocketSession.socketId}`);
-                    
+
                     // Force logout session sebelumnya
-                    await DeviceSession.findByIdAndUpdate(existingSocketSession._id, {
-                        isActive: false,
-                        logoutTime: new Date(),
-                        logoutReason: 'replaced_by_new_session'
-                    });
+                    updatePromises.push(
+                        DeviceSession.findByIdAndUpdate(existingSocketSession._id, {
+                            isActive: false,
+                            logoutTime: new Date(),
+                            logoutReason: 'replaced_by_new_session'
+                        })
+                    );
 
                     // Emit force logout ke socket sebelumnya
                     if (existingSocketSession.socketId) {
@@ -75,17 +81,22 @@ export default function socketHandler(io) {
                     }
                 }
 
-                // Update session & device
-                session.socketId = socket.id;
-                session.lastActivity = new Date();
-                session.loginTime = session.loginTime || new Date(); // Set loginTime jika belum ada
-                await session.save();
+                // Update session & device in parallel
+                updatePromises.push(
+                    DeviceSession.findByIdAndUpdate(sessionId, {
+                        socketId: socket.id,
+                        lastActivity: new Date(),
+                        loginTime: session.loginTime || new Date()
+                    }),
+                    Device.findByIdAndUpdate(deviceId, {
+                        socketId: socket.id,
+                        isOnline: true,
+                        lastActivity: new Date()
+                    })
+                );
 
-                await Device.findByIdAndUpdate(deviceId, {
-                    socketId: socket.id,
-                    isOnline: true,
-                    lastActivity: new Date()
-                });
+                // ✅ Execute all updates in parallel
+                await Promise.all(updatePromises);
 
                 // Register device ke socket management
                 const deviceData = {
@@ -99,7 +110,7 @@ export default function socketHandler(io) {
                     orderTypes: session.device.orderTypes,
                     sessionId: session._id
                 };
-                
+
                 await socketManagement.registerDevice(socket, deviceData);
 
                 // ✅ ENHANCED AUTO-JOIN ROOMS
@@ -161,7 +172,7 @@ export default function socketHandler(io) {
             }
         });
 
-         // ✅ SESSION HEARTBEAT
+        // ✅ SESSION HEARTBEAT
         socket.on('session_heartbeat', async (data, callback) => {
             try {
                 const { sessionId, deviceId } = data;
@@ -201,7 +212,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Session heartbeat error:', error);
-                
+
                 if (typeof callback === 'function') {
                     callback({
                         success: false,
@@ -348,7 +359,7 @@ export default function socketHandler(io) {
             }
         });
 
-          // ✅ MANUAL SESSION LOGOUT
+        // ✅ MANUAL SESSION LOGOUT
         socket.on('session_logout', async (data, callback) => {
             try {
                 const { sessionId, deviceId, reason = 'manual_logout' } = data;
@@ -476,15 +487,34 @@ export default function socketHandler(io) {
         });
 
         // ✅ NEW ORDER WITH AREA CLASSIFICATION
+        // socket.on('new_order_created', async (orderData) => {
+        //     try {
+        //         console.log('🆕 New order received:', orderData.order_id);
+
+        //         // Gunakan sistem management baru untuk broadcast
+        //         await socketManagement.broadcastOrder(orderData);
+
+        //         // Juga broadcast legacy untuk compatibility
+        //         broadcastNewOrderLegacy(orderData.outlet?._id || orderData.outlet, orderData);
+
+        //     } catch (error) {
+        //         console.error('Error handling new order:', error);
+        //     }
+        // });
+
+        // socketHandler.js - UPDATE
+
         socket.on('new_order_created', async (orderData) => {
             try {
                 console.log('🆕 New order received:', orderData.order_id);
 
-                // Gunakan sistem management baru untuk broadcast
-                await socketManagement.broadcastOrder(orderData);
-
-                // Juga broadcast legacy untuk compatibility
-                broadcastNewOrderLegacy(orderData.outlet?._id || orderData.outlet, orderData);
+                // ✅ Use new broadcast system with device filtering
+                if (global.socketManagement && global.socketManagement.broadcastOrder) {
+                    await global.socketManagement.broadcastOrder(orderData);
+                } else {
+                    console.warn('⚠️ socketManagement not available, using legacy broadcast');
+                    broadcastNewOrderLegacy(orderData.outlet?._id || orderData.outlet, orderData);
+                }
 
             } catch (error) {
                 console.error('Error handling new order:', error);
@@ -883,7 +913,7 @@ export default function socketHandler(io) {
                         device.assignedAreas = assignedAreas;
                         device.assignedTables = assignedTables;
                         device.orderTypes = orderTypes;
-                        
+
                         // Re-join rooms berdasarkan assignment baru
                         const session = await DeviceSession.findOne({
                             device: deviceId,
@@ -926,7 +956,7 @@ export default function socketHandler(io) {
             }
         });
 
-         // ✅ FORCE LOGOUT FROM DEVICE 
+        // ✅ FORCE LOGOUT FROM DEVICE 
         socket.on('force_logout_device', async (data, callback) => {
             try {
                 const { deviceId, reason = 'forced_by_admin' } = data;
@@ -995,7 +1025,7 @@ export default function socketHandler(io) {
             }
         });
 
-   // ✅ GET DEVICE SESSION INFO
+        // ✅ GET DEVICE SESSION INFO
         socket.on('get_device_session', async (data, callback) => {
             try {
                 const { deviceId } = data;
@@ -1057,7 +1087,7 @@ export default function socketHandler(io) {
         socket.on('leave_area_room', (tableCode) => {
             const areaRoom = `area_${tableCode}`;
             const group = getAreaGroup(tableCode);
-            
+
             socket.leave(areaRoom);
             if (group) {
                 socket.leave(group);
@@ -1065,7 +1095,7 @@ export default function socketHandler(io) {
             console.log(`Device ${socket.id} left area ${areaRoom} and group ${group}`);
         });
 
-       socket.on('disconnect', async (reason) => {
+        socket.on('disconnect', async (reason) => {
             console.log('❌ Client disconnected:', socket.id, 'Reason:', reason);
             clearInterval(pingInterval);
 
@@ -1202,13 +1232,13 @@ export default function socketHandler(io) {
     const leaveAllRooms = async (socket) => {
         try {
             const rooms = Array.from(socket.rooms);
-            
+
             for (const room of rooms) {
                 if (room !== socket.id) {
                     socket.leave(room);
                 }
             }
-            
+
             console.log(`📍 Device ${socket.id} left all rooms`);
         } catch (error) {
             console.error('Error leaving rooms:', error);
@@ -1292,11 +1322,11 @@ export default function socketHandler(io) {
         return await socketManagement.broadcastOrder(orderData);
     };
 
-      // ✅ SESSION CLEANUP TASK (Run periodically)
+    // ✅ SESSION CLEANUP TASK (Run periodically)
     const cleanupExpiredSessions = async () => {
         try {
             const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
-            
+
             const expiredSessions = await DeviceSession.find({
                 isActive: true,
                 lastActivity: { $lt: eightHoursAgo }
@@ -1304,7 +1334,7 @@ export default function socketHandler(io) {
 
             if (expiredSessions.length > 0) {
                 console.log(`🧹 Cleaning up ${expiredSessions.length} expired sessions`);
-                
+
                 const sessionIds = expiredSessions.map(session => session._id);
                 const deviceIds = [...new Set(expiredSessions.map(session => session.device))];
 

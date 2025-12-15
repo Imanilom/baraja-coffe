@@ -377,7 +377,7 @@ const SoManagement = () => {
                         {paginatedData.length > 0 ? (
                             <tbody className="text-gray-500 divide-y">
                                 {paginatedData.map((data) => (
-                                    <tr
+                                    < tr
                                         key={data._id}
                                         className=""
                                     >
@@ -411,7 +411,7 @@ const SoManagement = () => {
                     totalPages={totalPages}
                 />
             </div>
-        </div>
+        </div >
 
     );
 };

@@ -9,7 +9,7 @@ import axios from "axios";
 //   uploadBytesResumable,
 // } from 'firebase/storage';
 // import { app } from '../../firebase';
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { FaChevronRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import ConfirmationModal from "./confirmmodal";
@@ -17,6 +17,11 @@ import ToppingForm from "./varianmodal";
 import AddonForm from "./opsimodal";
 
 const CreateMenu = () => {
+  const location = useLocation();
+
+  // Ambil returnPage dari state yang dikirim dari halaman menu
+  const returnPage = location.state?.returnPage || 1;
+
   const [allCategories, setAllCategories] = useState([]);
   const [categories, setCategories] = useState([]);
   // const [subCategories, setSubCategories] = useState([]);
@@ -281,7 +286,7 @@ const CreateMenu = () => {
 
       // Simpan ke database Anda (data + URL gambar)
       await axios.post("/api/menu/menu-items", payload);
-      navigate("/admin/menu", { state: { success: `Menu ${formData.name} berhasil dibuat` } });
+      navigate(`/admin/menu?page=${returnPage}`, { state: { success: `Menu ${formData.name} berhasil dibuat` } });
 
     } catch (err) {
       console.error("Gagal kirim data:", err);
@@ -565,7 +570,7 @@ const CreateMenu = () => {
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onConfirm={() => navigate("/admin/menu")}
+        onConfirm={() => navigate(`/admin/menu?page=${returnPage}`)}
       />
     </div>
   );
