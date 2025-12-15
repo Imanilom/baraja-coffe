@@ -6528,6 +6528,35 @@ export const getPendingPaymentOrders = async (req, res) => {
   }
 }
 
+const formatToWIB = (date) => {
+  if (!date) return null;
+
+  // Ambil waktu WIB lalu convert balik ke Date
+  return new Date(
+    new Date(date).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })
+  );
+};
+const toISOJakartaWithOffset = (date) => {
+  if (!date) return null;
+  const d = new Date(date);
+
+  const parts = new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(d).reduce((acc, p) => {
+    if (p.type !== 'literal') acc[p.type] = p.value;
+    return acc;
+  }, {});
+
+  const ms = String(d.getMilliseconds()).padStart(3, '0');
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.${ms}+07:00`;
+};
 // Get Cashier Order History
 export const getCashierOrderHistory = async (req, res) => {
   try {
@@ -6579,7 +6608,7 @@ export const getCashierOrderHistory = async (req, res) => {
       status: { $ne: 'void' }
     })
       .lean()
-      .sort({ createdAt: -1 });
+      .sort({ updatedAt: -1, createdAt: -1 });
 
     // 🔧 Enhanced Payment Processing with Full Details
     const paymentDetailsMap = new Map();
@@ -6671,8 +6700,21 @@ export const getCashierOrderHistory = async (req, res) => {
             : paymentDetails[0].payment_type === 'Down Payment' ? 'Partial' : 'Pending'
           : 'Pending';
 
+      // const lastPayment = paymentDetails.reduce((latest, p) => {
+      //   const t = new Date(p.updatedAt || p.createdAt || 0).getTime();
+      //   const lt = latest ? new Date(latest.updatedAt || latest.createdAt || 0).getTime() : -1;
+      //   return t > lt ? p : latest;
+      // }, null);
+
+      // karena query payments sudah di-sort desc by updatedAt,
+      // paymentDetails[0] adalah payment terbaru untuk order tsb (kalau mapping kamu push sesuai urutan payments)
+      const lastPayment = paymentDetails[0] || null;
+
+      const updatedAtFromPayment = lastPayment?.updatedAt || lastPayment?.createdAt || null;
+      const baseUpdatedAt = updatedAtFromPayment;
       return {
         ...order,
+        updatedAtWIB: toISOJakartaWithOffset(baseUpdatedAt),
         cashierId: undefined,
         cashier: order.cashierId,
         items: updatedItems,
