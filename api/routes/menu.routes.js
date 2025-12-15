@@ -22,8 +22,7 @@ import {
   calibrateSingleMenuStockForAllWarehouses,
   calibrateSingleMenuStockForWarehouse,
   calibrateMenuStocksByWorkstation,
-  getMenuCalibrationStatus,
-  resetMinusManualStockForWarehouse
+  getMenuCalibrationStatus
 } from '../jobs/stockCalibration.job.js';
 
 import { menuStockController } from '../controllers/menuStock.controller.js';
@@ -159,24 +158,7 @@ router.get('/status/menu/:menuItemId', async (req, res) => {
   }
 });
 
-// Reset minus stock for specific warehouse
-router.post('/reset/minus/menu/:menuItemId/warehouse/:warehouseId', async (req, res) => {
-  try {
-    const { menuItemId, warehouseId } = req.params;
-    const result = await resetMinusManualStockForWarehouse(menuItemId, warehouseId);
-    
-    res.json({
-      success: true,
-      data: result
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Reset failed',
-      error: error.message
-    });
-  }
-});
+
 
 router.get('/menu-items/:id/stock-status', async (req, res) => {
   try {

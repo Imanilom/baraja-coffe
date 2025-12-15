@@ -2112,23 +2112,43 @@ export async function generateOrderId(tableNumber) {
     const days = ['MD', 'TU', 'WD', 'TH', 'FR', 'ST', 'SN'];
     // getDay: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
     const dayCode = days[now.getDay()];
-    tableOrDayCode = `${dayCode}${day}`;
+    tableOrDayCode = `${dayCode}${day}`; // NOTE: This logic uses day twice? Original was `${dayCode}${day}`
   }
 
   // Kunci sequence unik per tableOrDayCode dan tanggal
   const key = `order_seq_${tableOrDayCode}_${dateStr}`;
 
-  // Atomic increment dengan upsert dan reset setiap hari
-  const result = await db.collection('counters').findOneAndUpdate(
-    { _id: key },
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: 'after' }
-  );
+  let attempts = 0;
+  const maxAttempts = 20;
 
-  const seq = result.value.seq;
+  while (attempts < maxAttempts) {
+    attempts++;
 
-  // Format orderId
-  return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
+    // Atomic increment dengan upsert dan reset setiap hari
+    const result = await db.collection('counters').findOneAndUpdate(
+      { _id: key },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnDocument: 'after' }
+    );
+
+    // Support both driver versions (result.value.seq or result.seq)
+    const seq = result.value ? result.value.seq : result.seq;
+
+    // Format orderId
+    const candidateId = `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
+
+    // Check if ID already exists in Orders collection
+    // We use mongoose.models.Order to allow decoupled usage if needed, or Order from imports
+    const existing = await Order.findOne({ order_id: candidateId }).select('_id').lean();
+
+    if (!existing) {
+      return candidateId;
+    }
+
+    console.warn(`⚠️ Duplicate Order ID generated: ${candidateId}. Retrying... (Attempt ${attempts}/${maxAttempts})`);
+  }
+
+  throw new Error(`Failed to generate unique Order ID after ${maxAttempts} attempts. Counter key: ${key}`);
 }
 
 const confirmOrderHelper = async (orderId) => {
