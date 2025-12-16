@@ -69,7 +69,7 @@ const SalesTransaction = () => {
         documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
     });
 
-    // Initialize from URL params
+    // Initialize from URL params - DENGAN DEFAULT TANGGAL HARI INI
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
@@ -78,16 +78,25 @@ const SalesTransaction = () => {
         const pageParam = searchParams.get('page');
         const limitParam = searchParams.get('limit');
 
+        // Jika ada parameter tanggal di URL, gunakan itu
+        // Jika tidak, gunakan tanggal hari ini sebagai default
         if (startDateParam && endDateParam) {
             setDateRange({
                 startDate: dayjs(startDateParam),
                 endDate: dayjs(endDateParam),
             });
         } else {
-            setDateRange({
-                startDate: dayjs(),
-                endDate: dayjs()
-            });
+            // DEFAULT: Tanggal hari ini
+            const today = dayjs();
+            const newDateRange = {
+                startDate: today,
+                endDate: today
+            };
+            setDateRange(newDateRange);
+
+            // Set URL params dengan tanggal hari ini
+            updateURLParams(newDateRange, outletParam || "", searchParam || "",
+                parseInt(pageParam, 10) || 1, parseInt(limitParam, 10) || 20);
         }
 
         if (outletParam) {
@@ -139,6 +148,11 @@ const SalesTransaction = () => {
 
     // Fetch products dengan pagination dari backend - MENGGUNAKAN QUERY PARAMS
     const fetchProducts = async () => {
+        // Jangan fetch jika dateRange belum di-set
+        if (!dateRange?.startDate || !dateRange?.endDate) {
+            return;
+        }
+
         setLoading(true);
         try {
             // Build query parameters
@@ -165,7 +179,6 @@ const SalesTransaction = () => {
             const productsData = Array.isArray(response.data?.data)
                 ? response.data.data
                 : [];
-
 
             const completedOrders = productsData.filter(order => order.status === "Completed");
 
