@@ -6192,6 +6192,7 @@ export const getOrderById = async (req, res) => {
         month: 'long',
         year: 'numeric',
         timeZone: 'Asia/Jakarta'
+
       };
       return new Intl.DateTimeFormat('id-ID', options).format(new Date(dateString));
     };
@@ -6555,7 +6556,7 @@ const toISOJakartaWithOffset = (date) => {
   if (!date) return null;
   const d = new Date(date);
 
-  const parts = new Intl.DateTimeFormat('en-CA', {
+  const parts = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: '2-digit',
