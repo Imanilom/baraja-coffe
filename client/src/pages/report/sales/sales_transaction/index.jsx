@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import { exportToExcel } from "../../../../utils/exportHelper";
 import { useReactToPrint } from "react-to-print";
 import SalesTransactionTable from "./table";
 import SalesTransactionTableSkeleton from "./skeleton";
+
+// Extend dayjs dengan timezone plugin
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// Set default timezone ke Asia/Jakarta
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const SalesTransaction = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -69,6 +78,20 @@ const SalesTransaction = () => {
         documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
     });
 
+    // Helper function untuk format tanggal dengan timezone konsisten
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        // Gunakan timezone lokal (Asia/Jakarta) dan format ke YYYY-MM-DD
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    // Helper function untuk parse tanggal dari URL
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        // Parse sebagai tanggal lokal, bukan UTC
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
+
     // Initialize from URL params - DENGAN DEFAULT TANGGAL HARI INI
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
@@ -82,12 +105,12 @@ const SalesTransaction = () => {
         // Jika tidak, gunakan tanggal hari ini sebagai default
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: dayjs(startDateParam),
-                endDate: dayjs(endDateParam),
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            // DEFAULT: Tanggal hari ini
-            const today = dayjs();
+            // DEFAULT: Tanggal hari ini di timezone lokal
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
             const newDateRange = {
                 startDate: today,
                 endDate: today
@@ -121,8 +144,8 @@ const SalesTransaction = () => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
-            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -169,8 +192,9 @@ const SalesTransaction = () => {
             }
 
             if (dateRange?.startDate && dateRange?.endDate) {
-                params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
-                params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+                // Format tanggal dengan timezone konsisten
+                params.append('startDate', formatDateForAPI(dateRange.startDate));
+                params.append('endDate', formatDateForAPI(dateRange.endDate));
             }
 
             // Single endpoint dengan query params
@@ -302,9 +326,8 @@ const SalesTransaction = () => {
     };
 
     const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        // Format dengan timezone lokal
+        return dayjs(datetime).tz(DEFAULT_TIMEZONE).format('DD/MM/YYYY HH:mm:ss');
     };
 
     const { grandTotalFinal } = useMemo(() => {
@@ -336,8 +359,8 @@ const SalesTransaction = () => {
             }
 
             if (dateRange?.startDate && dateRange?.endDate) {
-                params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
-                params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+                params.append('startDate', formatDateForAPI(dateRange.startDate));
+                params.append('endDate', formatDateForAPI(dateRange.endDate));
             }
 
             console.log('Exporting all data with params:', params.toString());
@@ -367,9 +390,8 @@ const SalesTransaction = () => {
             }
 
             const formatDateTimeExport = (isoString) => {
-                const date = new Date(isoString);
-                const pad = (num) => String(num).padStart(2, '0');
-                return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+                // Format dengan timezone lokal
+                return dayjs(isoString).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY HH:mm:ss');
             };
 
             const formattedExportData = exportData.flatMap((order) => {
@@ -462,13 +484,9 @@ const SalesTransaction = () => {
                 });
             });
 
-            const formatDate = (dateStr) => {
-                if (!dateStr) return "semua-tanggal";
-                const date = new Date(dateStr);
-                const dd = String(date.getDate()).padStart(2, '0');
-                const mm = String(date.getMonth() + 1).padStart(2, '0');
-                const yyyy = date.getFullYear();
-                return `${dd}-${mm}-${yyyy}`;
+            const formatDate = (dateObj) => {
+                if (!dateObj) return "semua-tanggal";
+                return dayjs(dateObj).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY');
             };
 
             const startLabel = formatDate(dateRange?.startDate);

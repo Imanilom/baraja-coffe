@@ -671,17 +671,36 @@ class DailyProfitController {
       if (req.query.orderType) filters.orderType = req.query.orderType;
       if (req.query.outlet) filters.outlet = req.query.outlet;
 
-      // Date range filter
+      // Date range filter - FIXED TIMEZONE HANDLING
       if (req.query.startDate || req.query.endDate) {
         filters.createdAt = {};
+
         if (req.query.startDate) {
-          const startDate = new Date(req.query.startDate);
-          startDate.setHours(0, 0, 0, 0);
+          // Parse tanggal dengan asumsi input dalam format YYYY-MM-DD (lokal)
+          // Buat Date object di timezone lokal (Asia/Jakarta = UTC+7)
+          const startDateStr = req.query.startDate; // Format: YYYY-MM-DD
+          const startDate = new Date(startDateStr + 'T00:00:00.000+07:00'); // Explicitly set timezone offset
+
+          console.log('Start Date Filter:', {
+            input: req.query.startDate,
+            parsed: startDate.toISOString(),
+            local: startDate.toString()
+          });
+
           filters.createdAt.$gte = startDate;
         }
+
         if (req.query.endDate) {
-          const endDate = new Date(req.query.endDate);
-          endDate.setHours(23, 59, 59, 999);
+          // Parse tanggal dengan asumsi input dalam format YYYY-MM-DD (lokal)
+          const endDateStr = req.query.endDate; // Format: YYYY-MM-DD
+          const endDate = new Date(endDateStr + 'T23:59:59.999+07:00'); // Explicitly set timezone offset
+
+          console.log('End Date Filter:', {
+            input: req.query.endDate,
+            parsed: endDate.toISOString(),
+            local: endDate.toString()
+          });
+
           filters.createdAt.$lte = endDate;
         }
       }

@@ -13,16 +13,22 @@ export const generateSalesReport = async (req, res) => {
       });
     }
 
-    // ✅ FIX: Parse tanggal sebagai waktu lokal (tanpa timezone conversion)
-    // Format yang diterima: YYYY-MM-DD
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T23:59:59.999');
+    // ✅ FIX: Parse tanggal dengan timezone Asia/Jakarta eksplisit
+    // Gunakan UTC dan sesuaikan dengan offset WIB (+7)
+    const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+
+    // Create dates in UTC representing Jakarta midnight/end of day
+    const start = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0) - (7 * 60 * 60 * 1000));
+    const end = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999) - (7 * 60 * 60 * 1000));
 
     console.log('📅 Date Range Query:', {
       startDate,
       endDate,
       start: start.toISOString(),
-      end: end.toISOString()
+      end: end.toISOString(),
+      startLocal: new Date(start.getTime() + (7 * 60 * 60 * 1000)).toISOString(),
+      endLocal: new Date(end.getTime() + (7 * 60 * 60 * 1000)).toISOString()
     });
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
@@ -186,8 +192,8 @@ export const generateSalesReport = async (req, res) => {
 
     const finalReport = {
       period: {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0],
+        startDate: startDate, // ✅ Langsung gunakan input user
+        endDate: endDate,     // ✅ Langsung gunakan input user
         timezone: 'Asia/Jakarta',
         groupBy
       },
