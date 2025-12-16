@@ -288,7 +288,7 @@ export const getWorkstationOrders = async (req, res) => {
     const orders = await Order.find({
       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
     })
-      .select('order_id customer_name status items createdAt updatedAt order_type reservation tableNumber createdAtWIB updatedAtWIB')
+      .select('order_id user status items createdAt updatedAt order_type reservation tableNumber createdAtWIB updatedAtWIB')
       .populate({
         path: 'items.menuItem',
         select: 'name workstation category',

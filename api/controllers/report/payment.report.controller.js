@@ -13,9 +13,17 @@ export const generateSalesReport = async (req, res) => {
       });
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    // ✅ FIX: Parse tanggal sebagai waktu lokal (tanpa timezone conversion)
+    // Format yang diterima: YYYY-MM-DD
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59.999');
+
+    console.log('📅 Date Range Query:', {
+      startDate,
+      endDate,
+      start: start.toISOString(),
+      end: end.toISOString()
+    });
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({
