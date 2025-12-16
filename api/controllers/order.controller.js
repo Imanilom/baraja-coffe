@@ -2400,7 +2400,15 @@ export const createUnifiedOrder = async (req, res) => {
       contact,
       cashierId,
       device_id,
-      isSplitPayment = false
+      isSplitPayment = false,
+      
+      // ========== OPEN BILL FIELDS ==========
+      isOpenBill = false,
+      customersCount = 1,
+      cashierNotes = '',
+      serviceCharge = 0,
+      taxPercentage = 10,
+      closeOpenBill = false
     } = req.body;
 
     // ========== VALIDASI AWAL ==========
@@ -2460,9 +2468,32 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
+    // ========== HANDLE OPEN BILL CLOSE REQUEST ==========
+    if (closeOpenBill && order_id) {
+      console.log('🔒 Processing Open Bill close request for:', order_id);
+      
+      const result = await closeOpenBillHandler({
+        orderId: order_id,
+        cashierId,
+        paymentDetails,
+        customerName: user,
+        customerPhone: contact?.phone,
+        notes: cashierNotes,
+        isSplitPayment
+      });
+      
+      return res.status(200).json(result);
+    }
+
     // Generate order ID early
-    if (tableNumber) {
-      orderId = await generateOrderId(String(tableNumber));
+    if (tableNumber && !order_id) {
+      if (isOpenBill) {
+        orderId = generateOpenBillOrderId(String(tableNumber));
+      } else {
+        orderId = await generateOrderId(String(tableNumber));
+      }
+    } else if (order_id) {
+      orderId = order_id;
     } else {
       orderId = `${source.toUpperCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     }
@@ -2472,15 +2503,35 @@ export const createUnifiedOrder = async (req, res) => {
       source,
       outletId,
       tableNumber,
-      isSplitPayment,
-      useLocking: source !== 'Cashier',
-      paymentDetailsType: Array.isArray(paymentDetails) ? 'array' : 'object'
+      isOpenBill,
+      isSplitPayment
     });
 
-    // ========== CASHIER: LANGSUNG TANPA LOCK ==========
-    if (source === 'Cashier') {
-      console.log('💰 Processing Cashier order directly (no lock needed)');
+    // ========== CASHIER: OPEN BILL CREATION ==========
+    if (source === 'Cashier' && isOpenBill) {
+      console.log('💰 Processing Open Bill creation');
+      
+      const result = await processOpenBillOrder({
+        req,
+        orderId,
+        outletId,
+        cashierId,
+        tableNumber,
+        device_id,
+        customersCount,
+        cashierNotes,
+        serviceCharge,
+        taxPercentage,
+        items: req.body.items || []
+      });
+      
+      return res.status(200).json(result);
+    }
 
+    // ========== CASHIER: REGULAR ORDER ==========
+    if (source === 'Cashier') {
+      console.log('💰 Processing regular Cashier order');
+      
       const result = await processCashierOrderDirect({
         req,
         orderId,
@@ -2495,11 +2546,19 @@ export const createUnifiedOrder = async (req, res) => {
         loyaltyPointsToRedeem,
         orderType
       });
-
+      
       return res.status(200).json(result);
     }
 
-    // ========== WEB & APP: GUNAKAN LOCK ==========
+    // ========== WEB & APP: TIDAK SUPPORT OPEN BILL ==========
+    if ((source === 'Web' || source === 'App') && isOpenBill) {
+      return res.status(400).json({
+        success: false,
+        message: 'Open Bill hanya tersedia untuk Cashier'
+      });
+    }
+
+    // ========== WEB & APP: REGULAR ORDER WITH LOCK ==========
     console.log('🔒 Processing with atomic lock for Web/App order:', {
       orderId,
       source,
@@ -2652,6 +2711,1079 @@ export const createUnifiedOrder = async (req, res) => {
       retrySuggested: true
     });
   }
+};
+
+// ========== HELPER: PROCESS OPEN BILL ORDER ==========
+const processOpenBillOrder = async ({
+  req,
+  orderId,
+  outletId,
+  cashierId,
+  tableNumber,
+  device_id,
+  customersCount = 1,
+  cashierNotes = '',
+  serviceCharge = 0,
+  taxPercentage = 10,
+  items = []
+}) => {
+  try {
+    // Cek outlet
+    const outlet = await Outlet.findById(outletId);
+    if (!outlet) {
+      throw new Error('Outlet tidak ditemukan');
+    }
+
+    // Cek jam operasional
+    const isOutletOpen = checkOutletOperatingHours(outlet);
+    if (!isOutletOpen.isOpen) {
+      throw new Error(`Outlet sedang tutup. ${isOutletOpen.message}`);
+    }
+
+    // Cek apakah meja sudah ada open bill aktif
+    const existingOpenBill = await Order.findOne({
+      tableNumber,
+      outletId,
+      isOpenBill: true,
+      openBillStatus: 'active',
+      status: { $in: ['Pending', 'OnProcess'] }
+    });
+    
+    if (existingOpenBill) {
+      throw new Error(`Meja ${tableNumber} sudah memiliki open bill aktif (Order ID: ${existingOpenBill.order_id})`);
+    }
+
+    // Hitung total dari items awal
+    let totalBeforeDiscount = 0;
+    let itemsWithDetails = [];
+
+    if (items && items.length > 0) {
+      for (const item of items) {
+        const menuItem = await MenuItem.findById(item.id);
+        if (!menuItem) {
+          throw new Error(`Menu item ${item.id} tidak ditemukan`);
+        }
+
+        // Cek stok
+        const primaryWarehouseId = menuItem.primaryWarehouseId;
+        if (primaryWarehouseId) {
+          const currentStock = menuItem.getStockForWarehouse(primaryWarehouseId);
+          if (currentStock < item.quantity) {
+            throw new Error(`Stok tidak cukup untuk ${menuItem.name}. Stok tersedia: ${currentStock}`);
+          }
+        }
+
+        // Hitung subtotal
+        let subtotal = menuItem.price * item.quantity;
+        
+        // Tambah addons
+        if (item.selectedAddons && item.selectedAddons.length > 0) {
+          item.selectedAddons.forEach(addon => {
+            const menuAddon = menuItem.addons.find(a => a.name === addon.name);
+            if (menuAddon) {
+              const option = menuAddon.options.find(o => o.label === addon.selectedOption);
+              if (option) {
+                subtotal += option.price * item.quantity;
+              }
+            }
+          });
+        }
+        
+        // Tambah toppings
+        if (item.selectedToppings && item.selectedToppings.length > 0) {
+          item.selectedToppings.forEach(topping => {
+            const menuTopping = menuItem.toppings.find(t => t.name === topping.name);
+            if (menuTopping) {
+              subtotal += menuTopping.price * item.quantity;
+            }
+          });
+        }
+
+        totalBeforeDiscount += subtotal;
+
+        // Format item untuk disimpan
+        itemsWithDetails.push({
+          menuItem: item.id,
+          menuItemData: {
+            name: menuItem.name,
+            price: menuItem.price,
+            category: menuItem.category || menuItem.mainCategory,
+            sku: menuItem.sku || '',
+            selectedAddons: item.selectedAddons || [],
+            selectedToppings: item.selectedToppings || [],
+            isActive: menuItem.isActive
+          },
+          quantity: item.quantity,
+          subtotal: subtotal,
+          addons: item.selectedAddons || [],
+          toppings: item.selectedToppings || [],
+          notes: item.notes || '',
+          guestName: item.guestName || '',
+          dineType: item.dineType || 'Dine-In',
+          batchNumber: 1,
+          addedAt: new Date(),
+          kitchenStatus: 'pending',
+          isPrinted: false,
+          outletId: outletId
+        });
+
+        // Kurangi stok
+        if (primaryWarehouseId) {
+          const newStock = currentStock - item.quantity;
+          await menuItem.updateStockForWarehouse(primaryWarehouseId, newStock);
+        }
+      }
+    }
+
+    // Hitung tax dan grand total
+    const taxAmount = totalBeforeDiscount * (taxPercentage / 100);
+    const grandTotal = totalBeforeDiscount + taxAmount + serviceCharge;
+
+    // Buat open bill order
+    const openBillOrder = new Order({
+      order_id: orderId,
+      source: 'Cashier',
+      orderType: 'Dine-In',
+      tableNumber: tableNumber,
+      outletId: outletId,
+      outlet: outletId,
+      device_id: device_id,
+      cashierId: cashierId,
+      items: itemsWithDetails,
+      totalBeforeDiscount: totalBeforeDiscount,
+      totalAfterDiscount: totalBeforeDiscount,
+      totalCustomAmount: 0,
+      grandTotal: grandTotal,
+      taxPercentage: taxPercentage,
+      taxAmount: taxAmount,
+      serviceCharge: serviceCharge,
+      isOpenBill: true,
+      openBillStartedAt: new Date(),
+      openBillStatus: 'active',
+      customersCount: customersCount,
+      cashierNotes: cashierNotes,
+      status: 'Pending',
+      user: req.body.user || `Guest-${tableNumber}`,
+      contact: req.body.contact || { phone: '0000000000' },
+      created_by: {
+        employee_id: cashierId,
+        employee_name: 'Cashier',
+        created_at: new Date()
+      },
+      tableStatus: 'occupied'
+    });
+
+    // Simpan order
+    await openBillOrder.save();
+
+    // Update status meja
+    await updateTableStatus(tableNumber, outletId, 'occupied', orderId);
+
+    // Broadcast ke kitchen jika ada items
+    if (itemsWithDetails.length > 0 && global.io) {
+      global.io.to(`kitchen_${outletId}`).emit('new_order_created', {
+        orderId,
+        tableNumber,
+        items: itemsWithDetails,
+        source: 'Cashier',
+        isOpenBill: true,
+        timestamp: new Date()
+      });
+    }
+
+    // Broadcast open bill creation
+    broadcastNewOpenBill({
+      orderId,
+      tableNumber,
+      outletId,
+      cashierId,
+      customersCount,
+      startTime: new Date(),
+      itemsCount: itemsWithDetails.length,
+      initialTotal: grandTotal
+    });
+
+    console.log(`✅ Open bill created: ${orderId} for table ${tableNumber}`);
+
+    return {
+      success: true,
+      status: 'OpenBill_Active',
+      orderId,
+      tableNumber,
+      totalBeforeDiscount,
+      taxAmount,
+      serviceCharge,
+      grandTotal,
+      itemsCount: itemsWithDetails.length,
+      customersCount,
+      openBillStartedAt: openBillOrder.openBillStartedAt,
+      message: `Open bill berhasil dibuat untuk meja ${tableNumber}`,
+      actions: [
+        {
+          name: 'add_item',
+          method: 'POST',
+          url: `/api/orders/open-bill/${orderId}/add-item`,
+          description: 'Tambahkan item ke open bill'
+        },
+        {
+          name: 'get_details',
+          method: 'GET',
+          url: `/api/orders/open-bill/${orderId}`,
+          description: 'Lihat detail open bill'
+        },
+        {
+          name: 'close_bill',
+          method: 'POST',
+          url: `/api/orders/open-bill/${orderId}/close`,
+          description: 'Tutup dan bayar open bill'
+        }
+      ]
+    };
+
+  } catch (error) {
+    console.error('❌ Error processing open bill order:', error);
+    throw error;
+  }
+};
+
+// ========== HELPER: CLOSE OPEN BILL HANDLER ==========
+const closeOpenBillHandler = async ({
+  orderId,
+  cashierId,
+  paymentDetails,
+  customerName = '',
+  customerPhone = '',
+  notes = '',
+  isSplitPayment = false
+}) => {
+  try {
+    // Cari open bill
+    const order = await Order.findOne({
+      order_id: orderId,
+      isOpenBill: true,
+      openBillStatus: 'active'
+    });
+    
+    if (!order) {
+      throw new Error('Open bill tidak ditemukan atau sudah ditutup');
+    }
+    
+    if (order.items.length === 0 || order.activeItemsCount === 0) {
+      throw new Error('Tidak bisa menutup open bill tanpa item aktif');
+    }
+    
+    // Validasi cashier
+    if (order.cashierId.toString() !== cashierId) {
+      // Cek apakah cashier memiliki akses
+      const cashier = await User.findById(cashierId);
+      if (!cashier || !['cashier', 'supervisor', 'admin'].includes(cashier.role)) {
+        throw new Error('Anda tidak memiliki akses untuk menutup open bill ini');
+      }
+    }
+    
+    // Validasi payment details
+    const validatedPaymentDetails = validateAndNormalizePaymentDetails(
+      paymentDetails,
+      isSplitPayment,
+      'Cashier'
+    );
+    
+    if (!validatedPaymentDetails) {
+      throw new Error('Payment details diperlukan untuk menutup open bill');
+    }
+    
+    // Hitung total yang harus dibayar
+    const totalToPay = order.grandTotal;
+    
+    // Verifikasi payment amount
+    let totalPayment = 0;
+    if (Array.isArray(validatedPaymentDetails)) {
+      totalPayment = validatedPaymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    } else {
+      totalPayment = validatedPaymentDetails.amount || 0;
+    }
+    
+    if (totalPayment < totalToPay) {
+      throw new Error(`Jumlah pembayaran (${totalPayment}) kurang dari total tagihan (${totalToPay})`);
+    }
+    
+    // Update customer info
+    if (customerName) order.user = customerName;
+    if (customerPhone) order.contact = { phone: customerPhone };
+    
+    // Proses pembayaran
+    const paymentResult = await processCashierPayment(
+      orderId,
+      validatedPaymentDetails,
+      {
+        grandTotal: totalToPay,
+        isSplitPayment: isSplitPayment
+      }
+    );
+    
+    // Update order status berdasarkan hasil pembayaran
+    order.openBillClosedAt = new Date();
+    order.openBillStatus = 'closed';
+    order.status = 'Completed';
+    order.cashierNotes = notes || order.cashierNotes;
+    
+    // Update payments array
+    if (Array.isArray(validatedPaymentDetails)) {
+      validatedPaymentDetails.forEach((payment, index) => {
+        order.payments.push({
+          paymentMethod: payment.method || 'Cash',
+          amount: payment.amount || 0,
+          status: 'completed',
+          processedBy: cashierId,
+          processedAt: new Date(),
+          notes: `Split payment ${index + 1} of ${validatedPaymentDetails.length}`
+        });
+      });
+      order.isSplitPayment = true;
+    } else {
+      order.payments.push({
+        paymentMethod: validatedPaymentDetails.method || 'Cash',
+        amount: validatedPaymentDetails.amount || 0,
+        status: 'completed',
+        processedBy: cashierId,
+        processedAt: new Date(),
+        notes: 'Final payment for open bill'
+      });
+    }
+    
+    // Hitung change jika ada
+    if (totalPayment > totalToPay) {
+      order.change = totalPayment - totalToPay;
+    }
+    
+    // Simpan perubahan
+    await order.save();
+    
+    // Update status meja menjadi available
+    await updateTableStatus(order.tableNumber, order.outletId, 'available', null);
+    
+    // Broadcast open bill closed
+    broadcastOpenBillClosed({
+      orderId,
+      tableNumber: order.tableNumber,
+      outletId: order.outletId,
+      finalTotal: totalToPay,
+      paymentAmount: totalPayment,
+      change: order.change,
+      closedBy: cashierId,
+      timestamp: new Date()
+    });
+    
+    // Generate receipt data
+    const receiptData = {
+      orderId: order.order_id,
+      tableNumber: order.tableNumber,
+      date: order.openBillClosedAt,
+      items: order.items.filter(item => !item.isCancelled).map(item => ({
+        name: item.menuItemData?.name,
+        quantity: item.quantity,
+        price: item.menuItemData?.price,
+        subtotal: item.subtotal
+      })),
+      subtotal: order.totalBeforeDiscount,
+      tax: order.taxAmount,
+      serviceCharge: order.serviceCharge,
+      grandTotal: order.grandTotal,
+      paymentMethod: order.payments[0]?.paymentMethod || 'Cash',
+      paymentAmount: totalPayment,
+      change: order.change,
+      cashier: cashierId,
+      duration: order.openBillDuration
+    };
+    
+    console.log(`✅ Open bill closed: ${orderId}, Total: ${totalToPay}, Paid: ${totalPayment}`);
+    
+    return {
+      success: true,
+      status: 'Completed',
+      orderId,
+      tableNumber: order.tableNumber,
+      finalTotal: totalToPay,
+      taxAmount: order.taxAmount,
+      serviceCharge: order.serviceCharge,
+      paymentAmount: totalPayment,
+      change: order.change,
+      paymentStatus: 'completed',
+      receipt: receiptData,
+      duration: order.openBillDuration,
+      message: `Open bill berhasil ditutup untuk meja ${order.tableNumber}`
+    };
+    
+  } catch (error) {
+    console.error('❌ Error closing open bill:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get active open bills
+ */
+export const getActiveOpenBills = async (req, res) => {
+  try {
+    const { outletId } = req.query;
+    
+    if (!outletId) {
+      return res.status(400).json({
+        success: false,
+        message: 'outletId diperlukan'
+      });
+    }
+    
+    const filters = {};
+    if (req.query.tableNumber) filters.tableNumber = req.query.tableNumber;
+    if (req.query.cashierId) filters.cashierId = req.query.cashierId;
+    
+    const openBills = await Order.getActiveOpenBills(outletId, filters);
+    
+    // Format response
+    const formattedBills = openBills.map(bill => {
+      const duration = calculateDuration(bill.openBillStartedAt, new Date());
+      const activeItems = bill.items.filter(item => !item.isCancelled);
+      
+      return {
+        orderId: bill.order_id,
+        tableNumber: bill.tableNumber,
+        cashier: bill.cashierId ? {
+          name: bill.cashierId.name,
+          id: bill.cashierId._id
+        } : null,
+        startedAt: bill.openBillStartedAt,
+        duration: `${duration.hours} jam ${duration.minutes} menit`,
+        itemsCount: activeItems.length,
+        activeItemsCount: activeItems.length,
+        cancelledItemsCount: bill.items.length - activeItems.length,
+        currentTotal: bill.grandTotal,
+        customersCount: bill.customersCount,
+        notes: bill.cashierNotes,
+        lastUpdated: bill.lastItemAddedAt || bill.openBillStartedAt
+      };
+    });
+    
+    return res.status(200).json({
+      success: true,
+      count: formattedBills.length,
+      openBills: formattedBills
+    });
+    
+  } catch (error) {
+    console.error('Error getting active open bills:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Get open bill details
+ */
+export const getOpenBillDetails = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { outletId } = req.query;
+    
+    const order = await Order.getOpenBillById(orderId, outletId);
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Open bill tidak ditemukan'
+      });
+    }
+    
+    // Format response
+    const activeItems = order.items.filter(item => !item.isCancelled);
+    const cancelledItems = order.items.filter(item => item.isCancelled);
+    
+    const duration = order.openBillClosedAt 
+      ? calculateDuration(order.openBillStartedAt, order.openBillClosedAt)
+      : calculateDuration(order.openBillStartedAt, new Date());
+    
+    const response = {
+      orderId: order.order_id,
+      tableNumber: order.tableNumber,
+      cashier: order.cashierId ? {
+        name: order.cashierId.name,
+        id: order.cashierId._id
+      } : null,
+      startedAt: order.openBillStartedAt,
+      closedAt: order.openBillClosedAt,
+      duration: `${duration.hours} jam ${duration.minutes} menit`,
+      status: order.openBillStatus,
+      orderStatus: order.status,
+      items: {
+        active: activeItems.map(item => ({
+          name: item.menuItemData?.name || item.menuItem?.name,
+          quantity: item.quantity,
+          price: item.menuItem?.price || item.menuItemData?.price,
+          subtotal: item.subtotal,
+          addons: item.addons,
+          toppings: item.toppings,
+          notes: item.notes,
+          guestName: item.guestName,
+          addedAt: item.addedAt,
+          kitchenStatus: item.kitchenStatus
+        })),
+        cancelled: cancelledItems.map(item => ({
+          name: item.menuItemData?.name || item.menuItem?.name,
+          quantity: item.quantity,
+          price: item.menuItem?.price || item.menuItemData?.price,
+          subtotal: item.subtotal,
+          cancelledAt: item.cancelledAt,
+          cancelledBy: item.cancelledBy,
+          cancellationReason: item.cancellationReason
+        }))
+      },
+      totals: {
+        subtotal: order.totalBeforeDiscount,
+        taxPercentage: order.taxPercentage,
+        taxAmount: order.taxAmount,
+        serviceCharge: order.serviceCharge,
+        grandTotal: order.grandTotal
+      },
+      customersCount: order.customersCount,
+      notes: order.cashierNotes,
+      tableStatus: order.tableStatus
+    };
+    
+    return res.status(200).json({
+      success: true,
+      openBill: response
+    });
+    
+  } catch (error) {
+    console.error('Error getting open bill details:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Add item to open bill
+ */
+export const addItemToOpenBill = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const {
+      menuItemId,
+      quantity = 1,
+      addons = [],
+      toppings = [],
+      notes = '',
+      guestName = '',
+      dineType = 'Dine-In',
+      cashierId
+    } = req.body;
+
+    if (!cashierId) {
+      return res.status(400).json({
+        success: false,
+        message: 'cashierId diperlukan'
+      });
+    }
+
+    // Cari open bill
+    const order = await Order.findOne({
+      order_id: orderId,
+      isOpenBill: true,
+      openBillStatus: 'active'
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Open bill tidak ditemukan atau sudah ditutup'
+      });
+    }
+
+    // Validasi cashier
+    if (order.cashierId.toString() !== cashierId) {
+      const cashier = await User.findById(cashierId);
+      if (!cashier || !['cashier', 'supervisor', 'admin'].includes(cashier.role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Anda tidak memiliki akses untuk menambahkan item ke open bill ini'
+        });
+      }
+    }
+
+    // Gunakan method dari model
+    const result = await order.addItemToOpenBill({
+      menuItemId,
+      quantity,
+      addons,
+      toppings,
+      notes,
+      guestName,
+      dineType
+    }, cashierId);
+
+    // Broadcast item added
+    broadcastItemAdded({
+      orderId,
+      tableNumber: order.tableNumber,
+      outletId: order.outletId,
+      item: result.item,
+      newTotal: order.grandTotal,
+      addedBy: cashierId,
+      timestamp: new Date()
+    });
+
+    return res.status(200).json({
+      success: true,
+      orderId,
+      itemAdded: {
+        name: result.item.menuItemData.name,
+        quantity: result.item.quantity,
+        subtotal: result.item.subtotal,
+        batchNumber: result.item.batchNumber
+      },
+      currentTotal: result.newTotal,
+      message: 'Item berhasil ditambahkan ke open bill'
+    });
+
+  } catch (error) {
+    console.error('Error adding item to open bill:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Cancel item in open bill
+ */
+export const cancelOpenBillItem = async (req, res) => {
+  try {
+    const { orderId, itemIndex } = req.params;
+    const { cashierId, reason = '' } = req.body;
+
+    if (!cashierId) {
+      return res.status(400).json({
+        success: false,
+        message: 'cashierId diperlukan'
+      });
+    }
+
+    // Cari open bill
+    const order = await Order.findOne({
+      order_id: orderId,
+      isOpenBill: true,
+      openBillStatus: 'active'
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Open bill tidak ditemukan atau sudah ditutup'
+      });
+    }
+
+    // Validasi cashier
+    if (order.cashierId.toString() !== cashierId) {
+      const cashier = await User.findById(cashierId);
+      if (!cashier || !['cashier', 'supervisor', 'admin'].includes(cashier.role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Anda tidak memiliki akses untuk membatalkan item di open bill ini'
+        });
+      }
+    }
+
+    // Gunakan method dari model
+    const result = await order.cancelOpenBillItem(parseInt(itemIndex), cashierId, reason);
+
+    // Broadcast item cancelled
+    if (global.io) {
+      global.io.to(`outlet_${order.outletId}`).emit('open_bill_item_cancelled', {
+        orderId,
+        tableNumber: order.tableNumber,
+        itemIndex: parseInt(itemIndex),
+        itemName: result.cancelledItem.menuItemData?.name,
+        reason,
+        cancelledBy: cashierId,
+        newTotal: order.grandTotal,
+        timestamp: new Date()
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      orderId,
+      cancelledItem: {
+        name: result.cancelledItem.menuItemData?.name,
+        quantity: result.cancelledItem.quantity,
+        subtotal: result.cancelledItem.subtotal,
+        reason
+      },
+      newTotal: result.newTotal,
+      message: 'Item berhasil dibatalkan dari open bill'
+    });
+
+  } catch (error) {
+    console.error('Error cancelling open bill item:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Update open bill information
+ */
+export const updateOpenBill = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const {
+      customersCount,
+      cashierNotes,
+      serviceCharge,
+      taxPercentage,
+      cashierId
+    } = req.body;
+
+    if (!cashierId) {
+      return res.status(400).json({
+        success: false,
+        message: 'cashierId diperlukan'
+      });
+    }
+
+    // Cari open bill
+    const order = await Order.findOne({
+      order_id: orderId,
+      isOpenBill: true,
+      openBillStatus: 'active'
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Open bill tidak ditemukan atau sudah ditutup'
+      });
+    }
+
+    // Validasi cashier
+    if (order.cashierId.toString() !== cashierId) {
+      const cashier = await User.findById(cashierId);
+      if (!cashier || !['cashier', 'supervisor', 'admin'].includes(cashier.role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Anda tidak memiliki akses untuk mengupdate open bill ini'
+        });
+      }
+    }
+
+    // Update fields jika ada
+    const updates = {};
+    if (customersCount !== undefined) {
+      updates.customersCount = customersCount;
+    }
+    
+    if (cashierNotes !== undefined) {
+      updates.cashierNotes = cashierNotes;
+    }
+    
+    if (serviceCharge !== undefined) {
+      updates.serviceCharge = serviceCharge;
+    }
+    
+    if (taxPercentage !== undefined) {
+      updates.taxPercentage = taxPercentage;
+    }
+
+    // Update order
+    const updatedOrder = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: updates },
+      { new: true }
+    );
+
+    // Recalculate totals
+    updatedOrder.taxAmount = updatedOrder.totalBeforeDiscount * (updatedOrder.taxPercentage / 100);
+    updatedOrder.grandTotal = updatedOrder.totalBeforeDiscount + updatedOrder.taxAmount + updatedOrder.serviceCharge;
+    await updatedOrder.save();
+
+    // Broadcast update
+    if (global.io) {
+      global.io.to(`outlet_${order.outletId}`).emit('open_bill_updated', {
+        orderId,
+        tableNumber: order.tableNumber,
+        updates,
+        newTotal: updatedOrder.grandTotal,
+        updatedBy: cashierId,
+        timestamp: new Date()
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      orderId,
+      updatedFields: {
+        customersCount: updatedOrder.customersCount,
+        cashierNotes: updatedOrder.cashierNotes,
+        serviceCharge: updatedOrder.serviceCharge,
+        taxPercentage: updatedOrder.taxPercentage
+      },
+      currentTotal: updatedOrder.grandTotal,
+      message: 'Open bill berhasil diperbarui'
+    });
+
+  } catch (error) {
+    console.error('Error updating open bill:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Transfer open bill to another table
+ */
+export const transferOpenBill = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const {
+      toTable,
+      transferredBy,
+      reason = 'Customer request'
+    } = req.body;
+
+    if (!toTable || !transferredBy) {
+      return res.status(400).json({
+        success: false,
+        message: 'toTable dan transferredBy diperlukan'
+      });
+    }
+
+    // Cari open bill
+    const order = await Order.findOne({
+      order_id: orderId,
+      isOpenBill: true,
+      openBillStatus: 'active'
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Open bill tidak ditemukan atau sudah ditutup'
+      });
+    }
+
+    // Cek apakah meja tujuan sudah ada open bill aktif
+    const existingOpenBillAtNewTable = await Order.findOne({
+      tableNumber: toTable,
+      outletId: order.outletId,
+      isOpenBill: true,
+      openBillStatus: 'active',
+      status: { $in: ['Pending', 'OnProcess'] }
+    });
+    
+    if (existingOpenBillAtNewTable && existingOpenBillAtNewTable.order_id !== orderId) {
+      return res.status(400).json({
+        success: false,
+        message: `Meja ${toTable} sudah memiliki open bill aktif`
+      });
+    }
+
+    const oldTable = order.tableNumber;
+    
+    // Update table number
+    order.tableNumber = toTable;
+    
+    // Tambahkan ke transfer history
+    order.transferHistory.push({
+      fromTable: oldTable,
+      toTable: toTable,
+      transferredBy: transferredBy,
+      reason: reason,
+      transferredAt: new Date()
+    });
+    
+    await order.save();
+    
+    // Update status meja lama
+    await updateTableStatus(oldTable, order.outletId, 'available', null);
+    
+    // Update status meja baru
+    await updateTableStatus(toTable, order.outletId, 'occupied', orderId);
+    
+    // Broadcast transfer
+    if (global.io) {
+      global.io.to(`outlet_${order.outletId}`).emit('open_bill_transferred', {
+        orderId,
+        fromTable: oldTable,
+        toTable: toTable,
+        transferredBy,
+        reason,
+        timestamp: new Date()
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Open bill berhasil dipindahkan dari meja ${oldTable} ke meja ${toTable}`,
+      orderId,
+      oldTable,
+      newTable: toTable
+    });
+
+  } catch (error) {
+    console.error('Error transferring open bill:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Get open bill summary for cashier
+ */
+export const getOpenBillSummary = async (req, res) => {
+  try {
+    const { outletId, cashierId, date } = req.query;
+    
+    if (!outletId) {
+      return res.status(400).json({
+        success: false,
+        message: 'outletId diperlukan'
+      });
+    }
+    
+    const startDate = date ? new Date(date) : new Date();
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 1);
+    
+    const matchStage = {
+      outletId: mongoose.Types.ObjectId(outletId),
+      isOpenBill: true,
+      openBillStartedAt: { $gte: startDate, $lt: endDate }
+    };
+    
+    if (cashierId) {
+      matchStage.cashierId = mongoose.Types.ObjectId(cashierId);
+    }
+    
+    const summary = await Order.aggregate([
+      {
+        $match: matchStage
+      },
+      {
+        $group: {
+          _id: null,
+          totalOpenBills: { $sum: 1 },
+          activeOpenBills: {
+            $sum: { $cond: [{ $eq: ['$openBillStatus', 'active'] }, 1, 0] }
+          },
+          closedOpenBills: {
+            $sum: { $cond: [{ $eq: ['$openBillStatus', 'closed'] }, 1, 0] }
+          },
+          totalRevenue: { $sum: '$grandTotal' },
+          avgBillAmount: { $avg: '$grandTotal' },
+          maxBillAmount: { $max: '$grandTotal' },
+          minBillAmount: { $min: '$grandTotal' }
+        }
+      }
+    ]);
+    
+    // Get table occupancy
+    const activeTables = await Order.find({
+      outletId,
+      isOpenBill: true,
+      openBillStatus: 'active'
+    }).distinct('tableNumber');
+    
+    // Get cashier stats
+    const cashierStats = await Order.aggregate([
+      {
+        $match: {
+          outletId: mongoose.Types.ObjectId(outletId),
+          isOpenBill: true,
+          openBillStartedAt: { $gte: startDate, $lt: endDate }
+        }
+      },
+      {
+        $group: {
+          _id: '$cashierId',
+          billCount: { $sum: 1 },
+          totalAmount: { $sum: '$grandTotal' }
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'cashier'
+        }
+      },
+      {
+        $unwind: '$cashier'
+      },
+      {
+        $project: {
+          cashierId: '$_id',
+          cashierName: '$cashier.name',
+          billCount: 1,
+          totalAmount: 1,
+          _id: 0
+        }
+      },
+      {
+        $sort: { billCount: -1 }
+      }
+    ]);
+    
+    return res.status(200).json({
+      success: true,
+      summary: summary[0] || {
+        totalOpenBills: 0,
+        activeOpenBills: 0,
+        closedOpenBills: 0,
+        totalRevenue: 0,
+        avgBillAmount: 0,
+        maxBillAmount: 0,
+        minBillAmount: 0
+      },
+      activeTables: activeTables.length,
+      occupiedTables: activeTables,
+      cashierStats,
+      date: startDate
+    });
+    
+  } catch (error) {
+    console.error('Error getting open bill summary:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ========== UTILITY FUNCTIONS ==========
+
+/**
+ * Calculate duration between two dates
+ */
+const calculateDuration = (startTime, endTime) => {
+  const diffMs = endTime - startTime;
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  return { hours, minutes, totalMinutes: Math.floor(diffMs / (1000 * 60)) };
 };
 
 // ========== HELPER: CASHIER ORDER (TANPA LOCK) ==========
@@ -3211,6 +4343,61 @@ const processWebAppOrder = async ({
   throw new Error('Invalid order source');
 };
 
+/**
+ * Generate order ID untuk open bill
+ */
+const generateOpenBillOrderId = (tableNumber) => {
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+  return `OPEN-${tableNumber}-${timestamp}${random}`;
+};
+
+const updateTableStatus = async (tableNumber, outletId, status, orderId = null) => {
+  try {
+    await Table.findOneAndUpdate(
+      { tableNumber, outletId },
+      {
+        status: status,
+        currentOrderId: orderId,
+        lastUpdated: new Date()
+      },
+      { upsert: true, new: true }
+    );
+    
+    // Broadcast status update
+    if (global.io) {
+      global.io.to(`outlet_${outletId}`).emit('table_status_updated', {
+        tableNumber,
+        status,
+        orderId,
+        timestamp: new Date()
+      });
+    }
+    
+    console.log(`✅ Table ${tableNumber} status updated to ${status}`);
+    
+  } catch (error) {
+    console.error('❌ Error updating table status:', error);
+  }
+};
+
+const broadcastItemAdded = (data) => {
+  if (global.io) {
+    global.io.to(`kitchen_${data.outletId}`).emit('open_bill_item_added', data);
+    global.io.to(`cashier_${data.outletId}`).emit('open_bill_item_added', data);
+  }
+};
+
+/**
+ * Broadcast open bill closed
+ */
+const broadcastOpenBillClosed = (data) => {
+  if (global.io) {
+    global.io.to(`outlet_${data.outletId}`).emit('open_bill_closed', data);
+    global.io.to(`kitchen_${data.outletId}`).emit('open_bill_closed', data);
+    global.io.to(`cashier_${data.outletId}`).emit('open_bill_closed', data);
+  }
+};
 
 const calculateCustomAmount = (paymentAmount, orderTotalFromItems) => {
   // Validasi input
