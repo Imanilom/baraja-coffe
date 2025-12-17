@@ -341,7 +341,7 @@ const monitorExpiredPayments = async () => {
 
         log.info('Starting payment expiry monitor...');
 
-        // ✅ FIX: Tambahkan filter untuk exclude payment yang sudah diproses
+        // ✅ FIX: Tambahkan filter untuk exclude payment yang sudah diproses DAN exclude reservasi
         const expiredPayments = await Payment.find({
             status: 'pending', // Hanya pending, karena expire sudah diproses
             expiry_time: { $exists: true, $ne: null },
@@ -418,6 +418,13 @@ const monitorExpiredPayments = async () => {
                                 { session }
                             );
 
+                            skippedCount++;
+                            return;
+                        }
+
+                        // ✅ CRITICAL FIX: Skip reservasi - tidak boleh di-expire
+                        if (order.orderType === 'Reservation') {
+                            log.warning(`Skipping reservation order ${order.order_id} - reservations should not expire`);
                             skippedCount++;
                             return;
                         }
