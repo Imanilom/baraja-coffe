@@ -7,7 +7,7 @@ mod middleware;
 mod routes;
 mod utils;
 
-use axum::Router;
+
 use std::sync::Arc;
 use tower_http::{
     cors::{Any, CorsLayer},
