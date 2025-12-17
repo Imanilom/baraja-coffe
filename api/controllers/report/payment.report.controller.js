@@ -13,10 +13,12 @@ export const generateSalesReport = async (req, res) => {
       });
     }
 
-    // ✅ FIX: Parse tanggal sebagai waktu lokal (tanpa timezone conversion)
-    // Format yang diterima: YYYY-MM-DD
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T23:59:59.999');
+    // Parse tanggal dengan timezone Asia/Jakarta eksplisit
+    const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+
+    const start = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0) - (7 * 60 * 60 * 1000));
+    const end = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999) - (7 * 60 * 60 * 1000));
 
     console.log('📅 Date Range Query:', {
       startDate,
@@ -58,21 +60,19 @@ export const generateSalesReport = async (req, res) => {
 
     console.log(`📊 Found ${orders.length} orders for report`);
 
-    // ✅ FETCH PAYMENT RECORDS LEBIH AWAL
+    // ✅ FETCH PAYMENT RECORDS - Sama seperti getOrdersWithPayments
     const orderIds = orders.map(o => o.order_id).filter(id => id);
-    const paymentRecords = await Payment.find({
-      order_id: { $in: orderIds },
-      status: { $in: ['settlement', 'paid', 'capture'] },
-      isAdjustment: { $ne: true }
+    const allPayments = await Payment.find({
+      order_id: { $in: orderIds }
     }).lean();
 
-    // Create map untuk quick lookup
-    const paymentRecordMap = new Map();
-    paymentRecords.forEach(payment => {
-      if (!paymentRecordMap.has(payment.order_id)) {
-        paymentRecordMap.set(payment.order_id, []);
+    // Create payment map - Sama seperti getOrdersWithPayments
+    const paymentMap = {};
+    allPayments.forEach(payment => {
+      if (!paymentMap[payment.order_id]) {
+        paymentMap[payment.order_id] = [];
       }
-      paymentRecordMap.get(payment.order_id).push(payment);
+      paymentMap[payment.order_id].push(payment);
     });
 
     // Process orders
@@ -103,11 +103,34 @@ export const generateSalesReport = async (req, res) => {
         };
       });
 
-      // ✅ AMBIL PAYMENT RECORDS UNTUK ORDER INI
-      const externalPayments = paymentRecordMap.get(order.order_id) || [];
-
+      // ✅ AMBIL PAYMENT DETAILS - Menggunakan logika yang sama dengan getOrdersWithPayments
+      const relatedPayments = paymentMap[order.order_id] || [];
       let paymentDetails = [];
       let totalOrderPaid = 0;
+      let actualPaymentMethod = order.paymentMethod || 'N/A';
+
+      // ✅ Cari payment record yang valid (sama seperti getOrdersWithPayments)
+      let mainPaymentRecord = null;
+
+      if (order.orderType !== "Reservation") {
+        mainPaymentRecord = relatedPayments.find(p =>
+          p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
+        );
+      } else {
+        mainPaymentRecord = relatedPayments.find(p => p.status === 'pending') ||
+          relatedPayments.find(p => p.status === 'partial') ||
+          relatedPayments.find(p => p.status === 'settlement') ||
+          relatedPayments.find(p =>
+            p.paymentType === 'Final Payment' &&
+            p.relatedPaymentId &&
+            (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
+          );
+      }
+
+      // ✅ Set actualPaymentMethod dari payment record (prioritas tertinggi)
+      if (mainPaymentRecord && mainPaymentRecord.method_type) {
+        actualPaymentMethod = mainPaymentRecord.method_type;
+      }
 
       if (order.isSplitPayment && order.payments && Array.isArray(order.payments)) {
         // SPLIT PAYMENT
@@ -115,19 +138,25 @@ export const generateSalesReport = async (req, res) => {
           const amount = payment.amount || 0;
           totalOrderPaid += amount;
 
-          // ✅ CARI MATCHING PAYMENT RECORD
-          const matchingPayment = externalPayments.find(ep =>
+          // ✅ Cari matching payment record untuk split payment
+          const matchingPayment = relatedPayments.find(ep =>
             ep.method === payment.paymentMethod &&
             Math.abs(ep.amount - amount) < 100
           );
 
+          // ✅ Prioritas pengambilan displayName:
+          // 1. method_type dari Payment collection (matchingPayment)
+          // 2. method_type dari order.payments[].paymentDetails
+          // 3. Fallback ke paymentMethod
+          const displayName = matchingPayment?.method_type ||
+            payment.paymentDetails?.method_type ||
+            payment.paymentMethod ||
+            'Cash';
+
           return {
             method: payment.paymentMethod || order.paymentMethod || 'Cash',
-            displayName: getDisplayName(
-              payment.paymentMethod || order.paymentMethod || 'Cash',
-              payment.va_numbers || matchingPayment?.va_numbers || [],
-              payment.actions || matchingPayment?.actions || []
-            ),
+            displayName: displayName,
+            actualPaymentMethod: displayName, // ✅ Tambahkan field ini
             amount: amount,
             status: payment.status || 'completed',
             isSplitPayment: true,
@@ -144,26 +173,27 @@ export const generateSalesReport = async (req, res) => {
         const singlePaymentAmount = order.grandTotal || 0;
         totalOrderPaid = singlePaymentAmount;
 
-        // ✅ CARI PAYMENT RECORD UNTUK SINGLE PAYMENT
-        const matchingPayment = externalPayments.find(ep =>
-          ep.method === order.paymentMethod
-        ) || externalPayments[0]; // fallback ke payment pertama
+        // ✅ Prioritas pengambilan displayName untuk single payment:
+        // 1. method_type dari Payment collection (mainPaymentRecord)
+        // 2. method_type dari order.payments[0]?.paymentDetails
+        // 3. Fallback ke paymentMethod
+        const displayName = mainPaymentRecord?.method_type ||
+          order.payments?.[0]?.paymentDetails?.method_type ||
+          order.paymentMethod ||
+          'Cash';
 
         paymentDetails = [{
           method: order.paymentMethod || 'Cash',
-          displayName: getDisplayName(
-            order.paymentMethod || 'Cash',
-            matchingPayment?.va_numbers || [],
-            matchingPayment?.actions || []
-          ),
+          displayName: displayName,
+          actualPaymentMethod: displayName, // ✅ Tambahkan field ini
           amount: singlePaymentAmount,
           status: 'completed',
           isSplitPayment: false,
           tenderedAmount: order.payments?.[0]?.paymentDetails?.cashTendered || singlePaymentAmount,
           changeAmount: order.payments?.[0]?.paymentDetails?.change || 0,
           processedAt: order.createdAt,
-          va_numbers: matchingPayment?.va_numbers || [],
-          actions: matchingPayment?.actions || []
+          va_numbers: mainPaymentRecord?.va_numbers || [],
+          actions: mainPaymentRecord?.actions || []
         }];
       }
 
@@ -171,14 +201,15 @@ export const generateSalesReport = async (req, res) => {
         ...order,
         items: processedItems,
         paymentDetails: paymentDetails,
+        actualPaymentMethod: actualPaymentMethod, // ✅ Tambahkan di root level juga
         totalPaid: totalOrderPaid,
         hasSplitPayment: order.isSplitPayment || false,
         splitPaymentCount: order.isSplitPayment ? (order.payments?.length || 0) : 1,
-        externalPayments: externalPayments
+        relatedPayments: relatedPayments // ✅ Simpan untuk reference
       };
     });
 
-    // GENERATE REPORTS (rest of the code remains the same)
+    // GENERATE REPORTS
     const paymentMethodBreakdown = generateDetailedPaymentMethodBreakdown(processedOrders);
     const periodSummary = generatePeriodSummary(processedOrders, groupBy);
     const itemSalesBreakdown = generateItemSalesBreakdown(processedOrders);
@@ -186,8 +217,8 @@ export const generateSalesReport = async (req, res) => {
 
     const finalReport = {
       period: {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0],
+        startDate: startDate,
+        endDate: endDate,
         timezone: 'Asia/Jakarta',
         groupBy
       },
@@ -580,19 +611,22 @@ const normalizePaymentMethodForReport = (method) => {
 };
 
 // Function getDisplayName untuk generate display name yang lebih deskriptif
-export const getDisplayName = (method, va_numbers = [], actions = []) => {
+export const getDisplayName = (method, va_numbers = [], actions = [], method_type = null) => {
+  // ✅ Prioritaskan method_type jika tersedia
+  if (method_type) {
+    return method_type;
+  }
+
+  // Fallback ke logic lama jika method_type tidak ada
   let displayName = method ? method.charAt(0).toUpperCase() + method.slice(1) : 'Unknown';
 
   if (method === 'Bank Transfer' || method === 'Debit') {
-    // Append bank name dari va_numbers
     const bankName = va_numbers && va_numbers.length > 0 ? va_numbers[0].bank : '';
     displayName = bankName ? `${method} - ${bankName.toUpperCase()}` : `${method}`;
   } else if (method === 'QRIS') {
-    // Gunakan name dari actions
     const actionName = actions && actions.length > 0 ? actions[0].name : '';
     displayName = actionName ? `${method} - ${actionName}` : `${method}`;
   } else if (method === 'Cash') {
-    // Cash tetap menggunakan method name saja
     displayName = method;
   }
 

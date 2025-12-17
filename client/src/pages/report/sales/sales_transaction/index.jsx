@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import { exportToExcel } from "../../../../utils/exportHelper";
 import { useReactToPrint } from "react-to-print";
 import SalesTransactionTable from "./table";
 import SalesTransactionTableSkeleton from "./skeleton";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const SalesTransaction = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -56,7 +63,6 @@ const SalesTransaction = () => {
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
 
-    // Pagination state dari backend
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalOrders, setTotalOrders] = useState(0);
@@ -69,7 +75,16 @@ const SalesTransaction = () => {
         documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
     });
 
-    // Initialize from URL params - DENGAN DEFAULT TANGGAL HARI INI
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
+
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
@@ -78,23 +93,19 @@ const SalesTransaction = () => {
         const pageParam = searchParams.get('page');
         const limitParam = searchParams.get('limit');
 
-        // Jika ada parameter tanggal di URL, gunakan itu
-        // Jika tidak, gunakan tanggal hari ini sebagai default
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: dayjs(startDateParam),
-                endDate: dayjs(endDateParam),
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            // DEFAULT: Tanggal hari ini
-            const today = dayjs();
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
             const newDateRange = {
                 startDate: today,
                 endDate: today
             };
             setDateRange(newDateRange);
 
-            // Set URL params dengan tanggal hari ini
             updateURLParams(newDateRange, outletParam || "", searchParam || "",
                 parseInt(pageParam, 10) || 1, parseInt(limitParam, 10) || 20);
         }
@@ -116,13 +127,12 @@ const SalesTransaction = () => {
         }
     }, []);
 
-    // Update URL when filters change
     const updateURLParams = (newDateRange, newOutlet, newSearch, newPage, newLimit) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
-            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -146,51 +156,41 @@ const SalesTransaction = () => {
         setSearchParams(params);
     };
 
-    // Fetch products dengan pagination dari backend - MENGGUNAKAN QUERY PARAMS
     const fetchProducts = async () => {
-        // Jangan fetch jika dateRange belum di-set
         if (!dateRange?.startDate || !dateRange?.endDate) {
             return;
         }
 
         setLoading(true);
         try {
-            // Build query parameters
             const params = new URLSearchParams();
 
-            // Mode pagination (default)
             params.append('mode', 'paginated');
             params.append('page', currentPage);
             params.append('limit', limit);
-            params.append('status', 'Completed'); // Filter completed orders
+            params.append('status', 'Completed');
 
             if (selectedOutlet) {
                 params.append('outlet', selectedOutlet);
             }
 
             if (dateRange?.startDate && dateRange?.endDate) {
-                params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
-                params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+                params.append('startDate', formatDateForAPI(dateRange.startDate));
+                params.append('endDate', formatDateForAPI(dateRange.endDate));
             }
 
-            // Single endpoint dengan query params
             const response = await axios.get(`/api/report/orders?${params.toString()}`);
 
             const productsData = Array.isArray(response.data?.data)
                 ? response.data.data
                 : [];
 
-            const completedOrders = productsData.filter(order => order.status === "Completed");
-
-            // Set data dan pagination info
             setProducts(productsData);
 
             if (response.data?.pagination) {
                 setTotalPages(response.data.pagination.totalPages);
                 setTotalOrders(response.data.pagination.totalOrders);
             }
-
-            console.log(`Loaded page ${currentPage}: ${productsData.length} orders`);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);
@@ -220,7 +220,6 @@ const SalesTransaction = () => {
         }
     };
 
-    // Fetch data saat filters berubah
     useEffect(() => {
         fetchProducts();
     }, [currentPage, limit, selectedOutlet, dateRange]);
@@ -237,7 +236,6 @@ const SalesTransaction = () => {
         })),
     ];
 
-    // Handle filter changes
     const handleDateRangeChange = (newValue) => {
         setDateRange(newValue);
         setCurrentPage(1);
@@ -268,29 +266,60 @@ const SalesTransaction = () => {
         updateURLParams(dateRange, selectedOutlet, searchTerm, 1, newLimit);
     };
 
-    // Filter hanya untuk search term (client-side untuk data yang sudah difetch)
-    const filteredData = useMemo(() => {
-        if (!searchTerm) return products;
+    const applySearchFilter = useCallback((data, search) => {
+        if (!search) return data;
 
-        return products.filter(product => {
+        const searchTermLower = search.toLowerCase();
+        return data.filter(product => {
             try {
-                const searchTermLower = searchTerm.toLowerCase();
-                return product.items?.some(item => {
-                    const menuItem = item?.menuItem;
-                    if (!menuItem) return false;
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (product.user || '').toLowerCase();
-                    const receipt = (product.order_id || '').toLowerCase();
-                    return name.includes(searchTermLower) ||
-                        receipt.includes(searchTermLower) ||
-                        customer.includes(searchTermLower);
+                const receipt = (product.order_id || '').toLowerCase();
+                if (receipt.includes(searchTermLower)) return true;
+
+                const customer = (product.user || '').toLowerCase();
+                if (customer.includes(searchTermLower)) return true;
+
+                // Search dalam items
+                const itemsMatch = product.items?.some(item => {
+                    const menuItemDataName = (item?.menuItemData?.name || '').toLowerCase();
+                    if (menuItemDataName.includes(searchTermLower)) return true;
+
+                    const menuItemName = (item?.menuItem?.name || '').toLowerCase();
+                    if (menuItemName.includes(searchTermLower)) return true;
+
+                    if (Array.isArray(item?.addons)) {
+                        return item.addons.some(addon => {
+                            if (Array.isArray(addon?.options)) {
+                                return addon.options.some(option => {
+                                    const label = (option?.label || '').toLowerCase();
+                                    return label.includes(searchTermLower);
+                                });
+                            }
+                            return false;
+                        });
+                    }
+
+                    return false;
                 });
+
+                if (itemsMatch) return true;
+
+                // Search dalam customAmountItems
+                const customAmountMatch = product.customAmountItems?.some(customItem => {
+                    const customName = (customItem?.name || '').toLowerCase();
+                    return customName.includes(searchTermLower);
+                });
+
+                return customAmountMatch;
             } catch (err) {
                 console.error("Error filtering by search:", err);
                 return false;
             }
         });
-    }, [products, searchTerm]);
+    }, []);
+
+    const filteredData = useMemo(() => {
+        return applySearchFilter(products, searchTerm);
+    }, [products, searchTerm, applySearchFilter]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -302,9 +331,7 @@ const SalesTransaction = () => {
     };
 
     const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        return dayjs(datetime).tz(DEFAULT_TIMEZONE).format('DD/MM/YYYY HH:mm:ss');
     };
 
     const { grandTotalFinal } = useMemo(() => {
@@ -321,14 +348,17 @@ const SalesTransaction = () => {
         return totals;
     }, [filteredData]);
 
-    // Handle Export - Fetch ALL data dengan mode=all
     const handleExport = async () => {
         setIsExporting(true);
 
         try {
-            // Build query parameters untuk fetch ALL data
+            // Pastikan outlets sudah di-load
+            if (outlets.length === 0) {
+                await fetchOutlets();
+            }
+
             const params = new URLSearchParams();
-            params.append('mode', 'all'); // Mode ALL untuk export
+            params.append('mode', 'all');
             params.append('status', 'Completed');
 
             if (selectedOutlet) {
@@ -336,139 +366,234 @@ const SalesTransaction = () => {
             }
 
             if (dateRange?.startDate && dateRange?.endDate) {
-                params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
-                params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+                params.append('startDate', formatDateForAPI(dateRange.startDate));
+                params.append('endDate', formatDateForAPI(dateRange.endDate));
             }
 
-            console.log('Exporting all data with params:', params.toString());
+            // PERBAIKAN KRITIS: Kirim searchTerm ke backend
+            if (searchTerm) {
+                params.append('search', searchTerm);
+            }
 
-            // Single endpoint dengan mode=all
-            const response = await axios.get(`/api/report/orders?${params.toString()}`);
+            const response = await axios.get(`/api/report/orders?${params.toString()}`, {
+                timeout: 120000 // 120 detik untuk data besar
+            });
+
             const allData = Array.isArray(response.data?.data) ? response.data.data : [];
 
-            console.log(`Exporting ${allData.length} orders`);
+            // Validasi jumlah data
+            const expectedCount = searchTerm ? filteredData.length : totalOrders;
+            if (allData.length < expectedCount * 0.9) { // Toleransi 10%
+                console.warn(`⚠️ WARNING: Expected ~${expectedCount} orders but got ${allData.length}`);
+                const proceed = window.confirm(
+                    `Peringatan: Hanya ${allData.length} dari ~${expectedCount} transaksi yang berhasil di-fetch.\n\n` +
+                    `Kemungkinan ada masalah pada backend API atau koneksi.\n\n` +
+                    `Apakah Anda tetap ingin melanjutkan export dengan data yang ada?`
+                );
+                if (!proceed) {
+                    setIsExporting(false);
+                    return;
+                }
+            }
 
-            // Filter by search term if needed
-            let exportData = allData;
-            if (searchTerm) {
-                exportData = allData.filter(product => {
-                    const searchTermLower = searchTerm.toLowerCase();
-                    return product.items?.some(item => {
-                        const menuItem = item?.menuItem;
-                        if (!menuItem) return false;
-                        const name = (menuItem.name || '').toLowerCase();
-                        const customer = (product.user || '').toLowerCase();
-                        const receipt = (product.order_id || '').toLowerCase();
-                        return name.includes(searchTermLower) ||
-                            receipt.includes(searchTermLower) ||
-                            customer.includes(searchTermLower);
-                    });
-                });
+            // Validasi setiap order
+            const validOrders = allData.filter(order => {
+                if (!order.items || !Array.isArray(order.items) || order.items.length === 0) {
+                    console.warn('⚠️ Order without items:', order.order_id);
+                    return false;
+                }
+                return true;
+            });
+
+            // PERBAIKAN: Tidak perlu filter lagi karena backend sudah filter
+            const exportData = validOrders;
+
+            if (exportData.length === 0) {
+                alert('Tidak ada data untuk di-export. Pastikan filter yang dipilih menghasilkan data.');
+                setIsExporting(false);
+                return;
             }
 
             const formatDateTimeExport = (isoString) => {
-                const date = new Date(isoString);
-                const pad = (num) => String(num).padStart(2, '0');
-                return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+                return dayjs(isoString).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY HH:mm:ss');
             };
 
+            let totalRowsGenerated = 0;
             const formattedExportData = exportData.flatMap((order) => {
-                const outletObj = outlets.find(o => o._id === order.outlet._id);
-                const outletName = outletObj?.name || '';
-                const outletCode = outletObj?._id || '';
-
-                const paymentMethod = order.actualPaymentMethod || order.paymentMethod || '-';
-                const paymentStatus = order.paymentDetails?.status || order.status || '-';
-                const paymentCode = order.paymentDetails?.payment_code || '-';
-                const transactionId = order.paymentDetails?.transaction_id || '-';
-
-                const filteredItemsSubtotal = order.items.reduce((acc, item) => acc + (Number(item.subtotal) || 0), 0);
-                const proportionalTax = order.totalTax || 0;
-                const proportionalServiceCharge = order.totalServiceFee || 0;
-                const filteredGrandTotal = filteredItemsSubtotal + proportionalTax + proportionalServiceCharge;
-
-                const totalDiscount = (order.discounts?.autoPromoDiscount || 0) +
-                    (order.discounts?.manualDiscount || 0) +
-                    (order.discounts?.voucherDiscount || 0);
-
-                return order.items.map((item, index) => {
-                    const itemName = item.menuItemData?.name || item.menuItem?.name || 'Produk tidak diketahui';
-                    const itemSKU = item.menuItemData?.sku || item.menuItem?.sku || '-';
-                    const itemPrice = item.menuItemData?.price || item.menuItem?.price || 0;
-
-                    let itemCategory = '-';
-                    if (item.menuItemData?.category) {
-                        itemCategory = typeof item.menuItemData.category === 'object'
-                            ? item.menuItemData.category.name
-                            : item.menuItemData.category;
-                    } else if (item.menuItem?.category) {
-                        itemCategory = typeof item.menuItem.category === 'object'
-                            ? item.menuItem.category.name
-                            : item.menuItem.category;
-                    } else if (item.menuItem?.mainCategory) {
-                        itemCategory = item.menuItem.mainCategory;
+                try {
+                    if (!order.items || !Array.isArray(order.items)) {
+                        console.warn('⚠️ Invalid order structure:', order.order_id);
+                        return [];
                     }
 
-                    const addonLabels = [];
-                    if (Array.isArray(item?.addons)) {
-                        item.addons.forEach(addon => {
-                            if (Array.isArray(addon?.options)) {
-                                addon.options.forEach(option => {
-                                    if (option?.label) {
-                                        addonLabels.push(option.label);
-                                    }
-                                });
-                            }
-                        });
-                    }
+                    const outletObj = outlets.find(o => o._id === (order.outlet?._id || order.outlet));
+                    const outletName = outletObj?.name || 'Unknown Outlet';
+                    const outletCode = outletObj?._id || '-';
 
-                    let fullProductName = itemName;
-                    if (addonLabels.length > 0) {
-                        fullProductName = `${itemName} ( ${addonLabels.join(', ')} )`;
-                    }
+                    const paymentMethod = order.actualPaymentMethod || order.paymentMethod || '-';
+                    const paymentStatus = order.paymentDetails?.status || order.status || '-';
+                    const paymentCode = order.paymentDetails?.payment_code || '-';
+                    const transactionId = order.paymentDetails?.transaction_id || '-';
 
-                    return {
-                        "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
-                        "ID Struk": order.order_id || '-',
-                        "Status Order": order.status || '-',
-                        "Status Pembayaran": paymentStatus,
-                        "ID / Kode Outlet": outletCode,
-                        "Outlet": outletName,
-                        "Tipe Penjualan": order.orderType || '-',
-                        "Kasir": order.cashierId?.username || '-',
-                        "No. Hp Pelanggan": order.cashierId?.phone || '-',
-                        "Nama Pelanggan": order.user || '-',
-                        "SKU": itemSKU,
-                        "Nama Produk": fullProductName,
-                        "Kategori": itemCategory,
-                        "Jumlah Produk": item.quantity || 0,
-                        "Harga Produk": itemPrice,
-                        "Penjualan Kotor": Number(item.subtotal) || 0,
-                        "Diskon Produk": 0,
-                        "Subtotal": index === 0 ? filteredItemsSubtotal : '',
-                        "Diskon Transaksi": index === 0 ? totalDiscount : '',
-                        "Pajak": index === 0 ? Math.round(proportionalTax) : '',
-                        "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '',
-                        "Pembulatan": 0,
-                        "Poin Ditukar": 0,
-                        "Biaya Admin": 0,
-                        "Total": index === 0 ? Math.round(filteredGrandTotal) : '',
-                        "Metode Pembayaran": index === 0 ? paymentMethod : '',
-                        "Kode Pembayaran": index === 0 ? paymentCode : '',
-                        "Transaction ID": index === 0 ? transactionId : '',
-                        "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
-                        "Kode Voucher": order.appliedVoucher?.code || '-'
-                    };
-                });
+                    // Hitung subtotal dari items dan customAmountItems
+                    const itemsSubtotal = order.items.reduce((acc, item) => {
+                        return acc + (Number(item.subtotal) || 0);
+                    }, 0);
+
+                    const customAmountSubtotal = (order.customAmountItems || []).reduce((acc, customItem) => {
+                        return acc + (Number(customItem.amount) || 0);
+                    }, 0);
+
+                    const filteredItemsSubtotal = itemsSubtotal + customAmountSubtotal;
+
+                    const proportionalTax = order.totalTax || 0;
+                    const proportionalServiceCharge = order.totalServiceFee || 0;
+                    const filteredGrandTotal = filteredItemsSubtotal + proportionalTax + proportionalServiceCharge;
+
+                    const totalDiscount = (order.discounts?.autoPromoDiscount || 0) +
+                        (order.discounts?.manualDiscount || 0) +
+                        (order.discounts?.voucherDiscount || 0);
+
+                    // Process regular items
+                    const itemRows = order.items.map((item, index) => {
+                        const itemName = item.menuItemData?.name || item.menuItem?.name || 'Produk tidak diketahui';
+                        const itemSKU = item.menuItemData?.sku || item.menuItem?.sku || '-';
+                        const itemPrice = item.menuItemData?.price || item.menuItem?.price || 0;
+
+                        // Extract category
+                        let itemCategory = '-';
+                        if (item.menuItemData?.category) {
+                            itemCategory = typeof item.menuItemData.category === 'object'
+                                ? item.menuItemData.category.name
+                                : item.menuItemData.category;
+                        } else if (item.menuItem?.category) {
+                            itemCategory = typeof item.menuItem.category === 'object'
+                                ? item.menuItem.category.name
+                                : item.menuItem.category;
+                        } else if (item.menuItem?.mainCategory) {
+                            itemCategory = item.menuItem.mainCategory;
+                        }
+
+                        // Extract addons
+                        const addonLabels = [];
+                        if (Array.isArray(item?.addons)) {
+                            item.addons.forEach(addon => {
+                                if (Array.isArray(addon?.options)) {
+                                    addon.options.forEach(option => {
+                                        if (option?.label) {
+                                            addonLabels.push(option.label);
+                                        }
+                                    });
+                                }
+                            });
+                        }
+
+                        if (Array.isArray(item?.menuItemData?.selectedAddons)) {
+                            item.menuItemData.selectedAddons.forEach(addon => {
+                                if (Array.isArray(addon?.options)) {
+                                    addon.options.forEach(option => {
+                                        if (option?.label && !addonLabels.includes(option.label)) {
+                                            addonLabels.push(option.label);
+                                        }
+                                    });
+                                }
+                            });
+                        }
+
+                        let fullProductName = itemName;
+                        if (addonLabels.length > 0) {
+                            fullProductName = `${itemName} ( ${addonLabels.join(', ')} )`;
+                        }
+
+                        return {
+                            "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
+                            "ID Struk": order.order_id || '-',
+                            "Status Order": order.status || '-',
+                            "Status Pembayaran": paymentStatus,
+                            "ID / Kode Outlet": outletCode,
+                            "Outlet": outletName,
+                            "Tipe Penjualan": order.orderType || '-',
+                            "Kasir": order.cashierId?.username || '-',
+                            "No. Hp Pelanggan": order.cashierId?.phone || '-',
+                            "Nama Pelanggan": order.user || '-',
+                            "SKU": itemSKU,
+                            "Nama Produk": fullProductName,
+                            "Kategori": itemCategory,
+                            "Jumlah Produk": item.quantity || 0,
+                            "Harga Produk": itemPrice,
+                            "Penjualan Kotor": Number(item.subtotal) || 0,
+                            "Diskon Produk": 0,
+                            "Subtotal": index === 0 ? filteredItemsSubtotal : '',
+                            "Diskon Transaksi": index === 0 ? totalDiscount : '',
+                            "Pajak": index === 0 ? Math.round(proportionalTax) : '',
+                            "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '',
+                            "Pembulatan": 0,
+                            "Poin Ditukar": 0,
+                            "Biaya Admin": 0,
+                            "Total": index === 0 ? Math.round(filteredGrandTotal) : '',
+                            "Metode Pembayaran": index === 0 ? paymentMethod : '',
+                            "Kode Pembayaran": index === 0 ? paymentCode : '',
+                            "Transaction ID": index === 0 ? transactionId : '',
+                            "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
+                            "Kode Voucher": order.appliedVoucher?.code || '-'
+                        };
+                    });
+
+                    // Process customAmountItems
+                    const customAmountRows = (order.customAmountItems || []).map((customItem, index) => {
+                        const isFirstRow = index === 0 && order.items.length === 0;
+
+                        return {
+                            "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
+                            "ID Struk": order.order_id || '-',
+                            "Status Order": order.status || '-',
+                            "Status Pembayaran": paymentStatus,
+                            "ID / Kode Outlet": outletCode,
+                            "Outlet": outletName,
+                            "Tipe Penjualan": order.orderType || '-',
+                            "Kasir": order.cashierId?.username || '-',
+                            "No. Hp Pelanggan": order.cashierId?.phone || '-',
+                            "Nama Pelanggan": order.user || '-',
+                            "SKU": '-',
+                            "Nama Produk": `[Custom] ${customItem.name || 'Custom Amount'}`,
+                            "Kategori": 'Custom Amount',
+                            "Jumlah Produk": 1,
+                            "Harga Produk": Number(customItem.amount) || 0,
+                            "Penjualan Kotor": Number(customItem.amount) || 0,
+                            "Diskon Produk": 0,
+                            "Subtotal": isFirstRow ? filteredItemsSubtotal : '',
+                            "Diskon Transaksi": isFirstRow ? totalDiscount : '',
+                            "Pajak": isFirstRow ? Math.round(proportionalTax) : '',
+                            "Service Charge": isFirstRow ? Math.round(proportionalServiceCharge) : '',
+                            "Pembulatan": 0,
+                            "Poin Ditukar": 0,
+                            "Biaya Admin": 0,
+                            "Total": isFirstRow ? Math.round(filteredGrandTotal) : '',
+                            "Metode Pembayaran": isFirstRow ? paymentMethod : '',
+                            "Kode Pembayaran": isFirstRow ? paymentCode : '',
+                            "Transaction ID": isFirstRow ? transactionId : '',
+                            "Pembayaran": isFirstRow ? Math.round(filteredGrandTotal) : '',
+                            "Kode Voucher": order.appliedVoucher?.code || '-'
+                        };
+                    });
+
+                    totalRowsGenerated += itemRows.length + customAmountRows.length;
+                    return [...itemRows, ...customAmountRows];
+                } catch (err) {
+                    console.error('❌ Error processing order:', order.order_id, err);
+                    return [];
+                }
             });
 
-            const formatDate = (dateStr) => {
-                if (!dateStr) return "semua-tanggal";
-                const date = new Date(dateStr);
-                const dd = String(date.getDate()).padStart(2, '0');
-                const mm = String(date.getMonth() + 1).padStart(2, '0');
-                const yyyy = date.getFullYear();
-                return `${dd}-${mm}-${yyyy}`;
+            if (formattedExportData.length === 0) {
+                alert('Tidak ada data untuk di-export setelah processing. Periksa struktur data order.');
+                setIsExporting(false);
+                return;
+            }
+
+            const formatDate = (dateObj) => {
+                if (!dateObj) return "semua-tanggal";
+                return dayjs(dateObj).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY');
             };
 
             const startLabel = formatDate(dateRange?.startDate);
@@ -483,7 +608,8 @@ const SalesTransaction = () => {
                 ["Tanggal", `${startLabel} - ${endLabel}`],
                 ["Outlet", outletLabel],
                 ["Status Transaksi", "Completed"],
-                ["Total Data", `${formattedExportData.length} baris`],
+                ["Total Transaksi", `${exportData.length} transaksi`],
+                ["Total Baris Data", `${formattedExportData.length} baris`],
             ];
 
             if (searchTerm) {
@@ -493,9 +619,18 @@ const SalesTransaction = () => {
             await new Promise(resolve => setTimeout(resolve, 500));
 
             exportToExcel(formattedExportData, fileName, headerInfo);
+
         } catch (error) {
-            console.error('Error exporting:', error);
-            alert('Terjadi kesalahan saat mengekspor data');
+            console.error('❌ Error exporting:', error);
+            let errorMessage = 'Terjadi kesalahan saat mengekspor data: ' + error.message;
+
+            if (error.code === 'ECONNABORTED') {
+                errorMessage = 'Timeout: Waktu export terlalu lama. Coba kurangi range tanggal atau filter data.';
+            } else if (error.response?.status === 504) {
+                errorMessage = 'Gateway Timeout: Server membutuhkan waktu terlalu lama. Coba kurangi jumlah data.';
+            }
+
+            alert(errorMessage);
         } finally {
             setIsExporting(false);
         }

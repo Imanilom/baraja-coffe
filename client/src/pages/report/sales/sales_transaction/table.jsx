@@ -96,13 +96,13 @@ const SalesTransactionTable = ({
                                         const date = product?.createdAt || {};
                                         const cashier = product?.cashierId || {};
                                         const orderType = product?.orderType || {};
-                                        const paymentMethod = product?.actualPaymentMethod || product?.paymentMethod || "N/A";
+                                        const paymentMethod = product?.actualPaymentMethod || "N/A";
 
                                         let menuNames = [];
                                         let totalSubtotal = 0;
 
+                                        // ✅ Proses regular items
                                         if (Array.isArray(product?.items)) {
-                                            // ✅ Perbaikan: Ambil nama menu + addons yang dipilih
                                             menuNames = product.items.map((item) => {
                                                 try {
                                                     // Nama menu (prioritas: menuItemData → menuItem → fallback)
@@ -139,6 +139,28 @@ const SalesTransactionTable = ({
                                             totalSubtotal = product.items.reduce((sum, i) => {
                                                 return sum + (Number(i?.subtotal) || 0);
                                             }, 0);
+                                        }
+
+                                        // ✅ Proses custom amount items
+                                        if (Array.isArray(product?.customAmountItems)) {
+                                            const customNames = product.customAmountItems.map((customItem) => {
+                                                try {
+                                                    const customName = customItem?.name || 'Custom Amount';
+                                                    return `[Custom] ${customName}`;
+                                                } catch (err) {
+                                                    console.error('Error processing custom amount item:', err, customItem);
+                                                    return "[Custom] Error";
+                                                }
+                                            });
+
+                                            // Gabungkan dengan menuNames
+                                            menuNames = [...menuNames, ...customNames];
+
+                                            // Tambahkan ke total subtotal
+                                            const customSubtotal = product.customAmountItems.reduce((sum, i) => {
+                                                return sum + (Number(i?.amount) || 0);
+                                            }, 0);
+                                            totalSubtotal += customSubtotal;
                                         }
 
                                         return (

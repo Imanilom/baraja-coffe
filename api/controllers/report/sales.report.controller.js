@@ -657,14 +657,255 @@ class DailyProfitController {
   /**
   * Get order report - DUKUNG SPLIT PAYMENT
   */
+  // async getOrdersWithPayments(req, res) {
+  //   try {
+  //     // Ambil query params
+  //     const page = parseInt(req.query.page) || 1;
+  //     const limit = parseInt(req.query.limit) || 20;
+  //     const mode = req.query.mode || 'paginated'; // paginated, all, recent, count, ids
+
+  //     // Setup filters dari query params
+  //     const filters = {};
+
+  //     if (req.query.status) filters.status = req.query.status;
+  //     if (req.query.orderType) filters.orderType = req.query.orderType;
+  //     if (req.query.outlet) filters.outlet = req.query.outlet;
+
+  //     // Date range filter - FIXED TIMEZONE HANDLING
+  //     if (req.query.startDate || req.query.endDate) {
+  //       filters.createdAt = {};
+
+  //       if (req.query.startDate) {
+  //         // Parse tanggal dengan asumsi input dalam format YYYY-MM-DD (lokal)
+  //         // Buat Date object di timezone lokal (Asia/Jakarta = UTC+7)
+  //         const startDateStr = req.query.startDate; // Format: YYYY-MM-DD
+  //         const startDate = new Date(startDateStr + 'T00:00:00.000+07:00'); // Explicitly set timezone offset
+
+  //         console.log('Start Date Filter:', {
+  //           input: req.query.startDate,
+  //           parsed: startDate.toISOString(),
+  //           local: startDate.toString()
+  //         });
+
+  //         filters.createdAt.$gte = startDate;
+  //       }
+
+  //       if (req.query.endDate) {
+  //         // Parse tanggal dengan asumsi input dalam format YYYY-MM-DD (lokal)
+  //         const endDateStr = req.query.endDate; // Format: YYYY-MM-DD
+  //         const endDate = new Date(endDateStr + 'T23:59:59.999+07:00'); // Explicitly set timezone offset
+
+  //         console.log('End Date Filter:', {
+  //           input: req.query.endDate,
+  //           parsed: endDate.toISOString(),
+  //           local: endDate.toString()
+  //         });
+
+  //         filters.createdAt.$lte = endDate;
+  //       }
+  //     }
+
+  //     // Base query builder function
+  //     const buildQuery = () => {
+  //       return Order.find(filters)
+  //         .populate('items.menuItem')
+  //         .populate({
+  //           path: 'items.menuItem',
+  //           populate: {
+  //             path: 'category',
+  //             model: 'Category',
+  //             select: 'name'
+  //           }
+  //         })
+  //         .populate('outlet')
+  //         .populate('user_id')
+  //         .populate({
+  //           path: 'cashierId',
+  //           populate: {
+  //             path: 'outlet.outletId',
+  //             model: 'Outlet',
+  //             select: 'name address',
+  //           },
+  //         })
+  //         .sort({ createdAt: -1 })
+  //         .lean();
+  //     };
+
+  //     let orders, totalOrders, paginationInfo = null;
+
+  //     // Eksekusi berdasarkan mode
+  //     switch (mode) {
+  //       case 'all':
+  //         // Ambil semua data (untuk export)
+  //         orders = await buildQuery();
+  //         totalOrders = orders.length;
+  //         console.log(`Fetching ALL orders: ${totalOrders} records`);
+  //         break;
+
+  //       case 'recent':
+  //         // Ambil 10 data terbaru
+  //         orders = await buildQuery().limit(10);
+  //         totalOrders = await Order.countDocuments(filters);
+  //         paginationInfo = {
+  //           mode: 'recent',
+  //           showing: orders.length,
+  //           total: totalOrders
+  //         };
+  //         break;
+
+  //       case 'count':
+  //         // Hanya hitung jumlah
+  //         totalOrders = await Order.countDocuments(filters);
+  //         return res.status(200).json({
+  //           success: true,
+  //           count: totalOrders
+  //         });
+
+  //       case 'ids':
+  //         // Ambil hanya order IDs
+  //         const orderIds = await Order.find(filters)
+  //           .select('order_id createdAt status')
+  //           .sort({ createdAt: -1 })
+  //           .lean();
+  //         return res.status(200).json({
+  //           success: true,
+  //           data: orderIds
+  //         });
+
+  //       case 'paginated':
+  //       default:
+  //         // Mode pagination (default)
+  //         const skip = (page - 1) * limit;
+
+  //         totalOrders = await Order.countDocuments(filters);
+  //         const totalPages = Math.ceil(totalOrders / limit);
+
+  //         orders = await buildQuery().skip(skip).limit(limit);
+
+  //         console.log(`Fetching page ${page}: ${orders.length} records (Total: ${totalOrders})`);
+
+  //         paginationInfo = {
+  //           currentPage: page,
+  //           totalPages: totalPages,
+  //           totalOrders: totalOrders,
+  //           limit: limit,
+  //           hasNextPage: page < totalPages,
+  //           hasPrevPage: page > 1
+  //         };
+  //         break;
+  //     }
+
+  //     // Fetch payments hanya untuk orders yang ditampilkan
+  //     const orderIds = orders.map(order => order.order_id);
+  //     const allPayments = await Payment.find({
+  //       order_id: { $in: orderIds }
+  //     }).lean();
+
+  //     // Buat payment map
+  //     const paymentMap = {};
+  //     allPayments.forEach(payment => {
+  //       if (!paymentMap[payment.order_id]) {
+  //         paymentMap[payment.order_id] = [];
+  //       }
+  //       paymentMap[payment.order_id].push(payment);
+  //     });
+
+  //     // Combine orders dengan payments dan populate menuItemData
+  //     const ordersWithPayments = orders.map(order => {
+  //       // Populate menuItemData jika kosong (untuk order lama)
+  //       if (order.items && Array.isArray(order.items)) {
+  //         order.items = order.items.map(item => {
+  //           if (!item.menuItemData || !item.menuItemData.name) {
+  //             if (item.menuItem) {
+  //               item.menuItemData = {
+  //                 name: item.menuItem.name || 'Unknown Item',
+  //                 price: item.menuItem.price || 0,
+  //                 category: item.menuItem.category?.name || item.menuItem.mainCategory || 'Uncategorized',
+  //                 sku: item.menuItem.sku || '',
+  //                 isActive: item.menuItem.isActive !== false,
+  //                 selectedAddons: item.addons || [],
+  //                 selectedToppings: item.toppings || []
+  //               };
+  //             } else {
+  //               item.menuItemData = {
+  //                 name: 'Unknown Item',
+  //                 price: item.subtotal / (item.quantity || 1) || 0,
+  //                 category: 'Unknown',
+  //                 sku: 'N/A',
+  //                 isActive: false,
+  //                 selectedAddons: item.addons || [],
+  //                 selectedToppings: item.toppings || []
+  //               };
+  //             }
+  //           } else if (!item.menuItemData.selectedAddons) {
+  //             item.menuItemData.selectedAddons = item.addons || [];
+  //             item.menuItemData.selectedToppings = item.toppings || [];
+  //           }
+  //           return item;
+  //         });
+  //       }
+
+  //       const relatedPayments = paymentMap[order.order_id] || [];
+  //       let paymentDetails = null;
+  //       let actualPaymentMethod = order.paymentMethod || 'N/A';
+
+  //       if (order.orderType !== "Reservation") {
+  //         paymentDetails = relatedPayments.find(p =>
+  //           p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
+  //         );
+  //       } else {
+  //         paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+  //           relatedPayments.find(p => p.status === 'psrtisl') ||
+  //           relatedPayments.find(p => p.status === 'settlement') ||
+  //           relatedPayments.find(p =>
+  //             p.paymentType === 'Final Payment' &&
+  //             p.relatedPaymentId &&
+  //             (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
+  //           );
+  //       }
+
+  //       if (paymentDetails) {
+  //         actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
+  //       }
+
+  //       return {
+  //         ...order,
+  //         paymentDetails: paymentDetails || null,
+  //         actualPaymentMethod
+  //       };
+  //     });
+
+  //     // Response
+  //     const response = {
+  //       success: true,
+  //       data: ordersWithPayments
+  //     };
+
+  //     if (paginationInfo) {
+  //       response.pagination = paginationInfo;
+  //     }
+
+  //     res.status(200).json(response);
+
+  //   } catch (error) {
+  //     console.error('Get orders with payments error:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to fetch orders with payments',
+  //       error: error.message
+  //     });
+  //   }
+  // }
+
   async getOrdersWithPayments(req, res) {
     try {
-      // Ambil query params
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 20;
-      const mode = req.query.mode || 'paginated'; // paginated, all, recent, count, ids
+      const mode = req.query.mode || 'paginated';
 
-      // Setup filters dari query params
+      // PERBAIKAN: Tambah search parameter
+      const searchTerm = req.query.search || '';
+
       const filters = {};
 
       if (req.query.status) filters.status = req.query.status;
@@ -674,19 +915,29 @@ class DailyProfitController {
       // Date range filter
       if (req.query.startDate || req.query.endDate) {
         filters.createdAt = {};
+
         if (req.query.startDate) {
-          const startDate = new Date(req.query.startDate);
-          startDate.setHours(0, 0, 0, 0);
+          const startDateStr = req.query.startDate;
+          const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
           filters.createdAt.$gte = startDate;
         }
+
         if (req.query.endDate) {
-          const endDate = new Date(req.query.endDate);
-          endDate.setHours(23, 59, 59, 999);
+          const endDateStr = req.query.endDate;
+          const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
           filters.createdAt.$lte = endDate;
         }
       }
 
-      // Base query builder function
+      // PERBAIKAN: Tambah search filter ke MongoDB query
+      if (searchTerm) {
+        filters.$or = [
+          { order_id: { $regex: searchTerm, $options: 'i' } },
+          { user: { $regex: searchTerm, $options: 'i' } },
+          { 'items.menuItemData.name': { $regex: searchTerm, $options: 'i' } },
+        ];
+      }
+
       const buildQuery = () => {
         return Order.find(filters)
           .populate('items.menuItem')
@@ -714,17 +965,18 @@ class DailyProfitController {
 
       let orders, totalOrders, paginationInfo = null;
 
-      // Eksekusi berdasarkan mode
       switch (mode) {
         case 'all':
-          // Ambil semua data (untuk export)
-          orders = await buildQuery();
+          // PERBAIKAN: Pastikan tidak ada limit MongoDB default
+          const allOrdersQuery = buildQuery();
+          // Set maxTimeMS untuk query besar
+          allOrdersQuery.maxTimeMS(60000);
+          orders = await allOrdersQuery.exec();
           totalOrders = orders.length;
-          console.log(`Fetching ALL orders: ${totalOrders} records`);
+          console.log(`[EXPORT MODE] Fetching ALL orders: ${totalOrders} records`);
           break;
 
         case 'recent':
-          // Ambil 10 data terbaru
           orders = await buildQuery().limit(10);
           totalOrders = await Order.countDocuments(filters);
           paginationInfo = {
@@ -735,7 +987,6 @@ class DailyProfitController {
           break;
 
         case 'count':
-          // Hanya hitung jumlah
           totalOrders = await Order.countDocuments(filters);
           return res.status(200).json({
             success: true,
@@ -743,7 +994,6 @@ class DailyProfitController {
           });
 
         case 'ids':
-          // Ambil hanya order IDs
           const orderIds = await Order.find(filters)
             .select('order_id createdAt status')
             .sort({ createdAt: -1 })
@@ -755,9 +1005,7 @@ class DailyProfitController {
 
         case 'paginated':
         default:
-          // Mode pagination (default)
           const skip = (page - 1) * limit;
-
           totalOrders = await Order.countDocuments(filters);
           const totalPages = Math.ceil(totalOrders / limit);
 
@@ -776,13 +1024,12 @@ class DailyProfitController {
           break;
       }
 
-      // Fetch payments hanya untuk orders yang ditampilkan
+      // Fetch payments
       const orderIds = orders.map(order => order.order_id);
       const allPayments = await Payment.find({
         order_id: { $in: orderIds }
       }).lean();
 
-      // Buat payment map
       const paymentMap = {};
       allPayments.forEach(payment => {
         if (!paymentMap[payment.order_id]) {
@@ -791,11 +1038,11 @@ class DailyProfitController {
         paymentMap[payment.order_id].push(payment);
       });
 
-      // Combine orders dengan payments dan populate menuItemData
+      // PERBAIKAN: Pastikan semua items memiliki menuItemData
       const ordersWithPayments = orders.map(order => {
-        // Populate menuItemData jika kosong (untuk order lama)
         if (order.items && Array.isArray(order.items)) {
           order.items = order.items.map(item => {
+            // Prioritas: menuItemData > menuItem > default
             if (!item.menuItemData || !item.menuItemData.name) {
               if (item.menuItem) {
                 item.menuItemData = {
@@ -808,6 +1055,7 @@ class DailyProfitController {
                   selectedToppings: item.toppings || []
                 };
               } else {
+                // Fallback untuk item yang tidak memiliki menuItem reference
                 item.menuItemData = {
                   name: 'Unknown Item',
                   price: item.subtotal / (item.quantity || 1) || 0,
@@ -819,6 +1067,7 @@ class DailyProfitController {
                 };
               }
             } else if (!item.menuItemData.selectedAddons) {
+              // Pastikan addons dan toppings selalu ada
               item.menuItemData.selectedAddons = item.addons || [];
               item.menuItemData.selectedToppings = item.toppings || [];
             }
@@ -832,15 +1081,16 @@ class DailyProfitController {
 
         if (order.orderType !== "Reservation") {
           paymentDetails = relatedPayments.find(p =>
-            p.status === 'pending' || p.status === 'settlement'
+            p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
           );
         } else {
           paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+            relatedPayments.find(p => p.status === 'partial') ||
             relatedPayments.find(p => p.status === 'settlement') ||
             relatedPayments.find(p =>
               p.paymentType === 'Final Payment' &&
               p.relatedPaymentId &&
-              (p.status === 'pending' || p.status === 'settlement')
+              (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
             );
         }
 
@@ -855,10 +1105,22 @@ class DailyProfitController {
         };
       });
 
-      // Response
       const response = {
         success: true,
-        data: ordersWithPayments
+        data: ordersWithPayments,
+        // PERBAIKAN: Tambah metadata untuk debugging
+        metadata: {
+          mode: mode,
+          filters: {
+            status: req.query.status || 'all',
+            outlet: req.query.outlet || 'all',
+            dateRange: req.query.startDate && req.query.endDate
+              ? `${req.query.startDate} to ${req.query.endDate}`
+              : 'all',
+            search: searchTerm || 'none'
+          },
+          resultCount: ordersWithPayments.length
+        }
       };
 
       if (paginationInfo) {
