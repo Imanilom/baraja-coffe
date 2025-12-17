@@ -115,9 +115,13 @@ impl IntoResponse for AppError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Database error: {}", e),
             ),
-            AppError::BsonSerialization(e) | AppError::BsonDeserialization(e) => (
+            AppError::BsonSerialization(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Serialization error: {}", e),
+            ),
+            AppError::BsonDeserialization(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Deserialization error: {}", e),
             ),
             AppError::Redis(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
