@@ -20,13 +20,6 @@ export const generateSalesReport = async (req, res) => {
     const start = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0) - (7 * 60 * 60 * 1000));
     const end = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999) - (7 * 60 * 60 * 1000));
 
-    console.log('📅 Date Range Query:', {
-      startDate,
-      endDate,
-      start: start.toISOString(),
-      end: end.toISOString()
-    });
-
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({
         success: false,
@@ -57,8 +50,6 @@ export const generateSalesReport = async (req, res) => {
       .populate('outlet', 'name location')
       .populate('cashierId', 'name username')
       .lean();
-
-    console.log(`📊 Found ${orders.length} orders for report`);
 
     // ✅ FETCH PAYMENT RECORDS - Sama seperti getOrdersWithPayments
     const orderIds = orders.map(o => o.order_id).filter(id => id);
