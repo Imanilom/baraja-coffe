@@ -3600,6 +3600,7 @@ function generateTransactionId() {
 
 // Constant untuk expired time (optional, untuk memudahkan maintenance)
 const CASH_PAYMENT_EXPIRY_MINUTES = 30;
+const RESERVATION_PAYMENT_EXPIRY_HOURS = 6; // ✅ Reservasi: 6 jam expiry
 
 export const charge = async (req, res) => {
   try {
@@ -3626,7 +3627,7 @@ export const charge = async (req, res) => {
     }
 
     // === Validasi order ===
-    const order = await Order.findOne({ order_id });
+    const order = await Order.findOne({ order_id }).populate('reservation');
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -3658,8 +3659,27 @@ export const charge = async (req, res) => {
       if (payment_type === 'cash') {
         const transactionId = generateTransactionId();
         const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        // PERUBAHAN: 30 menit expired time
-        const expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+        // ✅ PERBAIKAN: Reservasi dapat expiry 6 jam SETELAH reservation_time
+        let expiryTime;
+        if (order.orderType === 'Reservation' && order.reservation) {
+          // Untuk reservasi: 6 jam setelah reservation_time
+          const reservation = order.reservation;
+          const reservationDate = new Date(reservation.reservation_date);
+          const timeParts = (reservation.reservation_time || '00:00').split(':');
+          const reservationDateTime = new Date(
+            reservationDate.getFullYear(),
+            reservationDate.getMonth(),
+            reservationDate.getDate(),
+            parseInt(timeParts[0]),
+            parseInt(timeParts[1])
+          );
+          const expiryDateTime = new Date(reservationDateTime.getTime() + RESERVATION_PAYMENT_EXPIRY_HOURS * 60 * 60 * 1000);
+          expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+        } else {
+          // Untuk order biasa: 30 menit dari sekarang
+          expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+        }
 
         const qrData = { order_id: order._id.toString() };
         const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
@@ -3829,8 +3849,27 @@ export const charge = async (req, res) => {
       if (payment_type === 'cash') {
         const transactionId = generateTransactionId();
         const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        // PERUBAHAN: 30 menit expired time
-        const expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+        // ✅ PERBAIKAN: Reservasi dapat expiry 6 jam SETELAH reservation_time
+        let expiryTime;
+        if (order.orderType === 'Reservation' && order.reservation) {
+          // Untuk reservasi: 6 jam setelah reservation_time
+          const reservation = order.reservation;
+          const reservationDate = new Date(reservation.reservation_date);
+          const timeParts = (reservation.reservation_time || '00:00').split(':');
+          const reservationDateTime = new Date(
+            reservationDate.getFullYear(),
+            reservationDate.getMonth(),
+            reservationDate.getDate(),
+            parseInt(timeParts[0]),
+            parseInt(timeParts[1])
+          );
+          const expiryDateTime = new Date(reservationDateTime.getTime() + RESERVATION_PAYMENT_EXPIRY_HOURS * 60 * 60 * 1000);
+          expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+        } else {
+          // Untuk order biasa: 30 menit dari sekarang
+          expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+        }
 
         const qrData = { order_id: order._id.toString() };
         const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
@@ -4002,8 +4041,27 @@ export const charge = async (req, res) => {
         if (payment_type === 'cash') {
           const transactionId = generateTransactionId();
           const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-          // PERUBAHAN: 30 menit expired time
-          const expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+          // ✅ PERBAIKAN: Reservasi dapat expiry 6 jam SETELAH reservation_time
+          let expiryTime;
+          if (order.orderType === 'Reservation' && order.reservation) {
+            // Untuk reservasi: 6 jam setelah reservation_time
+            const reservation = order.reservation;
+            const reservationDate = new Date(reservation.reservation_date);
+            const timeParts = (reservation.reservation_time || '00:00').split(':');
+            const reservationDateTime = new Date(
+              reservationDate.getFullYear(),
+              reservationDate.getMonth(),
+              reservationDate.getDate(),
+              parseInt(timeParts[0]),
+              parseInt(timeParts[1])
+            );
+            const expiryDateTime = new Date(reservationDateTime.getTime() + RESERVATION_PAYMENT_EXPIRY_HOURS * 60 * 60 * 1000);
+            expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+          } else {
+            // Untuk order biasa: 30 menit dari sekarang
+            expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+          }
 
           const qrData = { order_id: order._id.toString() };
           const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
@@ -4218,8 +4276,27 @@ export const charge = async (req, res) => {
     if (payment_type === 'cash') {
       const transactionId = generateTransactionId();
       const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      // PERUBAHAN: 30 menit expired time
-      const expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+      // ✅ PERBAIKAN: Reservasi dapat expiry 6 jam SETELAH reservation_time
+      let expiryTime;
+      if (order.orderType === 'Reservation' && order.reservation) {
+        // Untuk reservasi: 6 jam setelah reservation_time
+        const reservation = order.reservation;
+        const reservationDate = new Date(reservation.reservation_date);
+        const timeParts = (reservation.reservation_time || '00:00').split(':');
+        const reservationDateTime = new Date(
+          reservationDate.getFullYear(),
+          reservationDate.getMonth(),
+          reservationDate.getDate(),
+          parseInt(timeParts[0]),
+          parseInt(timeParts[1])
+        );
+        const expiryDateTime = new Date(reservationDateTime.getTime() + RESERVATION_PAYMENT_EXPIRY_HOURS * 60 * 60 * 1000);
+        expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+      } else {
+        // Untuk order biasa: 30 menit dari sekarang
+        expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      }
 
       const qrData = { order_id: order._id.toString() };
       const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
@@ -4321,6 +4398,8 @@ export const charge = async (req, res) => {
 
     const response = await coreApi.charge(chargeParams);
 
+    // ✅ CATATAN: Untuk non-cash payment, Midtrans akan set expiry_time sendiri
+    // Monitoring system akan skip reservasi saat check expiry
     const payment = new Payment({
       transaction_id: response.transaction_id,
       order_id: order_id,
@@ -4331,7 +4410,7 @@ export const charge = async (req, res) => {
       status: response.transaction_status || 'pending',
       fraud_status: response.fraud_status,
       transaction_time: response.transaction_time,
-      expiry_time: response.expiry_time,
+      expiry_time: response.expiry_time, // Keep as-is from Midtrans
       settlement_time: response.settlement_time || null,
       va_numbers: response.va_numbers || [],
       permata_va_number: response.permata_va_number || null,
