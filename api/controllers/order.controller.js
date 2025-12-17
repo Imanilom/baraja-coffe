@@ -2,6 +2,7 @@ import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
 import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
+import Table from "../models/Table.model.js";
 import Voucher from "../models/voucher.model.js";
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
@@ -2401,7 +2402,7 @@ export const createUnifiedOrder = async (req, res) => {
       cashierId,
       device_id,
       isSplitPayment = false,
-      
+
       // ========== OPEN BILL FIELDS ==========
       isOpenBill = false,
       customersCount = 1,
@@ -2471,7 +2472,7 @@ export const createUnifiedOrder = async (req, res) => {
     // ========== HANDLE OPEN BILL CLOSE REQUEST ==========
     if (closeOpenBill && order_id) {
       console.log('🔒 Processing Open Bill close request for:', order_id);
-      
+
       const result = await closeOpenBillHandler({
         orderId: order_id,
         cashierId,
@@ -2481,7 +2482,7 @@ export const createUnifiedOrder = async (req, res) => {
         notes: cashierNotes,
         isSplitPayment
       });
-      
+
       return res.status(200).json(result);
     }
 
@@ -2510,7 +2511,7 @@ export const createUnifiedOrder = async (req, res) => {
     // ========== CASHIER: OPEN BILL CREATION ==========
     if (source === 'Cashier' && isOpenBill) {
       console.log('💰 Processing Open Bill creation');
-      
+
       const result = await processOpenBillOrder({
         req,
         orderId,
@@ -2524,14 +2525,14 @@ export const createUnifiedOrder = async (req, res) => {
         taxPercentage,
         items: req.body.items || []
       });
-      
+
       return res.status(200).json(result);
     }
 
     // ========== CASHIER: REGULAR ORDER ==========
     if (source === 'Cashier') {
       console.log('💰 Processing regular Cashier order');
-      
+
       const result = await processCashierOrderDirect({
         req,
         orderId,
@@ -2546,7 +2547,7 @@ export const createUnifiedOrder = async (req, res) => {
         loyaltyPointsToRedeem,
         orderType
       });
-      
+
       return res.status(200).json(result);
     }
 
@@ -2748,7 +2749,7 @@ const processOpenBillOrder = async ({
       openBillStatus: 'active',
       status: { $in: ['Pending', 'OnProcess'] }
     });
-    
+
     if (existingOpenBill) {
       throw new Error(`Meja ${tableNumber} sudah memiliki open bill aktif (Order ID: ${existingOpenBill.order_id})`);
     }
@@ -2775,7 +2776,7 @@ const processOpenBillOrder = async ({
 
         // Hitung subtotal
         let subtotal = menuItem.price * item.quantity;
-        
+
         // Tambah addons
         if (item.selectedAddons && item.selectedAddons.length > 0) {
           item.selectedAddons.forEach(addon => {
@@ -2788,7 +2789,7 @@ const processOpenBillOrder = async ({
             }
           });
         }
-        
+
         // Tambah toppings
         if (item.selectedToppings && item.selectedToppings.length > 0) {
           item.selectedToppings.forEach(topping => {
@@ -2922,19 +2923,19 @@ const processOpenBillOrder = async ({
         {
           name: 'add_item',
           method: 'POST',
-          url: `/api/orders/open-bill/${orderId}/add-item`,
+          url: `/api/open-bill/${orderId}/add-item`,
           description: 'Tambahkan item ke open bill'
         },
         {
           name: 'get_details',
           method: 'GET',
-          url: `/api/orders/open-bill/${orderId}`,
+          url: `/api/open-bill/${orderId}`,
           description: 'Lihat detail open bill'
         },
         {
           name: 'close_bill',
           method: 'POST',
-          url: `/api/orders/open-bill/${orderId}/close`,
+          url: `/api/open-bill/${orderId}/close`,
           description: 'Tutup dan bayar open bill'
         }
       ]
@@ -2963,15 +2964,15 @@ const closeOpenBillHandler = async ({
       isOpenBill: true,
       openBillStatus: 'active'
     });
-    
+
     if (!order) {
       throw new Error('Open bill tidak ditemukan atau sudah ditutup');
     }
-    
+
     if (order.items.length === 0 || order.activeItemsCount === 0) {
       throw new Error('Tidak bisa menutup open bill tanpa item aktif');
     }
-    
+
     // Validasi cashier
     if (order.cashierId.toString() !== cashierId) {
       // Cek apakah cashier memiliki akses
@@ -2980,21 +2981,21 @@ const closeOpenBillHandler = async ({
         throw new Error('Anda tidak memiliki akses untuk menutup open bill ini');
       }
     }
-    
+
     // Validasi payment details
     const validatedPaymentDetails = validateAndNormalizePaymentDetails(
       paymentDetails,
       isSplitPayment,
       'Cashier'
     );
-    
+
     if (!validatedPaymentDetails) {
       throw new Error('Payment details diperlukan untuk menutup open bill');
     }
-    
+
     // Hitung total yang harus dibayar
     const totalToPay = order.grandTotal;
-    
+
     // Verifikasi payment amount
     let totalPayment = 0;
     if (Array.isArray(validatedPaymentDetails)) {
@@ -3002,15 +3003,15 @@ const closeOpenBillHandler = async ({
     } else {
       totalPayment = validatedPaymentDetails.amount || 0;
     }
-    
+
     if (totalPayment < totalToPay) {
       throw new Error(`Jumlah pembayaran (${totalPayment}) kurang dari total tagihan (${totalToPay})`);
     }
-    
+
     // Update customer info
     if (customerName) order.user = customerName;
     if (customerPhone) order.contact = { phone: customerPhone };
-    
+
     // Proses pembayaran
     const paymentResult = await processCashierPayment(
       orderId,
@@ -3020,13 +3021,13 @@ const closeOpenBillHandler = async ({
         isSplitPayment: isSplitPayment
       }
     );
-    
+
     // Update order status berdasarkan hasil pembayaran
     order.openBillClosedAt = new Date();
     order.openBillStatus = 'closed';
     order.status = 'Completed';
     order.cashierNotes = notes || order.cashierNotes;
-    
+
     // Update payments array
     if (Array.isArray(validatedPaymentDetails)) {
       validatedPaymentDetails.forEach((payment, index) => {
@@ -3050,18 +3051,18 @@ const closeOpenBillHandler = async ({
         notes: 'Final payment for open bill'
       });
     }
-    
+
     // Hitung change jika ada
     if (totalPayment > totalToPay) {
       order.change = totalPayment - totalToPay;
     }
-    
+
     // Simpan perubahan
     await order.save();
-    
+
     // Update status meja menjadi available
     await updateTableStatus(order.tableNumber, order.outletId, 'available', null);
-    
+
     // Broadcast open bill closed
     broadcastOpenBillClosed({
       orderId,
@@ -3073,7 +3074,7 @@ const closeOpenBillHandler = async ({
       closedBy: cashierId,
       timestamp: new Date()
     });
-    
+
     // Generate receipt data
     const receiptData = {
       orderId: order.order_id,
@@ -3095,9 +3096,9 @@ const closeOpenBillHandler = async ({
       cashier: cashierId,
       duration: order.openBillDuration
     };
-    
+
     console.log(`✅ Open bill closed: ${orderId}, Total: ${totalToPay}, Paid: ${totalPayment}`);
-    
+
     return {
       success: true,
       status: 'Completed',
@@ -3113,7 +3114,7 @@ const closeOpenBillHandler = async ({
       duration: order.openBillDuration,
       message: `Open bill berhasil ditutup untuk meja ${order.tableNumber}`
     };
-    
+
   } catch (error) {
     console.error('❌ Error closing open bill:', error);
     throw error;
@@ -3126,25 +3127,25 @@ const closeOpenBillHandler = async ({
 export const getActiveOpenBills = async (req, res) => {
   try {
     const { outletId } = req.query;
-    
+
     if (!outletId) {
       return res.status(400).json({
         success: false,
         message: 'outletId diperlukan'
       });
     }
-    
+
     const filters = {};
     if (req.query.tableNumber) filters.tableNumber = req.query.tableNumber;
     if (req.query.cashierId) filters.cashierId = req.query.cashierId;
-    
+
     const openBills = await Order.getActiveOpenBills(outletId, filters);
-    
+
     // Format response
     const formattedBills = openBills.map(bill => {
       const duration = calculateDuration(bill.openBillStartedAt, new Date());
       const activeItems = bill.items.filter(item => !item.isCancelled);
-      
+
       return {
         orderId: bill.order_id,
         tableNumber: bill.tableNumber,
@@ -3163,13 +3164,13 @@ export const getActiveOpenBills = async (req, res) => {
         lastUpdated: bill.lastItemAddedAt || bill.openBillStartedAt
       };
     });
-    
+
     return res.status(200).json({
       success: true,
       count: formattedBills.length,
       openBills: formattedBills
     });
-    
+
   } catch (error) {
     console.error('Error getting active open bills:', error);
     return res.status(400).json({
@@ -3179,6 +3180,56 @@ export const getActiveOpenBills = async (req, res) => {
   }
 };
 
+export const closeOpenBill = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const {
+      cashierId,
+      paymentDetails,
+      customerName = '',
+      customerPhone = '',
+      notes = '',
+      isSplitPayment = false
+    } = req.body;
+
+    if (!cashierId) {
+      return res.status(400).json({
+        success: false,
+        message: 'cashierId diperlukan'
+      });
+    }
+
+    if (!paymentDetails) {
+      return res.status(400).json({
+        success: false,
+        message: 'paymentDetails diperlukan'
+      });
+    }
+
+    console.log('🔒 Processing Open Bill close via dedicated endpoint:', orderId);
+
+    const result = await closeOpenBillHandler({
+      orderId,
+      cashierId,
+      paymentDetails,
+      customerName,
+      customerPhone,
+      notes,
+      isSplitPayment
+    });
+
+    return res.status(200).json(result);
+
+  } catch (error) {
+    console.error('Error closing open bill via endpoint:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+
 /**
  * Get open bill details
  */
@@ -3186,24 +3237,24 @@ export const getOpenBillDetails = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { outletId } = req.query;
-    
+
     const order = await Order.getOpenBillById(orderId, outletId);
-    
+
     if (!order) {
       return res.status(404).json({
         success: false,
         message: 'Open bill tidak ditemukan'
       });
     }
-    
+
     // Format response
     const activeItems = order.items.filter(item => !item.isCancelled);
     const cancelledItems = order.items.filter(item => item.isCancelled);
-    
-    const duration = order.openBillClosedAt 
+
+    const duration = order.openBillClosedAt
       ? calculateDuration(order.openBillStartedAt, order.openBillClosedAt)
       : calculateDuration(order.openBillStartedAt, new Date());
-    
+
     const response = {
       orderId: order.order_id,
       tableNumber: order.tableNumber,
@@ -3250,12 +3301,12 @@ export const getOpenBillDetails = async (req, res) => {
       notes: order.cashierNotes,
       tableStatus: order.tableStatus
     };
-    
+
     return res.status(200).json({
       success: true,
       openBill: response
     });
-    
+
   } catch (error) {
     console.error('Error getting open bill details:', error);
     return res.status(400).json({
@@ -3488,15 +3539,15 @@ export const updateOpenBill = async (req, res) => {
     if (customersCount !== undefined) {
       updates.customersCount = customersCount;
     }
-    
+
     if (cashierNotes !== undefined) {
       updates.cashierNotes = cashierNotes;
     }
-    
+
     if (serviceCharge !== undefined) {
       updates.serviceCharge = serviceCharge;
     }
-    
+
     if (taxPercentage !== undefined) {
       updates.taxPercentage = taxPercentage;
     }
@@ -3588,7 +3639,7 @@ export const transferOpenBill = async (req, res) => {
       openBillStatus: 'active',
       status: { $in: ['Pending', 'OnProcess'] }
     });
-    
+
     if (existingOpenBillAtNewTable && existingOpenBillAtNewTable.order_id !== orderId) {
       return res.status(400).json({
         success: false,
@@ -3597,10 +3648,10 @@ export const transferOpenBill = async (req, res) => {
     }
 
     const oldTable = order.tableNumber;
-    
+
     // Update table number
     order.tableNumber = toTable;
-    
+
     // Tambahkan ke transfer history
     order.transferHistory.push({
       fromTable: oldTable,
@@ -3609,15 +3660,15 @@ export const transferOpenBill = async (req, res) => {
       reason: reason,
       transferredAt: new Date()
     });
-    
+
     await order.save();
-    
+
     // Update status meja lama
     await updateTableStatus(oldTable, order.outletId, 'available', null);
-    
+
     // Update status meja baru
     await updateTableStatus(toTable, order.outletId, 'occupied', orderId);
-    
+
     // Broadcast transfer
     if (global.io) {
       global.io.to(`outlet_${order.outletId}`).emit('open_bill_transferred', {
@@ -3653,30 +3704,30 @@ export const transferOpenBill = async (req, res) => {
 export const getOpenBillSummary = async (req, res) => {
   try {
     const { outletId, cashierId, date } = req.query;
-    
+
     if (!outletId) {
       return res.status(400).json({
         success: false,
         message: 'outletId diperlukan'
       });
     }
-    
+
     const startDate = date ? new Date(date) : new Date();
     startDate.setHours(0, 0, 0, 0);
-    
+
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + 1);
-    
+
     const matchStage = {
       outletId: mongoose.Types.ObjectId(outletId),
       isOpenBill: true,
       openBillStartedAt: { $gte: startDate, $lt: endDate }
     };
-    
+
     if (cashierId) {
       matchStage.cashierId = mongoose.Types.ObjectId(cashierId);
     }
-    
+
     const summary = await Order.aggregate([
       {
         $match: matchStage
@@ -3698,14 +3749,14 @@ export const getOpenBillSummary = async (req, res) => {
         }
       }
     ]);
-    
+
     // Get table occupancy
     const activeTables = await Order.find({
       outletId,
       isOpenBill: true,
       openBillStatus: 'active'
     }).distinct('tableNumber');
-    
+
     // Get cashier stats
     const cashierStats = await Order.aggregate([
       {
@@ -3746,7 +3797,7 @@ export const getOpenBillSummary = async (req, res) => {
         $sort: { billCount: -1 }
       }
     ]);
-    
+
     return res.status(200).json({
       success: true,
       summary: summary[0] || {
@@ -3763,7 +3814,7 @@ export const getOpenBillSummary = async (req, res) => {
       cashierStats,
       date: startDate
     });
-    
+
   } catch (error) {
     console.error('Error getting open bill summary:', error);
     return res.status(400).json({
@@ -3782,7 +3833,7 @@ const calculateDuration = (startTime, endTime) => {
   const diffMs = endTime - startTime;
   const hours = Math.floor(diffMs / (1000 * 60 * 60));
   const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   return { hours, minutes, totalMinutes: Math.floor(diffMs / (1000 * 60)) };
 };
 
@@ -4363,7 +4414,7 @@ const updateTableStatus = async (tableNumber, outletId, status, orderId = null) 
       },
       { upsert: true, new: true }
     );
-    
+
     // Broadcast status update
     if (global.io) {
       global.io.to(`outlet_${outletId}`).emit('table_status_updated', {
@@ -4373,9 +4424,9 @@ const updateTableStatus = async (tableNumber, outletId, status, orderId = null) 
         timestamp: new Date()
       });
     }
-    
+
     console.log(`✅ Table ${tableNumber} status updated to ${status}`);
-    
+
   } catch (error) {
     console.error('❌ Error updating table status:', error);
   }
@@ -4387,6 +4438,20 @@ const broadcastItemAdded = (data) => {
     global.io.to(`cashier_${data.outletId}`).emit('open_bill_item_added', data);
   }
 };
+
+const broadcastNewOpenBill = (data) => {
+  io.to(`kitchen_${data.outletId}`).emit('open_bill_started', data);
+  io.to(`cashier_${data.outletId}`).emit('open_bill_started', data);
+};
+
+const broadcastItemToKitchen = (data) => {
+  io.to(`kitchen_${data.outletId}`).emit('open_bill_item_added', data);
+};
+
+const broadcastTableTransfer = (data) => {
+  io.to(`outlet_${data.outletId}`).emit('open_bill_transferred', data);
+};
+
 
 /**
  * Broadcast open bill closed

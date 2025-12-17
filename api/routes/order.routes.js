@@ -33,6 +33,7 @@ import {
   cancelOpenBillItem,
   updateOpenBill,
   transferOpenBill,
+  closeOpenBill,
   getOpenBillSummary
 } from '../controllers/order.controller.js';
 
@@ -83,6 +84,7 @@ router.post("/unified-order", createUnifiedOrder);
 
 router.get('/open-bills/active', getActiveOpenBills);
 router.get('/open-bill/:orderId', getOpenBillDetails);
+router.post('/open-bill/:orderId/close', closeOpenBill);
 router.post('/open-bill/:orderId/add-item', addItemToOpenBill);
 router.delete('/open-bill/:orderId/item/:itemIndex', cancelOpenBillItem);
 router.patch('/open-bill/:orderId', updateOpenBill);
