@@ -1246,7 +1246,10 @@ export const getReservations = async (req, res) => {
       let areaInfo = null;
 
       if (order.tableNumber) {
-        const table = await Table.findOne({ table_number: order.tableNumber })
+        // ✅ FIX: Convert to uppercase to match Table model storage
+        const tableNumberUpper = order.tableNumber.toUpperCase();
+
+        const table = await Table.findOne({ table_number: tableNumberUpper })
           .populate('area_id', 'area_name area_code capacity')
           .lean();
 
@@ -1257,7 +1260,13 @@ export const getReservations = async (req, res) => {
             seats: table.seats
           };
           areaInfo = table.area_id;
+
+          console.log(`✅ Table found for order ${order.order_id}: ${table.table_number}, Area: ${areaInfo?.area_name}`);
+        } else {
+          console.log(`⚠️ Table NOT found for tableNumber: ${tableNumberUpper} (original: ${order.tableNumber})`);
         }
+      } else {
+        console.log(`⚠️ Order ${order.order_id} has no tableNumber`);
       }
 
       return {
@@ -1805,6 +1814,33 @@ export const editReservation = async (req, res) => {
         order.updatedAtWIB = getWIBNow();
 
         await order.save({ session });
+
+        // ✅ FIX: Update related Payment records when order totals change
+        const existingPayments = await Payment.find({
+          order_id: order.order_id
+        }).session(session);
+
+        if (existingPayments.length > 0) {
+          for (const payment of existingPayments) {
+            // Update totalAmount to reflect new grandTotal
+            payment.totalAmount = order.grandTotal;
+
+            // Recalculate remainingAmount based on payment type
+            if (payment.paymentType === 'Down Payment') {
+              // For DP, remaining = grandTotal - paid amount
+              payment.remainingAmount = Math.max(0, order.grandTotal - payment.amount);
+            } else if (payment.paymentType === 'Full') {
+              // Full payment should match grandTotal
+              payment.amount = order.grandTotal;
+              payment.remainingAmount = 0;
+            }
+            // For Final Payment, don't modify - it's a separate payment for remaining balance
+
+            await payment.save({ session });
+          }
+
+          console.log(`✅ Updated ${existingPayments.length} payment record(s) with new totals`);
+        }
 
         console.log('✅ Order updated:', {
           orderId: order.order_id,

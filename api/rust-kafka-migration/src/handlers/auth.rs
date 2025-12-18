@@ -2,14 +2,14 @@ use axum::{
     extract::State,
     Json,
 };
-use bson::oid::ObjectId;
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::db::models::{User, UserResponse, AuthType};
 use crate::db::repositories::UserRepository;
 use crate::error::{ApiResponse, AppError, AppResult};
-use crate::utils::{generate_token, verify_token};
+use crate::utils::generate_token;
 use crate::AppState;
 
 /// Signup request
@@ -208,12 +208,12 @@ pub async fn signin(
 /// Get current user - GET /api/auth/me
 pub async fn get_me(
     State(state): State<Arc<AppState>>,
-    axum::Extension(user_id): axum::Extension<bson::oid::ObjectId>,
+    axum::Extension(user_id): axum::Extension<crate::middleware::UserId>,
 ) -> AppResult<Json<ApiResponse<UserResponse>>> {
     let user_repo = UserRepository::new(state.db.clone());
 
     let (user, role) = user_repo
-        .find_with_role(&user_id)
+        .find_with_role(&user_id.0)
         .await?
         .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
@@ -232,7 +232,7 @@ pub struct UpdateProfileRequest {
 /// Update profile - POST /api/auth/update-profile
 pub async fn update_profile(
     State(state): State<Arc<AppState>>,
-    axum::Extension(user_id): axum::Extension<bson::oid::ObjectId>,
+    axum::Extension(user_id): axum::Extension<crate::middleware::UserId>,
     Json(payload): Json<UpdateProfileRequest>,
 ) -> AppResult<Json<ApiResponse<UserResponse>>> {
     let user_repo = UserRepository::new(state.db.clone());
@@ -240,7 +240,7 @@ pub async fn update_profile(
     // Update profile
     user_repo
         .update_profile(
-            &user_id,
+            &user_id.0,
             payload.username.as_deref(),
             payload.phone.as_deref(),
         )
@@ -248,7 +248,7 @@ pub async fn update_profile(
 
     // Get updated user
     let (user, role) = user_repo
-        .find_with_role(&user_id)
+        .find_with_role(&user_id.0)
         .await?
         .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
@@ -272,7 +272,7 @@ pub struct ChangePasswordRequest {
 /// Change password - POST /api/auth/change-password
 pub async fn change_password(
     State(state): State<Arc<AppState>>,
-    axum::Extension(user_id): axum::Extension<bson::oid::ObjectId>,
+    axum::Extension(user_id): axum::Extension<crate::middleware::UserId>,
     Json(payload): Json<ChangePasswordRequest>,
 ) -> AppResult<Json<ApiResponse<()>>> {
     if payload.current_password.is_empty() || payload.new_password.is_empty() {
@@ -285,7 +285,7 @@ pub async fn change_password(
 
     // Get user
     let user = user_repo
-        .find_by_id(&user_id)
+        .find_by_id(&user_id.0)
         .await?
         .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
@@ -304,7 +304,7 @@ pub async fn change_password(
         .map_err(|e| AppError::Internal(format!("Failed to hash password: {}", e)))?;
 
     // Update password
-    user_repo.update_password(&user_id, &hashed_password).await?;
+    user_repo.update_password(&user_id.0, &hashed_password).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),

@@ -62,6 +62,12 @@ pub enum AppError {
 
     #[error("External service error: {0}")]
     ExternalService(String),
+
+    #[error("Configuration error: {0}")]
+    Config(#[from] config::ConfigError),
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 /// Standard API response structure matching Node.js format
@@ -115,9 +121,13 @@ impl IntoResponse for AppError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Database error: {}", e),
             ),
-            AppError::BsonSerialization(e) | AppError::BsonDeserialization(e) => (
+            AppError::BsonSerialization(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Serialization error: {}", e),
+            ),
+            AppError::BsonDeserialization(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Deserialization error: {}", e),
             ),
             AppError::Redis(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -125,7 +135,7 @@ impl IntoResponse for AppError {
             ),
             AppError::Kafka(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Event streaming error: {}", e),
+                format!("Kafka error: {}", e),
             ),
             AppError::HttpClient(e) => (
                 StatusCode::BAD_GATEWAY,
@@ -135,16 +145,25 @@ impl IntoResponse for AppError {
                 StatusCode::BAD_REQUEST,
                 format!("Invalid data format: {}", e),
             ),
-            AppError::Authentication(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
-            AppError::Authorization(msg) => (StatusCode::FORBIDDEN, msg.clone()),
+            AppError::Config(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Configuration error: {}", e),
+            ),
+            AppError::Io(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("IO error: {}", e),
+            ),
+            AppError::Authentication(msg) | AppError::Authorization(msg) => {
+                (StatusCode::UNAUTHORIZED, msg.clone())
+            }
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::Payment(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::Payment(msg) => (StatusCode::PAYMENT_REQUIRED, msg.clone()),
             AppError::Stock(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Lock(msg) => (StatusCode::CONFLICT, msg.clone()),
+            AppError::Lock(msg) => (StatusCode::LOCKED, msg.clone()),
             AppError::ExternalService(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
         };
 

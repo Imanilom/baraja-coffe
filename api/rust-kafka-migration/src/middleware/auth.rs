@@ -1,9 +1,7 @@
 use axum::{
     extract::{Request, State},
-    http::StatusCode,
     middleware::Next,
     response::Response,
-    RequestExt,
 };
 use std::sync::Arc;
 use bson::oid::ObjectId;
@@ -11,6 +9,10 @@ use bson::oid::ObjectId;
 use crate::error::{AppError, AppResult};
 use crate::utils::verify_token;
 use crate::AppState;
+
+/// User ID extension for request
+#[derive(Clone, Debug)]
+pub struct UserId(pub ObjectId);
 
 /// Authentication middleware - validates JWT tokens
 pub async fn auth_middleware(
@@ -34,7 +36,7 @@ pub async fn auth_middleware(
                     match ObjectId::parse_str(&claims.sub) {
                         Ok(user_id) => {
                             // Inject user ID directly into request extensions
-                            request.extensions_mut().insert(user_id);
+                            request.extensions_mut().insert(UserId(user_id));
                             tracing::debug!("Authenticated user: {}", user_id);
                             return Ok(next.run(request).await);
                         }

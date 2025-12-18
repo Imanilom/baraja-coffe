@@ -127,7 +127,7 @@ impl Config {
         let config = config::Config::builder()
             .add_source(config::Environment::default().separator("_"))
             .set_default("server.port", 8080)?
-            .set_default("server.env", &env)?
+            .set_default("server.env", env.as_str())?
             .set_default("database.max_pool_size", 10)?
             .set_default("database.min_pool_size", 2)?
             .set_default("logging.level", "info")?
