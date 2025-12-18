@@ -2,14 +2,14 @@ use axum::{
     extract::State,
     Json,
 };
-use bson::oid::ObjectId;
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::db::models::{User, UserResponse, AuthType};
 use crate::db::repositories::UserRepository;
 use crate::error::{ApiResponse, AppError, AppResult};
-use crate::utils::{generate_token, verify_token};
+use crate::utils::generate_token;
 use crate::AppState;
 
 /// Signup request

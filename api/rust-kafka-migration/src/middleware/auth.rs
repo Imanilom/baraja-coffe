@@ -1,9 +1,7 @@
 use axum::{
     extract::{Request, State},
-    http::StatusCode,
     middleware::Next,
     response::Response,
-    RequestExt,
 };
 use std::sync::Arc;
 use bson::oid::ObjectId;

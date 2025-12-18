@@ -52,15 +52,13 @@ const TypeTransaction = () => {
     const [error, setError] = useState(null);
 
     const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [selectedStatus, setSelectedStatus] = useState("");
+    const [selectedStatus, setSelectedStatus] = useState([]);
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
+    const ITEMS_PER_PAGE = 20;
 
     const dropdownRef = useRef(null);
     const receiptRef = useRef();
@@ -148,12 +146,37 @@ const TypeTransaction = () => {
         setSearchParams(params);
     };
 
-    // Fetch products with payment details
+    // Fetch products with payment details - PERBAIKAN: kirim parameter filter ke backend
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            // Menggunakan endpoint baru yang sudah menggabungkan orders + payments
-            const response = await axios.get('/api/report/orders');
+            // Build query params
+            const params = new URLSearchParams();
+            params.append('mode', 'all'); // Get all data without pagination from backend
+
+            // Add filters
+            if (dateRange?.startDate && dateRange?.endDate) {
+                params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+                params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+            }
+
+            if (selectedOutlet) {
+                params.append('outlet', selectedOutlet);
+            }
+
+            // PERBAIKAN: Kirim status sebagai comma-separated string atau multiple params
+            if (selectedStatus && Array.isArray(selectedStatus) && selectedStatus.length > 0) {
+                // Backend expects individual status, not comma-separated
+                // But based on backend code, it expects single status
+                // So we'll filter on frontend instead
+                // params.append('status', selectedStatus[0]);
+            }
+
+            if (searchTerm) {
+                params.append('search', searchTerm);
+            }
+
+            const response = await axios.get(`/api/report/orders?${params.toString()}`);
 
             const productsData = Array.isArray(response.data?.data)
                 ? response.data.data
@@ -190,9 +213,15 @@ const TypeTransaction = () => {
     };
 
     useEffect(() => {
-        fetchProducts();
         fetchOutlets();
     }, []);
+
+    // Fetch products when filters change
+    useEffect(() => {
+        if (dateRange) {
+            fetchProducts();
+        }
+    }, [dateRange, selectedOutlet, searchTerm]);
 
     const options = [
         { value: "", label: "Semua Outlet" },
@@ -220,9 +249,11 @@ const TypeTransaction = () => {
         let newStatus;
 
         if (Array.isArray(selectedValues)) {
-            newStatus = selectedValues;
+            newStatus = selectedValues.map(v => v.value || v);
         } else if (selectedValues && selectedValues.value !== undefined) {
             newStatus = selectedValues.value ? [selectedValues.value] : [];
+        } else if (selectedValues === null || selectedValues === undefined) {
+            newStatus = [];
         } else {
             newStatus = [];
         }
@@ -244,84 +275,19 @@ const TypeTransaction = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-        let filtered = ensureArray([...products]);
+    // Apply filter function - FRONTEND FILTERING untuk status
+    const filteredData = useMemo(() => {
+        let filtered = Array.isArray(products) ? [...products] : [];
 
-        // Filter by search term
-        if (searchTerm) {
-            filtered = filtered.filter(product => {
-                try {
-                    const searchTermLower = searchTerm.toLowerCase();
-                    return product.items?.some(item => {
-                        const menuItem = item?.menuItem;
-                        if (!menuItem) return false;
-                        const name = (menuItem.name || '').toLowerCase();
-                        const customer = (product.user || '').toLowerCase();
-                        const receipt = (product.order_id || '').toLowerCase();
-                        return name.includes(searchTermLower) ||
-                            receipt.includes(searchTermLower) ||
-                            customer.includes(searchTermLower);
-                    });
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (selectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    const outletId = product.outlet?._id;
-                    return outletId === selectedOutlet;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by status
+        // Filter by status - dilakukan di frontend karena backend belum support multiple status
         if (selectedStatus && Array.isArray(selectedStatus) && selectedStatus.length > 0) {
             filtered = filtered.filter(product => {
-                try {
-                    return selectedStatus.includes(product.status);
-                } catch (err) {
-                    console.error("Error filtering by status:", err);
-                    return false;
-                }
+                return selectedStatus.includes(product.status);
             });
         }
 
-        // Filter by date range
-        if (dateRange && dateRange.startDate && dateRange.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) return false;
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(dateRange.startDate);
-                    const endDate = new Date(dateRange.endDate);
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-                    return productDate >= startDate && productDate <= endDate;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, searchTerm, selectedOutlet, selectedStatus, dateRange]);
-
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
+        return filtered;
+    }, [products, selectedStatus]);
 
     // Paginate the filtered data
     const paginatedData = useMemo(() => {
