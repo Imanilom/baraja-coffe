@@ -17,7 +17,7 @@ import {
   updateMenuActivated,
   getMenuItemsBackOffice,
 } from '../controllers/menu.controller.js';
-import { 
+import {
   manualStockCalibration,
   calibrateSingleMenuStockForAllWarehouses,
   calibrateSingleMenuStockForWarehouse,
@@ -34,7 +34,7 @@ import { PrintLogger } from '../services/print-logger.service.js';
 const router = express.Router();
 
 // Middleware for admin and superadmin only
-const adminAccess = verifyToken(['admin', 'superadmin', 'marketing', 'operational']);
+const adminAccess = verifyToken(['admin', 'superadmin', 'marketing', 'akuntan', 'operational', 'super kasir']);
 
 // MenuItem Routes
 router.post('/menu-items', upload.single('images'), createMenuItem); // Create a new MenuItem
@@ -87,7 +87,7 @@ router.post('/calibrate/menu/:menuItemId', async (req, res) => {
   try {
     const { menuItemId } = req.params;
     const result = await calibrateSingleMenuStockForAllWarehouses(menuItemId);
-    
+
     res.json({
       success: true,
       data: result
@@ -106,7 +106,7 @@ router.post('/calibrate/menu/:menuItemId/warehouse/:warehouseId', async (req, re
   try {
     const { menuItemId, warehouseId } = req.params;
     const result = await calibrateSingleMenuStockForWarehouse(menuItemId, warehouseId);
-    
+
     res.json({
       success: true,
       data: result
@@ -125,7 +125,7 @@ router.post('/calibrate/workstation/:workstation', async (req, res) => {
   try {
     const { workstation } = req.params;
     const result = await calibrateMenuStocksByWorkstation(workstation);
-    
+
     res.json({
       success: true,
       data: result
@@ -144,7 +144,7 @@ router.get('/status/menu/:menuItemId', async (req, res) => {
   try {
     const { menuItemId } = req.params;
     const result = await getMenuCalibrationStatus(menuItemId);
-    
+
     res.json({
       success: true,
       data: result
