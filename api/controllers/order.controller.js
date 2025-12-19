@@ -2789,6 +2789,7 @@ const processCashierOrderDirect = async ({
     tableNumber,
     orderData: validated,
     outletId,
+    cashierId,  // 🔧 NEW: Pass cashierId for device-based routing
     hasCustomAmountItems: finalCustomAmountItems.length > 0,
     isSplitPayment: Array.isArray(validatedPaymentDetails)
   });

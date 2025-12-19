@@ -43,6 +43,14 @@ const UserSchema = new mongoose.Schema({
     default: null
   },
 
+  // 🔧 Device ID untuk kasir - digunakan untuk routing order ke bar/kitchen yang sesuai
+  device_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Device',
+    required: false,
+    default: null
+  },
+
   outlet: [
     {
       outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: false },

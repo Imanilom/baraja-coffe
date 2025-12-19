@@ -275,6 +275,7 @@ export const getOrderPrintHistory = async (req, res) => {
 export const getWorkstationOrders = async (req, res) => {
   try {
     const { workstationType } = req.params;
+    const { location: deviceLocation } = req.query; // 🔧 NEW: Accept location query param
     const startTime = Date.now();
 
     if (!workstationType || !['kitchen', 'bar', 'general'].includes(workstationType)) {
@@ -288,8 +289,15 @@ export const getWorkstationOrders = async (req, res) => {
     const orders = await Order.find({
       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
     })
-      .select('order_id user status items createdAt updatedAt orderType reservation tableNumber cashierId groId createdAtWIB updatedAtWIB')
-      .populate('cashierId', 'username')
+      .select('order_id user status items createdAt updatedAt orderType reservation tableNumber cashierId groId createdAtWIB updatedAtWIB source')
+      .populate({
+        path: 'cashierId',
+        select: 'username device_id',
+        populate: {
+          path: 'device_id',
+          select: 'location deviceName'
+        }
+      })
       .populate('groId', 'username')
       .populate({
         path: 'items.menuItem',
@@ -363,6 +371,37 @@ export const getWorkstationOrders = async (req, res) => {
       }
 
       if (relevantItems.length === 0) return acc;
+
+      // 🔧 NEW: Filter by device location for bar workstation
+      if (workstationType === 'bar' && deviceLocation) {
+        const orderSource = (order.source || '').toLowerCase();
+        const orderType = (order.orderType || '').toLowerCase();
+        const isReservation = orderType === 'reservation' || !!order.reservation;
+        const isGRO = orderSource === 'gro' || !!order.groId;
+
+        // Get cashier's device location
+        const cashierDeviceLocation = order.cashierId?.device_id?.location;
+
+        // ROUTING LOGIC:
+        // 1. Reservations and GRO orders → bar_depan only
+        if (isReservation || isGRO) {
+          if (deviceLocation !== 'depan') {
+            return acc; // Skip - reservation/GRO only goes to bar_depan
+          }
+        }
+        // 2. Cashier with linked device → route to matching bar
+        else if (cashierDeviceLocation) {
+          if (cashierDeviceLocation !== deviceLocation) {
+            return acc; // Skip - cashier location doesn't match
+          }
+        }
+        // 3. Other orders (scan table, no device) → default to bar_depan
+        else {
+          if (deviceLocation !== 'depan') {
+            return acc; // Skip - default routing goes to bar_depan
+          }
+        }
+      }
 
       // Calculate preparation timing for reservations
       let shouldStartPreparation = false;

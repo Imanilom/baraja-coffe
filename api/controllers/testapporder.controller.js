@@ -25,6 +25,7 @@ import Reservation from '../models/Reservation.model.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
 import { db } from '../utils/mongo.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
+import { Device } from '../models/Device.model.js';
 /**
  * ==================================================================================
  * SECTION 1: CONFIGURATION & CONSTANTS
@@ -443,6 +444,125 @@ function parseIndonesianDate(dateString) {
     }
     return new Date(dateString);
 }
+
+/**
+ * ==================================================================================
+ * SECTION 8.5: GRO ORDER BROADCAST TO WORKSTATIONS
+ * ==================================================================================
+ * Broadcasts GRO orders directly to Bar Depan and Kitchen devices for immediate print.
+ * This ensures GRO orders are printed without delay.
+ */
+async function broadcastGROOrderToWorkstations({
+    orderId, tableNumber, orderItems, orderType, outlet, customerName, isReservation, service
+}) {
+    try {
+        if (!orderItems || orderItems.length === 0) {
+            console.log('📭 No items to broadcast to workstations');
+            return;
+        }
+
+        console.log('\n🖨️ ========== GRO WORKSTATION BROADCAST ==========');
+        console.log(`📋 Order ID: ${orderId}`);
+        console.log(`🪑 Table: ${tableNumber || 'N/A'}`);
+        console.log(`📦 Items: ${orderItems.length}`);
+        console.log(`📅 Type: ${orderType}${isReservation ? ' (Reservation)' : ''}`);
+
+        // Get target devices: bar_depan + kitchen from same outlet
+        const targetDevices = await Device.find({
+            outlet: outlet,
+            isActive: true,
+            $or: [
+                { location: 'depan' },   // Bar Depan
+                { location: 'kitchen' }  // Kitchen/Dapur
+            ]
+        }).lean();
+
+        if (targetDevices.length === 0) {
+            console.log('⚠️ No active workstation devices found for outlet:', outlet);
+            console.log('==================================================\n');
+            return;
+        }
+
+        console.log(`📱 Found ${targetDevices.length} workstation devices`);
+
+        // Separate items by workstation type
+        const beverageItems = orderItems.filter(item => {
+            const mainCat = (item.menuItem?.mainCategory || item.mainCategory || '').toLowerCase();
+            const ws = (item.menuItem?.workstation || item.workstation || '').toLowerCase();
+            return mainCat.includes('beverage') || mainCat.includes('minuman') || ws.includes('bar');
+        });
+
+        const kitchenItems = orderItems.filter(item => {
+            const mainCat = (item.menuItem?.mainCategory || item.mainCategory || '').toLowerCase();
+            const ws = (item.menuItem?.workstation || item.workstation || '').toLowerCase();
+            return !mainCat.includes('beverage') && !mainCat.includes('minuman') && !ws.includes('bar');
+        });
+
+        console.log(`   🍹 Beverage items: ${beverageItems.length}`);
+        console.log(`   🍳 Kitchen items: ${kitchenItems.length}`);
+
+        // Emit to each device
+        let sentCount = 0;
+        for (const device of targetDevices) {
+            const isBarDevice = device.location === 'depan';
+            const relevantItems = isBarDevice ? beverageItems : kitchenItems;
+
+            if (relevantItems.length === 0) {
+                console.log(`   ⏭️ Skipping ${device.deviceName} - No relevant items`);
+                continue;
+            }
+
+            const printData = {
+                orderId,
+                tableNumber: tableNumber || '',
+                orderType: orderType || 'Dine-In',
+                source: 'Gro',
+                name: customerName || 'Guest',
+                service: service || 'Dine-In',
+                orderItems: relevantItems.map(item => ({
+                    _id: item._id?.toString() || item.menuItem?._id?.toString(),
+                    menuItemId: item.menuItem?._id?.toString() || item._id?.toString(),
+                    name: item.menuItem?.name || item.menuItemData?.name || item.name || 'Unknown',
+                    quantity: item.quantity || 1,
+                    notes: item.notes || '',
+                    addons: item.addons || [],
+                    toppings: item.toppings || [],
+                    workstation: item.menuItem?.workstation || item.workstation || 'kitchen',
+                    mainCategory: item.menuItem?.mainCategory || item.mainCategory
+                })),
+                deviceId: device.deviceId,
+                targetDevice: device.deviceName,
+                isReservation: isReservation || false,
+                isGROOrder: true,
+                timestamp: new Date()
+            };
+
+            const eventType = isBarDevice ? 'beverage_immediate_print' : 'kitchen_immediate_print';
+
+            // Send via socket
+            if (device.socketId && global.io) {
+                global.io.to(device.socketId).emit(eventType, printData);
+                console.log(`   ✅ Sent to ${device.deviceName} via socket: ${device.socketId}`);
+                sentCount++;
+            } else {
+                // Fallback: send to room based on location
+                const roomName = isBarDevice ? 'bar_depan' : 'kitchen_room';
+                if (global.io) {
+                    global.io.to(roomName).emit(eventType, printData);
+                    console.log(`   ✅ Sent to ${device.deviceName} via room: ${roomName}`);
+                    sentCount++;
+                }
+            }
+        }
+
+        console.log(`📊 Broadcast complete: ${sentCount} devices notified`);
+        console.log('==================================================\n');
+
+    } catch (error) {
+        console.error('❌ Error broadcasting GRO order to workstations:', error);
+    }
+}
+
 /**
  * ==================================================================================
  * SECTION 9: MAIN OPTIMIZED CONTROLLER
@@ -1081,6 +1201,23 @@ export const createAppOrder = async (req, res) => {
                 io.to('cashier_room').emit('new_order', { mappedOrders });
                 console.log(`📤 Socket emitted: new_order → cashier_room`);
             }
+
+            // 🔥 GRO IMMEDIATE PRINT: Broadcast to workstations (Bar Depan + Kitchen)
+            // For GRO orders, send items directly to workstation devices for immediate print
+            if (isGroMode && orderItems.length > 0) {
+                // CRITICAL: For open bill, only send NEW items (orderItems), not all items (newOrder.items)
+                await broadcastGROOrderToWorkstations({
+                    orderId: newOrder.order_id,
+                    tableNumber: newOrder.tableNumber,
+                    orderItems: orderItems,  // Only new items for both new order and open bill
+                    orderType: formattedOrderType,
+                    outlet: outlet || newOrder.outlet,
+                    customerName: finalUserName,
+                    isReservation: orderType === 'reservation',
+                    service: newOrder.type || 'Dine-In'
+                });
+            }
+
             console.log(`✅ Order completed in ${Date.now() - startTime}ms`);
             res.status(201).json(responseData);
         })(), REQUEST_TIMEOUT_MS);
