@@ -439,20 +439,24 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
             }).toList()
             : [],
     'paymentDetails':
-        order.payments.map((payment) {
-          final methodtype = PaymentDetails.buildPaymentMethodLabel(payment);
-          return {
-            'status': payment.status,
-            'method': payment.method,
-            'methodType': methodtype,
-            'amount': payment.amount,
-            'remainingAmount': payment.remainingAmount,
-            'tenderedAmount': payment.tenderedAmount,
-            'changeAmount': payment.changeAmount,
-            'vaNumbers': payment.vaNumbers?.toList() ?? [],
-            'actions': payment.actions?.toList() ?? [],
-          };
-        }).toList(),
+        order.isOpenBill == true
+            ? []
+            : order.payments.map((payment) {
+              final methodtype = PaymentDetails.buildPaymentMethodLabel(
+                payment,
+              );
+              return {
+                'status': payment.status,
+                'method': payment.method,
+                'methodType': methodtype,
+                'amount': payment.amount,
+                'remainingAmount': payment.remainingAmount,
+                'tenderedAmount': payment.tenderedAmount,
+                'changeAmount': payment.changeAmount,
+                'vaNumbers': payment.vaNumbers?.toList() ?? [],
+                'actions': payment.actions?.toList() ?? [],
+              };
+            }).toList(),
   };
 }
 

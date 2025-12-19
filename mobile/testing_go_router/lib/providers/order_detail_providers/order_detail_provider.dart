@@ -294,7 +294,39 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
   }
 
-  // Kirim data orderDetail ke backend
+  // Future<void> submitOrder(WidgetRef ref) async {
+  //   final current = state;
+  //   if (current == null) {
+  //     throw Exception('Order kosong');
+  //   }
+
+  //   final cashier = await HiveService.getCashier();
+  //   state = current.copyWith(cashier: cashier);
+
+  //   try {
+  //     final order = await OrderService().createOrder(state!);
+
+  //     final orderId = order['orderId']?.toString();
+  //     final paymentStatus = order['paymentStatus']?.toString() ?? '';
+
+  //     if (orderId == null || orderId.isEmpty) {
+  //       throw Exception('OrderId tidak valid dari server');
+  //     }
+
+  //     // Update local state dengan hasil dari backend
+  //     addOrderIdToOrderDetail(orderId);
+  //     addPaymentStatusToOrderDetail(paymentStatus);
+
+  //     // Kalau perlu: update status order jadi "OPEN_BILL" dll
+  //     // state = state!.copyWith(status: OrderStatus.openBill);
+  //   } catch (e) {
+  //     debugPrint('submitOrder error: $e');
+  //     rethrow;
+  //   }
+  // }
+
+  // TODO: boleh dihapus jika fungsi sama bisa
+  // Kirim data orderDetail atau openbill ke backend
   Future<bool> submitOrder(WidgetRef ref) async {
     final cashier = await HiveService.getCashier();
 
@@ -321,33 +353,6 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
     return false; // Return false if state is null
   }
-
-  // TODO: boleh dihapus jika fungsi sama bisa
-  // Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
-  //   final cashier = await HiveService.getCashier();
-
-  //   state = state!.copyWith(cashier: cashier);
-  //   // print('statedtdt: $state');
-  //   if (state == null) return false;
-
-  //   try {
-  //     final order = await OrderService().createOrder(state!, paymentData);
-  //     // print('Order submitted: $order');
-
-  //     final orderDetails = ref.read(orderDetailProvider.notifier);
-  //     orderDetails.addOrderIdToOrderDetail(order['orderId']);
-  //     orderDetails.addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
-
-  //     if (order.isNotEmpty) {
-  //       //update menu items
-  //       return true;
-  //     }
-  //   } catch (e) {
-  //     debugPrint('error apa? $e');
-  //     return false;
-  //   }
-  //   return false; // Return false if state is null
-  // }
 
   Future<void> _recalculateAll() async {
     if (state == null || _isCalculating) return;

@@ -115,8 +115,8 @@ class OrderDetailWidget extends ConsumerWidget {
           _buildInfoRow('Customer', order.user ?? 'Unknown'),
           _buildInfoRow('Order Type', order.orderType.name),
           if (order.tableNumber!.isNotEmpty)
-            _buildInfoRow('Table', order.tableNumber!),
-          _buildInfoRow('Payment Method', order.paymentMethod!),
+            _buildInfoRow('Table', order.tableNumber ?? 'Unknown'),
+          _buildInfoRow('Payment Method', order.paymentMethod ?? 'Unknown'),
           _buildInfoRow('Source', order.source ?? 'Unknown'),
         ],
       ),
@@ -278,7 +278,7 @@ class OrderDetailWidget extends ConsumerWidget {
               (addon) => Padding(
                 padding: const EdgeInsets.only(left: 8, top: 2),
                 child: Text(
-                  addon.name!,
+                  addon.name ?? 'undefined',
                   style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
               ),
