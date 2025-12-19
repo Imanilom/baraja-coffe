@@ -597,6 +597,7 @@ class OrderDetail extends ConsumerWidget {
                                     orderDetail.orderType != OrderType.takeAway
                             ? Row(
                               children: [
+                                //hapus
                                 IconButton(
                                   onPressed: () {
                                     //konfirmasi delete
@@ -642,6 +643,8 @@ class OrderDetail extends ConsumerWidget {
                                     ),
                                   ),
                                 ),
+
+                                //no meja
                                 Expanded(
                                   child: TextButton(
                                     onPressed: () {

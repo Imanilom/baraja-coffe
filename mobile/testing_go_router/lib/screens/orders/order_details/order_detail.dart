@@ -58,80 +58,360 @@ class OrderDetail extends ConsumerWidget {
       }
     }
 
-    return Stack(
-      children: [
-        AbsorbPointer(
-          absorbing: isLoading,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 8, left: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(right: 8, left: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top actions (Meja, Order Type, Pelanggan)
+          Container(
+            color: Colors.white,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // Top actions (Meja, Order Type, Pelanggan)
-                Container(
-                  color: Colors.white,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      // Meja
-                      VerticalIconTextButton(
-                        icon: Icons.table_restaurant_rounded,
-                        label:
-                            (orderDetail?.tableNumber != null &&
-                                    (orderDetail?.tableNumber ?? '').isNotEmpty)
-                                ? 'Meja ${orderDetail?.tableNumber}'
-                                : 'Meja',
-                        color:
-                            (orderDetail?.tableNumber != null &&
-                                    (orderDetail?.tableNumber ?? '').isNotEmpty)
-                                ? Colors.green
-                                : Colors.grey,
-                        onPressed: () {
-                          if (orderDetail?.orderType == OrderType.takeAway) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Tidak bisa mengubah nomor meja pada pesanan Take Away',
-                                ),
+                // Meja
+                VerticalIconTextButton(
+                  icon: Icons.table_restaurant_rounded,
+                  label:
+                      (orderDetail?.tableNumber != null &&
+                              (orderDetail?.tableNumber ?? '').isNotEmpty)
+                          ? 'Meja ${orderDetail?.tableNumber}'
+                          : 'Meja',
+                  color:
+                      (orderDetail?.tableNumber != null &&
+                              (orderDetail?.tableNumber ?? '').isNotEmpty)
+                          ? Colors.green
+                          : Colors.grey,
+                  onPressed: () {
+                    if (orderDetail?.orderType == OrderType.takeAway) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Tidak bisa mengubah nomor meja pada pesanan Take Away',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (orderDetail == null) {
+                      ref
+                          .read(orderDetailProvider.notifier)
+                          .initializeOrder(orderType: OrderType.dineIn);
+                    }
+
+                    showDialog(
+                      context: context,
+                      builder: (context) {
+                        final controller = TextEditingController(
+                          text: orderDetail?.tableNumber ?? '',
+                        );
+
+                        return SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.all(16),
+                          child: AlertDialog(
+                            title: const Text('Masukkan Nomor Meja'),
+                            content: TextField(
+                              autofocus: true,
+                              decoration: const InputDecoration(
+                                hintText: 'Nomor Meja',
                               ),
-                            );
-                            return;
-                          }
-
-                          if (orderDetail == null) {
-                            ref
-                                .read(orderDetailProvider.notifier)
-                                .initializeOrder(orderType: OrderType.dineIn);
-                          }
-
-                          showDialog(
-                            context: context,
-                            builder: (context) {
-                              final controller = TextEditingController(
-                                text: orderDetail?.tableNumber ?? '',
-                              );
-
-                              return SingleChildScrollView(
-                                physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.all(16),
-                                child: AlertDialog(
-                                  title: const Text('Masukkan Nomor Meja'),
-                                  content: TextField(
-                                    autofocus: true,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Nomor Meja',
-                                    ),
-                                    controller: controller,
-                                    onChanged: (value) {
-                                      final cursorPosition =
-                                          controller.selection.base.offset;
-                                      controller.value = TextEditingValue(
-                                        text: value.toUpperCase(),
-                                        selection: TextSelection.collapsed(
-                                          offset: cursorPosition,
-                                        ),
+                              controller: controller,
+                              onChanged: (value) {
+                                final cursorPosition =
+                                    controller.selection.base.offset;
+                                controller.value = TextEditingValue(
+                                  text: value.toUpperCase(),
+                                  selection: TextSelection.collapsed(
+                                    offset: cursorPosition,
+                                  ),
+                                );
+                              },
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Batal'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(orderDetailProvider.notifier)
+                                      .updateCustomerDetails(
+                                        tableNumber: controller.text,
                                       );
-                                    },
+                                  Navigator.pop(context);
+                                },
+                                child: const Text('Simpan'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+
+                // Order Type
+                VerticalIconTextButton(
+                  icon: Icons.restaurant_menu_rounded,
+                  label: OrderTypeExtension.orderTypeToJson(
+                    orderDetail?.orderType ?? OrderType.dineIn,
+                  ),
+                  color: orderDetail != null ? Colors.green : Colors.grey,
+                  onPressed: () {
+                    if (orderDetail == null) return;
+
+                    showDialog(
+                      context: context,
+                      builder:
+                          (context) => OrderTypeSelectionDialog(
+                            currentOrderType: orderDetail.orderType,
+                            onOrderTypeSelected: (selectedOrderType) {
+                              ref
+                                  .read(orderDetailProvider.notifier)
+                                  .updateOrderType(selectedOrderType);
+                            },
+                            onTakeAwaySelected: () {
+                              ref
+                                  .read(orderDetailProvider.notifier)
+                                  .updateCustomerDetails(tableNumber: null);
+                            },
+                          ),
+                    );
+                  },
+                ),
+
+                // Pelanggan
+                VerticalIconTextButton(
+                  icon: Icons.person_rounded,
+                  label:
+                      (orderDetail?.user != null &&
+                              orderDetail!.user!.isNotEmpty)
+                          ? orderDetail.user!
+                          : 'Pelanggan',
+                  color:
+                      (orderDetail?.user != null &&
+                              orderDetail!.user!.isNotEmpty)
+                          ? Colors.green
+                          : Colors.grey,
+                  onPressed: () {
+                    if (orderDetail == null) {
+                      ref
+                          .read(orderDetailProvider.notifier)
+                          .initializeOrder(orderType: OrderType.dineIn);
+                    }
+
+                    showDialog(
+                      context: context,
+                      builder: (context) {
+                        final controller = TextEditingController(
+                          text: orderDetail?.user ?? '',
+                        );
+
+                        return SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.all(16),
+                          child: AlertDialog(
+                            title: const Text('Masukkan Nama Pelanggan'),
+                            content: TextField(
+                              autofocus: true,
+                              decoration: const InputDecoration(
+                                hintText: 'Nama Pelanggan',
+                              ),
+                              controller: controller,
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Tutup'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(orderDetailProvider.notifier)
+                                      .updateCustomerDetails(
+                                        customerName: controller.text,
+                                      );
+                                  Navigator.pop(context);
+                                },
+                                child: const Text('Simpan'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          // List items
+          Expanded(
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.only(right: 4),
+              child:
+                  (orderDetail == null ||
+                          (orderDetail.items.isEmpty &&
+                              (orderDetail.customAmountItems?.isEmpty ?? true)))
+                      ? const Center(
+                        child: Text(onNull, textAlign: TextAlign.center),
+                      )
+                      : ListView.builder(
+                        physics: const BouncingScrollPhysics(),
+                        itemCount:
+                            orderDetail.items.length +
+                            (orderDetail.customAmountItems?.length ?? 0),
+                        itemBuilder: (context, index) {
+                          final isCustomAmount =
+                              index >= orderDetail.items.length;
+
+                          if (isCustomAmount) {
+                            final customIndex =
+                                index - orderDetail.items.length;
+                            final customAmount =
+                                orderDetail.customAmountItems![customIndex];
+
+                            return _buildCustomAmountListTile(
+                              customAmount,
+                              context,
+                              ref,
+                            );
+                          }
+
+                          final orderItem = orderDetail.items[index];
+
+                          return ListTile(
+                            horizontalTitleGap: 4,
+                            visualDensity: const VisualDensity(
+                              vertical: -4,
+                              horizontal: 0,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 0,
+                              horizontal: 4,
+                            ),
+                            dense: true,
+                            leading: CircleAvatar(
+                              child: Text(orderItem.quantity.toString()),
+                            ),
+                            title: Text(
+                              '(${OrderTypeExtension.orderTypeToShortJson(orderItem.orderType)}) ${orderItem.menuItem.name.toString()}',
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (orderItem.selectedToppings.isNotEmpty)
+                                  Text(
+                                    'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',
+                                  ),
+                                if (orderItem.selectedAddons.isNotEmpty)
+                                  if (orderItem
+                                          .selectedAddons
+                                          .first
+                                          .options
+                                          ?.isNotEmpty ??
+                                      false)
+                                    ...orderItem.selectedAddons.map(
+                                      (addon) => Text(
+                                        '${addon.name!}: ${addon.options == null ? '' : addon.options!.map((e) => e.label!).join(', ')}',
+                                      ),
+                                    ),
+                                if (orderItem.notes != null &&
+                                    orderItem.notes!.isNotEmpty)
+                                  Text(
+                                    'Catatan: ${orderItem.notes!}',
+                                    style: const TextStyle(
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            trailing: Text(formatRupiah(orderItem.subtotal)),
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder:
+                                    (context) => EditOrderItemDialog(
+                                      orderItem: orderItem,
+                                      onEditOrder: (editedOrderItem) {
+                                        ref
+                                            .read(orderDetailProvider.notifier)
+                                            .editOrderItem(
+                                              orderItem,
+                                              editedOrderItem,
+                                            );
+                                      },
+                                      onClose: () => Navigator.pop(context),
+                                      onDeleteOrderItem: () {
+                                        ref
+                                            .read(orderDetailProvider.notifier)
+                                            .removeItem(orderItem);
+                                      },
+                                    ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          // Bottom summary + actions
+          (orderDetail == null || orderDetail.items.isEmpty)
+              ? const SizedBox.shrink()
+              : Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _OrderSummaryRow(
+                      label: 'Subtotal',
+                      value: formatRupiah(
+                        orderDetail.totalAfterDiscount.toInt(),
+                      ),
+                    ),
+                    _OrderSummaryRow(
+                      label: 'Tax',
+                      value: formatRupiah(orderDetail.totalTax.toInt().round()),
+                    ),
+                    const Divider(),
+                    _OrderSummaryRow(
+                      label: 'Total Harga',
+                      value: formatRupiah(
+                        orderDetail.grandTotal.toInt().round(),
+                      ),
+                      isBold: true,
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        // Hapus
+                        IconButton(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  title: const Text('Hapus Pesanan'),
+                                  content: const Text(
+                                    'Apakah Anda yakin ingin menghapus pesanan ini?',
                                   ),
                                   actions: [
                                     TextButton(
@@ -142,410 +422,98 @@ class OrderDetail extends ConsumerWidget {
                                       onPressed: () {
                                         ref
                                             .read(orderDetailProvider.notifier)
-                                            .updateCustomerDetails(
-                                              tableNumber: controller.text,
-                                            );
+                                            .clearOrder();
                                         Navigator.pop(context);
                                       },
-                                      child: const Text('Simpan'),
+                                      child: const Text('Hapus'),
                                     ),
                                   ],
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-
-                      // Order Type
-                      VerticalIconTextButton(
-                        icon: Icons.restaurant_menu_rounded,
-                        label: OrderTypeExtension.orderTypeToJson(
-                          orderDetail?.orderType ?? OrderType.dineIn,
-                        ),
-                        color: orderDetail != null ? Colors.green : Colors.grey,
-                        onPressed: () {
-                          if (orderDetail == null) return;
-
-                          showDialog(
-                            context: context,
-                            builder:
-                                (context) => OrderTypeSelectionDialog(
-                                  currentOrderType: orderDetail.orderType,
-                                  onOrderTypeSelected: (selectedOrderType) {
-                                    ref
-                                        .read(orderDetailProvider.notifier)
-                                        .updateOrderType(selectedOrderType);
-                                  },
-                                  onTakeAwaySelected: () {
-                                    ref
-                                        .read(orderDetailProvider.notifier)
-                                        .updateCustomerDetails(
-                                          tableNumber: null,
-                                        );
-                                  },
-                                ),
-                          );
-                        },
-                      ),
-
-                      // Pelanggan
-                      VerticalIconTextButton(
-                        icon: Icons.person_rounded,
-                        label:
-                            (orderDetail?.user != null &&
-                                    orderDetail!.user!.isNotEmpty)
-                                ? orderDetail.user!
-                                : 'Pelanggan',
-                        color:
-                            (orderDetail?.user != null &&
-                                    orderDetail!.user!.isNotEmpty)
-                                ? Colors.green
-                                : Colors.grey,
-                        onPressed: () {
-                          if (orderDetail == null) {
-                            ref
-                                .read(orderDetailProvider.notifier)
-                                .initializeOrder(orderType: OrderType.dineIn);
-                          }
-
-                          showDialog(
-                            context: context,
-                            builder: (context) {
-                              final controller = TextEditingController(
-                                text: orderDetail?.user ?? '',
-                              );
-
-                              return SingleChildScrollView(
-                                physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.all(16),
-                                child: AlertDialog(
-                                  title: const Text('Masukkan Nama Pelanggan'),
-                                  content: TextField(
-                                    autofocus: true,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Nama Pelanggan',
-                                    ),
-                                    controller: controller,
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Tutup'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        ref
-                                            .read(orderDetailProvider.notifier)
-                                            .updateCustomerDetails(
-                                              customerName: controller.text,
-                                            );
-                                        Navigator.pop(context);
-                                      },
-                                      child: const Text('Simpan'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                // List items
-                Expanded(
-                  child: Container(
-                    color: Colors.white,
-                    padding: const EdgeInsets.only(right: 4),
-                    child:
-                        (orderDetail == null ||
-                                (orderDetail.items.isEmpty &&
-                                    (orderDetail.customAmountItems?.isEmpty ??
-                                        true)))
-                            ? const Center(
-                              child: Text(onNull, textAlign: TextAlign.center),
-                            )
-                            : ListView.builder(
-                              physics: const BouncingScrollPhysics(),
-                              itemCount:
-                                  orderDetail.items.length +
-                                  (orderDetail.customAmountItems?.length ?? 0),
-                              itemBuilder: (context, index) {
-                                final isCustomAmount =
-                                    index >= orderDetail.items.length;
-
-                                if (isCustomAmount) {
-                                  final customIndex =
-                                      index - orderDetail.items.length;
-                                  final customAmount =
-                                      orderDetail
-                                          .customAmountItems![customIndex];
-
-                                  return _buildCustomAmountListTile(
-                                    customAmount,
-                                    context,
-                                    ref,
-                                  );
-                                }
-
-                                final orderItem = orderDetail.items[index];
-
-                                return ListTile(
-                                  horizontalTitleGap: 4,
-                                  visualDensity: const VisualDensity(
-                                    vertical: -4,
-                                    horizontal: 0,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 0,
-                                    horizontal: 4,
-                                  ),
-                                  dense: true,
-                                  leading: CircleAvatar(
-                                    child: Text(orderItem.quantity.toString()),
-                                  ),
-                                  title: Text(
-                                    '(${OrderTypeExtension.orderTypeToShortJson(orderItem.orderType)}) ${orderItem.menuItem.name.toString()}',
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (orderItem.selectedToppings.isNotEmpty)
-                                        Text(
-                                          'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',
-                                        ),
-                                      if (orderItem.selectedAddons.isNotEmpty)
-                                        if (orderItem
-                                                .selectedAddons
-                                                .first
-                                                .options
-                                                ?.isNotEmpty ??
-                                            false)
-                                          ...orderItem.selectedAddons.map(
-                                            (addon) => Text(
-                                              '${addon.name!}: ${addon.options == null ? '' : addon.options!.map((e) => e.label!).join(', ')}',
-                                            ),
-                                          ),
-                                      if (orderItem.notes != null &&
-                                          orderItem.notes!.isNotEmpty)
-                                        Text(
-                                          'Catatan: ${orderItem.notes!}',
-                                          style: const TextStyle(
-                                            fontStyle: FontStyle.italic,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  trailing: Text(
-                                    formatRupiah(orderItem.subtotal),
-                                  ),
-                                  onTap: () {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder:
-                                          (context) => EditOrderItemDialog(
-                                            orderItem: orderItem,
-                                            onEditOrder: (editedOrderItem) {
-                                              ref
-                                                  .read(
-                                                    orderDetailProvider
-                                                        .notifier,
-                                                  )
-                                                  .editOrderItem(
-                                                    orderItem,
-                                                    editedOrderItem,
-                                                  );
-                                            },
-                                            onClose:
-                                                () => Navigator.pop(context),
-                                            onDeleteOrderItem: () {
-                                              ref
-                                                  .read(
-                                                    orderDetailProvider
-                                                        .notifier,
-                                                  )
-                                                  .removeItem(orderItem);
-                                            },
-                                          ),
-                                    );
-                                  },
                                 );
                               },
-                            ),
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                // Bottom summary + actions
-                (orderDetail == null || orderDetail.items.isEmpty)
-                    ? const SizedBox.shrink()
-                    : Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 16,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _OrderSummaryRow(
-                            label: 'Subtotal',
-                            value: formatRupiah(
-                              orderDetail.totalAfterDiscount.toInt(),
+                            );
+                          },
+                          icon: const Icon(Icons.clear_rounded),
+                          color: Colors.redAccent,
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.red[50],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          _OrderSummaryRow(
-                            label: 'Tax',
-                            value: formatRupiah(
-                              orderDetail.totalTax.toInt().round(),
-                            ),
-                          ),
-                          const Divider(),
-                          _OrderSummaryRow(
-                            label: 'Total Harga',
-                            value: formatRupiah(
-                              orderDetail.grandTotal.toInt().round(),
-                            ),
-                            isBold: true,
-                          ),
-                          const SizedBox(height: 8),
+                        ),
 
-                          Row(
-                            children: [
-                              // Hapus
-                              IconButton(
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) {
-                                      return AlertDialog(
-                                        title: const Text('Hapus Pesanan'),
-                                        content: const Text(
-                                          'Apakah Anda yakin ingin menghapus pesanan ini?',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed:
-                                                () => Navigator.pop(context),
-                                            child: const Text('Batal'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              ref
-                                                  .read(
-                                                    orderDetailProvider
-                                                        .notifier,
-                                                  )
-                                                  .clearOrder();
-                                              Navigator.pop(context);
-                                            },
-                                            child: const Text('Hapus'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
-                                icon: const Icon(Icons.clear_rounded),
-                                color: Colors.redAccent,
-                                style: IconButton.styleFrom(
-                                  backgroundColor: Colors.red[50],
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
+                        const SizedBox(width: 8),
+
+                        // openbill
+                        Expanded(
+                          child: TextButton(
+                            // onPressed: () => handleOpenBill(),
+                            onPressed: () async {
+                              final ok = await _ensureRequiredFields(
+                                context,
+                                ref,
+                                orderDetail,
+                              );
+                              if (!ok) return;
+
+                              //update orderdetail isOpenbill=true
+                              ref
+                                  .read(orderDetailProvider.notifier)
+                                  .updateIsOpenBill(true);
+
+                              handleOpenBill();
+                            },
+                            style: TextButton.styleFrom(
+                              backgroundColor: Colors.green[50],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-
-                              const SizedBox(width: 8),
-
-                              // openbill
-                              Expanded(
-                                child: TextButton(
-                                  // onPressed: () => handleOpenBill(),
-                                  onPressed: () async {
-                                    final ok = await _ensureRequiredFields(
-                                      context,
-                                      ref,
-                                      orderDetail,
-                                    );
-                                    if (!ok) return;
-
-                                    //update orderdetail isOpenbill=true
-                                    ref
-                                        .read(orderDetailProvider.notifier)
-                                        .updateIsOpenBill(true);
-
-                                    handleOpenBill();
-                                  },
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: Colors.green[50],
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  child: const Text('Open Bill'),
-                                ),
-                              ),
-
-                              const SizedBox(width: 8),
-
-                              // Bayar
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: () async {
-                                    final ok = await _ensureRequiredFields(
-                                      context,
-                                      ref,
-                                      orderDetail,
-                                    );
-                                    if (!ok) return;
-                                    ref
-                                        .read(orderDetailProvider.notifier)
-                                        .updateIsOpenBill(false);
-
-                                    if (!context.mounted) return;
-                                    context.push(
-                                      '/payment-method',
-                                      extra: ref.read(orderDetailProvider),
-                                    );
-                                  },
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Bayar',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
+                            child: const Text('Open Bill'),
                           ),
-                        ],
-                      ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Bayar
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () async {
+                              final ok = await _ensureRequiredFields(
+                                context,
+                                ref,
+                                orderDetail,
+                              );
+                              if (!ok) return;
+                              ref
+                                  .read(orderDetailProvider.notifier)
+                                  .updateIsOpenBill(false);
+
+                              if (!context.mounted) return;
+                              context.push(
+                                '/payment-method',
+                                extra: ref.read(orderDetailProvider),
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Bayar',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-              ],
-            ),
-          ),
-        ),
-
-        if (isLoading) ...[
-          const ModalBarrier(dismissible: false, color: Colors.black38),
-          const Center(child: CircularProgressIndicator()),
+                  ],
+                ),
+              ),
         ],
-      ],
+      ),
     );
   }
 
