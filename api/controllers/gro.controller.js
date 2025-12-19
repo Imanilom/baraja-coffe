@@ -12,6 +12,14 @@ import Voucher from '../models/voucher.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 import { db } from '../utils/mongo.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
+// ✅ PERFORMANCE: Redis cache for GRO optimization
+import {
+  getCache,
+  setCache,
+  invalidateGROCache,
+  getReservationsCacheKey,
+  getTableAvailabilityCacheKey
+} from '../utils/redisCache.js';
 
 // ! GRO Apps Controller start
 
@@ -1090,6 +1098,13 @@ export const getReservations = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // ✅ PERFORMANCE: Check cache first (30s TTL)
+    const cacheKey = getReservationsCacheKey({ date, status, area_id, search, page, limit });
+    const cachedData = await getCache(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
+    }
+
     // ========== FILTER UNTUK RESERVATIONS ==========
     const reservationFilter = {};
 
@@ -1341,7 +1356,7 @@ export const getReservations = async (req, res) => {
     const paginatedData = combinedData.slice(skip, skip + parseInt(limit));
     const totalCombined = total + finalTransformedOrders.length;
 
-    res.json({
+    const responseData = {
       success: true,
       data: paginatedData,
       pagination: {
@@ -1352,7 +1367,12 @@ export const getReservations = async (req, res) => {
         dine_in_orders_count: finalTransformedOrders.length,
         limit: parseInt(limit)
       }
-    });
+    };
+
+    // ✅ PERFORMANCE: Cache the result (30s TTL)
+    await setCache(cacheKey, responseData, 30);
+
+    res.json(responseData);
   } catch (error) {
     console.error('Error fetching reservations:', error);
     res.status(500).json({
@@ -1362,6 +1382,251 @@ export const getReservations = async (req, res) => {
     });
   }
 };
+
+// export const getOrderDetailById = async (req, res) => {
+//   try {
+//     const orderId = req.params.orderId;
+//     if (!orderId) {
+//       return res.status(400).json({ message: 'Order ID is required.' });
+//     }
+//     console.log('Fetching order with ID:', orderId);
+
+//     // Cari pesanan dengan populate voucher dan tax details
+//     const order = await Order.findById(orderId)
+//       .populate('items.menuItem')
+//       .populate('appliedVoucher')
+//       .populate('taxAndServiceDetails');
+
+//     if (!order) {
+//       return res.status(404).json({ message: 'Order not found.' });
+//     }
+
+//     // Cari pembayaran
+//     const payment = await Payment.findOne({ order_id: order.order_id });
+
+//     // Cari reservasi
+//     const reservation = await Reservation.findOne({ order_id: orderId })
+//       .populate('area_id')
+//       .populate('table_id');
+
+//     console.log('Payment:', payment);
+//     console.log('Order:', orderId);
+//     console.log('Reservation:', reservation);
+
+//     // Format tanggal
+//     const formatDate = (date) => {
+//       const options = {
+//         day: 'numeric',
+//         month: 'long',
+//         year: 'numeric',
+//         hour: '2-digit',
+//         minute: '2-digit',
+//         timeZone: 'Asia/Jakarta'
+//       };
+//       return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
+//     };
+
+//     const formatReservationDate = (dateString) => {
+//       const options = {
+//         day: 'numeric',
+//         month: 'long',
+//         year: 'numeric',
+//         timeZone: 'Asia/Jakarta'
+//       };
+//       return new Intl.DateTimeFormat('id-ID', options).format(new Date(dateString));
+//     };
+
+//     // ✅ Format items (menu items)
+//     const formattedItems = order.items.map(item => {
+//       const basePrice = item.price || item.menuItem?.price || 0;
+//       const quantity = item.quantity || 1;
+
+//       return {
+//         menuItemId: item.menuItem?._id || item.menuItem || item._id,
+//         name: item.menuItem?.name || item.name || 'Unknown Item',
+//         price: basePrice,
+//         quantity,
+//         addons: item.addons || [],
+//         toppings: item.toppings || [],
+//         notes: item.notes,
+//         outletId: item.outletId || null,
+//         outletName: item.outletName || null,
+//       };
+//     });
+
+//     // ✅ Format custom amount items
+//     const formattedCustomAmountItems = (order.customAmountItems || []).map(item => ({
+//       amount: item.amount || 0,
+//       name: item.name || 'Penyesuaian Pembayaran',
+//       description: item.description || '',
+//       dineType: item.dineType || 'Dine-In',
+//       appliedAt: item.appliedAt,
+//       originalAmount: item.originalAmount || null,
+//       discountApplied: item.discountApplied || 0
+//     }));
+
+//     // Generate order number
+//     const generateOrderNumber = (orderId) => {
+//       if (typeof orderId === 'string' && orderId.includes('ORD-')) {
+//         const parts = orderId.split('-');
+//         return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
+//       }
+//       return `#${orderId.toString().slice(-4)}`;
+//     };
+
+//     // Reservation data
+//     let reservationData = null;
+//     if (reservation) {
+//       reservationData = {
+//         _id: reservation._id.toString(),
+//         reservationCode: reservation.reservation_code,
+//         reservationDate: formatReservationDate(reservation.reservation_date),
+//         reservationTime: reservation.reservation_time,
+//         guestCount: reservation.guest_count,
+//         status: reservation.status,
+//         reservationType: reservation.reservation_type,
+//         notes: reservation.notes,
+//         area: {
+//           _id: reservation.area_id?._id,
+//           name: reservation.area_id?.area_name || 'Unknown Area'
+//         },
+//         tables: Array.isArray(reservation.table_id) ? reservation.table_id.map(table => ({
+//           _id: table._id.toString(),
+//           tableNumber: table.table_number || 'Unknown Table',
+//           seats: table.seats,
+//           tableType: table.table_type,
+//           isAvailable: table.is_available,
+//           isActive: table.is_active
+//         })) : []
+//       };
+//     }
+
+//     // Payment status logic
+//     const paymentStatus = (() => {
+//       if (
+//         payment?.status === 'settlement' &&
+//         payment?.paymentType === 'Down Payment' &&
+//         payment?.remainingAmount !== 0
+//       ) {
+//         return 'partial';
+//       } else if (
+//         payment?.status === 'settlement' &&
+//         payment?.paymentType === 'Down Payment' &&
+//         payment?.remainingAmount == 0
+//       ) {
+//         return 'settlement';
+//       }
+//       return payment?.status || 'Unpaid';
+//     })();
+
+//     const totalAmountRemaining = await Payment.findOne({
+//       order_id: order.order_id,
+//       relatedPaymentId: { $ne: null },
+//       status: { $in: ['pending', 'expire'] }
+//     }).sort({ createdAt: -1 });
+
+//     // Payment details
+//     const paymentDetails = {
+//       totalAmount: totalAmountRemaining?.amount || payment?.totalAmount || order.grandTotal || 0,
+//       paidAmount: payment?.amount || 0,
+//       remainingAmount: totalAmountRemaining?.totalAmount || payment?.remainingAmount || 0,
+//       paymentType: payment?.paymentType || 'Full',
+//       isDownPayment: payment?.paymentType === 'Down Payment',
+//       downPaymentPaid: payment?.paymentType === 'Down Payment' && payment?.status === 'settlement',
+//       method: payment
+//         ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
+//         : 'Unknown',
+//       status: paymentStatus,
+//     };
+
+//     // Format voucher data
+//     let voucherData = null;
+//     if (order.appliedVoucher && typeof order.appliedVoucher === 'object') {
+//       if (order.appliedVoucher.code) {
+//         voucherData = {
+//           _id: order.appliedVoucher._id,
+//           code: order.appliedVoucher.code,
+//           name: order.appliedVoucher.name,
+//           description: order.appliedVoucher.description,
+//           discountAmount: order.appliedVoucher.discountAmount,
+//           discountType: order.appliedVoucher.discountType,
+//           validFrom: order.appliedVoucher.validFrom,
+//           validTo: order.appliedVoucher.validTo,
+//           quota: order.appliedVoucher.quota,
+//           applicableOutlets: order.appliedVoucher.applicableOutlets || [],
+//           customerType: order.appliedVoucher.customerType,
+//           printOnReceipt: order.appliedVoucher.printOnReceipt || false,
+//           isActive: order.appliedVoucher.isActive || true
+//         };
+//       }
+//     }
+
+//     // Format tax and service details
+//     let taxAndServiceDetails = [];
+//     if (order.taxAndServiceDetails && Array.isArray(order.taxAndServiceDetails)) {
+//       taxAndServiceDetails = order.taxAndServiceDetails.map(tax => {
+//         if (tax.type && tax.name) {
+//           return {
+//             _id: tax._id,
+//             type: tax.type,
+//             name: tax.name,
+//             percentage: tax.percentage,
+//             amount: tax.amount
+//           };
+//         }
+//         return {
+//           _id: tax._id || tax,
+//           type: 'unknown',
+//           name: 'Tax/Service',
+//           percentage: 0,
+//           amount: 0
+//         };
+//       });
+//     }
+
+//     const totalTax = order.totalTax || 0;
+
+//     // ✅ Build orderData dengan custom amount items
+//     const orderData = {
+//       _id: order._id.toString(),
+//       orderId: order.order_id || order._id.toString(),
+//       orderNumber: generateOrderNumber(order.order_id || order._id),
+//       orderDate: formatDate(order.createdAt),
+//       items: formattedItems,
+//       customAmountItems: formattedCustomAmountItems,
+//       totalCustomAmount: order.totalCustomAmount || 0,
+//       orderStatus: order.status,
+//       paymentMethod: paymentDetails.method,
+//       paymentStatus,
+//       totalBeforeDiscount: order.totalBeforeDiscount || 0,
+//       totalAfterDiscount: order.totalAfterDiscount || 0,
+//       grandTotal: order.grandTotal || 0,
+//       paymentDetails: paymentDetails,
+//       voucher: voucherData,
+//       taxAndServiceDetails: taxAndServiceDetails,
+//       totalTax: totalTax,
+//       reservation: reservationData,
+//       dineInData: order.orderType === 'Dine-In' ? {
+//         tableNumber: order.tableNumber,
+//       } : null,
+//       pickupData: order.orderType === 'Pickup' ? {
+//         pickupTime: order.pickupTime,
+//       } : null,
+//       takeAwayData: order.orderType === 'Take Away' ? {
+//         note: "Take Away order",
+//       } : null,
+//       deliveryData: order.orderType === 'Delivery' ? {
+//         deliveryAddress: order.deliveryAddress,
+//       } : null,
+//     };
+
+//     console.log('Order Data:', JSON.stringify(orderData, null, 2));
+//     res.status(200).json({ orderData });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Internal server error.' });
+//   }
+// };
 
 export const getOrderDetailById = async (req, res) => {
   try {
@@ -1505,18 +1770,44 @@ export const getOrderDetailById = async (req, res) => {
       status: { $in: ['pending', 'expire'] }
     }).sort({ createdAt: -1 });
 
-    // Payment details
+    // ✅ TAMBAHAN: Cek Final Payment (pending ATAU settlement)
+    const finalPayment = await Payment.findOne({
+      order_id: order.order_id,
+      paymentType: 'Final Payment',
+      status: { $in: ['pending', 'settlement', 'capture'] }
+    }).sort({ updatedAt: -1 });  // Ambil yang terbaru
+
+    const hasPendingFinalPayment = finalPayment?.status === 'pending';
+    const isFinalPaymentSettled = ['settlement', 'capture'].includes(finalPayment?.status);
+
+    console.log('Final Payment:', finalPayment ? `Found (${finalPayment.status})` : 'Not Found');
+
+    // Payment details - ✅ DITAMBAHKAN finalPaymentDetails (supports both pending & settled)
     const paymentDetails = {
       totalAmount: totalAmountRemaining?.amount || payment?.totalAmount || order.grandTotal || 0,
       paidAmount: payment?.amount || 0,
-      remainingAmount: totalAmountRemaining?.totalAmount || payment?.remainingAmount || 0,
+      // ✅ FIX: remainingAmount = 0 jika Final Payment sudah settlement
+      remainingAmount: isFinalPaymentSettled ? 0 : (totalAmountRemaining?.totalAmount || payment?.remainingAmount || 0),
       paymentType: payment?.paymentType || 'Full',
       isDownPayment: payment?.paymentType === 'Down Payment',
       downPaymentPaid: payment?.paymentType === 'Down Payment' && payment?.status === 'settlement',
       method: payment
         ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
         : 'Unknown',
-      status: paymentStatus,
+      // ✅ FIX: Status = settlement jika Final Payment sudah dibayar
+      status: isFinalPaymentSettled ? 'settlement' : paymentStatus,
+      hasPendingFinalPayment: hasPendingFinalPayment,  // true only if pending
+      isFinalPaymentSettled: isFinalPaymentSettled,    // ✅ new flag
+      // ✅ TAMBAHAN: Detail final payment (pending atau settlement)
+      pendingFinalPaymentDetails: finalPayment ? {
+        _id: finalPayment._id,
+        amount: finalPayment.amount,
+        method: finalPayment.method,
+        status: finalPayment.status,
+        actions: finalPayment.actions || [],  // QR CODE
+        transaction_time: finalPayment.transaction_time,
+        expiry_time: finalPayment.expiry_time,
+      } : null,
     };
 
     // Format voucher data
@@ -3551,11 +3842,18 @@ export const getTableAvailability = async (req, res) => {
 
     console.log(`🔄 Fetching table availability for outlet: ${outletId}`);
 
-    // ✅ PERBAIKAN: Selalu sinkronkan status meja terlebih dahulu
+    // ✅ PERFORMANCE: Check cache first (20s TTL)
+    const cacheKey = getTableAvailabilityCacheKey({ outletId, date, time, area_id });
+    const cachedData = await getCache(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
+    }
+
+    // ✅ PERBAIKAN: Sinkronkan status meja (hanya jika cache miss)
     let syncResult;
     try {
       syncResult = await Table.syncTableStatusWithActiveOrders(outletId);
-      console.log('📊 Sync result:', syncResult);
+      console.log('📊 Table sync result:', syncResult);
     } catch (syncError) {
       console.error('❌ Sync failed, continuing with current table status:', syncError);
       syncResult = { error: syncError.message };
@@ -3860,6 +4158,9 @@ export const getTableAvailability = async (req, res) => {
     console.log(`📊 Summary: ${availableCount} available, ${occupiedCount} occupied`);
     console.log(`📈 Consistency: ${consistentTablesCount} consistent, ${inconsistentTablesCount} inconsistent`);
     console.log(`🔧 Repair: ${repairResults.filter(r => r.repaired).length} tables repaired`);
+
+    // ✅ PERFORMANCE: Cache the result (20s TTL)
+    await setCache(cacheKey, response, 20);
 
     res.json(response);
   } catch (error) {
