@@ -7628,6 +7628,9 @@ export const processPaymentCashier = async (req, res) => {
       }
 
       await order.save({ session });
+    } else if (!isFullyPaid && order.orderType === 'Reservation') {
+      order.status = 'Reserved';
+      await order.save({ session });
     }
 
     if (isFullyPaid && order.orderType === 'Dine-In') {
