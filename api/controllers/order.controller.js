@@ -7599,7 +7599,10 @@ export const processPaymentCashier = async (req, res) => {
     ]).session(session);
 
     const totalPaidAmount = payment_result[0]?.totalPaid ?? 0;
-    const isFullyPaid = totalPaidAmount === order.grandTotal;
+    const isFullyPaid =
+      Math.round(totalPaidAmount) === Math.round(order.grandTotal);
+
+
 
     console.log('online order isFullyPaid:', isFullyPaid);
     // const isFullyPaid = allPayments.every(p =>
