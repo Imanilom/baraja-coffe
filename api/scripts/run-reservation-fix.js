@@ -15,19 +15,31 @@
 
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import fixReservation from './fix-reservation-payments.js';
 
-dotenv.config();
+// Get directory name in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from root directory (parent of api folder)
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const connectDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGODB_URI, {
+        // Validate MONGO environment variable
+        if (!process.env.MONGO) {
+            throw new Error('MONGO environment variable is not defined in .env file');
+        }
+
+        await mongoose.connect(process.env.MONGO_PROD, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
         console.log('✅ Connected to MongoDB');
     } catch (error) {
-        console.error('❌ MongoDB connection error:', error);
+        console.error('❌ MongoDB connection error:', error.message);
         process.exit(1);
     }
 };
