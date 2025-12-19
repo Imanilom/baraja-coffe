@@ -7834,9 +7834,17 @@ export const processPaymentCashier = async (req, res) => {
 
 
     // Cek apakah semua payment untuk order ini sudah settlement dan remainingAmount 0
-    const allPayments = Payment.find({ order_id }).session(session);
-    const totalPaidAmount = allPayments.reduce((total, p) => total + p.amount, 0);
-    const isFullyPaid = totalPaidAmount === order.grandTotal;
+    const payment_result = await Payment.aggregate([
+      { $match: { order_id } },
+      { $group: { _id: null, totalPaid: { $sum: '$amount' } } }
+    ]).session(session);
+
+    const totalPaidAmount = payment_result[0]?.totalPaid ?? 0;
+    const isFullyPaid =
+      Math.round(totalPaidAmount) === Math.round(order.grandTotal);
+
+
+
     console.log('online order isFullyPaid:', isFullyPaid);
     // const isFullyPaid = allPayments.every(p =>
     //   p.status === 'settlement'
@@ -7868,6 +7876,9 @@ export const processPaymentCashier = async (req, res) => {
         order.status = 'Waiting';
       }
 
+      await order.save({ session });
+    } else if (!isFullyPaid && order.orderType === 'Reservation') {
+      order.status = 'Reserved';
       await order.save({ session });
     }
 

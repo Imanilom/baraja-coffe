@@ -84,7 +84,7 @@ router.get('/sales/cashier-list', getCashiersList);
 
 router.get('/sales-report', generateSalesReport);
 
-router.get('/sales-report/payment-method-detail', getPaymentMethodDetailReport);
+// router.get('/sales-report/payment-method-detail', getPaymentMethodDetailReport);
 
 router.get('/sales-report/payment-detail', getPaymentDetails);
 
@@ -124,5 +124,7 @@ router.get('/daily-profit/dashboard', DailyProfitController.getProfitDashboard);
 router.get('/order-details/:orderId', DailyProfitController.getOrderDetailReport);
 
 router.get('/orders', DailyProfitController.getOrdersWithPayments);
+
+router.get('/sales-report/payment-method-detail', DailyProfitController.getPaymentMethodDetailReport);
 
 export default router;
