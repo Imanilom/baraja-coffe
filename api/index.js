@@ -9,6 +9,7 @@ import { Server } from 'socket.io';
 import WebSocket from 'ws';
 import { initializeFirebase } from './config/firebase.js';
 import { setupStockCalibrationCron } from './jobs/stockCalibration.job.js';
+import { initTableSyncJob } from './jobs/tableSync.job.js';
 import { LockService } from './services/lock.service.js';
 import { startAutoCancelScheduler } from './jobs/orderCheker.job.js';
 // Routes imports...
@@ -205,6 +206,7 @@ const startServer = async () => {
     setupStockCalibrationCron();
     // startAutoCancelScheduler();
     setupPaymentExpiryMonitor();
+    initTableSyncJob(2); // ✅ Run table sync every 2 minutes
     // Jalankan sekali untuk generate secret
     // console.log('Webhook Secret:', generateWebhookSecret());
 
