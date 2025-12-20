@@ -2616,6 +2616,19 @@ export const createUnifiedOrder = async (req, res) => {
   } catch (err) {
     console.error('Error in createUnifiedOrder:', err);
 
+    // Transaction number mismatch errors - indicate temporary issue
+    if (err.message.includes('transaction number') || err.message.includes('does not match any in-progress transactions')) {
+      console.error('⚠️ Transaction number mismatch detected - this is a transient error');
+      return res.status(503).json({
+        success: false,
+        error: 'Terjadi konflik sementara pada database, silakan coba lagi',
+        orderId: orderId,
+        retrySuggested: true,
+        retryAfter: 2,
+        errorType: 'TRANSACTION_CONFLICT'
+      });
+    }
+
     // Lock-related errors (hanya untuk Web/App)
     if (err.message.includes('Failed to acquire lock') || err.message.includes('Lock busy')) {
       return res.status(429).json({
