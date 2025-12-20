@@ -63,6 +63,13 @@ fn outlet_routes() -> Router<Arc<AppState>> {
         .route("/suppliers", get(handlers::get_suppliers))
 }
 
+/// Create order routes
+fn order_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/unified-order", post(handlers::create_unified_order))
+        .with_state(state)
+}
+
 /// Create application routes
 pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
@@ -72,4 +79,5 @@ pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .nest("/api/menu", menu_routes())
         .nest("/api/inventory", inventory_routes(state.clone()))
         .nest("/api/outlets", outlet_routes())
+        .nest("/api/order", order_routes(state.clone()))
 }
