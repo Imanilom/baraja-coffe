@@ -16,6 +16,7 @@ import {
   getMenuByRating,
   updateMenuActivated,
   getMenuItemsBackOffice,
+  getWorkstationMenuData,  // ⚡ OPTIMIZED: Single-call for workstation data
 } from '../controllers/menu.controller.js';
 import {
   manualStockCalibration,
@@ -41,6 +42,7 @@ router.post('/menu-items', upload.single('images'), createMenuItem); // Create a
 router.get('/menu-items', getMenuItemsWithRecipes); // Get all MenuItems with Recipes
 router.get('/all-menu-items', getMenuItems); // Get all MenuItems
 router.get('/all-menu-items-backoffice', getMenuItemsBackOffice); // Get all MenuItems
+router.get('/workstation-data', getWorkstationMenuData); // ⚡ OPTIMIZED: Single-call for all categories + menus + stock
 router.get('/with-recipes/outlet/:outletId', getMenuItemsByOutletWithRecipes); // Get MenuItems by Outlet ID with Recipes
 router.get('/menu-items/category/:categoryId', getMenuItemsByCategory); // Get MenuItems by Category ID
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID
