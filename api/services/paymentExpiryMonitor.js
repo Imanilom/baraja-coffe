@@ -6,6 +6,7 @@ import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Table from '../models/Table.model.js';
 import Area from '../models/Area.model.js';
 import Reservation from '../models/Reservation.model.js';
+import { triggerImmediatePrint } from '../helpers/broadcast.helper.js';
 import mongoose from 'mongoose';
 
 // Helper function untuk mendapatkan waktu WIB sekarang
@@ -296,11 +297,17 @@ const autoActivateReservedOrders = async () => {
         log.info(`[${now.toISOString()}] Checking for Reserved orders to activate...`);
 
         // Cari semua order dengan status Reserved dan tipe Reservation
+        // ✅ IMPORTANT: Populate items.menuItem untuk data print yang lengkap
         const reservedOrders = await Order.find({
             status: 'Reserved',
             orderType: 'Reservation',
             reservation: { $exists: true, $ne: null }
-        }).populate('reservation');
+        })
+            .populate('reservation')
+            .populate({
+                path: 'items.menuItem',
+                select: 'name price category mainCategory workstation imageURL'
+            });
 
         if (reservedOrders.length === 0) {
             log.debug('No Reserved orders found for activation check');
@@ -396,6 +403,43 @@ const autoActivateReservedOrders = async () => {
                             updatedBy: 'System Auto-Activate',
                             timestamp: now
                         });
+
+                        // 🖨️ TRIGGER IMMEDIATE PRINT untuk kitchen/bar
+                        log.info(`🖨️ Triggering immediate print for activated order ${order.order_id}...`);
+
+                        // Map order items untuk print
+                        const orderItems = order.items.map(item => ({
+                            menuItem: item.menuItem?._id || item.menuItem,
+                            name: item.menuItem?.name || item.name || 'Unknown Item',
+                            quantity: item.quantity || 1,
+                            price: item.menuItem?.price || item.price || 0,
+                            category: item.menuItem?.category || item.category || '',
+                            mainCategory: item.menuItem?.mainCategory || item.mainCategory || '',
+                            workstation: item.menuItem?.workstation || item.workstation || 'kitchen',
+                            notes: item.notes || '',
+                            addons: item.addons || [],
+                            toppings: item.toppings || []
+                        }));
+
+                        // Trigger immediate print
+                        try {
+                            await triggerImmediatePrint({
+                                orderId: order.order_id,
+                                tableNumber: order.tableNumber,
+                                outletId: order.outlet,
+                                source: 'Reservation Auto-Activate',
+                                isAppOrder: false,
+                                isWebOrder: false,
+                                orderData: {
+                                    items: orderItems,
+                                    orderType: order.orderType,
+                                    paymentMethod: order.paymentMethod || 'Cash'
+                                }
+                            });
+                            log.success(`🖨️ Print triggered for order ${order.order_id}`);
+                        } catch (printError) {
+                            log.error(`Failed to trigger print for order ${order.order_id}:`, printError.message);
+                        }
                     }
                 } else {
                     log.debug(`Order ${order.order_id} not yet ready for activation. Will activate at ${activationTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`);
