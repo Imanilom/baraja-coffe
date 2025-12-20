@@ -18,13 +18,17 @@ pub struct Config {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServerConfig {
+    #[serde(default)]
     pub port: u16,
+    #[serde(default)]
     pub env: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
+    #[serde(default)]
     pub uri: String,
+    #[serde(default)]
     pub database: String,
     pub max_pool_size: Option<u32>,
     pub min_pool_size: Option<u32>,
@@ -32,27 +36,36 @@ pub struct DatabaseConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RedisConfig {
+    #[serde(default)]
     pub url: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct KafkaConfig {
+    #[serde(default)]
     pub brokers: String,
+    #[serde(default)]
     pub group_id: String,
     pub topics: KafkaTopics,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct KafkaTopics {
+    #[serde(default)]
     pub order: String,
+    #[serde(default)]
     pub payment: String,
+    #[serde(default)]
     pub inventory: String,
+    #[serde(default)]
     pub notification: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct JwtConfig {
+    #[serde(default)]
     pub secret: String,
+    #[serde(default)]
     pub expiration: i64,
 }
 
@@ -64,43 +77,57 @@ pub struct PaymentConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MidtransConfig {
+    #[serde(default)]
     pub server_key: String,
+    #[serde(default)]
     pub client_key: String,
+    #[serde(default)]
     pub is_production: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct XenditConfig {
+    #[serde(default)]
     pub secret_key: String,
+    #[serde(default)]
     pub is_production: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FcmConfig {
+    #[serde(default)]
     pub server_key: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoSendConfig {
+    #[serde(default)]
     pub api_key: String,
+    #[serde(default)]
     pub base_url: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoggingConfig {
+    #[serde(default)]
     pub level: String,
+    #[serde(default)]
     pub file_path: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CorsConfig {
+    #[serde(default)]
     pub allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RateLimitConfig {
+    #[serde(default = "default_rate_limit")]
     pub requests_per_minute: u32,
 }
+
+fn default_rate_limit() -> u32 { 100 }
 
 impl Config {
     /// Load configuration from environment
@@ -133,6 +160,24 @@ impl Config {
             .set_default("logging.level", "info")?
             .set_default("logging.file_path", "./logs")?
             .set_default("rate_limit.requests_per_minute", 100)?
+            .set_default("payment.midtrans.server_key", "")?
+            .set_default("payment.midtrans.client_key", "")?
+            .set_default("payment.xendit.secret_key", "")?
+            .set_default("fcm.server_key", "")?
+            .set_default("gosend.api_key", "")?
+            .set_default("gosend.base_url", "")?
+            .set_default("redis.url", "redis://localhost:6379")?
+            .set_default("kafka.brokers", "localhost:9092")?
+            .set_default("kafka.group_id", "baraja-coffee-api")?
+            .set_default("kafka.topics.order", "order-events")?
+            .set_default("kafka.topics.payment", "payment-events")?
+            .set_default("kafka.topics.inventory", "inventory-events")?
+            .set_default("kafka.topics.notification", "notification-events")?
+            .set_default("jwt.secret", "secret")?
+            .set_default("jwt.expiration", 86400)?
+            // Fallback for MongoDB env vars
+            .set_default("database.uri", std::env::var("MONGODB_URI").unwrap_or_default())?
+            .set_default("database.database", std::env::var("MONGODB_DATABASE").unwrap_or_default())?
             .build()?;
 
         let app_config: Config = config.try_deserialize()?;

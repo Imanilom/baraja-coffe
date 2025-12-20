@@ -1,3 +1,9 @@
 pub mod auth;
+pub mod menu;
+pub mod inventory;
+pub mod outlet;
 
-pub use auth::{signup, signin, get_me, update_profile, change_password, signout};
+pub use auth::*;
+pub use menu::*;
+pub use inventory::*;
+pub use outlet::*;
