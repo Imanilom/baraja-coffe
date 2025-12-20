@@ -5,6 +5,7 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Table from '../models/Table.model.js';
 import Area from '../models/Area.model.js';
+import Reservation from '../models/Reservation.model.js';
 import mongoose from 'mongoose';
 
 // Helper function untuk mendapatkan waktu WIB sekarang
@@ -279,6 +280,145 @@ const autoCompleteExpiredOnProcessOrders = async () => {
 
     } catch (error) {
         log.error('Error in autoCompleteExpiredOnProcessOrders:', error.message);
+        return { error: error.message };
+    }
+};
+
+/**
+ * ✅ Auto-activate Reserved orders 30 menit sebelum waktu target
+ * Prioritas waktu target:
+ * 1. food_serving_time (jika ada)
+ * 2. reservation_date + reservation_time (fallback)
+ */
+const autoActivateReservedOrders = async () => {
+    try {
+        const now = getWIBNow();
+        log.info(`[${now.toISOString()}] Checking for Reserved orders to activate...`);
+
+        // Cari semua order dengan status Reserved dan tipe Reservation
+        const reservedOrders = await Order.find({
+            status: 'Reserved',
+            orderType: 'Reservation',
+            reservation: { $exists: true, $ne: null }
+        }).populate('reservation');
+
+        if (reservedOrders.length === 0) {
+            log.debug('No Reserved orders found for activation check');
+            return { activatedCount: 0, totalFound: 0, skipped: 0 };
+        }
+
+        log.info(`Found ${reservedOrders.length} Reserved orders to check`);
+
+        let activatedCount = 0;
+        let skippedCount = 0;
+        const activatedOrders = [];
+
+        for (const order of reservedOrders) {
+            try {
+                const reservation = order.reservation;
+
+                if (!reservation) {
+                    log.warning(`Order ${order.order_id} has no reservation data, skipping...`);
+                    skippedCount++;
+                    continue;
+                }
+
+                // Tentukan waktu target (prioritas: food_serving_time)
+                let targetTime;
+                let targetSource = '';
+
+                if (reservation.food_serving_time) {
+                    // Prioritas 1: food_serving_time (sudah Date object)
+                    targetTime = new Date(reservation.food_serving_time);
+                    targetSource = 'food_serving_time';
+                } else if (reservation.reservation_date && reservation.reservation_time) {
+                    // Fallback: reservation_date + reservation_time
+                    const resDate = new Date(reservation.reservation_date);
+                    const [hours, minutes] = (reservation.reservation_time || '00:00').split(':');
+                    resDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+                    targetTime = resDate;
+                    targetSource = 'reservation_time';
+                } else {
+                    log.warning(`Order ${order.order_id} has no valid target time, skipping...`);
+                    skippedCount++;
+                    continue;
+                }
+
+                // Hitung waktu aktivasi (30 menit sebelum target)
+                const activationTime = new Date(targetTime.getTime() - 30 * 60 * 1000);
+
+                log.debug(`Order ${order.order_id}: Target=${targetTime.toISOString()} (${targetSource}), Activation=${activationTime.toISOString()}, Now=${now.toISOString()}`);
+
+                // Jika sudah waktunya aktivasi (now >= activationTime)
+                if (now >= activationTime) {
+                    // Update order status ke OnProcess
+                    order.status = 'OnProcess';
+                    order.updatedAtWIB = now;
+
+                    // Tambahkan note
+                    const activationNote = `\n[${now.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Auto-activated: 30 menit sebelum ${targetSource} (${targetTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })})`;
+                    order.notes = (order.notes || '') + activationNote;
+
+                    await order.save();
+
+                    activatedCount++;
+                    activatedOrders.push({
+                        orderId: order.order_id,
+                        targetTime: targetTime.toISOString(),
+                        targetSource,
+                        activatedAt: now.toISOString()
+                    });
+
+                    log.success(`✅ Order ${order.order_id} activated: Reserved → OnProcess (${targetSource}: ${targetTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })})`);
+
+                    // Emit socket event jika tersedia
+                    if (typeof global.io !== 'undefined' && global.io) {
+                        global.io.to('cashier_room').emit('order_status_updated', {
+                            orderId: order._id,
+                            order_id: order.order_id,
+                            status: 'OnProcess',
+                            updatedBy: 'System Auto-Activate',
+                            timestamp: now
+                        });
+
+                        global.io.to('gro_room').emit('order_status_updated', {
+                            orderId: order._id,
+                            order_id: order.order_id,
+                            status: 'OnProcess',
+                            updatedBy: 'System Auto-Activate',
+                            timestamp: now
+                        });
+
+                        global.io.to('kitchen_room').emit('order_status_updated', {
+                            orderId: order._id,
+                            order_id: order.order_id,
+                            status: 'OnProcess',
+                            updatedBy: 'System Auto-Activate',
+                            timestamp: now
+                        });
+                    }
+                } else {
+                    log.debug(`Order ${order.order_id} not yet ready for activation. Will activate at ${activationTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`);
+                    skippedCount++;
+                }
+
+            } catch (orderError) {
+                log.error(`Error processing order ${order.order_id}:`, orderError.message);
+                skippedCount++;
+            }
+        }
+
+        log.success(`Auto-activate completed: ${activatedCount} activated, ${skippedCount} skipped, ${reservedOrders.length} total checked`);
+
+        return {
+            activatedCount,
+            totalFound: reservedOrders.length,
+            skipped: skippedCount,
+            activatedOrders
+        };
+
+    } catch (error) {
+        log.error('Error in autoActivateReservedOrders:', error.message);
         return { error: error.message };
     }
 };
@@ -561,6 +701,13 @@ export const setupPaymentExpiryMonitor = () => {
     });
     log.success('Orphaned payments cleanup started - Running daily at 02:00 WIB\n');
 
+    // ✅ NEW: Auto-activate Reserved orders - setiap 1 menit
+    cron.schedule('* * * * *', async () => {
+        log.info(`[${getWIBNow().toISOString()}] Running auto-activate for Reserved orders...`);
+        await autoActivateReservedOrders();
+    });
+    log.success('Reserved orders auto-activate monitor started - Running every 1 minute');
+
     // ✅ IMPORTANT: Jangan jalankan initial check saat startup
     // Karena bisa menyebabkan double processing
     log.info('✅ Cron jobs initialized. Initial checks will run on schedule.');
@@ -595,9 +742,37 @@ export const triggerCleanupOrphanedPayments = async () => {
     };
 };
 
+export const triggerActivateReservedOrders = async () => {
+    log.info('🔄 Manual trigger: Auto-activate Reserved orders');
+    const result = await autoActivateReservedOrders();
+    return {
+        success: true,
+        message: 'Reserved orders auto-activate completed',
+        result
+    };
+};
+
 /**
  * ✅ API endpoints
  */
+export const manualActivateReservedOrders = async (req, res) => {
+    try {
+        const result = await autoActivateReservedOrders();
+        res.status(200).json({
+            success: true,
+            message: 'Reserved orders auto-activate completed successfully',
+            data: result
+        });
+    } catch (error) {
+        log.error('Error in manual activate reserved:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to auto-activate reserved orders',
+            error: error.message
+        });
+    }
+};
+
 export const manualCheckExpiredPayments = async (req, res) => {
     try {
         const result = await monitorExpiredPayments();
@@ -783,8 +958,10 @@ export default {
     triggerPaymentExpiryCheck,
     triggerOnProcessAutoComplete,
     triggerCleanupOrphanedPayments,
+    triggerActivateReservedOrders,
     manualCheckExpiredPayments,
     manualTriggerOnProcessComplete,
     manualTriggerCleanupOrphaned,
+    manualActivateReservedOrders,
     forceResetTableStatus
 };
