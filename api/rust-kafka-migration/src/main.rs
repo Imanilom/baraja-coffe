@@ -5,8 +5,8 @@ mod handlers;
 mod kafka;
 mod middleware;
 mod routes;
+mod services;
 mod utils;
-
 
 use std::sync::Arc;
 use tower_http::{
@@ -18,8 +18,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::Config;
 use db::DbConnection;
+use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository};
 use error::AppResult;
 use kafka::KafkaProducer;
+use services::{MenuService, InventoryService, OutletService};
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -27,6 +29,10 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub db: Arc<DbConnection>,
     pub kafka: Arc<KafkaProducer>,
+    pub user_repo: UserRepository,
+    pub menu_service: MenuService,
+    pub inventory_service: InventoryService,
+    pub outlet_service: OutletService,
 }
 
 #[tokio::main]
@@ -54,11 +60,26 @@ async fn main() -> AppResult<()> {
     let kafka = KafkaProducer::new(&config.kafka)?;
     tracing::info!("Kafka producer initialized");
 
+    // Initialize repositories
+    let user_repo = UserRepository::new(db.clone());
+    let menu_repo = MenuRepository::new(db.clone());
+    let inventory_repo = InventoryRepository::new(db.clone());
+    let outlet_repo = OutletRepository::new(db.clone());
+
+    // Initialize services
+    let menu_service = MenuService::new(menu_repo.clone(), inventory_repo.clone(), kafka.clone());
+    let inventory_service = InventoryService::new(inventory_repo.clone(), menu_repo.clone(), kafka.clone());
+    let outlet_service = OutletService::new(outlet_repo.clone());
+
     // Create application state
     let state = Arc::new(AppState {
         config: config.clone(),
         db,
         kafka,
+        user_repo,
+        menu_service,
+        inventory_service,
+        outlet_service,
     });
 
     // Configure CORS
