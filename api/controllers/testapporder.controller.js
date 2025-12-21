@@ -628,6 +628,9 @@ export const createAppOrder = async (req, res) => {
                 groId,
                 userName,
                 guestPhone,
+                // ✅ NEW: DP Already Paid (instant settlement)
+                dpAlreadyPaid,
+                dpBankInfo,
             } = req.body;
             console.log('🚀 Optimized createAppOrder:', {
                 isGroMode,
@@ -1129,6 +1132,8 @@ export const createAppOrder = async (req, res) => {
                         created_by: createdByData
                     });
                     await reservationRecord.save();
+
+                    // Link reservation to order
                     newOrder.reservation = reservationRecord._id;
                     await newOrder.save();
                     console.log('✅ Reservation created:', {
@@ -1144,6 +1149,60 @@ export const createAppOrder = async (req, res) => {
                         message: 'Error creating reservation',
                         error: reservationError.message
                     });
+                }
+            }
+
+            // ✅ NEW: DP Already Paid - Create instant settlement payment
+            if (dpAlreadyPaid && isGroMode && orderType === 'reservation' && reservationRecord) {
+                try {
+                    console.log('💳 Processing DP Already Paid - Creating instant settlement...');
+
+                    // Calculate DP amount (50% of grandTotal by default)
+                    const dpAmount = Math.ceil(grandTotal * 0.5);
+                    const remainingAmount = grandTotal - dpAmount;
+
+                    // Create Payment with settlement status
+                    const dpPayment = new Payment({
+                        order_id: newOrder._id,
+                        payment_code: `DP-${newOrder.order_id}-${Date.now()}`,
+                        method: 'cash', // ✅ Use cash method for instant settlement
+                        status: 'settlement', // ✅ Instant settlement like Cash
+                        method_type: dpBankInfo?.bankName || 'Bank Transfer', // ✅ Show actual bank name (BCA/Mandiri)
+                        paymentType: 'Down Payment',
+                        amount: dpAmount,
+                        totalAmount: grandTotal,
+                        remainingAmount: remainingAmount,
+                        fraud_status: 'accept',
+                        transaction_time: new Date().toISOString(),
+                        paidAt: new Date(),
+                        isDownPayment: true,
+                        downPaymentAmount: dpAmount,
+                        bankCode: dpBankInfo?.bankCode || 'manual',
+                        bankName: dpBankInfo?.bankName || 'Bank Transfer',
+                        notes: `DP sudah dibayar via transfer ${dpBankInfo?.bankName || 'Bank'} - dicatat oleh GRO`,
+                    });
+
+                    await dpPayment.save();
+
+                    // Update reservation with isDownPaymentPaid
+                    reservationRecord.isDownPaymentPaid = true;
+                    reservationRecord.remainingBalance = remainingAmount;
+                    await reservationRecord.save();
+
+                    // Update order with payment info
+                    newOrder.paymentStatus = 'partial_paid';
+                    newOrder.paymentId = dpPayment._id;
+                    await newOrder.save();
+
+                    console.log('✅ DP Already Paid processed:', {
+                        paymentId: dpPayment._id,
+                        dpAmount,
+                        remainingAmount,
+                        bank: dpBankInfo?.bankName
+                    });
+                } catch (dpError) {
+                    console.error('⚠️ DP Already Paid processing failed:', dpError.message);
+                    // Don't fail the whole order, just log the error
                 }
             }
             // RESPONSE

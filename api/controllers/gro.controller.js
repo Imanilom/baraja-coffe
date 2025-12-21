@@ -1729,15 +1729,30 @@ export const getOrderDetailById = async (req, res) => {
       return res.status(404).json({ message: 'Order not found.' });
     }
 
-    // Cari pembayaran
-    const payment = await Payment.findOne({ order_id: order.order_id });
+    // ✅ FIX: Cari Down Payment (sudah settlement) - ini adalah payment utama
+    const downPayment = await Payment.findOne({
+      order_id: order.order_id,
+      paymentType: 'Down Payment',
+      status: 'settlement'
+    }).sort({ createdAt: -1 });
+
+    // ✅ FIX: Cari Full Payment jika tidak ada DP
+    const fullPayment = await Payment.findOne({
+      order_id: order.order_id,
+      paymentType: 'Full',
+    }).sort({ createdAt: -1 });
+
+    // Gunakan DP jika ada, kalau tidak pakai Full Payment
+    const payment = downPayment || fullPayment;
 
     // Cari reservasi
     const reservation = await Reservation.findOne({ order_id: orderId })
       .populate('area_id')
       .populate('table_id');
 
-    console.log('Payment:', payment);
+    console.log('Down Payment:', downPayment ? `Found (${downPayment.status})` : 'Not Found');
+    console.log('Full Payment:', fullPayment ? `Found (${fullPayment.status})` : 'Not Found');
+    console.log('Payment used:', payment?.paymentType || 'None');
     console.log('Order:', orderId);
     console.log('Reservation:', reservation);
 
@@ -1865,15 +1880,15 @@ export const getOrderDetailById = async (req, res) => {
 
     console.log('Final Payment:', finalPayment ? `Found (${finalPayment.status})` : 'Not Found');
 
-    // Payment details - ✅ DITAMBAHKAN finalPaymentDetails (supports both pending & settled)
+    // Payment details - ✅ FIX: Include both DP and FP data
     const paymentDetails = {
-      totalAmount: totalAmountRemaining?.amount || payment?.totalAmount || order.grandTotal || 0,
-      paidAmount: payment?.amount || 0,
-      // ✅ FIX: remainingAmount = 0 jika Final Payment sudah settlement
-      remainingAmount: isFinalPaymentSettled ? 0 : (totalAmountRemaining?.totalAmount || payment?.remainingAmount || 0),
+      totalAmount: downPayment?.totalAmount || fullPayment?.totalAmount || order.grandTotal || 0,
+      paidAmount: downPayment?.amount || fullPayment?.amount || 0,
+      // ✅ FIX: remainingAmount dari DP, atau 0 jika FP sudah settlement
+      remainingAmount: isFinalPaymentSettled ? 0 : (downPayment?.remainingAmount || 0),
       paymentType: payment?.paymentType || 'Full',
-      isDownPayment: payment?.paymentType === 'Down Payment',
-      downPaymentPaid: payment?.paymentType === 'Down Payment' && payment?.status === 'settlement',
+      isDownPayment: !!downPayment,  // true jika ada Down Payment
+      downPaymentPaid: downPayment?.status === 'settlement',
       method: payment
         ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
         : 'Unknown',
@@ -1881,10 +1896,20 @@ export const getOrderDetailById = async (req, res) => {
       status: isFinalPaymentSettled ? 'settlement' : paymentStatus,
       hasPendingFinalPayment: hasPendingFinalPayment,  // true only if pending
       isFinalPaymentSettled: isFinalPaymentSettled,    // ✅ new flag
+      // ✅ NEW: Detail Down Payment
+      downPaymentDetails: downPayment ? {
+        _id: downPayment._id,
+        amount: downPayment.amount,
+        totalAmount: downPayment.totalAmount,
+        remainingAmount: downPayment.remainingAmount,
+        method: downPayment.method,
+        status: downPayment.status,
+      } : null,
       // ✅ TAMBAHAN: Detail final payment (pending atau settlement)
       pendingFinalPaymentDetails: finalPayment ? {
         _id: finalPayment._id,
         amount: finalPayment.amount,
+        totalAmount: finalPayment.totalAmount,
         method: finalPayment.method,
         status: finalPayment.status,
         actions: finalPayment.actions || [],  // QR CODE
@@ -3261,6 +3286,8 @@ export const checkOutReservation = async (req, res) => {
       employee_name: employee?.username || 'Unknown',
       checked_out_at: getWIBNow()
     };
+    // ✅ NEW: Also update reservation status to completed
+    reservation.status = 'completed';
 
     await reservation.save({ session });
 

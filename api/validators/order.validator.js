@@ -979,7 +979,7 @@ export const charge = async (req, res) => {
                 transaction_id: transactionId,
                 payment_code: payment_code,
                 amount: newFinalPaymentAmount,
-                totalAmount: newFinalPaymentAmount,
+                totalAmount: settledDownPayment.remainingAmount + newFinalPaymentAmount,
                 method: payment_type,
                 status: 'pending',
                 fraud_status: 'accept',
@@ -997,7 +997,7 @@ export const charge = async (req, res) => {
           return res.status(200).json({
             ...rawResponse,
             paymentType: 'Final Payment',
-            totalAmount: newFinalPaymentAmount,
+            totalAmount: settledDownPayment.remainingAmount + newFinalPaymentAmount,
             remainingAmount: 0,
             is_down_payment: false,
             relatedPaymentId: settledDownPayment._id,
@@ -1046,7 +1046,7 @@ export const charge = async (req, res) => {
                 transaction_id: response.transaction_id,
                 payment_code: response_code,
                 amount: newFinalPaymentAmount,
-                totalAmount: newFinalPaymentAmount,
+                totalAmount: settledDownPayment.remainingAmount + newFinalPaymentAmount,
                 method: payment_type,
                 status: response.transaction_status || 'pending',
                 fraud_status: response.fraud_status,
@@ -1071,7 +1071,7 @@ export const charge = async (req, res) => {
           return res.status(200).json({
             ...response,
             paymentType: 'Final Payment',
-            totalAmount: newFinalPaymentAmount,
+            totalAmount: settledDownPayment.remainingAmount + newFinalPaymentAmount,
             remainingAmount: 0,
             is_down_payment: false,
             relatedPaymentId: settledDownPayment._id,
@@ -1130,8 +1130,8 @@ export const charge = async (req, res) => {
         } else {
           // Jika hanya DP yang settlement, lanjutkan logic Final Payment seperti biasa
           paymentType = 'Final Payment';
-          amount = gross_amount; // Gunakan amount yang dikirim user
-          totalAmount = settledDownPayment.amount + gross_amount; // DP amount + final payment amount
+          amount = gross_amount; // Amount pesanan tambahan
+          totalAmount = settledDownPayment.remainingAmount + gross_amount; // DP.remainingAmount + additional order
           remainingAmount = 0;
 
           console.log("Creating final payment:");
