@@ -1,7 +1,8 @@
 // Test script for unified-order endpoint
 // Run with: node test-unified-order.js
 
-const ENDPOINT = 'https://ece685eb6a3e.ngrok-free.app/api/unified-order';
+const ENDPOINT = 'https://qmvjgsln-3000.asse.devtunnels.ms/api/unified-order';
+const PRINT_HISTORY_ENDPOINT = 'https://qmvjgsln-3000.asse.devtunnels.ms/api/print/order';
 const NUM_REQUESTS = 10;
 
 const requestBody = {
@@ -79,6 +80,57 @@ const requestBody = {
     ]
 };
 
+async function checkPrintStatus(orderId) {
+    if (!orderId || orderId === 'N/A') return { success: false, items: [] };
+
+    let attempts = 0;
+    const maxAttempts = 4;
+
+    while (attempts < maxAttempts) {
+        attempts++;
+        try {
+            // Poll every 3 seconds
+            await new Promise(r => setTimeout(r, 3000));
+
+            const response = await fetch(`${PRINT_HISTORY_ENDPOINT}/${orderId}/history`, {
+                headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                }
+            });
+            const data = await response.json();
+
+            if (data.success && data.data && data.data.print_history) {
+                const history = data.data.print_history;
+
+                if (history.length > 0) {
+                    // We found logs!
+                    const successCount = history.filter(h => h.print_status === 'success' || h.print_status === 'printed_with_issues' || h.print_status === 'forced_print').length;
+                    const failCount = history.filter(h => h.print_status === 'failed').length;
+                    const pendingCount = history.filter(h => h.print_status === 'pending' || h.print_status === 'printing').length;
+
+                    return {
+                        checked: true,
+                        successCount,
+                        failCount,
+                        pendingCount,
+                        historyLength: history.length,
+                        logs: history.map(h => `${h.item_name}: ${h.print_status}`).join(', ')
+                    };
+                }
+            }
+        } catch (e) {
+            console.log(`       ⚠️ Error checking print status (attempt ${attempts}): ${e.message}`);
+        }
+
+        // If we are here, we didn't return. Continue polling if not max attempts.
+        if (attempts < maxAttempts) {
+            console.log(`       ⏳ Waiting for print logs... (Attempt ${attempts}/${maxAttempts})`);
+        }
+    }
+
+    return { checked: true, successCount: 0, failCount: 0, pendingCount: 0, historyLength: 0, error: 'No history found after polling' };
+}
+
 async function sendRequest(index) {
     const startTime = Date.now();
 
@@ -96,18 +148,34 @@ async function sendRequest(index) {
         const data = await response.json();
 
         const status = data.success !== false && data.status === 'Completed' ? '✅' : '❌';
-        const orderId = data.orderId || 'N/A';
+
+        // Extract IDs - Prioritize Readable ID for print check
+        const readableId = (data.order && data.order.order_id) || (data.data && data.data.order_id) || data.orderId || 'N/A';
+        const objectId = (data.order && data.order._id) || (data.data && data.data._id) || (data.data && data.data.order && data.data.order._id) || null;
+
+        const idToCheck = readableId !== 'N/A' ? readableId : objectId;
         const error = data.error || data.message || '';
 
-        console.log(`${status} Request ${index + 1}: ${duration}ms | Order: ${orderId} | ${error ? 'Error: ' + error.substring(0, 60) : 'OK'}`);
+        console.log(`${status} Request ${index + 1}: ${duration}ms | Order: ${readableId} (${idToCheck}) | ${error ? 'Msg: ' + error.substring(0, 60) : 'OK'}`);
+
+        let printStatus = { checked: false };
+        if (data.success !== false && idToCheck !== 'N/A') {
+            console.log(`   ⏳ Checking print status for ${idToCheck}...`);
+            printStatus = await checkPrintStatus(idToCheck);
+
+            const printIcon = printStatus.successCount > 0 ? '🖨️✅' : (printStatus.failCount > 0 ? '🖨️❌' : (printStatus.pendingCount > 0 ? '🖨️⏳' : '🖨️❓'));
+            const logDetails = printStatus.logs ? `| Items: ${printStatus.logs}` : '| No logs';
+            console.log(`   ${printIcon} Print: Success=${printStatus.successCount || 0}, Failed=${printStatus.failCount || 0}, Pending=${printStatus.pendingCount || 0} ${logDetails}`);
+        }
 
         return {
             index: index + 1,
             success: data.success !== false && data.status === 'Completed',
             duration,
-            orderId,
+            orderId: readableId,
             error: error || null,
-            errorType: data.errorType || null
+            errorType: data.errorType || null,
+            printStatus
         };
     } catch (err) {
         const duration = Date.now() - startTime;
@@ -117,7 +185,8 @@ async function sendRequest(index) {
             success: false,
             duration,
             error: err.message,
-            networkError: true
+            networkError: true,
+            printStatus: { checked: false }
         };
     }
 }
@@ -136,7 +205,7 @@ async function runTests() {
 
         // Small delay between requests to avoid overwhelming
         if (i < NUM_REQUESTS - 1) {
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 1000));
         }
     }
 
@@ -148,10 +217,21 @@ async function runTests() {
     const avgDuration = Math.round(results.reduce((sum, r) => sum + r.duration, 0) / results.length);
     const transactionErrors = results.filter(r => r.errorType === 'TRANSACTION_CONFLICT' || (r.error && r.error.includes('transaction number'))).length;
 
-    console.log(`✅ Successful: ${successful}/${NUM_REQUESTS}`);
-    console.log(`❌ Failed: ${failed}/${NUM_REQUESTS}`);
+    // Print stats
+    const totalPrintSuccessItemAttempts = results.reduce((sum, r) => sum + (r.printStatus?.successCount || 0), 0);
+    const totalPrintFailedItemAttempts = results.reduce((sum, r) => sum + (r.printStatus?.failCount || 0), 0);
+    const totalPrintPendingItemAttempts = results.reduce((sum, r) => sum + (r.printStatus?.pendingCount || 0), 0);
+
+    const ordersWithVerifiedPrint = results.filter(r => (r.printStatus?.successCount || 0) > 0).length;
+    const ordersWithPendingPrint = results.filter(r => (r.printStatus?.pendingCount || 0) > 0).length;
+
+    console.log(`✅ Successful Orders: ${successful}/${NUM_REQUESTS}`);
+    console.log(`❌ Failed Orders: ${failed}/${NUM_REQUESTS}`);
     console.log(`⏱️  Avg response time: ${avgDuration}ms`);
     console.log(`🔄 Transaction conflicts: ${transactionErrors}`);
+    console.log(`\n🖨️  Print Summary:`);
+    console.log(`    - Orders Verified: ${ordersWithVerifiedPrint}, Pending: ${ordersWithPendingPrint}`);
+    console.log(`    - Items:  Success: ${totalPrintSuccessItemAttempts}, Pending: ${totalPrintPendingItemAttempts}, Failed: ${totalPrintFailedItemAttempts}`);
 
     if (failed > 0) {
         console.log('\n❌ Failed requests:');

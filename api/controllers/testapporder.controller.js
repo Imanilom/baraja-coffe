@@ -26,6 +26,7 @@ import { TaxAndService } from '../models/TaxAndService.model.js';
 import { db } from '../utils/mongo.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import { Device } from '../models/Device.model.js';
+import { PrintLogger } from '../services/print-logger.service.js';
 /**
  * ==================================================================================
  * SECTION 1: CONFIGURATION & CONSTANTS
@@ -500,6 +501,41 @@ async function broadcastGROOrderToWorkstations({
 
         console.log(`   🍹 Beverage items: ${beverageItems.length}`);
         console.log(`   🍳 Kitchen items: ${kitchenItems.length}`);
+
+        // ✅ LOGGING: Log pending attempts on server side (Non-blocking)
+        const logPromises = [];
+
+        // Log Beverage Items
+        if (beverageItems.length > 0) {
+            beverageItems.forEach(item => {
+                logPromises.push(PrintLogger.logPrintAttempt(
+                    orderId,
+                    item,
+                    'bar_depan', // Default logic: GRO usually prints to bar depan/kitchen
+                    { type: 'unknown', info: 'GRO Broadcast' },
+                    { is_auto_print: true }
+                ));
+            });
+        }
+
+        // Log Kitchen Items
+        if (kitchenItems.length > 0) {
+            kitchenItems.forEach(item => {
+                logPromises.push(PrintLogger.logPrintAttempt(
+                    orderId,
+                    item,
+                    'kitchen',
+                    { type: 'unknown', info: 'GRO Broadcast' },
+                    { is_auto_print: true }
+                ));
+            });
+        }
+
+        // Fire-and-forget logging
+        Promise.allSettled(logPromises).then((results) => {
+            const successCount = results.filter(r => r.status === 'fulfilled').length;
+            console.log(`📝 [GRO-LOG] Logged ${successCount}/${logPromises.length} print attempts`);
+        }).catch(err => console.error('⚠️ [GRO-LOG] Failed to log:', err));
 
         // Emit to each device
         let sentCount = 0;

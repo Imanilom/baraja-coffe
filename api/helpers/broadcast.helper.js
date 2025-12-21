@@ -163,6 +163,7 @@
 
 import { getAreaGroup } from '../utils/areaGrouping.js';
 import { io } from '../index.js';
+import { PrintLogger } from '../services/print-logger.service.js';
 
 // 🔥 NEW: Trigger immediate print tanpa menunggu apapun
 export const triggerImmediatePrint = async (orderInfo) => {
@@ -174,19 +175,11 @@ export const triggerImmediatePrint = async (orderInfo) => {
     console.log(`🪑 Table: ${tableNumber || 'N/A'}`);
     console.log(`📱 Source: ${isAppOrder ? 'App' : isWebOrder ? 'Web' : source || 'Cashier'}`);
 
-    if (!global.io) {
-      console.warn('❌ Socket IO not available for immediate print');
-      console.log(`====================================\n`);
-      return false;
-    }
-
-    const areaCode = tableNumber?.charAt(0).toUpperCase();
-
     // Prepare minimal print data - TIDAK perlu data lengkap
     const printData = {
       orderId,
       tableNumber,
-      areaCode,
+      areaCode: tableNumber?.charAt(0).toUpperCase(),
       orderItems: orderData.items || [],
       source: isAppOrder ? 'App' : isWebOrder ? 'Web' : source || 'Cashier',
       orderType: orderData.orderType || 'dine-in',
@@ -200,6 +193,50 @@ export const triggerImmediatePrint = async (orderInfo) => {
     const barItems = printData.orderItems.filter(item =>
       item.workstation === 'bar' || item.category === 'beverage' || item.category === 'drink'
     );
+
+    // ✅ LOGGING: Log pending attempts on server side for traceability
+    const logPromises = [];
+
+    // Log Kitchen Items
+    kitchenItems.forEach(item => {
+      logPromises.push(PrintLogger.logPrintAttempt(
+        orderId,
+        item,
+        'kitchen',
+        { type: 'unknown', info: 'Server Broadcast' },
+        { is_auto_print: true }
+      ));
+    });
+
+    // Log Bar Items
+    barItems.forEach(item => {
+      const areaCode = printData.areaCode;
+      const barRoom = areaCode && areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
+      logPromises.push(PrintLogger.logPrintAttempt(
+        orderId,
+        item,
+        barRoom,
+        { type: 'unknown', info: 'Server Broadcast' },
+        { is_auto_print: true }
+      ));
+    });
+
+    // Wait for logs to be created (non-blocking for print emission if possible, but safely awaited here)
+    // OPTIMIZATION: Fire-and-forget (Non-blocking)
+    Promise.allSettled(logPromises).then((results) => {
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      console.log(`📝 [BACKGROUND] Logged ${successCount}/${logPromises.length} pending print attempts`);
+    }).catch(logErr => {
+      console.error('⚠️ [BACKGROUND] Failed to log print attempts:', logErr);
+    });
+
+    if (!global.io) {
+      console.warn('❌ Socket IO not available for immediate print');
+      console.log(`====================================\n`);
+      return false;
+    }
+
+    const areaCode = printData.areaCode;
 
     // 🔥 EMIT ke kitchen IMMEDIATELY untuk print
     if (kitchenItems.length > 0) {

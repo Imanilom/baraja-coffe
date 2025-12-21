@@ -5,6 +5,7 @@ import { io } from '../index.js';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { PrintLogger } from '../services/print-logger.service.js';
+import { PrintLog } from '../models/print-log.model.js';
 dotenv.config();
 
 // ============================================
@@ -286,8 +287,20 @@ export const getWorkstationOrders = async (req, res) => {
     }
 
     // Reduced logging - only log when there are new orders or significant changes
+    // ✅ OPTIMIZED: Filter completed/cancelled orders to last 24 hours only
+    // This prevents loading thousands of old orders
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     const orders = await Order.find({
-      status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
+      $or: [
+        // Active orders: fetch ALL regardless of time
+        { status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Ready'] } },
+        // History orders: fetch only recent ones
+        {
+          status: { $in: ['Completed', 'Cancelled'] },
+          createdAt: { $gte: oneDayAgo }
+        }
+      ]
     })
       .select('order_id user status items createdAt updatedAt orderType reservation tableNumber cashierId groId createdAtWIB updatedAtWIB source')
       .populate({
