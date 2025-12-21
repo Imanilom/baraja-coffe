@@ -519,6 +519,25 @@ export async function createOrderHandler({
         category: item.category
       }));
 
+      // ✅ ADDED: Include customAmount items in print payload (Routed to Bar Depan)
+      if (verifiedOrder.customAmountItems && verifiedOrder.customAmountItems.length > 0) {
+        verifiedOrder.customAmountItems.forEach(customItem => {
+          itemsForPrint.push({
+            _id: customItem._id?.toString() || `custom-${Date.now()}`,
+            name: customItem.name || 'Custom Amount',
+            quantity: 1, // Default quantity 1
+            notes: customItem.description || '',
+            workstation: 'bar', // Route to BAR
+            mainCategory: 'custom',
+            category: 'custom',
+            isCustomAmount: true, // Flag for identification
+            price: customItem.amount
+          });
+        });
+
+        console.log(`➕ Added ${verifiedOrder.customAmountItems.length} custom amount items to print payload (Routed to Bar)`);
+      }
+
       await triggerImmediatePrint({
         orderId: verifiedOrder.order_id,
         tableNumber: verifiedOrder.tableNumber,

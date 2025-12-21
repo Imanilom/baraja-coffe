@@ -369,7 +369,12 @@ export const broadcastCashOrderToKitchen = async (params) => {
       const beverageItems = (orderData.orderItems || []).filter(item => {
         const mainCat = (item.mainCategory || '').toLowerCase();
         const ws = (item.workstation || item.station || '').toLowerCase();
-        return mainCat.includes('beverage') || mainCat.includes('minuman') || ws.includes('bar');
+        // ✅ ADDED: Include custom amount items
+        return mainCat.includes('beverage') ||
+          mainCat.includes('minuman') ||
+          ws.includes('bar') ||
+          item.isCustomAmount === true ||
+          mainCat === 'custom';
       });
 
       const kitchenItems = (orderData.orderItems || []).filter(item => {
