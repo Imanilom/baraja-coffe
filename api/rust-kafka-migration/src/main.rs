@@ -5,8 +5,8 @@ mod handlers;
 mod kafka;
 mod middleware;
 mod routes;
+mod services;
 mod utils;
-
 
 use std::sync::Arc;
 use tower_http::{
@@ -18,8 +18,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::Config;
 use db::DbConnection;
+use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository, OrderRepository};
 use error::AppResult;
 use kafka::KafkaProducer;
+use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService};
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -27,6 +29,15 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub db: Arc<DbConnection>,
     pub kafka: Arc<KafkaProducer>,
+    pub user_repo: UserRepository,
+    pub order_repo: OrderRepository,
+    pub menu_service: MenuService,
+    pub inventory_service: InventoryService,
+    pub outlet_service: OutletService,
+    pub loyalty_service: LoyaltyService,
+    pub tax_service: TaxService,
+    pub promo_service: PromoService,
+    pub lock_util: crate::utils::LockUtil,
 }
 
 #[tokio::main]
@@ -54,11 +65,41 @@ async fn main() -> AppResult<()> {
     let kafka = KafkaProducer::new(&config.kafka)?;
     tracing::info!("Kafka producer initialized");
 
+    // Initialize repositories
+    let user_repo = UserRepository::new(db.clone());
+    let menu_repo = MenuRepository::new(db.clone());
+    let inventory_repo = InventoryRepository::new(db.clone());
+    let outlet_repo = OutletRepository::new(db.clone());
+    let order_repo = OrderRepository::new(db.clone());
+
+    // Initialize services
+    let menu_service = MenuService::new(menu_repo.clone(), inventory_repo.clone(), kafka.clone());
+    let inventory_service = InventoryService::new(inventory_repo.clone(), menu_repo.clone(), kafka.clone());
+    let outlet_service = OutletService::new(outlet_repo.clone());
+    let loyalty_service = LoyaltyService::new(db.clone());
+    let tax_service = TaxService::new(db.clone());
+    let promo_service = PromoService::new(db.clone());
+
+    // Initialize Redis and LockUtil
+    let redis_client = redis::Client::open(config.redis.url.as_str())
+        .map_err(|e| error::AppError::Config(config::ConfigError::Message(e.to_string())))?;
+    let lock_util = utils::LockUtil::new(redis_client);
+    tracing::info!("Redis connection initialized");
+
     // Create application state
     let state = Arc::new(AppState {
         config: config.clone(),
         db,
         kafka,
+        user_repo,
+        order_repo,
+        menu_service,
+        inventory_service,
+        outlet_service,
+        loyalty_service,
+        tax_service,
+        promo_service,
+        lock_util,
     });
 
     // Configure CORS
