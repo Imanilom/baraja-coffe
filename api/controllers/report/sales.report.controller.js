@@ -487,98 +487,200 @@ class DailyProfitController {
   /**
    * Get daily profit for a date range - DUKUNG SPLIT PAYMENT
    */
+  // async getDailyProfitRange(req, res) {
+  //   try {
+  //     const { startDate, endDate, outletId } = req.query;
+
+  //     if (!startDate || !endDate) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
+  //       });
+  //     }
+
+  //     const start = new Date(startDate);
+  //     const end = new Date(endDate);
+  //     end.setHours(23, 59, 59, 999);
+
+  //     // Build query filter
+  //     const filter = {
+  //       createdAtWIB: {
+  //         $gte: start,
+  //         $lte: end
+  //       },
+  //       // status: { $in: ['Completed', 'OnProcess'] }
+  //       status: { $in: ['Completed'] }
+  //     };
+
+  //     if (outletId && outletId !== 'all') {
+  //       filter.outlet = outletId;
+  //     }
+
+  //     // Gunakan data denormalized tanpa populate
+  //     const orders = await Order.find(filter).lean();
+
+  //     // Group by date
+  //     const dailyProfits = {};
+
+  //     orders.forEach(order => {
+  //       // MODIFIKASI: Hitung total payment dari array payments
+  //       const completedPayments = order.payments?.filter(p =>
+  //         p.status === 'completed' || p.status === 'pending'
+  //       ) || [];
+
+  //       const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+  //       if (totalPaid > 0) {
+  //         const orderDate = order.createdAtWIB.toISOString().split('T')[0];
+  //         const orderRevenue = order.grandTotal || 0;
+  //         const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) +
+  //           (order.discounts?.manualDiscount || 0) +
+  //           (order.discounts?.voucherDiscount || 0);
+  //         const orderNetProfit = orderRevenue - orderDiscounts;
+
+  //         if (!dailyProfits[orderDate]) {
+  //           dailyProfits[orderDate] = {
+  //             date: orderDate,
+  //             totalRevenue: 0,
+  //             totalNetProfit: 0,
+  //             totalOrders: 0,
+  //             totalItemsSold: 0,
+  //             totalPaidAmount: 0
+  //           };
+  //         }
+
+  //         dailyProfits[orderDate].totalRevenue += orderRevenue;
+  //         dailyProfits[orderDate].totalNetProfit += orderNetProfit;
+  //         dailyProfits[orderDate].totalOrders += 1;
+  //         dailyProfits[orderDate].totalPaidAmount += totalPaid;
+
+  //         // Count items - ini akan bekerja bahkan jika menuItems dihapus
+  //         const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  //         dailyProfits[orderDate].totalItemsSold += itemsCount;
+  //       }
+  //     });
+
+  //     // Convert to array and sort by date
+  //     const result = Object.values(dailyProfits).sort((a, b) =>
+  //       new Date(a.date) - new Date(b.date)
+  //     );
+
+  //     res.json({
+  //       success: true,
+  //       data: result
+  //     });
+
+  //   } catch (error) {
+  //     console.error('Error in getDailyProfitRange:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Internal server error',
+  //       error: error.message
+  //     });
+  //   }
+  // }
+
   async getDailyProfitRange(req, res) {
     try {
-      const { startDate, endDate, outletId } = req.query;
+      const filters = { status: 'Completed' };
 
-      if (!startDate || !endDate) {
-        return res.status(400).json({
-          success: false,
-          message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
-        });
+      if (req.query.outlet) filters.outlet = req.query.outlet;
+
+      // Date range filter
+      if (req.query.startDate || req.query.endDate) {
+        filters.createdAt = {};
+
+        if (req.query.startDate) {
+          const startDate = new Date(req.query.startDate + 'T00:00:00.000+07:00');
+          filters.createdAt.$gte = startDate;
+        }
+
+        if (req.query.endDate) {
+          const endDate = new Date(req.query.endDate + 'T23:59:59.999+07:00');
+          filters.createdAt.$lte = endDate;
+        }
       }
 
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      // AGGREGATION PIPELINE - Grouping di database, bukan di aplikasi!
+      const dailySales = await Order.aggregate([
+        // Stage 1: Filter
+        { $match: filters },
 
-      // Build query filter
-      const filter = {
-        createdAtWIB: {
-          $gte: start,
-          $lte: end
-        },
-        status: { $in: ['Completed', 'OnProcess'] }
-      };
-
-      if (outletId && outletId !== 'all') {
-        filter.outlet = outletId;
-      }
-
-      // Gunakan data denormalized tanpa populate
-      const orders = await Order.find(filter).lean();
-
-      // Group by date
-      const dailyProfits = {};
-
-      orders.forEach(order => {
-        // MODIFIKASI: Hitung total payment dari array payments
-        const completedPayments = order.payments?.filter(p =>
-          p.status === 'completed' || p.status === 'pending'
-        ) || [];
-
-        const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-
-        if (totalPaid > 0) {
-          const orderDate = order.createdAtWIB.toISOString().split('T')[0];
-          const orderRevenue = order.grandTotal || 0;
-          const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) +
-            (order.discounts?.manualDiscount || 0) +
-            (order.discounts?.voucherDiscount || 0);
-          const orderNetProfit = orderRevenue - orderDiscounts;
-
-          if (!dailyProfits[orderDate]) {
-            dailyProfits[orderDate] = {
-              date: orderDate,
-              totalRevenue: 0,
-              totalNetProfit: 0,
-              totalOrders: 0,
-              totalItemsSold: 0,
-              totalPaidAmount: 0
-            };
+        // Stage 2: Project hanya field yang dibutuhkan
+        {
+          $project: {
+            grandTotal: 1,
+            createdAt: 1,
+            date: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$createdAt",
+                timezone: "Asia/Jakarta"
+              }
+            }
           }
+        },
 
-          dailyProfits[orderDate].totalRevenue += orderRevenue;
-          dailyProfits[orderDate].totalNetProfit += orderNetProfit;
-          dailyProfits[orderDate].totalOrders += 1;
-          dailyProfits[orderDate].totalPaidAmount += totalPaid;
+        // Stage 3: Group by date
+        {
+          $group: {
+            _id: "$date",
+            count: { $sum: 1 },
+            penjualanTotal: { $sum: "$grandTotal" },
+            timestamp: { $first: "$createdAt" }
+          }
+        },
 
-          // Count items - ini akan bekerja bahkan jika menuItems dihapus
-          const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-          dailyProfits[orderDate].totalItemsSold += itemsCount;
+        // Stage 4: Sort by date (descending)
+        { $sort: { timestamp: -1 } },
+
+        // Stage 5: Format output
+        {
+          $project: {
+            _id: 0,
+            date: {
+              $dateToString: {
+                format: "%d-%m-%Y",
+                date: { $dateFromString: { dateString: "$_id" } },
+                timezone: "Asia/Jakarta"
+              }
+            },
+            count: 1,
+            penjualanTotal: { $round: ["$penjualanTotal", 0] },
+            timestamp: 1
+          }
+        }
+      ]);
+
+      // Calculate grand totals
+      const grandTotalItems = dailySales.reduce((sum, day) => sum + day.count, 0);
+      const grandTotalPenjualan = dailySales.reduce((sum, day) => sum + day.penjualanTotal, 0);
+
+      res.status(200).json({
+        success: true,
+        data: dailySales,
+        metadata: {
+          totalDays: dailySales.length,
+          grandTotalItems,
+          grandTotalPenjualan,
+          filters: {
+            outlet: req.query.outlet || 'all',
+            dateRange: req.query.startDate && req.query.endDate
+              ? `${req.query.startDate} to ${req.query.endDate}`
+              : 'all'
+          }
         }
       });
 
-      // Convert to array and sort by date
-      const result = Object.values(dailyProfits).sort((a, b) =>
-        new Date(a.date) - new Date(b.date)
-      );
-
-      res.json({
-        success: true,
-        data: result
-      });
-
     } catch (error) {
-      console.error('Error in getDailyProfitRange:', error);
+      console.error('Get daily sales aggregated error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Failed to fetch daily sales',
         error: error.message
       });
     }
   }
-
   /**
    * Get today's profit summary - DUKUNG SPLIT PAYMENT
    */
