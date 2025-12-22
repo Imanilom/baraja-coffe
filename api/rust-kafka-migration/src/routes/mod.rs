@@ -5,6 +5,14 @@ use axum::{
 };
 use std::sync::Arc;
 
+mod device_routes;
+mod websocket_routes;
+mod pos_routes;
+mod webhook_routes_new;
+mod advanced_pos_routes;
+mod stock_routes;
+mod report_routes;
+
 use crate::error::ApiResponse;
 use crate::handlers;
 use crate::middleware::auth_middleware;
@@ -80,4 +88,12 @@ pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .nest("/api/inventory", inventory_routes(state.clone()))
         .nest("/api/outlets", outlet_routes())
         .nest("/api/order", order_routes(state.clone()))
+        .nest("/api", device_routes::device_routes())
+        .nest("/api", pos_routes::printer_routes())
+        .nest("/api", pos_routes::order_operations_routes())
+        .nest("/api", advanced_pos_routes::advanced_pos_routes())
+        .nest("/api", stock_routes::stock_routes())
+        .nest("/api", report_routes::report_routes())
+        .merge(websocket_routes::websocket_routes())
+        .merge(webhook_routes_new::webhook_routes())
 }

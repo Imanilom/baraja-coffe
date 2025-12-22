@@ -88,16 +88,23 @@ pub struct OrderItem {
     #[serde(rename = "menuItem", skip_serializing_if = "Option::is_none")]
     pub menu_item: Option<ObjectId>,
     
+    #[serde(rename = "menuItemName", default)]
+    pub menu_item_name: String,
+    
     #[serde(rename = "menuItemData", default)]
     pub menu_item_data: MenuItemData,
     
     pub quantity: i32,
+    
+    #[serde(default)]
+    pub price: f64,
+    
     pub subtotal: f64,
     
     #[serde(default)]
-    pub addons: Vec<OrderItemAddon>,
+    pub addons: Vec<serde_json::Value>,
     #[serde(default)]
-    pub toppings: Vec<OrderItemTopping>,
+    pub toppings: Vec<serde_json::Value>,
     
     #[serde(default)]
     pub notes: String,
@@ -119,6 +126,9 @@ pub struct OrderItem {
     
     #[serde(rename = "dineType", default = "default_dine_type")]
     pub dine_type: String, // Dine-In, Take Away
+    
+    #[serde(rename = "isBazarCategory", default)]
+    pub is_bazar_category: bool,
     
     #[serde(rename = "outletId", skip_serializing_if = "Option::is_none")]
     pub outlet_id: Option<ObjectId>,
@@ -183,6 +193,8 @@ pub struct CustomAmountItem {
     pub dine_type: String,
     #[serde(rename = "appliedAt", default = "chrono::Utc::now")]
     pub applied_at: DateTime<Utc>,
+    #[serde(rename = "isAutoCalculated", default)]
+    pub is_auto_calculated: bool,
     #[serde(rename = "originalAmount", skip_serializing_if = "Option::is_none")]
     pub original_amount: Option<f64>,
     #[serde(rename = "discountApplied", default)]
