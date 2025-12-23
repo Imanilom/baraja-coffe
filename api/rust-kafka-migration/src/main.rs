@@ -7,6 +7,7 @@ mod middleware;
 mod routes;
 mod services;
 mod utils;
+mod websocket;
 
 use std::sync::Arc;
 use tower_http::{
@@ -21,13 +22,14 @@ use db::DbConnection;
 use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository, OrderRepository};
 use error::AppResult;
 use kafka::KafkaProducer;
-use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService};
+use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService, SessionService};
+use websocket::SocketState;
 
 /// Application state shared across all handlers
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
-    pub db: Arc<DbConnection>,
+    pub db: mongodb::Database,
     pub kafka: Arc<KafkaProducer>,
     pub user_repo: UserRepository,
     pub order_repo: OrderRepository,
@@ -37,7 +39,9 @@ pub struct AppState {
     pub loyalty_service: LoyaltyService,
     pub tax_service: TaxService,
     pub promo_service: PromoService,
+    pub session_service: SessionService,
     pub lock_util: crate::utils::LockUtil,
+    pub socket_state: SocketState,
 }
 
 #[tokio::main]
@@ -83,13 +87,21 @@ async fn main() -> AppResult<()> {
     // Initialize Redis and LockUtil
     let redis_client = redis::Client::open(config.redis.url.as_str())
         .map_err(|e| error::AppError::Config(config::ConfigError::Message(e.to_string())))?;
-    let lock_util = utils::LockUtil::new(redis_client);
+    let lock_util = utils::LockUtil::new(redis_client.clone());
     tracing::info!("Redis connection initialized");
+
+    // Initialize session service
+    let session_service = SessionService::new(redis_client);
+    tracing::info!("Session service initialized");
+
+    // Initialize WebSocket state
+    let socket_state = SocketState::new();
+    tracing::info!("WebSocket state initialized");
 
     // Create application state
     let state = Arc::new(AppState {
         config: config.clone(),
-        db,
+        db: db.database,
         kafka,
         user_repo,
         order_repo,
@@ -99,7 +111,9 @@ async fn main() -> AppResult<()> {
         loyalty_service,
         tax_service,
         promo_service,
+        session_service,
         lock_util,
+        socket_state,
     });
 
     // Configure CORS
