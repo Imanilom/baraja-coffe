@@ -47,7 +47,7 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                     // Fetch order details for these order IDs
                     const orderDetailsPromises = paymentMethodData.orders.map(async (orderId) => {
                         try {
-                            const response = await axios.get(`/api/orders?order_id=${orderId}`);
+                            const response = await axios.get('/api/report/sales-report', { params });
 
                             console.log(`Response for order ${orderId}:`, response.data);
 

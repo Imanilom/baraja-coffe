@@ -1,0 +1,156 @@
+use bson::{doc, oid::ObjectId};
+use mongodb::Collection;
+use std::sync::Arc;
+
+use crate::db::DbConnection;
+use crate::db::models::{MenuItem, Category};
+use crate::error::{AppError, AppResult};
+
+#[derive(Clone)]
+pub struct MenuRepository {
+    menu_collection: Collection<MenuItem>,
+    category_collection: Collection<Category>,
+}
+
+impl MenuRepository {
+    pub fn new(db: Arc<DbConnection>) -> Self {
+        Self {
+            menu_collection: db.collection("menuitems"),
+            category_collection: db.collection("categories"),
+        }
+    }
+
+    // --- Category Methods ---
+
+    pub async fn create_category(&self, category: Category) -> AppResult<ObjectId> {
+        let result = self.category_collection.insert_one(category, None).await?;
+        Ok(result.inserted_id.as_object_id()
+            .ok_or_else(|| AppError::Internal("Failed to get inserted category ID".to_string()))?)
+    }
+
+    pub async fn find_category_by_id(&self, id: &ObjectId) -> AppResult<Option<Category>> {
+        Ok(self.category_collection.find_one(doc! { "_id": id }, None).await?)
+    }
+
+    pub async fn find_all_categories(&self) -> AppResult<Vec<Category>> {
+        let mut cursor = self.category_collection.find(None, None).await?;
+        let mut categories = Vec::new();
+        while cursor.advance().await? {
+            categories.push(cursor.deserialize_current()?);
+        }
+        Ok(categories)
+    }
+
+    pub async fn update_category(&self, id: &ObjectId, category: Category) -> AppResult<()> {
+        let update_doc = bson::to_document(&category)
+            .map_err(|e| AppError::BsonSerialization(e))?;
+
+        self.category_collection.update_one(
+            doc! { "_id": id },
+            doc! { "$set": update_doc },
+            None,
+        ).await?;
+        Ok(())
+    }
+
+    pub async fn delete_category(&self, id: &ObjectId) -> AppResult<()> {
+        self.category_collection.delete_one(doc! { "_id": id }, None).await?;
+        Ok(())
+    }
+
+    // --- MenuItem Methods ---
+
+    pub async fn create_menu_item(&self, item: MenuItem) -> AppResult<ObjectId> {
+        let result = self.menu_collection.insert_one(item, None).await?;
+        Ok(result.inserted_id.as_object_id()
+            .ok_or_else(|| AppError::Internal("Failed to get inserted menu item ID".to_string()))?)
+    }
+
+    pub async fn find_menu_item_by_id(&self, id: &ObjectId) -> AppResult<Option<MenuItem>> {
+        Ok(self.menu_collection.find_one(doc! { "_id": id }, None).await?)
+    }
+
+    pub async fn find_all_menu_items(&self, active_only: bool) -> AppResult<Vec<MenuItem>> {
+        let filter = if active_only {
+            doc! { "isActive": true }
+        } else {
+            doc! {}
+        };
+        let mut cursor = self.menu_collection.find(filter, None).await?;
+        let mut items = Vec::new();
+        while cursor.advance().await? {
+            items.push(cursor.deserialize_current()?);
+        }
+        Ok(items)
+    }
+
+    pub async fn update_menu_item(&self, id: &ObjectId, item: MenuItem) -> AppResult<()> {
+        let update_doc = bson::to_document(&item)
+            .map_err(|e| AppError::BsonSerialization(e))?;
+
+        self.menu_collection.update_one(
+            doc! { "_id": id },
+            doc! { "$set": update_doc },
+            None,
+        ).await?;
+        Ok(())
+    }
+
+    pub async fn delete_menu_item(&self, id: &ObjectId) -> AppResult<()> {
+        self.menu_collection.delete_one(doc! { "_id": id }, None).await?;
+        Ok(())
+    }
+
+    pub async fn update_stock_for_warehouse(
+        &self,
+        menu_item_id: &ObjectId,
+        warehouse_id: &ObjectId,
+        new_stock: f64,
+    ) -> AppResult<()> {
+        // Find if warehouse stock exists
+        let filter = doc! {
+            "_id": menu_item_id,
+            "warehouseStocks.warehouseId": warehouse_id
+        };
+
+        let exists = self.menu_collection.find_one(filter.clone(), None).await?.is_some();
+
+        if exists {
+            // Update existing
+            self.menu_collection.update_one(
+                filter,
+                doc! { "$set": { "warehouseStocks.$.stock": new_stock } },
+                None,
+            ).await?;
+        } else {
+            // Push new
+            self.menu_collection.update_one(
+                doc! { "_id": menu_item_id },
+                doc! { "$push": { "warehouseStocks": { "warehouseId": warehouse_id, "stock": new_stock } } },
+                None,
+            ).await?;
+        }
+
+        // Re-calculate total available stock (sum of all warehouse stocks)
+        let pipeline = vec![
+            doc! { "$match": { "_id": menu_item_id } },
+            doc! { "$project": {
+                "total": { "$sum": "$warehouseStocks.stock" }
+            } }
+        ];
+
+        let mut cursor = self.menu_collection.aggregate(pipeline, None).await?;
+        if cursor.advance().await? {
+            let doc = cursor.deserialize_current()?;
+            let total: f64 = doc.get_f64("total").unwrap_or(0.0);
+            
+            self.menu_collection.update_one(
+                doc! { "_id": menu_item_id },
+                doc! { "$set": { "availableStock": total } },
+                None,
+            ).await?;
+        }
+
+        Ok(())
+    }
+}

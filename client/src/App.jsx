@@ -191,7 +191,7 @@ export default function App() {
             <Route path="/sign-up" element={<SignUp />} />
 
             {/* Halaman Admin dengan Sidebar */}
-            <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan", "cashier senior"]} />}>
+            <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan", "cashier senior", "super kasir"]} />}>
               <Route path="/admin" element={<AdminLayout />}>
                 {/* <Route index element={<AdminDashboard />} /> */}
                 <Route path="dashboard" element={<Dashboard />} />

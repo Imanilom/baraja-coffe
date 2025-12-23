@@ -69,7 +69,8 @@ export default function SignIn() {
         data.role === 'hrd' ||
         data.role === 'gro' ||
         data.role === 'inventory' ||
-        data.role === 'cashier senior'
+        data.role === 'cashier senior' ||
+        data.role === 'super kasir'
       ) {
         if (data.isActive === true) {
           if (data.role === "cashier senior") {

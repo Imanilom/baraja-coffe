@@ -5228,6 +5228,10 @@ export const createFinalPayment = async (req, res) => {
   try {
     const { payment_type, order_id, bank_transfer } = req.body;
 
+    console.log("=== CREATE FINAL PAYMENT ===");
+    console.log("Order ID:", order_id);
+    console.log("Payment Type:", payment_type);
+
     if (!payment_type || !order_id) {
       return res.status(400).json({
         success: false,
@@ -5235,7 +5239,7 @@ export const createFinalPayment = async (req, res) => {
       });
     }
 
-    const order = await Order.findOne({ order_id: order_id });
+    const order = await Order.findOne({ order_id: order_id }).populate('reservation');
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -5250,19 +5254,38 @@ export const createFinalPayment = async (req, res) => {
       status: 'pending'
     }).sort({ createdAt: -1 });
 
-    //  JIKA ADA PENDING, UPDATE SAJA
+    const payment_code = generatePaymentCode();
+
+    // ============================================
+    // CASE 1: JIKA ADA PENDING FINAL PAYMENT, UPDATE SAJA
+    // ============================================
     if (pendingFinalPayment) {
       console.log("Found existing pending Final Payment, updating...");
 
-      // Generate payment code baru jika diperlukan
-      const payment_code = generatePaymentCode();
-      const finalPaymentAmount = pendingFinalPayment.amount; // atau recalculate jika perlu
+      const finalPaymentAmount = pendingFinalPayment.amount;
 
-      // === UPDATE UNTUK CASH ===
+      // === Update untuk CASH ===
       if (payment_type === 'cash') {
         const transactionId = generateTransactionId();
         const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+        let expiryTime;
+        if (order.orderType === 'Reservation' && order.reservation) {
+          const reservation = order.reservation;
+          const reservationDate = new Date(reservation.reservation_date);
+          const timeParts = (reservation.reservation_time || '00:00').split(':');
+          const reservationDateTime = new Date(
+            reservationDate.getFullYear(),
+            reservationDate.getMonth(),
+            reservationDate.getDate(),
+            parseInt(timeParts[0]),
+            parseInt(timeParts[1])
+          );
+          const expiryDateTime = new Date(reservationDateTime.getTime() + 6 * 60 * 60 * 1000);
+          expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+        } else {
+          expiryTime = new Date(Date.now() + 30 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+        }
 
         const qrData = { order_id: order._id.toString() };
         const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
@@ -5291,7 +5314,7 @@ export const createFinalPayment = async (req, res) => {
           expiry_time: expiryTime,
         };
 
-        //  UPDATE existing payment
+        // UPDATE existing payment
         await Payment.updateOne(
           { _id: pendingFinalPayment._id },
           {
@@ -5323,7 +5346,7 @@ export const createFinalPayment = async (req, res) => {
         });
       }
 
-      // === UPDATE UNTUK NON-CASH ===
+      // === Update untuk NON-CASH ===
       let chargeParams = {
         payment_type: payment_type,
         transaction_details: {
@@ -5349,7 +5372,7 @@ export const createFinalPayment = async (req, res) => {
 
       const response = await coreApi.charge(chargeParams);
 
-      //  UPDATE existing payment
+      // UPDATE existing payment
       await Payment.updateOne(
         { _id: pendingFinalPayment._id },
         {
@@ -5392,9 +5415,215 @@ export const createFinalPayment = async (req, res) => {
       });
     }
 
-    //  JIKA TIDAK ADA PENDING, LANJUT KE LOGIKA BUAT BARU
-    // ... sisanya tetap sama seperti kode original Anda
-    // (kode untuk cari downPayment, create Final Payment baru, dll)
+    // ============================================
+    // CASE 2: TIDAK ADA PENDING, BUAT FINAL PAYMENT BARU
+    // ============================================
+    console.log("No pending Final Payment found, creating new one...");
+
+    // Cari Down Payment yang sudah settlement
+    const settledDownPayment = await Payment.findOne({
+      order_id: order_id,
+      paymentType: 'Down Payment',
+      status: 'settlement'
+    });
+
+    if (!settledDownPayment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tidak ditemukan Down Payment yang sudah dibayar untuk order ini. Pastikan DP sudah dibayar terlebih dahulu.'
+      });
+    }
+
+    // Hitung remaining amount (sisa yang harus dibayar)
+    const remainingAmount = settledDownPayment.remainingAmount ||
+      (settledDownPayment.totalAmount - settledDownPayment.amount);
+
+    if (remainingAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tidak ada sisa pembayaran untuk order ini. Order sudah lunas.'
+      });
+    }
+
+    console.log("Creating new Final Payment:");
+    console.log("- Settled DP ID:", settledDownPayment._id);
+    console.log("- DP Amount:", settledDownPayment.amount);
+    console.log("- Total Order Amount:", settledDownPayment.totalAmount);
+    console.log("- Remaining Amount to pay:", remainingAmount);
+
+    // === CASH PAYMENT ===
+    if (payment_type === 'cash') {
+      const transactionId = generateTransactionId();
+      const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+      // Set expiry time berdasarkan tipe order
+      let expiryTime;
+      if (order.orderType === 'Reservation' && order.reservation) {
+        const reservation = order.reservation;
+        const reservationDate = new Date(reservation.reservation_date);
+        const timeParts = (reservation.reservation_time || '00:00').split(':');
+        const reservationDateTime = new Date(
+          reservationDate.getFullYear(),
+          reservationDate.getMonth(),
+          reservationDate.getDate(),
+          parseInt(timeParts[0]),
+          parseInt(timeParts[1])
+        );
+        // 6 jam setelah waktu reservasi
+        const expiryDateTime = new Date(reservationDateTime.getTime() + 6 * 60 * 60 * 1000);
+        expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+      } else {
+        // 30 menit dari sekarang untuk order biasa
+        expiryTime = new Date(Date.now() + 30 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      }
+
+      const qrData = { order_id: order._id.toString() };
+      const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
+      const actions = [{
+        name: "generate-qr-code",
+        method: "GET",
+        url: qrCodeBase64,
+      }];
+
+      const rawResponse = {
+        status_code: "201",
+        status_message: "Cash final payment created successfully",
+        transaction_id: transactionId,
+        payment_code: payment_code,
+        order_id: order_id,
+        gross_amount: remainingAmount.toString() + ".00",
+        currency: "IDR",
+        payment_type: "cash",
+        transaction_time: currentTime,
+        transaction_status: "pending",
+        fraud_status: "accept",
+        actions: actions,
+        acquirer: "cash",
+        qr_string: JSON.stringify(qrData),
+        expiry_time: expiryTime,
+      };
+
+      // CREATE new Final Payment dengan link ke Down Payment
+      const newPayment = new Payment({
+        transaction_id: transactionId,
+        order_id: order_id,
+        payment_code: payment_code,
+        amount: remainingAmount,
+        totalAmount: settledDownPayment.totalAmount,
+        method: payment_type,
+        status: 'pending',
+        fraud_status: 'accept',
+        transaction_time: currentTime,
+        expiry_time: expiryTime,
+        settlement_time: null,
+        currency: 'IDR',
+        merchant_id: 'G055993835',
+        paymentType: 'Final Payment',
+        remainingAmount: 0,
+        relatedPaymentId: settledDownPayment._id, // Link ke Down Payment
+        actions: actions,
+        raw_response: rawResponse
+      });
+
+      const savedPayment = await newPayment.save();
+
+      // Link payment ke order
+      await Order.updateOne(
+        { order_id: order_id },
+        { $addToSet: { payment_ids: savedPayment._id } }
+      );
+
+      console.log("✅ Final Payment created successfully:", savedPayment._id);
+
+      return res.status(200).json({
+        ...rawResponse,
+        paymentType: 'Final Payment',
+        totalAmount: settledDownPayment.totalAmount,
+        remainingAmount: 0,
+        is_down_payment: false,
+        relatedPaymentId: settledDownPayment._id,
+        createdAt: savedPayment.createdAt,
+        updatedAt: savedPayment.updatedAt,
+        message: "Final payment created successfully"
+      });
+    }
+
+    // === NON-CASH PAYMENT (bank_transfer, qris, gopay, etc.) ===
+    let chargeParams = {
+      payment_type: payment_type,
+      transaction_details: {
+        gross_amount: parseInt(remainingAmount),
+        order_id: payment_code,
+      },
+    };
+
+    if (payment_type === 'bank_transfer') {
+      if (!bank_transfer?.bank) {
+        return res.status(400).json({ success: false, message: 'Bank is required for bank transfer' });
+      }
+      chargeParams.bank_transfer = { bank: bank_transfer.bank };
+    } else if (payment_type === 'gopay') {
+      chargeParams.gopay = {};
+    } else if (payment_type === 'qris') {
+      chargeParams.qris = {};
+    } else if (payment_type === 'shopeepay') {
+      chargeParams.shopeepay = {};
+    } else if (payment_type === 'credit_card') {
+      chargeParams.credit_card = { secure: true };
+    }
+
+    const response = await coreApi.charge(chargeParams);
+
+    // CREATE new Final Payment untuk non-cash
+    const newPayment = new Payment({
+      transaction_id: response.transaction_id,
+      order_id: order_id,
+      payment_code: payment_code,
+      amount: parseInt(remainingAmount),
+      totalAmount: settledDownPayment.totalAmount,
+      method: payment_type,
+      status: response.transaction_status || 'pending',
+      fraud_status: response.fraud_status,
+      transaction_time: response.transaction_time,
+      expiry_time: response.expiry_time,
+      settlement_time: response.settlement_time || null,
+      va_numbers: response.va_numbers || [],
+      permata_va_number: response.permata_va_number || null,
+      bill_key: response.bill_key || null,
+      biller_code: response.biller_code || null,
+      pdf_url: response.pdf_url || null,
+      currency: response.currency || 'IDR',
+      merchant_id: response.merchant_id || null,
+      signature_key: response.signature_key || null,
+      actions: response.actions || [],
+      paymentType: 'Final Payment',
+      remainingAmount: 0,
+      relatedPaymentId: settledDownPayment._id,
+      raw_response: response
+    });
+
+    const savedPayment = await newPayment.save();
+
+    // Link payment ke order
+    await Order.updateOne(
+      { order_id: order_id },
+      { $addToSet: { payment_ids: savedPayment._id } }
+    );
+
+    console.log("✅ Final Payment (non-cash) created successfully:", savedPayment._id);
+
+    return res.status(200).json({
+      ...response,
+      paymentType: 'Final Payment',
+      totalAmount: settledDownPayment.totalAmount,
+      remainingAmount: 0,
+      is_down_payment: false,
+      relatedPaymentId: settledDownPayment._id,
+      createdAt: savedPayment.createdAt,
+      updatedAt: savedPayment.updatedAt,
+      message: "Final payment created successfully"
+    });
 
   } catch (error) {
     console.error('Error creating final payment:', error);
@@ -5577,6 +5806,7 @@ export const handlePaymentWebhook = async (req, res) => {
 
       // Emit socket event
       if (global.io) {
+        // ✅ Emit ke semua clients (untuk backward compatibility)
         global.io.emit('paymentUpdate', {
           order_id: payment.order_id,
           payment_type: 'Final Payment',
@@ -5584,7 +5814,18 @@ export const handlePaymentWebhook = async (req, res) => {
           remaining_amount: 0,
           is_fully_paid: true
         });
-        console.log('Socket event emitted for final payment completion');
+
+        // ✅ TAMBAHAN: Emit khusus ke GRO room untuk real-time update
+        global.io.to('gro_room').emit('final_payment_settled', {
+          order_id: payment.order_id,
+          payment_type: 'Final Payment',
+          transaction_status: transactionStatus,
+          remaining_amount: 0,
+          is_fully_paid: true,
+          timestamp: new Date().toISOString()
+        });
+
+        console.log('Socket events emitted for final payment completion (global + gro_room)');
       }
     }
 
@@ -7593,10 +7834,21 @@ export const processPaymentCashier = async (req, res) => {
 
 
     // Cek apakah semua payment untuk order ini sudah settlement dan remainingAmount 0
-    const allPayments = await Payment.find({ order_id }).session(session);
-    const isFullyPaid = allPayments.every(p =>
-      p.status === 'settlement'
-    );
+    const payment_result = await Payment.aggregate([
+      { $match: { order_id } },
+      { $group: { _id: null, totalPaid: { $sum: '$amount' } } }
+    ]).session(session);
+
+    const totalPaidAmount = payment_result[0]?.totalPaid ?? 0;
+    const isFullyPaid =
+      Math.round(totalPaidAmount) === Math.round(order.grandTotal);
+
+
+
+    console.log('online order isFullyPaid:', isFullyPaid);
+    // const isFullyPaid = allPayments.every(p =>
+    //   p.status === 'settlement'
+    // );
     const cashier = await User.findOne({ _id: cashier_id });
     if (!cashier) {
       await session.abortTransaction();
@@ -7624,6 +7876,9 @@ export const processPaymentCashier = async (req, res) => {
         order.status = 'Waiting';
       }
 
+      await order.save({ session });
+    } else if (!isFullyPaid && order.orderType === 'Reservation') {
+      order.status = 'Reserved';
       await order.save({ session });
     }
 

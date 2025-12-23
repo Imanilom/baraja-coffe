@@ -29,6 +29,10 @@ const log = {
 
 /**
  * 1. Identifikasi Payment Reservasi yang Salah Ter-Expire
+ * 
+ * ✅ UPDATED: Hanya identifikasi reservasi yang BELUM lewat waktu reservasinya
+ * - Jika reservation_date + reservation_time sudah lewat → SKIP (memang seharusnya expire)
+ * - Jika reservation_date + reservation_time belum lewat → FLAG (salah expire karena bug 30 menit)
  */
 export const identifyExpiredReservationPayments = async () => {
     try {
@@ -42,43 +46,96 @@ export const identifyExpiredReservationPayments = async () => {
         log.info(`Found ${expiredPayments.length} expired payments, checking which are reservations...`);
 
         const problematicPayments = [];
+        const skippedPayments = [];
 
         for (const payment of expiredPayments) {
-            // Cari order terkait
-            const order = await Order.findOne({ order_id: payment.order_id }).lean();
+            // Cari order terkait dengan populate reservation
+            const order = await Order.findOne({ order_id: payment.order_id })
+                .populate('reservation')
+                .lean();
 
             if (order && order.orderType === 'Reservation') {
-                problematicPayments.push({
-                    payment_id: payment._id,
-                    payment_code: payment.payment_code,
-                    order_id: payment.order_id,
-                    amount: payment.amount,
-                    expiry_time: payment.expiry_time,
-                    expired_at: payment.expiredAt,
-                    order_status: order.status,
-                    order_created: order.createdAtWIB
-                });
+                // ✅ CRITICAL: Cek apakah reservation time sudah lewat
+                let shouldSkip = false;
+                let skipReason = '';
+
+                if (order.reservation) {
+                    const reservation = order.reservation;
+                    const reservationDate = new Date(reservation.reservation_date);
+                    const timeParts = (reservation.reservation_time || '00:00').split(':');
+
+                    // Gabungkan date + time
+                    const reservationDateTime = new Date(
+                        reservationDate.getFullYear(),
+                        reservationDate.getMonth(),
+                        reservationDate.getDate(),
+                        parseInt(timeParts[0]),
+                        parseInt(timeParts[1])
+                    );
+
+                    const now = new Date();
+
+                    // Jika reservation time sudah lewat, skip (memang seharusnya expire)
+                    if (reservationDateTime < now) {
+                        shouldSkip = true;
+                        skipReason = `Reservation time sudah lewat (${reservationDateTime.toLocaleString('id-ID')})`;
+                    }
+                }
+
+                if (shouldSkip) {
+                    skippedPayments.push({
+                        payment_code: payment.payment_code,
+                        order_id: payment.order_id,
+                        reason: skipReason
+                    });
+                } else {
+                    // ✅ Ini yang perlu diperbaiki (reservation belum lewat tapi sudah expire)
+                    problematicPayments.push({
+                        payment_id: payment._id,
+                        payment_code: payment.payment_code,
+                        order_id: payment.order_id,
+                        amount: payment.amount,
+                        expiry_time: payment.expiry_time,
+                        expired_at: payment.expiredAt,
+                        order_status: order.status,
+                        order_created: order.createdAtWIB,
+                        reservation_date: order.reservation?.reservation_date,
+                        reservation_time: order.reservation?.reservation_time
+                    });
+                }
             }
         }
 
         log.success(`\n📊 HASIL IDENTIFIKASI:`);
         log.info(`Total payment expire: ${expiredPayments.length}`);
-        log.error(`Payment reservasi yang SALAH ter-expire: ${problematicPayments.length}\n`);
+        log.warning(`Payment reservasi yang di-skip (sudah lewat waktu): ${skippedPayments.length}`);
+        log.error(`Payment reservasi yang SALAH ter-expire (belum lewat waktu): ${problematicPayments.length}\n`);
+
+        if (skippedPayments.length > 0) {
+            log.info('Payment yang di-skip (tidak perlu diperbaiki):');
+            skippedPayments.forEach((p, idx) => {
+                console.log(`  ${idx + 1}. ${p.payment_code} (${p.order_id}) - ${p.reason}`);
+            });
+            console.log('');
+        }
 
         if (problematicPayments.length > 0) {
-            log.warning('Detail payment yang bermasalah:');
+            log.warning('Detail payment yang bermasalah (PERLU DIPERBAIKI):');
             problematicPayments.forEach((p, idx) => {
                 console.log(`\n${idx + 1}. Payment Code: ${p.payment_code}`);
                 console.log(`   Order ID: ${p.order_id}`);
                 console.log(`   Amount: Rp ${p.amount.toLocaleString()}`);
                 console.log(`   Expiry Time: ${p.expiry_time}`);
                 console.log(`   Order Status: ${p.order_status}`);
-                console.log(`   Order Created: ${p.order_created}`);
+                console.log(`   Reservation Date: ${p.reservation_date}`);
+                console.log(`   Reservation Time: ${p.reservation_time}`);
+                console.log(`   ⚠️  SALAH EXPIRE - Reservasi belum lewat waktu!`);
             });
         }
 
         return {
             total: expiredPayments.length,
+            skipped: skippedPayments.length,
             problematic: problematicPayments.length,
             details: problematicPayments
         };
@@ -91,6 +148,8 @@ export const identifyExpiredReservationPayments = async () => {
 
 /**
  * 2. Identifikasi Order Reservasi yang Salah Ter-Cancel
+ * 
+ * ✅ UPDATED: Hanya identifikasi reservasi yang BELUM lewat waktu reservasinya
  */
 export const identifyCanceledReservationOrders = async () => {
     try {
@@ -103,27 +162,81 @@ export const identifyCanceledReservationOrders = async () => {
                 { canceledBySystem: true },
                 { cancellationReason: { $regex: /auto-cancel|payment expired|tidak ada pembayaran/i } }
             ]
-        }).lean();
+        }).populate('reservation').lean();
+
+        const problematicOrders = [];
+        const skippedOrders = [];
+
+        for (const order of canceledReservations) {
+            // ✅ CRITICAL: Cek apakah reservation time sudah lewat
+            let shouldSkip = false;
+            let skipReason = '';
+
+            if (order.reservation) {
+                const reservation = order.reservation;
+                const reservationDate = new Date(reservation.reservation_date);
+                const timeParts = (reservation.reservation_time || '00:00').split(':');
+
+                const reservationDateTime = new Date(
+                    reservationDate.getFullYear(),
+                    reservationDate.getMonth(),
+                    reservationDate.getDate(),
+                    parseInt(timeParts[0]),
+                    parseInt(timeParts[1])
+                );
+
+                const now = new Date();
+
+                // Jika reservation time sudah lewat, skip (memang seharusnya cancel)
+                if (reservationDateTime < now) {
+                    shouldSkip = true;
+                    skipReason = `Reservation time sudah lewat (${reservationDateTime.toLocaleString('id-ID')})`;
+                }
+            }
+
+            if (shouldSkip) {
+                skippedOrders.push({
+                    order_id: order.order_id,
+                    reason: skipReason
+                });
+            } else {
+                problematicOrders.push(order);
+            }
+        }
 
         log.success(`\n📊 HASIL IDENTIFIKASI:`);
-        log.error(`Order reservasi yang SALAH ter-cancel: ${canceledReservations.length}\n`);
+        log.warning(`Order reservasi yang di-skip (sudah lewat waktu): ${skippedOrders.length}`);
+        log.error(`Order reservasi yang SALAH ter-cancel (belum lewat waktu): ${problematicOrders.length}\n`);
 
-        if (canceledReservations.length > 0) {
-            log.warning('Detail order yang bermasalah:');
-            canceledReservations.forEach((order, idx) => {
+        if (skippedOrders.length > 0) {
+            log.info('Order yang di-skip (tidak perlu diperbaiki):');
+            skippedOrders.forEach((o, idx) => {
+                console.log(`  ${idx + 1}. ${o.order_id} - ${o.reason}`);
+            });
+            console.log('');
+        }
+
+        if (problematicOrders.length > 0) {
+            log.warning('Detail order yang bermasalah (PERLU DIPERBAIKI):');
+            problematicOrders.forEach((order, idx) => {
                 console.log(`\n${idx + 1}. Order ID: ${order.order_id}`);
                 console.log(`   User: ${order.user}`);
                 console.log(`   Grand Total: Rp ${order.grandTotal.toLocaleString()}`);
                 console.log(`   Canceled At: ${order.canceledAt}`);
                 console.log(`   Cancellation Reason: ${order.cancellationReason}`);
+                console.log(`   Reservation Date: ${order.reservation?.reservation_date}`);
+                console.log(`   Reservation Time: ${order.reservation?.reservation_time}`);
                 console.log(`   Stock Rolled Back: ${order.stockRolledBack ? 'Yes' : 'No'}`);
                 console.log(`   Table Released: ${order.tableReleased ? 'Yes' : 'No'}`);
+                console.log(`   ⚠️  SALAH CANCEL - Reservasi belum lewat waktu!`);
             });
         }
 
         return {
             total: canceledReservations.length,
-            details: canceledReservations
+            skipped: skippedOrders.length,
+            problematic: problematicOrders.length,
+            details: problematicOrders
         };
 
     } catch (error) {
