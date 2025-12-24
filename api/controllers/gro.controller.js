@@ -1223,9 +1223,18 @@ export const getReservations = async (req, res) => {
 
     if (search) {
       const searchRegex = { $regex: search, $options: 'i' };
+
+      // ✅ FIX: Search customer name in Order collection first
+      const matchingOrders = await Order.find({
+        user: searchRegex
+      }).select('_id');
+
+      const matchingOrderIds = matchingOrders.map(o => o._id);
+
       reservationFilter.$or = [
         { reservation_code: searchRegex },
-        { 'created_by.employee_name': searchRegex }
+        { 'created_by.employee_name': searchRegex },
+        { order_id: { $in: matchingOrderIds } } // ✅ Include reservations with matching guest name
       ];
     }
 
