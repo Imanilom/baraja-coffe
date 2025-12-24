@@ -4024,14 +4024,14 @@ export const charge = async (req, res) => {
         });
       }
     }
-
+    console.log("ini ada di luar existingfinalpayment");
     // === NEW: Cek apakah ada final payment yang masih pending ===
     const existingFinalPayment = await Payment.findOne({
       order_id: order_id,
       paymentType: 'Final Payment',
       status: { $in: ['pending', 'expire'] } // belum dibayar
     }).sort({ createdAt: -1 });
-
+    console.log("ini setelah existingfinalpayment");
     // === NEW: Jika ada final payment pending, update dengan pesanan baru ===
     if (existingFinalPayment) {
       // Ambil down payment yang sudah settlement untuk kalkulasi
@@ -4040,6 +4040,9 @@ export const charge = async (req, res) => {
         paymentType: 'Down Payment',
         status: 'settlement'
       });
+      console.log("ini setelah didalam if existingfinalpayment");
+
+      console.log("settledDownPayment:", settledDownPayment);
 
       if (settledDownPayment) {
         // Hitung total final payment baru
@@ -4050,6 +4053,10 @@ export const charge = async (req, res) => {
         console.log("Previous final payment amount:", existingFinalPayment.amount);
         console.log("Added order amount:", additionalAmount);
         console.log("New final payment amount:", newFinalPaymentAmount);
+
+        // ✅ FIX: Calculate correct total amount (DP + Final)
+        const newTotalAmount = newFinalPaymentAmount + settledDownPayment.amount;
+
 
         // === Update untuk CASH ===
         if (payment_type === 'cash') {
@@ -4111,8 +4118,8 @@ export const charge = async (req, res) => {
               $set: {
                 transaction_id: transactionId,
                 payment_code: payment_code,
-                amount: newFinalPaymentAmount,
-                totalAmount: newFinalPaymentAmount,
+                amount: newTotalAmount,
+                totalAmount: newFinalPaymentAmount, // ✅ Updated to include DP
                 method: payment_type,
                 status: 'pending',
                 fraud_status: 'accept',
@@ -4130,7 +4137,7 @@ export const charge = async (req, res) => {
           return res.status(200).json({
             ...rawResponse,
             paymentType: 'Final Payment',
-            totalAmount: newFinalPaymentAmount,
+            totalAmount: newTotalAmount, // ✅ Updated response
             remainingAmount: 0,
             is_down_payment: false,
             relatedPaymentId: settledDownPayment._id,
@@ -4178,8 +4185,8 @@ export const charge = async (req, res) => {
               $set: {
                 transaction_id: response.transaction_id,
                 payment_code: payment_code,
-                amount: newFinalPaymentAmount,
-                totalAmount: newFinalPaymentAmount,
+                amount: newTotalAmount,
+                totalAmount: newFinalPaymentAmount, // ✅ Updated to include DP
                 method: payment_type,
                 status: response.transaction_status || 'pending',
                 fraud_status: response.fraud_status,
@@ -4204,7 +4211,7 @@ export const charge = async (req, res) => {
           return res.status(200).json({
             ...response,
             paymentType: 'Final Payment',
-            totalAmount: newFinalPaymentAmount,
+            totalAmount: newTotalAmount, // ✅ Updated response
             remainingAmount: 0,
             is_down_payment: false,
             relatedPaymentId: settledDownPayment._id,
@@ -4228,6 +4235,33 @@ export const charge = async (req, res) => {
     let paymentType, amount, remainingAmount, totalAmount;
 
     if (is_down_payment === true) {
+      // ✅ PREVENT DUPLICATE: Check if a settled Down Payment already exists
+      const existingSettledDP = await Payment.findOne({
+        order_id: order_id,
+        paymentType: 'Down Payment',
+        status: { $in: ['settlement', 'capture'] }
+      });
+
+      if (existingSettledDP) {
+        console.log('✅ Settled Down Payment already exists. Skipping creation of pending payment.');
+        return res.status(200).json({
+          status_code: "200",
+          status_message: "Down Payment already settled",
+          transaction_status: existingSettledDP.status,
+          paymentType: existingSettledDP.paymentType,
+          order_id: existingSettledDP.order_id,
+          gross_amount: existingSettledDP.amount,
+          currency: existingSettledDP.currency || "IDR",
+          transaction_time: existingSettledDP.transaction_time,
+          fraud_status: existingSettledDP.fraud_status,
+          is_down_payment: true,
+          remainingAmount: existingSettledDP.remainingAmount,
+          method: existingSettledDP.method,
+          createdAt: existingSettledDP.createdAt,
+          updatedAt: existingSettledDP.updatedAt
+        });
+      }
+
       paymentType = 'Down Payment';
       amount = down_payment_amount || gross_amount;
       totalAmount = total_order_amount || gross_amount;
@@ -4321,17 +4355,34 @@ export const charge = async (req, res) => {
         url: qrCodeBase64,
       }];
 
+      // ✅ FIX: Handle DP Already Paid (Manual Bank Transfer via Cash Flow)
+      // Jika dp_already_paid = true, status langsung settlement & method disesuaikan
+      const isInstantSettlement = req.body.dp_already_paid === true || req.body.dp_already_paid === 'true';
+      const initialStatus = isInstantSettlement ? 'settlement' : 'pending';
+
+      // Jika manual transfer, gunakan nama bank sebagai method
+      // User request: "BCA (PT SCN) pun tidak masuk ke method_type"
+      // Kita simpan di method (dan paymentType jika perlu, tapi paymentType biasanya 'Down Payment' dll)
+      // Kita gunakan req.body.bank_info?.bankName atau custom string
+      let effectiveMethod = payment_type;
+      if (isInstantSettlement && req.body.bank_info && req.body.bank_info.bankName) {
+        effectiveMethod = req.body.bank_info.bankName; // e.g. "BCA (PT SCN)"
+        console.log('✅ Instant Settlement detected. Method set to:', effectiveMethod);
+      }
+
       const rawResponse = {
-        status_code: "201",
-        status_message: `Cash ${paymentType.toLowerCase()} transaction is created`,
+        status_code: isInstantSettlement ? "200" : "201",
+        status_message: isInstantSettlement
+          ? `Manual payment (${effectiveMethod}) recorded as settlement`
+          : `Cash ${paymentType.toLowerCase()} transaction is created`,
         transaction_id: transactionId,
         payment_code: payment_code,
         order_id: order_id,
         gross_amount: amount.toString() + ".00",
         currency: "IDR",
-        payment_type: "cash",
+        payment_type: "cash", // Tetap cash secara gateway
         transaction_time: currentTime,
-        transaction_status: "pending",
+        transaction_status: initialStatus,
         fraud_status: "accept",
         actions: actions,
         acquirer: "cash",
@@ -4339,18 +4390,21 @@ export const charge = async (req, res) => {
         expiry_time: expiryTime,
       };
 
+      console.log('ini amount yang disimpan:', totalAmount);
+      console.log('ini totalAmount yang disimpan:', amount);
+
       const payment = new Payment({
         transaction_id: transactionId,
         order_id: order_id,
         payment_code: payment_code,
-        amount: amount,
-        totalAmount: totalAmount,
-        method: payment_type,
-        status: 'pending',
+        amount: totalAmount,
+        totalAmount: amount,
+        method: effectiveMethod, // Saved here (e.g. BCA (PT SCN))
+        status: initialStatus,
         fraud_status: 'accept',
         transaction_time: currentTime,
         expiry_time: expiryTime,
-        settlement_time: null,
+        settlement_time: isInstantSettlement ? currentTime : null, // Set settlement time
         currency: 'IDR',
         merchant_id: 'G055993835',
         paymentType: paymentType,

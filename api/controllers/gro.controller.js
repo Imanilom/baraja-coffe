@@ -1729,11 +1729,10 @@ export const getOrderDetailById = async (req, res) => {
       return res.status(404).json({ message: 'Order not found.' });
     }
 
-    // ✅ FIX: Cari Down Payment (sudah settlement) - ini adalah payment utama
+    // ✅ FIX: Cari Down Payment (baik settlement, pending, atau expire)
     const downPayment = await Payment.findOne({
       order_id: order.order_id,
       paymentType: 'Down Payment',
-      status: 'settlement'
     }).sort({ createdAt: -1 });
 
     // ✅ FIX: Cari Full Payment jika tidak ada DP

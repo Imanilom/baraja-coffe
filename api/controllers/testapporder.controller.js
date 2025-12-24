@@ -15,6 +15,7 @@
  * ==================================================================================
  */
 import Payment from '../models/Payment.model.js';
+import QRCode from 'qrcode';
 import { MenuItem } from "../models/MenuItem.model.js";
 import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
@@ -1161,9 +1162,19 @@ export const createAppOrder = async (req, res) => {
                     const dpAmount = Math.ceil(grandTotal * 0.5);
                     const remainingAmount = grandTotal - dpAmount;
 
+                    // ✅ Generate QR Code
+                    const qrData = { order_id: newOrder._id.toString() };
+                    const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
+                    const actions = [{
+                        name: "generate-qr-code",
+                        method: "GET",
+                        url: qrCodeBase64,
+                    }];
+
                     // Create Payment with settlement status
                     const dpPayment = new Payment({
-                        order_id: newOrder._id,
+                        order_id: newOrder.order_id,
                         payment_code: `DP-${newOrder.order_id}-${Date.now()}`,
                         method: 'cash', // ✅ Use cash method for instant settlement
                         status: 'settlement', // ✅ Instant settlement like Cash
@@ -1179,7 +1190,9 @@ export const createAppOrder = async (req, res) => {
                         downPaymentAmount: dpAmount,
                         bankCode: dpBankInfo?.bankCode || 'manual',
                         bankName: dpBankInfo?.bankName || 'Bank Transfer',
+                        bankName: dpBankInfo?.bankName || 'Bank Transfer',
                         notes: `DP sudah dibayar via transfer ${dpBankInfo?.bankName || 'Bank'} - dicatat oleh GRO`,
+                        actions: actions, // ✅ Include QR code actions
                     });
 
                     await dpPayment.save();
