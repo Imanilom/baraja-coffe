@@ -115,9 +115,6 @@ router.get('/daily-profit', DailyProfitController.getDailyProfit);
 // GET /api/daily-profit/range?startDate=2024-01-01&endDate=2024-01-31&outletId=...
 router.get('/daily-profit/range', DailyProfitController.getDailyProfitRange);
 
-// GET /api/hourly-profit/range?startDate=2024-01-01&endDate=2024-01-31&outletId=...
-router.get('/hourly-profit/range', DailyProfitController.getHourlySalesRange);
-
 // GET /api/daily-profit/today?outletId=...
 router.get('/daily-profit/today', DailyProfitController.getTodayProfit);
 

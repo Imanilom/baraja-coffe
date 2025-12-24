@@ -53,18 +53,11 @@ const CategorySales = () => {
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [filteredData, setFilteredData] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalOrders, setTotalOrders] = useState(0);
 
     const ITEMS_PER_PAGE = 50;
-    const limit = ITEMS_PER_PAGE;
     const dropdownRef = useRef(null);
-
-    // Helper function to format date for API
-    const formatDateForAPI = (date) => {
-        return new Date(date).toISOString().split('T')[0];
-    };
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -129,79 +122,50 @@ const CategorySales = () => {
         setSearchParams(params);
     }, [setSearchParams]);
 
-    // Fetch outlets data
-    useEffect(() => {
-        const fetchOutlets = async () => {
-            try {
-                const response = await axios.get('/api/outlet');
-                const outletsData = Array.isArray(response.data)
-                    ? response.data
-                    : Array.isArray(response.data?.data)
-                        ? response.data.data
-                        : [];
-                setOutlets(outletsData);
-            } catch (err) {
-                console.error("Error fetching outlets:", err);
-                setOutlets([]);
-            }
-        };
-
-        fetchOutlets();
-    }, []);
-
-    // Fetch products data
+    // Fetch products and outlets data
     useEffect(() => {
         const fetchData = async () => {
-            if (!dateRange?.startDate || !dateRange?.endDate) {
-                return;
-            }
-
             setLoading(true);
             try {
-                const params = new URLSearchParams();
+                // Fetch products data
+                const productsResponse = await axios.get('/api/orders');
 
-                params.append('mode', 'paginated');
-                params.append('page', currentPage);
-                params.append('limit', limit);
-                params.append('status', 'Completed');
+                // Ensure productsResponse.data is an array
+                const productsData = Array.isArray(productsResponse.data) ?
+                    productsResponse.data :
+                    (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
+                        productsResponse.data.data : [];
 
-                if (selectedOutlet) {
-                    params.append('outlet', selectedOutlet);
-                }
+                const completedData = productsData.filter(item => item.status === "Completed");
 
-                if (dateRange?.startDate && dateRange?.endDate) {
-                    params.append('startDate', formatDateForAPI(dateRange.startDate));
-                    params.append('endDate', formatDateForAPI(dateRange.endDate));
-                }
+                setProducts(completedData);
 
-                if (searchTerm) {
-                    params.append('category', searchTerm);
-                }
+                // Fetch outlets data
+                const outletsResponse = await axios.get('/api/outlet');
 
-                const response = await axios.get(`/api/report/orders?${params.toString()}`);
+                // Ensure outletsResponse.data is an array
+                const outletsData = Array.isArray(outletsResponse.data) ?
+                    outletsResponse.data :
+                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
+                        outletsResponse.data.data : [];
 
-                const productsData = Array.isArray(response.data?.data)
-                    ? response.data.data
-                    : [];
+                setOutlets(outletsData);
 
-                setProducts(productsData);
-
-                if (response.data?.pagination) {
-                    setTotalPages(response.data.pagination.totalPages);
-                    setTotalOrders(response.data.pagination.totalOrders);
-                }
                 setError(null);
             } catch (err) {
-                console.error("Error fetching products:", err);
-                setError("Failed to load products.");
+                console.error("Error fetching data:", err);
+                setError("Failed to load data. Please try again later.");
+                // Set empty arrays as fallback
                 setProducts([]);
+                setFilteredData([]);
+                setOutlets([]);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchData();
-    }, [dateRange, selectedOutlet, currentPage, searchTerm, limit]);
+    }, []);
 
     // Handler functions
     const handleDateRangeChange = (newValue) => {
@@ -235,11 +199,118 @@ const CategorySales = () => {
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ], [outlets]);
 
-    // Group data by category
+    // Apply filter function - FIXED LOGIC
+    const applyFilter = useCallback(() => {
+        // Make sure products is an array before attempting to filter
+        let filtered = ensureArray([...products]);
+
+        // Filter by outlet FIRST
+        if (selectedOutlet) {
+            filtered = filtered.filter(product => {
+                try {
+                    // Fixed: Check if outlet array exists and has items
+                    if (!product?.cashier?.outlet || product.cashier.outlet.length === 0) {
+                        return false;
+                    }
+
+                    // Fixed: Compare by ID, not name
+                    const outletId = product.cashier.outlet[0]?.outletId?._id || product.cashier.outlet[0]?.outletId;
+                    return outletId === selectedOutlet;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by date range
+        if (dateRange?.startDate && dateRange?.endDate) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product.createdAt) {
+                        return false;
+                    }
+
+                    const productDate = new Date(product.createdAt);
+                    const startDate = new Date(dateRange.startDate);
+                    const endDate = new Date(dateRange.endDate);
+
+                    // Set time to beginning/end of day for proper comparison
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate.setHours(23, 59, 59, 999);
+
+                    // Check if dates are valid
+                    if (isNaN(productDate.getTime()) || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                        return false;
+                    }
+
+                    return productDate >= startDate && productDate <= endDate;
+                } catch (err) {
+                    console.error("Error filtering by date:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by search term (category) - FIXED: Apply after other filters
+        if (searchTerm) {
+            filtered = filtered.flatMap(product => {
+                try {
+                    const searchTermLower = searchTerm.toLowerCase();
+
+                    // Process all items in the order, not just the first one
+                    return (product?.items || []).flatMap(item => {
+                        const menuItem = item?.menuItem;
+                        if (!menuItem) return [];
+
+                        // Handle category as string or object
+                        let categoryName = '';
+                        if (typeof menuItem.category === 'string') {
+                            categoryName = menuItem.category;
+                        } else if (menuItem.category?.name) {
+                            categoryName = menuItem.category.name;
+                        } else {
+                            categoryName = 'Uncategorized';
+                        }
+
+                        // Check if category matches search term
+                        const categoryLower = categoryName.toLowerCase();
+                        if (!categoryLower.includes(searchTermLower)) {
+                            return [];
+                        }
+
+                        // Return filtered product with single item
+                        return [{
+                            ...product,
+                            items: [{
+                                ...item,
+                                menuItem: {
+                                    ...menuItem,
+                                    category: categoryName
+                                }
+                            }]
+                        }];
+                    });
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return [];
+                }
+            });
+        }
+
+        setFilteredData(filtered);
+    }, [products, searchTerm, selectedOutlet, dateRange]);
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // Group data by category - FIXED LOGIC
     const groupedArray = useMemo(() => {
         const grouped = {};
 
-        products.forEach(product => {
+        filteredData.forEach(product => {
             // Process all items in the order
             (product?.items || []).forEach(item => {
                 if (!item?.menuItem) return;
@@ -274,7 +345,16 @@ const CategorySales = () => {
         return Object.values(grouped).sort((a, b) =>
             a.category.localeCompare(b.category, 'id')
         );
-    }, [products]);
+    }, [filteredData]);
+
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return groupedArray.slice(startIndex, endIndex);
+    }, [groupedArray, currentPage]);
+
+    // Calculate total pages based on filtered data
+    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
 
     // Calculate grand totals for filtered data
     const grandTotal = useMemo(() => {
@@ -301,75 +381,13 @@ const CategorySales = () => {
         }).format(amount);
     };
 
-    // Export data to Excel - fetch all data without pagination
+    // Export current data to Excel
     const exportToExcel = async () => {
         setIsExporting(true);
 
         try {
-            // Fetch all data for export (without pagination)
-            const params = new URLSearchParams();
-            params.append('status', 'Completed');
-
-            if (selectedOutlet) {
-                params.append('outlet', selectedOutlet);
-            }
-
-            if (dateRange?.startDate && dateRange?.endDate) {
-                params.append('startDate', formatDateForAPI(dateRange.startDate));
-                params.append('endDate', formatDateForAPI(dateRange.endDate));
-            }
-
-            if (searchTerm) {
-                params.append('category', searchTerm);
-            }
-
-            const response = await axios.get(`/api/report/orders?${params.toString()}`);
-            const allProducts = Array.isArray(response.data?.data) ? response.data.data : [];
-
-            // Group all data
-            const grouped = {};
-            allProducts.forEach(product => {
-                (product?.items || []).forEach(item => {
-                    if (!item?.menuItem) return;
-
-                    let categoryName = '';
-                    if (typeof item.menuItem.category === 'string') {
-                        categoryName = item.menuItem.category;
-                    } else if (item.menuItem.category?.name) {
-                        categoryName = item.menuItem.category.name;
-                    } else {
-                        categoryName = 'Uncategorized';
-                    }
-
-                    const quantity = Number(item?.quantity) || 0;
-                    const subtotal = Number(item?.subtotal) || 0;
-
-                    if (!grouped[categoryName]) {
-                        grouped[categoryName] = {
-                            category: categoryName,
-                            quantity: 0,
-                            subtotal: 0
-                        };
-                    }
-
-                    grouped[categoryName].quantity += quantity;
-                    grouped[categoryName].subtotal += subtotal;
-                });
-            });
-
-            const groupedData = Object.values(grouped).sort((a, b) =>
-                a.category.localeCompare(b.category, 'id')
-            );
-
-            // Calculate grand total for export
-            const exportGrandTotal = groupedData.reduce(
-                (acc, curr) => {
-                    acc.quantity += curr.quantity;
-                    acc.subtotal += curr.subtotal;
-                    return acc;
-                },
-                { quantity: 0, subtotal: 0 }
-            );
+            // Small delay to show loading state
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             // Get outlet name
             const outletName = selectedOutlet
@@ -391,8 +409,8 @@ const CategorySales = () => {
                 { col1: 'Kategori', col2: 'Terjual', col3: 'Penjualan Bersih', col4: 'Rata-rata' }
             ];
 
-            // Add data rows
-            groupedData.forEach(group => {
+            // Add data rows from groupedArray
+            groupedArray.forEach(group => {
                 const average = group.quantity > 0 ? Math.round(group.subtotal / group.quantity) : 0;
                 exportData.push({
                     col1: group.category || '-',
@@ -403,14 +421,14 @@ const CategorySales = () => {
             });
 
             // Add Grand Total row
-            const grandAverage = exportGrandTotal.quantity > 0
-                ? Math.round(exportGrandTotal.subtotal / exportGrandTotal.quantity)
+            const grandAverage = grandTotal.quantity > 0
+                ? Math.round(grandTotal.subtotal / grandTotal.quantity)
                 : 0;
 
             exportData.push({
                 col1: 'Grand Total',
-                col2: exportGrandTotal.quantity,
-                col3: exportGrandTotal.subtotal,
+                col2: grandTotal.quantity,
+                col3: grandTotal.subtotal,
                 col4: grandAverage,
             });
 
@@ -430,7 +448,7 @@ const CategorySales = () => {
 
             // Merge cells for title
             ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title across 4 columns
             ];
 
             // Create workbook and add worksheet
@@ -563,9 +581,9 @@ const CategorySales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
                             </tr>
                         </thead>
-                        {groupedArray.length > 0 ? (
+                        {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {groupedArray.map((group, index) => {
+                                {paginatedData.map((group, index) => {
                                     const average = group.quantity > 0
                                         ? group.subtotal / group.quantity
                                         : 0;

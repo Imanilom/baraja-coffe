@@ -21,9 +21,9 @@ const PaymentMethodSales = () => {
     const [dateRange, setDateRange] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const [includeTax, setIncludeTax] = useState(true); // New state for tax toggle
     const ITEMS_PER_PAGE = 50;
 
+    // Format tanggal lokal tanpa timezone offset
     const formatDateLocal = (date) => {
         const d = new Date(date);
         const year = d.getFullYear();
@@ -72,7 +72,6 @@ const PaymentMethodSales = () => {
         const endDateParam = searchParams.get('endDate');
         const outletParam = searchParams.get('outletId');
         const pageParam = searchParams.get('page');
-        const taxParam = searchParams.get('includeTax');
 
         if (startDateParam && endDateParam) {
             setDateRange({
@@ -94,14 +93,10 @@ const PaymentMethodSales = () => {
         if (pageParam) {
             setCurrentPage(parseInt(pageParam, 10));
         }
-
-        if (taxParam !== null) {
-            setIncludeTax(taxParam === 'true');
-        }
     }, [searchParams]);
 
     // Update URL when filters change
-    const updateURLParams = (newDateRange, newOutlet, newPage, newIncludeTax) => {
+    const updateURLParams = (newDateRange, newOutlet, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
@@ -118,8 +113,6 @@ const PaymentMethodSales = () => {
         if (newPage && newPage > 1) {
             params.set('page', newPage.toString());
         }
-
-        params.set('includeTax', newIncludeTax.toString());
 
         setSearchParams(params);
     };
@@ -148,25 +141,14 @@ const PaymentMethodSales = () => {
             const params = {
                 startDate: formatDateLocal(dateRange.startDate),
                 endDate: formatDateLocal(dateRange.endDate),
-                groupBy: 'daily',
-                includeTax: includeTax.toString()
+                groupBy: 'daily'
             };
 
             if (selectedOutlet) {
                 params.outletId = selectedOutlet;
             }
 
-            // ✅ Add timeout for large datasets
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-
-            const response = await axios.get('/api/report/sales-report', {
-                params,
-                signal: controller.signal,
-                timeout: 60000 // 60 seconds
-            });
-
-            clearTimeout(timeoutId);
+            const response = await axios.get('/api/report/sales-report', { params });
 
             if (response.data?.success && response.data?.data) {
                 setReportData(response.data.data);
@@ -174,12 +156,8 @@ const PaymentMethodSales = () => {
                 setError("Format data tidak valid");
             }
         } catch (err) {
-            if (err.code === 'ECONNABORTED' || err.name === 'AbortError') {
-                setError("Request timeout. Dataset terlalu besar, coba dengan rentang tanggal yang lebih kecil.");
-            } else {
-                console.error("Error fetching sales report:", err);
-                setError(err.response?.data?.message || "Gagal memuat data. Silakan coba lagi.");
-            }
+            console.error("Error fetching sales report:", err);
+            setError(err.response?.data?.message || "Gagal memuat data. Silakan coba lagi.");
             setReportData(null);
         } finally {
             setLoading(false);
@@ -194,14 +172,14 @@ const PaymentMethodSales = () => {
         if (dateRange?.startDate && dateRange?.endDate) {
             fetchSalesReport();
         }
-    }, [dateRange, selectedOutlet, includeTax]);
+    }, [dateRange, selectedOutlet]);
 
     // Handle date range change
     const handleDateRangeChange = (newValue) => {
         if (newValue?.startDate && newValue?.endDate) {
             setDateRange(newValue);
             setCurrentPage(1);
-            updateURLParams(newValue, selectedOutlet, 1, includeTax);
+            updateURLParams(newValue, selectedOutlet, 1);
         }
     };
 
@@ -210,20 +188,13 @@ const PaymentMethodSales = () => {
         const newOutlet = selected?.value || "";
         setSelectedOutlet(newOutlet);
         setCurrentPage(1);
-        updateURLParams(dateRange, newOutlet, 1, includeTax);
-    };
-
-    // Handle tax toggle
-    const handleTaxToggle = (newIncludeTax) => {
-        setIncludeTax(newIncludeTax);
-        setCurrentPage(1);
-        updateURLParams(dateRange, selectedOutlet, 1, newIncludeTax);
+        updateURLParams(dateRange, newOutlet, 1);
     };
 
     // Handle page change
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
-        updateURLParams(dateRange, selectedOutlet, newPage, includeTax);
+        updateURLParams(dateRange, selectedOutlet, newPage);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -292,14 +263,11 @@ const PaymentMethodSales = () => {
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : 'Semua Tanggal';
 
-            const taxLabel = includeTax ? 'Dengan Pajak' : 'Tanpa Pajak';
-
             const rows = [
                 { col1: 'Laporan Metode Pembayaran', col2: '', col3: '', col4: '' },
                 { col1: '', col2: '', col3: '', col4: '' },
                 { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
                 { col1: 'Periode', col2: dateRangeText, col3: '', col4: '' },
-                { col1: 'Jenis Laporan', col2: taxLabel, col3: '', col4: '' },
                 { col1: '', col2: '', col3: '', col4: '' },
                 { col1: 'Metode Pembayaran', col2: 'Jumlah Transaksi', col3: 'Total', col4: 'Persentase' },
             ];
@@ -338,7 +306,7 @@ const PaymentMethodSales = () => {
 
             const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const filename = `Metode_Pembayaran_${taxLabel}_${outletName}_${startDate}_${endDate}.xlsx`;
+            const filename = `Metode_Pembayaran_${outletName}_${startDate}_${endDate}.xlsx`;
 
             XLSX.writeFile(wb, filename);
         } catch (err) {
@@ -422,8 +390,7 @@ const PaymentMethodSales = () => {
             <div className="flex justify-center items-center h-screen">
                 <div className="text-green-900 flex flex-col items-center gap-3">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-900"></div>
-                    <p className="font-medium">Memuat data...</p>
-                    <p className="text-sm text-gray-500">Mohon tunggu, sedang memproses laporan</p>
+                    <p>Memuat data...</p>
                 </div>
             </div>
         );
@@ -501,26 +468,6 @@ const PaymentMethodSales = () => {
                             isSearchable
                         />
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => handleTaxToggle(false)}
-                            className={`px-4 py-2 text-[13px] rounded transition-colors ${!includeTax
-                                ? 'bg-green-900 text-white'
-                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                                }`}
-                        >
-                            Tanpa Pajak
-                        </button>
-                        <button
-                            onClick={() => handleTaxToggle(true)}
-                            className={`px-4 py-2 text-[13px] rounded transition-colors ${includeTax
-                                ? 'bg-green-900 text-white'
-                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                                }`}
-                        >
-                            Dengan Pajak
-                        </button>
-                    </div>
                 </div>
 
                 {/* Summary Cards */}
@@ -539,9 +486,7 @@ const PaymentMethodSales = () => {
                             </p>
                         </div>
                         <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs mb-1">
-                                Total Pendapatan {includeTax ? '(Dengan Pajak)' : '(Tanpa Pajak)'}
-                            </p>
+                            <p className="text-gray-500 text-xs mb-1">Total Pendapatan</p>
                             <p className="text-2xl font-bold text-green-900">
                                 {formatCurrency(reportData.summary.totalRevenue)}
                             </p>
@@ -651,7 +596,6 @@ const PaymentMethodSales = () => {
                 paymentMethod={selectedPaymentMethod}
                 dateRange={dateRange}
                 outletId={selectedOutlet}
-                includeTax={includeTax}
                 formatCurrency={formatCurrency}
             />
         </div>

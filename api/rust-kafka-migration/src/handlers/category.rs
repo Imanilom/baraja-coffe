@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use axum::{
     extract::{State, Path},
     response::IntoResponse,

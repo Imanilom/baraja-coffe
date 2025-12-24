@@ -127,7 +127,7 @@ export const runTableSyncJob = async () => {
 
     try {
         // Get all active outlets
-        const outlets = await Outlet.find({ isActive: true }).select('_id name').lean();
+        const outlets = await Outlet.find({ is_active: true }).select('_id name').lean();
 
         if (outlets.length === 0) {
             console.log('⚠️ No active outlets found');
