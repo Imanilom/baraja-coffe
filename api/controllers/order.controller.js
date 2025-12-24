@@ -2752,7 +2752,7 @@ const processOpenBillOrder = async ({
 
     if (existingOpenBill) {
       throw new Error(`Meja ${tableNumber} sudah memiliki open bill aktif (Order ID: ${existingOpenBill.order_id})`);
-    }
+    };
 
     // Hitung total dari items awal
     let totalBeforeDiscount = 0;
@@ -2777,27 +2777,52 @@ const processOpenBillOrder = async ({
         // Hitung subtotal
         let subtotal = menuItem.price * item.quantity;
 
-        // Tambah addons
+        // PROSES ADDONS - PERBAIKAN DISINI
+        let processedAddons = [];
         if (item.selectedAddons && item.selectedAddons.length > 0) {
-          item.selectedAddons.forEach(addon => {
-            const menuAddon = menuItem.addons.find(a => a.name === addon.name);
-            if (menuAddon) {
-              const option = menuAddon.options.find(o => o.label === addon.selectedOption);
+          for (const addonData of item.selectedAddons) {
+            // Cari addon berdasarkan ID
+            const menuAddon = menuItem.addons.find(a => a._id.toString() === addonData.id);
+
+            if (menuAddon && addonData.options && addonData.options.length > 0) {
+              // Ambil option yang dipilih
+              const selectedOptionId = addonData.options[0].id;
+              const option = menuAddon.options.find(o => o._id.toString() === selectedOptionId);
+
               if (option) {
                 subtotal += option.price * item.quantity;
+
+                // Simpan data addon yang diproses
+                processedAddons.push({
+                  addonId: addonData.id,
+                  addonName: menuAddon.name,
+                  optionId: selectedOptionId,
+                  optionLabel: option.label,
+                  optionPrice: option.price
+                });
               }
             }
-          });
+          }
         }
 
-        // Tambah toppings
+        // PROSES TOPPINGS - PERBAIKAN DISINI
+        let processedToppings = [];
         if (item.selectedToppings && item.selectedToppings.length > 0) {
-          item.selectedToppings.forEach(topping => {
-            const menuTopping = menuItem.toppings.find(t => t.name === topping.name);
+          for (const toppingData of item.selectedToppings) {
+            // Cari topping berdasarkan ID
+            const menuTopping = menuItem.toppings.find(t => t._id.toString() === toppingData.id);
+
             if (menuTopping) {
               subtotal += menuTopping.price * item.quantity;
+
+              // Simpan data topping yang diproses
+              processedToppings.push({
+                toppingId: toppingData.id,
+                toppingName: menuTopping.name,
+                toppingPrice: menuTopping.price
+              });
             }
-          });
+          }
         }
 
         totalBeforeDiscount += subtotal;
@@ -2806,18 +2831,17 @@ const processOpenBillOrder = async ({
         itemsWithDetails.push({
           menuItem: item.id,
           menuItemData: {
+            _id: menuItem._id,
             name: menuItem.name,
             price: menuItem.price,
             category: menuItem.category || menuItem.mainCategory,
             sku: menuItem.sku || '',
-            selectedAddons: item.selectedAddons || [],
-            selectedToppings: item.selectedToppings || [],
             isActive: menuItem.isActive
           },
           quantity: item.quantity,
           subtotal: subtotal,
-          addons: item.selectedAddons || [],
-          toppings: item.selectedToppings || [],
+          addons: processedAddons,  // Gunakan processedAddons
+          toppings: processedToppings,  // Gunakan processedToppings
           notes: item.notes || '',
           guestName: item.guestName || '',
           dineType: item.dineType || 'Dine-In',
@@ -2906,6 +2930,9 @@ const processOpenBillOrder = async ({
 
     console.log(`✅ Open bill created: ${orderId} for table ${tableNumber}`);
 
+    // Log untuk debugging
+    console.log('📋 Items dengan addons/toppings:', JSON.stringify(itemsWithDetails, null, 2));
+
     return {
       success: true,
       status: 'OpenBill_Active',
@@ -2919,6 +2946,7 @@ const processOpenBillOrder = async ({
       customersCount,
       openBillStartedAt: openBillOrder.openBillStartedAt,
       message: `Open bill berhasil dibuat untuk meja ${tableNumber}`,
+      items: itemsWithDetails,  // Tambahkan ini untuk debugging
       actions: [
         {
           name: 'add_item',
@@ -2946,7 +2974,6 @@ const processOpenBillOrder = async ({
     throw error;
   }
 };
-
 // ========== HELPER: CLOSE OPEN BILL HANDLER ==========
 const closeOpenBillHandler = async ({
   orderId,
@@ -4393,6 +4420,7 @@ const processWebAppOrder = async ({
 
   throw new Error('Invalid order source');
 };
+
 
 /**
  * Generate order ID untuk open bill
