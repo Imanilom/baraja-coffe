@@ -32,6 +32,7 @@ pub struct DeviceSession {
     pub expires_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone)]
 pub struct SessionService {
     redis_client: redis::Client,
 }
@@ -73,7 +74,7 @@ impl SessionService {
             .map_err(|e| AppError::Internal(format!("Redis connection failed: {}", e)))?;
 
         // Set session with TTL
-        conn.set_ex(&session_key, session_json, SESSION_TTL_SECONDS as u64)
+        let _: () = conn.set_ex(&session_key, session_json, SESSION_TTL_SECONDS as u64)
             .await
             .map_err(|e| AppError::Internal(format!("Failed to create session: {}", e)))?;
 

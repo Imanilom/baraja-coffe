@@ -2,8 +2,7 @@ use mongodb::Database;
 use bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
-use crate::db::models::order::{OrderItem, CustomAmountItem};
-use crate::db::models::menu::MenuItem;
+use crate::db::models::{OrderItem, CustomAmountItem, MenuItem};
 use crate::services::{PromoService, TaxService, LoyaltyService};
 use crate::error::{AppResult, AppError};
 
@@ -228,6 +227,8 @@ impl OrderService {
                     dine_type: item.dine_type.clone().unwrap_or_else(|| "Dine-In".to_string()),
                     applied_at: chrono::Utc::now(),
                     is_auto_calculated: false,
+                    original_amount: Some(amount),
+                    discount_applied: 0.0,
                 });
             }
         }
@@ -331,7 +332,7 @@ impl OrderService {
         );
 
         Ok(ProcessOrderItemsResult {
-            order_items,
+            order_items: order_items.clone(),
             custom_amount_items: custom_amount_items_data,
             totals: OrderTotals {
                 before_discount: combined_total_before_discount,
@@ -479,8 +480,8 @@ impl OrderService {
 
         for topping_sel in selected_toppings {
             // Find topping in menu item
-            if let Some(topping_info) = menu_item.toppings.as_ref()
-                .and_then(|tops| tops.iter().find(|t| t.id.to_string() == topping_sel.id))
+            if let Some(topping_info) = menu_item.toppings.iter()
+                .find(|t| t.id.as_ref().map(|id| id.to_string()) == Some(topping_sel.id.clone()))
             {
                 toppings_out.push(serde_json::json!({
                     "id": topping_sel.id,
@@ -490,7 +491,7 @@ impl OrderService {
 
                 total_price += topping_info.price;
             } else {
-                tracing::warn!("Topping {} not found in menu item {}", topping_sel.id, menu_item.id);
+                tracing::warn!("Topping {:?} not found in menu item {:?}", topping_sel.id, menu_item.id);
             }
         }
 
@@ -507,13 +508,13 @@ impl OrderService {
         let mut total_price = 0.0;
 
         for addon_sel in selected_addons {
-            if let Some(addon_info) = menu_item.addons.as_ref()
-                .and_then(|adds| adds.iter().find(|a| a.id.to_string() == addon_sel.id))
+            if let Some(addon_info) = menu_item.addons.iter()
+                .find(|a| a.id.as_ref().map(|id| id.to_string()) == Some(addon_sel.id.clone()))
             {
                 if let Some(options) = &addon_sel.options {
                     for option_sel in options {
-                        if let Some(option_info) = addon_info.options.as_ref()
-                            .and_then(|opts| opts.iter().find(|o| o.id.to_string() == option_sel.id))
+                        if let Some(option_info) = addon_info.options.iter()
+                            .find(|o| o.id.as_ref().map(|id| id.to_string()) == Some(option_sel.id.clone()))
                         {
                             addons_out.push(serde_json::json!({
                                 "id": addon_sel.id,
@@ -531,7 +532,7 @@ impl OrderService {
                     }
                 }
             } else {
-                tracing::warn!("Addon {} not found in menu item {}", addon_sel.id, menu_item.id);
+                tracing::warn!("Addon {:?} not found in menu item {:?}", addon_sel.id, menu_item.id);
             }
         }
 
@@ -576,7 +577,7 @@ impl OrderService {
         
         collection.find_one(bson::doc! { "_id": id }, None)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?
+            .map_err(|e| AppError::Database(e))?
             .ok_or_else(|| AppError::NotFound(format!("Menu item {} not found", id)))
     }
 
@@ -586,7 +587,7 @@ impl OrderService {
         
         collection.find_one(bson::doc! { "menuItemId": menu_item_id }, None)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?
+            .map_err(|e| AppError::Database(e))?
             .ok_or_else(|| AppError::NotFound(format!("Recipe for menu item {} not found", menu_item_id)))
     }
 }

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId};
 use chrono::{Utc, Duration};
@@ -45,7 +46,7 @@ impl PrintQueueService {
         };
 
         let result = queue_collection.insert_one(&print_job, None).await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
 
         Ok(result.inserted_id.as_object_id().unwrap())
     }
@@ -61,12 +62,10 @@ impl PrintQueueService {
                 "scheduledFor": { "$lte": Utc::now() }
             }, None)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
 
-        while cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-            let job = cursor.deserialize_current()
-                .map_err(|e| AppError::Database(e.to_string()))?;
-            
+        use futures::stream::TryStreamExt;
+        while let Some(job) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
             self.process_print_job(job).await?;
         }
 
@@ -87,7 +86,7 @@ impl PrintQueueService {
                 None,
             )
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
 
         // Attempt to print
         match self.send_to_printer(&job).await {
@@ -103,7 +102,7 @@ impl PrintQueueService {
                         None,
                     )
                     .await
-                    .map_err(|e| AppError::Database(e.to_string()))?;
+                    .map_err(|e| AppError::Database(e))?;
 
                 tracing::info!("✅ Print job {} completed successfully", job_id);
             }
@@ -124,7 +123,7 @@ impl PrintQueueService {
                             None,
                         )
                         .await
-                        .map_err(|e| AppError::Database(e.to_string()))?;
+                        .map_err(|e| AppError::Database(e))?;
 
                     tracing::error!("❌ Print job {} failed after {} attempts", job_id, job.attempt_count);
                 } else {
@@ -144,7 +143,7 @@ impl PrintQueueService {
                             None,
                         )
                         .await
-                        .map_err(|e| AppError::Database(e.to_string()))?;
+                        .map_err(|e| AppError::Database(e))?;
 
                     tracing::warn!("⚠️ Print job {} failed, retrying in {} minutes", job_id, retry_delay / 60);
                 }
@@ -163,7 +162,7 @@ impl PrintQueueService {
         let printer = printer_collection
             .find_one(doc! { "_id": job.printer_id }, None)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?
+            .map_err(|e| AppError::Database(e))?
             .ok_or_else(|| AppError::NotFound("Printer not found".to_string()))?;
 
         // TODO: Implement actual ESC/POS printing
@@ -205,19 +204,19 @@ impl PrintQueueService {
             self.state.db.collection("printqueue");
         
         let total = queue_collection.count_documents(doc! { "outlet": outlet_id }, None).await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
         
         let pending = queue_collection.count_documents(doc! { "outlet": outlet_id, "status": "pending" }, None).await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
         
         let processing = queue_collection.count_documents(doc! { "outlet": outlet_id, "status": "processing" }, None).await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
         
         let completed = queue_collection.count_documents(doc! { "outlet": outlet_id, "status": "completed" }, None).await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
         
         let failed = queue_collection.count_documents(doc! { "outlet": outlet_id, "status": "failed" }, None).await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
 
         Ok(serde_json::json!({
             "total": total,

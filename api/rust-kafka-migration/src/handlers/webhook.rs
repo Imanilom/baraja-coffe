@@ -3,12 +3,12 @@ use axum::{
     response::IntoResponse,
 };
 use std::sync::Arc;
-use mongodb::bson::{doc, oid::ObjectId};
-use serde::{Deserialize, Serialize};
+use mongodb::bson::doc;
+use serde::Deserialize;
 use serde_json::json;
 
 use crate::AppState;
-use crate::error::{AppResult, AppError, ApiResponse};
+use crate::error::{AppResult, ApiResponse};
 
 // ============================================
 // WEBHOOK HANDLERS

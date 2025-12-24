@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 use chrono_tz::Asia::Jakarta;
 

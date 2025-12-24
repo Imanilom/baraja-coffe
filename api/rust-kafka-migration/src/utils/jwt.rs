@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
 use serde::{Deserialize, Serialize};
 use bson::oid::ObjectId;
