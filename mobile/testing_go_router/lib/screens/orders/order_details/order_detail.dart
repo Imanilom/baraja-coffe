@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 // import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/screens/orders/order_details/dialog_order_type.dart';
@@ -17,8 +18,12 @@ class OrderDetail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final OrderDetailModel? orderDetail = ref.watch(orderDetailProvider);
-    final openBillLoadingProvider = StateProvider<bool>((ref) => false);
     final isLoading = ref.watch(openBillLoadingProvider);
+
+    final hasName = (orderDetail?.user ?? '').trim().isNotEmpty;
+    final isTakeAway = orderDetail?.orderType == OrderType.takeAway;
+    final hasTable = (orderDetail?.tableNumber ?? '').trim().isNotEmpty;
+    final needTable = !isTakeAway;
 
     // final savedPrinter = ref.read(savedPrintersProvider.notifier);
 
@@ -29,6 +34,8 @@ class OrderDetail extends ConsumerWidget {
 
       final ok = await _ensureRequiredFields(context, ref, orderDetail);
       if (!ok) return;
+
+      ref.read(orderDetailProvider.notifier).updateIsOpenBill(true);
 
       ref.read(openBillLoadingProvider.notifier).state = true;
 
@@ -56,6 +63,165 @@ class OrderDetail extends ConsumerWidget {
       } finally {
         ref.read(openBillLoadingProvider.notifier).state = false;
       }
+    }
+
+    Widget buildRightActions({
+      required BuildContext context,
+      required WidgetRef ref,
+      required OrderDetailModel orderDetail,
+      required bool hasName,
+      required bool hasTable,
+      required bool needTable,
+      required bool isLoading,
+    }) {
+      // 1) Nama pelanggan wajib
+      if (!hasName) {
+        return TextButton(
+          onPressed:
+              isLoading
+                  ? null
+                  : () {
+                    _showCustomerNameDialog(context, ref, orderDetail);
+                  },
+          style: TextButton.styleFrom(
+            backgroundColor: Colors.orange[50],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: const Text('Isi Nama Pelanggan'),
+        );
+      }
+
+      // 2) Nomor meja wajib jika dine-in
+      if (needTable && !hasTable) {
+        return TextButton(
+          onPressed:
+              isLoading
+                  ? null
+                  : () {
+                    _showTableNumberDialog(context, ref, orderDetail);
+                  },
+          style: TextButton.styleFrom(
+            backgroundColor: Colors.orange[50],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: const Text('Isi Nomor Meja'),
+        );
+      }
+
+      // 3) Semua lengkap → Open Bill + Bayar
+      return Row(
+        children: [
+          Expanded(
+            child: TextButton(
+              onPressed: isLoading ? null : () => handleOpenBill(),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.green[50],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('Open Bill'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextButton(
+              onPressed:
+                  isLoading
+                      ? null
+                      : () {
+                        ref
+                            .read(orderDetailProvider.notifier)
+                            .updateIsOpenBill(false);
+                        context.push('/payment-method', extra: orderDetail);
+                      },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.green,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('Bayar', style: TextStyle(color: Colors.white)),
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget buildBottomActions({
+      required BuildContext context,
+      required WidgetRef ref,
+      required OrderDetailModel orderDetail,
+    }) {
+      return Row(
+        children: [
+          // =======================
+          // HAPUS (selalu ada)
+          // =======================
+          IconButton(
+            onPressed:
+                isLoading
+                    ? null
+                    : () {
+                      showDialog(
+                        context: context,
+                        builder: (context) {
+                          return AlertDialog(
+                            title: const Text('Hapus Pesanan'),
+                            content: const Text(
+                              'Apakah Anda yakin ingin menghapus pesanan ini?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Batal'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(orderDetailProvider.notifier)
+                                      .clearOrder();
+                                  Navigator.pop(context);
+                                },
+                                child: const Text('Hapus'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+            icon: const Icon(Icons.clear_rounded),
+            color: Colors.redAccent,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.red[50],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // =======================
+          // KANAN (dinamis)
+          // =======================
+          Expanded(
+            child: buildRightActions(
+              context: context,
+              ref: ref,
+              orderDetail: orderDetail,
+              hasName: hasName,
+              hasTable: hasTable,
+              needTable: needTable,
+              isLoading: isLoading,
+            ),
+          ),
+        ],
+      );
     }
 
     return Padding(
@@ -399,116 +565,120 @@ class OrderDetail extends ConsumerWidget {
                       isBold: true,
                     ),
                     const SizedBox(height: 8),
-
-                    Row(
-                      children: [
-                        // Hapus
-                        IconButton(
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) {
-                                return AlertDialog(
-                                  title: const Text('Hapus Pesanan'),
-                                  content: const Text(
-                                    'Apakah Anda yakin ingin menghapus pesanan ini?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Batal'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        ref
-                                            .read(orderDetailProvider.notifier)
-                                            .clearOrder();
-                                        Navigator.pop(context);
-                                      },
-                                      child: const Text('Hapus'),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                          icon: const Icon(Icons.clear_rounded),
-                          color: Colors.redAccent,
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.red[50],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        // openbill
-                        Expanded(
-                          child: TextButton(
-                            // onPressed: () => handleOpenBill(),
-                            onPressed: () async {
-                              final ok = await _ensureRequiredFields(
-                                context,
-                                ref,
-                                orderDetail,
-                              );
-                              if (!ok) return;
-
-                              //update orderdetail isOpenbill=true
-                              ref
-                                  .read(orderDetailProvider.notifier)
-                                  .updateIsOpenBill(true);
-
-                              handleOpenBill();
-                            },
-                            style: TextButton.styleFrom(
-                              backgroundColor: Colors.green[50],
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text('Open Bill'),
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        // Bayar
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () async {
-                              final ok = await _ensureRequiredFields(
-                                context,
-                                ref,
-                                orderDetail,
-                              );
-                              if (!ok) return;
-                              ref
-                                  .read(orderDetailProvider.notifier)
-                                  .updateIsOpenBill(false);
-
-                              if (!context.mounted) return;
-                              context.push(
-                                '/payment-method',
-                                extra: ref.read(orderDetailProvider),
-                              );
-                            },
-                            style: TextButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'Bayar',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
+                    buildBottomActions(
+                      context: context,
+                      ref: ref,
+                      orderDetail: orderDetail,
                     ),
+                    // Row(
+                    //   children: [
+                    //     // Hapus
+                    //     IconButton(
+                    //       onPressed: () {
+                    //         showDialog(
+                    //           context: context,
+                    //           builder: (context) {
+                    //             return AlertDialog(
+                    //               title: const Text('Hapus Pesanan'),
+                    //               content: const Text(
+                    //                 'Apakah Anda yakin ingin menghapus pesanan ini?',
+                    //               ),
+                    //               actions: [
+                    //                 TextButton(
+                    //                   onPressed: () => Navigator.pop(context),
+                    //                   child: const Text('Batal'),
+                    //                 ),
+                    //                 TextButton(
+                    //                   onPressed: () {
+                    //                     ref
+                    //                         .read(orderDetailProvider.notifier)
+                    //                         .clearOrder();
+                    //                     Navigator.pop(context);
+                    //                   },
+                    //                   child: const Text('Hapus'),
+                    //                 ),
+                    //               ],
+                    //             );
+                    //           },
+                    //         );
+                    //       },
+                    //       icon: const Icon(Icons.clear_rounded),
+                    //       color: Colors.redAccent,
+                    //       style: IconButton.styleFrom(
+                    //         backgroundColor: Colors.red[50],
+                    //         shape: RoundedRectangleBorder(
+                    //           borderRadius: BorderRadius.circular(8),
+                    //         ),
+                    //       ),
+                    //     ),
+
+                    //     const SizedBox(width: 8),
+
+                    //     // openbill
+                    //     Expanded(
+                    //       child: TextButton(
+                    //         // onPressed: () => handleOpenBill(),
+                    //         onPressed: () async {
+                    //           final ok = await _ensureRequiredFields(
+                    //             context,
+                    //             ref,
+                    //             orderDetail,
+                    //           );
+                    //           if (!ok) return;
+
+                    //           //update orderdetail isOpenbill=true
+                    //           ref
+                    //               .read(orderDetailProvider.notifier)
+                    //               .updateIsOpenBill(true);
+
+                    //           handleOpenBill();
+                    //         },
+                    //         style: TextButton.styleFrom(
+                    //           backgroundColor: Colors.green[50],
+                    //           shape: RoundedRectangleBorder(
+                    //             borderRadius: BorderRadius.circular(8),
+                    //           ),
+                    //         ),
+                    //         child: const Text('Open Bill'),
+                    //       ),
+                    //     ),
+
+                    //     const SizedBox(width: 8),
+
+                    //     // Bayar
+                    //     Expanded(
+                    //       child: TextButton(
+                    //         onPressed: () async {
+                    //           final ok = await _ensureRequiredFields(
+                    //             context,
+                    //             ref,
+                    //             orderDetail,
+                    //           );
+                    //           if (!ok) return;
+                    //           ref
+                    //               .read(orderDetailProvider.notifier)
+                    //               .updateIsOpenBill(false);
+
+                    //           if (!context.mounted) return;
+                    //           context.push(
+                    //             '/payment-method',
+                    //             extra: ref.read(orderDetailProvider),
+                    //           );
+                    //         },
+                    //         style: TextButton.styleFrom(
+                    //           backgroundColor: Colors.green,
+                    //           shape: RoundedRectangleBorder(
+                    //             borderRadius: BorderRadius.circular(8),
+                    //           ),
+                    //         ),
+                    //         child: const Text(
+                    //           'Bayar',
+                    //           style: TextStyle(color: Colors.white),
+                    //         ),
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
                   ],
                 ),
               ),
@@ -525,7 +695,7 @@ class OrderDetail extends ConsumerWidget {
     // 1) Nama wajib selalu
     if (orderDetail.user == null || orderDetail.user!.trim().isEmpty) {
       final name = await _promptName(context, initial: orderDetail.user ?? '');
-      if (name == null || name.trim().isEmpty) return false;
+      if (name == null || name.trim().isEmpty || name == '') return false;
 
       ref
           .read(orderDetailProvider.notifier)
@@ -560,25 +730,140 @@ class OrderDetail extends ConsumerWidget {
       context: context,
       barrierDismissible: false,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Nama Pelanggan (wajib)'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => Navigator.pop(context, controller.text),
-              decoration: const InputDecoration(hintText: 'Contoh: Budi'),
+          (context) => SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: AlertDialog(
+              title: const Text('Nama Pelanggan'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => Navigator.pop(context, controller.text),
+                decoration: const InputDecoration(hintText: 'Contoh: Budi'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, controller.text),
+                  child: const Text('Simpan'),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, null),
-                child: const Text('Batal'),
+          ),
+    );
+  }
+
+  void _showCustomerNameDialog(
+    BuildContext context,
+    WidgetRef ref,
+    OrderDetailModel orderDetail,
+  ) {
+    final controller = TextEditingController(text: orderDetail.user ?? '');
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: AlertDialog(
+              title: const Text('Nama Pelanggan'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  ref
+                      .read(orderDetailProvider.notifier)
+                      .updateCustomerDetails(
+                        customerName: controller.text.trim(),
+                      );
+                  Navigator.pop(context);
+                },
+                decoration: const InputDecoration(hintText: 'Contoh: Budi'),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, controller.text),
-                child: const Text('Simpan'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    ref
+                        .read(orderDetailProvider.notifier)
+                        .updateCustomerDetails(
+                          customerName: controller.text.trim(),
+                        );
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Simpan'),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  void _showTableNumberDialog(
+    BuildContext context,
+    WidgetRef ref,
+    OrderDetailModel orderDetail,
+  ) {
+    final controller = TextEditingController(
+      text: orderDetail.tableNumber ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: AlertDialog(
+              title: const Text('Nomor Meja'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  ref
+                      .read(orderDetailProvider.notifier)
+                      .updateCustomerDetails(
+                        tableNumber: controller.text.trim(),
+                      );
+                  Navigator.pop(context);
+                },
+                decoration: const InputDecoration(hintText: 'Contoh: A12'),
+                onChanged: (value) {
+                  final cursor = controller.selection.baseOffset;
+                  controller.value = TextEditingValue(
+                    text: value.toUpperCase(),
+                    selection: TextSelection.collapsed(offset: cursor),
+                  );
+                },
               ),
-            ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    ref
+                        .read(orderDetailProvider.notifier)
+                        .updateCustomerDetails(
+                          tableNumber: controller.text.trim(),
+                        );
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Simpan'),
+                ),
+              ],
+            ),
           ),
     );
   }
@@ -592,67 +877,38 @@ class OrderDetail extends ConsumerWidget {
       context: context,
       barrierDismissible: false,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Nomor Meja (wajib untuk Dine-in)'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => Navigator.pop(context, controller.text),
-              decoration: const InputDecoration(hintText: 'Contoh: A12'),
-              onChanged: (value) {
-                final cursor = controller.selection.baseOffset;
-                controller.value = TextEditingValue(
-                  text: value.toUpperCase(),
-                  selection: TextSelection.collapsed(offset: cursor),
-                );
-              },
+          (context) => SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: AlertDialog(
+              title: const Text('Masukkan Nomor Meja'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => Navigator.pop(context, controller.text),
+                decoration: const InputDecoration(hintText: 'Contoh: A12'),
+                onChanged: (value) {
+                  final cursor = controller.selection.baseOffset;
+                  controller.value = TextEditingValue(
+                    text: value.toUpperCase(),
+                    selection: TextSelection.collapsed(offset: cursor),
+                  );
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, controller.text),
+                  child: const Text('Simpan'),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, null),
-                child: const Text('Batal'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, controller.text),
-                child: const Text('Simpan'),
-              ),
-            ],
           ),
     );
-  }
-
-  bool _validateBeforeAction(
-    BuildContext context,
-    OrderDetailModel orderDetail,
-  ) {
-    if (orderDetail.items.isEmpty) return false;
-
-    if (orderDetail.user == null || orderDetail.user!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          duration: Duration(seconds: 1),
-          content: Text('Nama pelanggan tidak boleh kosong'),
-        ),
-      );
-      return false;
-    }
-
-    // take away: table boleh kosong
-    final mustHaveTable = orderDetail.orderType != OrderType.takeAway;
-
-    if (mustHaveTable &&
-        (orderDetail.tableNumber == null || orderDetail.tableNumber!.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          duration: Duration(seconds: 1),
-          content: Text('Nomor meja tidak boleh kosong'),
-        ),
-      );
-      return false;
-    }
-
-    return true;
   }
 
   Widget _buildCustomAmountListTile(
