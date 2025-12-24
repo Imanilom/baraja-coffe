@@ -175,6 +175,7 @@ export const signin = async (req, res, next) => {
         "staff",
         "cashier junior",
         "cashier senior",
+        "super kasir",
       ];
 
       if (!user || !allowedRoles.includes(user.role.name)) {

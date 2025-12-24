@@ -288,7 +288,9 @@ export const getWorkstationOrders = async (req, res) => {
     const orders = await Order.find({
       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
     })
-      .select('order_id user status items createdAt updatedAt order_type reservation tableNumber createdAtWIB updatedAtWIB')
+      .select('order_id user status items createdAt updatedAt orderType reservation tableNumber cashierId groId createdAtWIB updatedAtWIB')
+      .populate('cashierId', 'username')
+      .populate('groId', 'username')
       .populate({
         path: 'items.menuItem',
         select: 'name workstation category',
@@ -418,7 +420,13 @@ export const getWorkstationOrders = async (req, res) => {
           servingOption: order.reservation?.food_serving_option || 'immediate',
           servingTime: order.reservation?.food_serving_time,
           shouldStartPreparation,
-          timeUntilPreparation
+          timeUntilPreparation,
+          cashierName: order.cashierId?.username || order.groId?.username || 'System'
+        },
+        created_by: {
+          employee_id: order.cashierId || order.groId,
+          employee_name: order.cashierId?.username || order.groId?.username || 'System',
+          timestamp: order.createdAt
         }
       });
 

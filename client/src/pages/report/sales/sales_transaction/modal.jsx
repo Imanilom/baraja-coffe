@@ -131,6 +131,25 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                                 )}
                             </div>
                         ))}
+
+                        {/* Custom Amount Items */}
+                        {selectedTrx.customAmountItems && selectedTrx.customAmountItems.length > 0 && (
+                            <>
+                                {selectedTrx.customAmountItems.map((customItem, index) => (
+                                    <div key={`custom-${index}`} className="space-y-1 rounded">
+                                        <div className="flex justify-between text-sm">
+                                            <div className="flex-1 font-medium text-blue-800">
+                                                [Custom] {customItem.name || "Custom Amount"}
+                                            </div>
+                                            <div className="w-12 text-center text-gray-600">× 1</div>
+                                            <div className="w-24 text-right font-semibold text-blue-800">
+                                                {formatCurrency(customItem.amount)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
 
                     {/* Total Section */}
@@ -190,29 +209,6 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                                 <span className="font-semibold">{paymentMethod}</span>
                             </div>
                         </div>
-
-                        {/* {paymentCode && (
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Kode Pembayaran</span>
-                                <span className="font-mono text-xs">{paymentCode}</span>
-                            </div>
-                        )}
-
-                        {transactionId && (
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Transaction ID</span>
-                                <span className="font-mono text-xs truncate ml-2" title={transactionId}>
-                                    {transactionId.substring(0, 20)}...
-                                </span>
-                            </div>
-                        )}
-
-                        {transactionTime && (
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Waktu Pembayaran</span>
-                                <span>{transactionTime}</span>
-                            </div>
-                        )} */}
 
                         {/* Payment Amount */}
                         <div className="flex justify-between font-medium text-green-800 rounded">

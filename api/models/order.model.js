@@ -2,12 +2,16 @@ import mongoose from 'mongoose';
 
 // Helper function untuk mendapatkan waktu WIB sekarang
 const getWIBNow = () => {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  const now = new Date();
+  // Convert to WIB (UTC+7)
+  return new Date(now.getTime() + (7 * 60 * 60 * 1000));
 };
 
 // Helper function untuk convert Date ke WIB
 const toWIB = (date) => {
-  return new Date(date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  if (!date) return date;
+  const utcDate = new Date(date.toISOString());
+  return new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
 };
 
 // Schema untuk split payment
@@ -460,16 +464,23 @@ OrderSchema.virtual('totalPrice').get(function () {
 // Method untuk format WIB
 OrderSchema.methods.formatToWIB = function (date) {
   if (!date) return null;
-  return date.toLocaleString('id-ID', {
+
+  // Pastikan date adalah Date object
+  const dateObj = new Date(date);
+
+  // Format dengan timezone Asia/Jakarta
+  return dateObj.toLocaleString('id-ID', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
+    hour12: false
   });
 };
+
 
 // Method untuk mendapatkan tanggal WIB (tanpa waktu)
 OrderSchema.methods.getWIBDate = function () {
@@ -481,6 +492,7 @@ OrderSchema.methods.getWIBDate = function () {
     day: '2-digit'
   });
 };
+
 
 // MIDDLEWARE UTAMA: Backup data menu item secara otomatis dan update payment status
 OrderSchema.pre('save', async function (next) {
@@ -581,6 +593,38 @@ OrderSchema.pre('save', async function (next) {
     next();
   }
 });
+
+OrderSchema.pre('save', function (next) {
+  const nowWIB = getWIBNow();
+
+  // Update updatedAtWIB
+  this.updatedAtWIB = nowWIB;
+
+  // Ensure createdAtWIB is set
+  if (!this.createdAtWIB && this.isNew) {
+    this.createdAtWIB = nowWIB;
+  }
+
+  // Convert all Date fields that should be in WIB
+  if (this.lastItemAddedAt && !(this.lastItemAddedAt instanceof Date)) {
+    this.lastItemAddedAt = toWIB(new Date(this.lastItemAddedAt));
+  }
+
+  // For items array
+  if (this.items && Array.isArray(this.items)) {
+    this.items.forEach(item => {
+      if (item.addedAt && !(item.addedAt instanceof Date)) {
+        item.addedAt = toWIB(new Date(item.addedAt));
+      }
+      if (item.printedAt && !(item.printedAt instanceof Date)) {
+        item.printedAt = toWIB(new Date(item.printedAt));
+      }
+    });
+  }
+
+  next();
+});
+
 
 // Indeks untuk performa
 OrderSchema.index({ status: 1, createdAt: -1 });

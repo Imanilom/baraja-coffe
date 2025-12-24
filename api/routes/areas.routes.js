@@ -318,6 +318,28 @@ router.put('/tables/:id', async (req, res) => {
             if (exists) return res.status(400).json({ success: false, message: 'Table number already exists in this area' });
         }
 
+        // Logika sinkronisasi status
+        let finalStatus = status ?? table.status;
+        let finalIsAvailable = is_available;
+        
+        // Jika status diubah ke 'available', pastikan is_available = true
+        if (status === 'available') {
+            finalIsAvailable = true;
+        }
+        // Jika status diubah ke 'occupied' atau 'reserved', pastikan is_available = false
+        else if (status === 'occupied' || status === 'reserved') {
+            finalIsAvailable = false;
+        }
+        
+        // Jika is_available diubah manual, sesuaikan status
+        if (is_available !== undefined) {
+            if (is_available && finalStatus !== 'available') {
+                finalStatus = 'available';
+            } else if (!is_available && finalStatus === 'available') {
+                finalStatus = 'maintenance'; // atau status default lain
+            }
+        }
+
         Object.assign(table, {
             table_number: table_number ? table_number.toUpperCase() : table.table_number,
             area_id: area_id || table.area_id,
@@ -325,16 +347,54 @@ router.put('/tables/:id', async (req, res) => {
             table_type: table_type ?? table.table_type,
             shape: shape ?? table.shape,
             position: position ?? table.position,
-            status: status ?? table.status,
-            is_available: is_available ?? table.is_available,
-            is_active: is_active ?? table.is_active
+            status: finalStatus,
+            is_available: finalIsAvailable ?? table.is_available,
+            is_active: is_active ?? table.is_active,
+            last_status_change: new Date() // Tambahkan timestamp perubahan status
         });
 
         const updated = await table.save();
-        res.json({ success: true, message: 'Table updated successfully', data: updated });
+        
+        // Log perubahan status
+        console.log(`Table ${updated.table_number} status changed to ${updated.status}, is_available: ${updated.is_available}`);
+        
+        res.json({ 
+            success: true, 
+            message: 'Table updated successfully', 
+            data: updated 
+        });
     } catch (error) {
         console.error('Error updating table:', error);
         res.status(500).json({ success: false, message: 'Error updating table', error: error.message });
+    }
+});
+
+// Synchronize table status with orders
+router.post('/tables/sync-with-orders', async (req, res) => {
+    try {
+        const { outletId } = req.body;
+        
+        if (!outletId) {
+            return res.status(400).json({ success: false, message: 'outletId is required' });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(outletId)) {
+            return res.status(400).json({ success: false, message: 'Invalid outletId' });
+        }
+
+        // Delegate actual sync logic to Table model static method
+        const result = await Table.syncTableStatusWithActiveOrders(outletId);
+
+        res.json({
+            success: true,
+            message: result.updatedTables && result.updatedTables > 0
+                ? `${result.updatedTables} tables synchronized`
+                : 'All tables are already in sync',
+            data: result
+        });
+    } catch (error) {
+        console.error('Error syncing tables with orders:', error);
+        res.status(500).json({ success: false, message: 'Error syncing tables', error: error.message });
     }
 });
 

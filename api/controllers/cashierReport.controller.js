@@ -17,178 +17,10 @@ const toObjectId = (id) => {
 
 // export const getSalesSummary = async (req, res) => {
 //     try {
-//         const {
-//             startDate,
-//             endDate,
-//             cashierId,
-//             outletId,
-//             paymentMethod,
-//             orderType
-//         } = req.query;
+//         const { startDate, endDate, cashierId, outletId, paymentMethod, orderType } = req.query;
 
 //         // Build filter
-//         const filter = {
-//             status: 'Completed'
-//         };
-
-//         const orders = await Order.find();
-//         // .populate({
-//         //     path: 'cashier',
-//         //     select: '_id name' // Hanya pilih _id dan name dari cashier
-//         // });
-
-//         // Date filter
-//         if (startDate || endDate) {
-//             filter.createdAt = {};
-//             if (startDate) {
-//                 filter.createdAt.$gte = moment(startDate).startOf('day').toDate();
-//             }
-//             if (endDate) {
-//                 filter.createdAt.$lte = moment(endDate).endOf('day').toDate();
-//             }
-//         }
-
-//         // Convert ObjectId fields properly
-//         if (cashierId) {
-//             const cashierObjectId = toObjectId(cashierId);
-//             if (cashierObjectId) {
-//                 filter.cashierId = cashierObjectId;
-//             }
-//         }
-
-//         if (outletId) {
-//             const outletObjectId = toObjectId(outletId);
-//             if (outletObjectId) {
-//                 filter.outlet = outletObjectId;
-//             }
-//         }
-//         if (paymentMethod) filter.paymentMethod = { $in: paymentMethod.split(',') };
-//         if (orderType) filter.orderType = { $in: orderType.split(',') };
-
-//         // Summary stats
-//         const summaryPipeline = [
-//             { $match: filter },
-//             {
-//                 $group: {
-//                     _id: null,
-//                     totalSales: { $sum: '$grandTotal' },
-//                     totalTransactions: { $sum: 1 },
-//                     totalTax: { $sum: '$totalTax' },
-//                     totalServiceFee: { $sum: '$totalServiceFee' },
-//                     totalItems: { $sum: { $size: '$items' } },
-//                     avgOrderValue: { $avg: '$grandTotal' },
-//                     totalDiscount: {
-//                         $sum: {
-//                             $add: [
-//                                 '$discounts.autoPromoDiscount',
-//                                 '$discounts.manualDiscount',
-//                                 '$discounts.voucherDiscount'
-//                             ]
-//                         }
-//                     }
-//                 }
-//             }
-//         ];
-
-//         // Payment method breakdown
-//         const paymentBreakdownPipeline = [
-//             { $match: filter },
-//             {
-//                 $group: {
-//                     _id: '$paymentMethod',
-//                     total: { $sum: '$grandTotal' },
-//                     count: { $sum: 1 }
-//                 }
-//             }
-//         ];
-
-//         // Order type breakdown
-//         const orderTypeBreakdownPipeline = [
-//             { $match: filter },
-//             {
-//                 $group: {
-//                     _id: '$orderType',
-//                     count: { $sum: 1 },
-//                     total: { $sum: '$grandTotal' }
-//                 }
-//             }
-//         ];
-
-//         const [summaryResult, paymentBreakdown, orderTypeBreakdown] = await Promise.all([
-//             Order.aggregate(summaryPipeline),
-//             Order.aggregate(paymentBreakdownPipeline),
-//             Order.aggregate(orderTypeBreakdownPipeline)
-//         ]);
-
-//         const summary = summaryResult[0] || {
-//             totalSales: 0,
-//             totalTransactions: 0,
-//             totalTax: 0,
-//             totalServiceFee: 0,
-//             avgOrderValue: 0,
-//             totalDiscount: 0
-//         };
-
-//         // Calculate percentages for payment methods
-//         const totalSalesForPayment = paymentBreakdown.reduce((sum, item) => sum + item.total, 0);
-//         const paymentMethodData = paymentBreakdown.map(item => ({
-//             method: item._id,
-//             amount: item.total,
-//             count: item.count,
-//             percentage: totalSalesForPayment > 0 ? ((item.total / totalSalesForPayment) * 100).toFixed(1) : '0.0'
-//         }));
-
-//         // Calculate percentages for order types
-//         const totalOrdersForType = orderTypeBreakdown.reduce((sum, item) => sum + item.count, 0);
-//         const orderTypeData = orderTypeBreakdown.map(item => ({
-//             type: item._id,
-//             count: item.count,
-//             total: item.total,
-//             percentage: totalOrdersForType > 0 ? ((item.count / totalOrdersForType) * 100).toFixed(1) : '0.0'
-//         }));
-
-//         res.status(200).json({
-//             success: true,
-//             data: {
-//                 summary: {
-//                     totalSales: summary.totalSales,
-//                     totalTransactions: summary.totalTransactions,
-//                     avgOrderValue: Math.round(summary.avgOrderValue),
-//                     totalTax: summary.totalTax,
-//                     totalServiceFee: summary.totalServiceFee,
-//                     totalDiscount: summary.totalDiscount,
-//                     totalItems: summary.totalItems
-//                 },
-//                 paymentMethodBreakdown: paymentMethodData,
-//                 orderTypeBreakdown: orderTypeData
-//             }
-//         });
-
-//     } catch (error) {
-//         console.error('Error in getSalesSummary:', error);
-//         res.status(500).json({
-//             success: false,
-//             message: 'Internal server error',
-//             error: error.message
-//         });
-//     }
-// };
-
-// export const getSalesSummary = async (req, res) => {
-//     try {
-//         const {
-//             startDate,
-//             endDate,
-//             cashierId,
-//             outletId,
-//             paymentMethod,
-//             orderType
-//         } = req.query;
-
-//         // Build filter
-//         const filter = {
-//             status: 'Completed'
-//         };
+//         const filter = { status: 'Completed' };
 
 //         // Date filter
 //         if (startDate || endDate) {
@@ -231,7 +63,7 @@ const toObjectId = (id) => {
 //             },
 //             {
 //                 $addFields: {
-//                     // Ambil payment method dari payment yang settled/paid
+//                     // Ambil method_type dari payment yang settled/paid
 //                     actualPaymentMethod: {
 //                         $arrayElemAt: [
 //                             {
@@ -240,13 +72,11 @@ const toObjectId = (id) => {
 //                                         $filter: {
 //                                             input: '$payments',
 //                                             as: 'payment',
-//                                             cond: {
-//                                                 $in: ['$$payment.status', ['settlement', 'paid']]
-//                                             }
+//                                             cond: { $in: ['$$payment.status', ['settlement', 'paid']] }
 //                                         }
 //                                     },
 //                                     as: 'p',
-//                                     in: '$$p.method'
+//                                     in: '$$p.method_type'
 //                                 }
 //                             },
 //                             0
@@ -254,12 +84,8 @@ const toObjectId = (id) => {
 //                     }
 //                 }
 //             },
-//             // Filter berdasarkan payment method jika ada
-//             ...(paymentMethod ? [{
-//                 $match: {
-//                     actualPaymentMethod: { $in: paymentMethod.split(',') }
-//                 }
-//             }] : []),
+//             // Filter berdasarkan method_type jika ada
+//             ...(paymentMethod ? [{ $match: { actualPaymentMethod: { $in: paymentMethod.split(',') } } }] : []),
 //             {
 //                 $group: {
 //                     _id: null,
@@ -282,7 +108,7 @@ const toObjectId = (id) => {
 //             }
 //         ];
 
-//         // Payment method breakdown dengan detail payment type
+//         // Payment method breakdown dengan detail payment type (menggunakan method_type)
 //         const paymentBreakdownPipeline = [
 //             { $match: filter },
 //             {
@@ -298,13 +124,13 @@ const toObjectId = (id) => {
 //                 $match: {
 //                     'payments.status': { $in: ['settlement', 'paid'] },
 //                     'payments.isAdjustment': { $ne: true }, // Exclude adjustment payments
-//                     ...(paymentMethod && { 'payments.method': { $in: paymentMethod.split(',') } })
+//                     ...(paymentMethod && { 'payments.method_type': { $in: paymentMethod.split(',') } })
 //                 }
 //             },
 //             {
 //                 $group: {
 //                     _id: {
-//                         method: '$payments.method',
+//                         method_type: '$payments.method_type',
 //                         paymentType: '$payments.paymentType'
 //                     },
 //                     total: { $sum: '$payments.amount' },
@@ -313,7 +139,7 @@ const toObjectId = (id) => {
 //             },
 //             {
 //                 $group: {
-//                     _id: '$_id.method',
+//                     _id: '$_id.method_type',
 //                     total: { $sum: '$total' },
 //                     count: { $sum: '$count' },
 //                     breakdown: {
@@ -327,7 +153,7 @@ const toObjectId = (id) => {
 //             }
 //         ];
 
-//         // Order type breakdown tetap sama
+//         // Order type breakdown
 //         const orderTypeBreakdownPipeline = [
 //             { $match: filter },
 //             ...(paymentMethod ? [{
@@ -339,7 +165,7 @@ const toObjectId = (id) => {
 //                 }
 //             }, {
 //                 $match: {
-//                     'payments.method': { $in: paymentMethod.split(',') },
+//                     'payments.method_type': { $in: paymentMethod.split(',') },
 //                     'payments.status': { $in: ['settlement', 'paid'] }
 //                 }
 //             }] : []),
@@ -373,7 +199,8 @@ const toObjectId = (id) => {
 //             method: item._id,
 //             amount: item.total,
 //             count: item.count,
-//             percentage: totalSalesForPayment > 0 ? ((item.total / totalSalesForPayment) * 100).toFixed(1) : '0.0'
+//             percentage: totalSalesForPayment > 0 ? ((item.total / totalSalesForPayment) * 100).toFixed(1) : '0.0',
+//             breakdown: item.breakdown
 //         }));
 
 //         // Calculate percentages for order types
@@ -401,7 +228,6 @@ const toObjectId = (id) => {
 //                 orderTypeBreakdown: orderTypeData
 //             }
 //         });
-
 //     } catch (error) {
 //         console.error('Error in getSalesSummary:', error);
 //         res.status(500).json({
@@ -419,14 +245,20 @@ export const getSalesSummary = async (req, res) => {
         // Build filter
         const filter = { status: 'Completed' };
 
-        // Date filter
+        // Date filter dengan timezone +07:00 (WIB)
         if (startDate || endDate) {
             filter.createdAt = {};
+
             if (startDate) {
-                filter.createdAt.$gte = moment(startDate).startOf('day').toDate();
+                const startDateStr = startDate;
+                const start = new Date(startDateStr + 'T00:00:00.000+07:00');
+                filter.createdAt.$gte = start;
             }
+
             if (endDate) {
-                filter.createdAt.$lte = moment(endDate).endOf('day').toDate();
+                const endDateStr = endDate;
+                const end = new Date(endDateStr + 'T23:59:59.999+07:00');
+                filter.createdAt.$lte = end;
             }
         }
 
