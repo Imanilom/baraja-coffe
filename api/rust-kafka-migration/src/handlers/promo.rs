@@ -1,5 +1,5 @@
 use axum::{
-    extract::{State, Path, Query},
+    extract::{State, Path},
     response::IntoResponse,
     Json,
 };
@@ -12,7 +12,7 @@ use serde_json::json;
 
 use crate::AppState;
 use crate::error::{AppResult, AppError, ApiResponse};
-use crate::db::models::promo::{AutoPromo, Promo, PromoConditions, ActiveHours, Schedule};
+use crate::db::models::promo::{AutoPromo, Promo};
 
 pub async fn get_auto_promos(State(state): State<Arc<AppState>>) -> AppResult<impl IntoResponse> {
     let collection = state.db.collection::<AutoPromo>("autopromos");

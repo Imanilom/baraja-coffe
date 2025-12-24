@@ -36,6 +36,9 @@ pub enum AppError {
     #[error("Authorization error: {0}")]
     Authorization(String),
 
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
     #[error("Validation error: {0}")]
     Validation(String),
 
@@ -113,6 +116,18 @@ impl ApiResponse<()> {
     }
 }
 
+/// Implement IntoResponse for ApiResponse to allow it to be returned from handlers
+impl<T: serde::Serialize> IntoResponse for ApiResponse<T> {
+    fn into_response(self) -> Response {
+        let status = if self.success {
+            StatusCode::OK
+        } else {
+            StatusCode::BAD_REQUEST
+        };
+        (status, Json(self)).into_response()
+    }
+}
+
 /// Convert AppError to HTTP response matching Node.js format
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
@@ -153,7 +168,7 @@ impl IntoResponse for AppError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("IO error: {}", e),
             ),
-            AppError::Authentication(msg) | AppError::Authorization(msg) => {
+            AppError::Authentication(msg) | AppError::Authorization(msg) | AppError::Unauthorized(msg) => {
                 (StatusCode::UNAUTHORIZED, msg.clone())
             }
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg.clone()),

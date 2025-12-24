@@ -44,8 +44,7 @@ const rollbackStockForExpiredPayment = async (order, session = null) => {
 
             try {
                 // Rollback MenuStock
-                const menuStock = await MenuStock.findOne({ menuItemId: item.menuItem })
-                    .session(session);
+                const menuStock = await MenuStock.findOne({ menuItemId: item.menuItem });
 
                 if (menuStock) {
                     const updateData = {
@@ -61,7 +60,7 @@ const rollbackStockForExpiredPayment = async (order, session = null) => {
                         updateData.$inc.calculatedStock = item.quantity;
                     }
 
-                    await MenuStock.findByIdAndUpdate(menuStock._id, updateData, { session });
+                    await MenuStock.findByIdAndUpdate(menuStock._id, updateData);
                     log.success(`Rolled back ${item.quantity} units to MenuStock for item ${item.menuItem}`);
                 }
 
@@ -69,7 +68,7 @@ const rollbackStockForExpiredPayment = async (order, session = null) => {
                 const menuItem = await MenuItem.findByIdAndUpdate(
                     item.menuItem,
                     { $inc: { availableStock: item.quantity } },
-                    { new: true, session }
+                    { new: true }
                 );
 
                 if (menuItem) {
@@ -77,8 +76,7 @@ const rollbackStockForExpiredPayment = async (order, session = null) => {
                     if (menuItem.availableStock > 0 && !menuItem.isActive) {
                         await MenuItem.findByIdAndUpdate(
                             item.menuItem,
-                            { isActive: true },
-                            { session }
+                            { isActive: true }
                         );
                         log.success(`Auto-reactivated menu item: ${menuItem.name}`);
                     }
@@ -108,8 +106,7 @@ const rollbackStockForExpiredPayment = async (order, session = null) => {
                 stockRolledBack: true,
                 stockRollbackAt: getWIBNow(),
                 stockRollbackDetails: rollbackResults
-            },
-            { session }
+            }
         );
 
         log.success(`Stock rollback completed and marked for order ${order.order_id}`);
@@ -121,9 +118,6 @@ const rollbackStockForExpiredPayment = async (order, session = null) => {
     }
 };
 
-/**
- * ✅ FIXED: Bebaskan meja dengan retry mechanism
- */
 const releaseTableForCanceledOrder = async (order, session = null, retryCount = 0) => {
     const MAX_RETRIES = 3;
 
@@ -145,7 +139,6 @@ const releaseTableForCanceledOrder = async (order, session = null, retryCount = 
         // Cari area berdasarkan outlet
         const areas = await Area.find({ outlet_id: order.outlet })
             .select('_id')
-            .session(session)
             .lean();
 
         const areaIds = areas.map(area => area._id);
@@ -167,7 +160,7 @@ const releaseTableForCanceledOrder = async (order, session = null, retryCount = 
             table_number: cleanTableNumber,
             area_id: { $in: areaIds },
             is_active: true
-        }).session(session);
+        });
 
         if (!table) {
             log.warning(`Table not found: ${cleanTableNumber} in outlet ${order.outlet}`);
@@ -178,19 +171,9 @@ const releaseTableForCanceledOrder = async (order, session = null, retryCount = 
 
         const oldStatus = table.status;
 
-        // Update table status
-        const updateQuery = {
-            status: 'available',
-            is_available: true,
-            updatedAt: getWIBNow()
-        };
-
         // Add to status history
-        if (!table.statusHistory) {
-            table.statusHistory = [];
-        }
-
-        table.statusHistory.push({
+        const statusHistory = table.statusHistory || [];
+        statusHistory.push({
             fromStatus: oldStatus,
             toStatus: 'available',
             updatedBy: 'System Auto-Release',
@@ -198,44 +181,36 @@ const releaseTableForCanceledOrder = async (order, session = null, retryCount = 
             updatedAt: getWIBNow()
         });
 
-        updateQuery.statusHistory = table.statusHistory;
-
-        const result = await Table.findByIdAndUpdate(
+        // Update table
+        await Table.findByIdAndUpdate(
             table._id,
-            updateQuery,
-            { session, new: true }
+            {
+                status: 'available',
+                is_available: true,
+                updatedAt: getWIBNow(),
+                statusHistory: statusHistory
+            }
         );
 
-        if (result) {
-            // ✅ CRITICAL: Tandai order bahwa table sudah di-release
-            await Order.findByIdAndUpdate(
-                order._id,
-                {
-                    tableReleased: true,
-                    tableReleasedAt: getWIBNow()
-                },
-                { session }
-            );
+        // ✅ CRITICAL: Tandai order bahwa table sudah di-release
+        await Order.findByIdAndUpdate(
+            order._id,
+            {
+                tableReleased: true,
+                tableReleasedAt: getWIBNow()
+            }
+        );
 
-            log.success(`Table ${result.table_number} released: ${oldStatus} → available`);
-            return { success: true, table: result.table_number };
-        } else {
-            throw new Error(`Failed to update table ${table.table_number}`);
-        }
+        log.success(`Table ${table.table_number} released: ${oldStatus} → available`);
+        return { success: true, table: table.table_number };
 
     } catch (error) {
         log.error(`Error releasing table for order ${order.order_id}:`, error.message);
-
-        // Retry mechanism
-        if (retryCount < MAX_RETRIES) {
-            log.info(`Retrying table release (${retryCount + 1}/${MAX_RETRIES})...`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
-            return releaseTableForCanceledOrder(order, session, retryCount + 1);
-        }
-
-        return { success: false, error: error.message, retriesExhausted: true };
+        return { success: false, error: error.message };
     }
 };
+
+
 
 /**
  * ✅ Auto-complete OnProcess orders yang sudah ganti tanggal
@@ -521,6 +496,7 @@ const cleanupOrphanedPayments = async () => {
  * ✅ FIXED: Monitor expired payments dengan batch processing dan prevent double processing
  * ✅ PERBAIKAN: Exclude Reservation orders dari auto-cancel
  */
+
 const monitorExpiredPayments = async () => {
     const session = await mongoose.startSession();
 
@@ -529,12 +505,15 @@ const monitorExpiredPayments = async () => {
 
         log.info('Starting payment expiry monitor...');
 
-        // ✅ FIX: Tambahkan filter untuk exclude payment yang sudah diproses DAN exclude reservasi
+        // ✅ PERBAIKAN: Cari pending payments yang sudah expired
         const expiredPayments = await Payment.find({
-            status: 'pending', // Hanya pending, karena expire sudah diproses
+            status: 'pending',
             expiry_time: { $exists: true, $ne: null },
-            processedExpiry: { $ne: true } // ✅ NEW: Skip yang sudah diproses
-        }).lean();
+            expiry_time: { $lt: now }, // Hanya yang sudah expired
+            processedExpiry: { $ne: true } // Skip yang sudah diproses
+        })
+            .sort({ expiry_time: 1 }) // Urutkan dari yang paling lama
+            .lean();
 
         if (expiredPayments.length === 0) {
             log.success(`No expired payments to process`);
@@ -546,53 +525,43 @@ const monitorExpiredPayments = async () => {
             };
         }
 
-        log.info(`Found ${expiredPayments.length} pending payments to check for expiry`);
+        log.info(`Found ${expiredPayments.length} expired pending payments to process`);
 
         let processedCount = 0;
         let skippedCount = 0;
         let errorCount = 0;
         let reservationSkippedCount = 0;
+        let openBillSkippedCount = 0;
 
-        // ✅ IMPROVEMENT: Process in batches untuk avoid memory issue
-        const BATCH_SIZE = 10;
-        for (let i = 0; i < expiredPayments.length; i += BATCH_SIZE) {
-            const batch = expiredPayments.slice(i, i + BATCH_SIZE);
+        // ✅ PERBAIKAN KRITIS: Process SEQUENTIALLY bukan parallel
+        // Untuk hindari transaction race condition
+        for (let i = 0; i < expiredPayments.length; i++) {
+            const payment = expiredPayments[i];
 
-            await Promise.all(batch.map(async (payment) => {
+            try {
+                log.info(`Processing expired payment [${i + 1}/${expiredPayments.length}] - Code: ${payment.payment_code}, Order: ${payment.order_id}`);
+
+                // Gunakan session yang berbeda untuk setiap payment
+                const paymentSession = await mongoose.startSession();
+
                 try {
-                    // Parse expiry_time
-                    let expiryDate;
-                    if (typeof payment.expiry_time === 'string') {
-                        expiryDate = new Date(payment.expiry_time.replace(' ', 'T'));
-                    } else {
-                        expiryDate = new Date(payment.expiry_time);
-                    }
-
-                    // Cek apakah sudah expired
-                    if (expiryDate > now) {
-                        skippedCount++;
-                        return;
-                    }
-
-                    log.info(`Payment expired - Code: ${payment.payment_code}, Order: ${payment.order_id}`);
-
-                    // Start transaction untuk order ini
-                    await session.withTransaction(async () => {
-                        // ✅ CRITICAL: Update payment dengan flag processedExpiry
+                    await paymentSession.withTransaction(async () => {
+                        // ✅ Update payment dengan flag processedExpiry
                         await Payment.findByIdAndUpdate(
                             payment._id,
                             {
                                 status: 'expire',
-                                processedExpiry: true, // ✅ NEW: Tandai sudah diproses
-                                expiredAt: getWIBNow()
+                                processedExpiry: true,
+                                expiredAt: getWIBNow(),
+                                notes: `Payment expired at ${getWIBNow().toISOString()}`
                             },
-                            { session }
+                            { session: paymentSession }
                         );
 
                         // Cari order terkait
                         const order = await Order.findOne({ order_id: payment.order_id })
                             .populate('items.menuItem')
-                            .session(session);
+                            .session(paymentSession);
 
                         if (!order) {
                             log.warning(`Order not found: ${payment.order_id} - marking payment as orphaned`);
@@ -604,16 +573,25 @@ const monitorExpiredPayments = async () => {
                                     notes: 'Order tidak ditemukan saat processing expired payment',
                                     orphanedAt: getWIBNow()
                                 },
-                                { session }
+                                { session: paymentSession }
                             );
 
                             skippedCount++;
                             return;
                         }
 
-                        // ✅ CRITICAL FIX: Skip reservasi - tidak boleh di-expire
+                        // ✅ CRITICAL: Skip Reservasi - tidak boleh di-expire
                         if (order.orderType === 'Reservation') {
-                            log.warning(`Skipping reservation order ${order.order_id} - reservations should not expire`);
+                            log.warning(`⚠️ SKIPPING Reservation order ${order.order_id} - reservations should not expire automatically`);
+                            reservationSkippedCount++;
+                            skippedCount++;
+                            return;
+                        }
+
+                        // ✅ PERBAIKAN: Skip Open Bill orders - tidak boleh di-expire
+                        if (order.isOpenBill === true) {
+                            log.warning(`⚠️ SKIPPING Open Bill order ${order.order_id} - open bills should not expire automatically`);
+                            openBillSkippedCount++;
                             skippedCount++;
                             return;
                         }
@@ -622,7 +600,7 @@ const monitorExpiredPayments = async () => {
                         const hasSettledPayment = await Payment.findOne({
                             order_id: payment.order_id,
                             status: 'settlement'
-                        }).session(session).lean();
+                        }).session(paymentSession).lean();
 
                         if (hasSettledPayment) {
                             log.info(`Order ${payment.order_id} has settled payment, skipping cancellation`);
@@ -631,7 +609,7 @@ const monitorExpiredPayments = async () => {
                         }
 
                         // ✅ Rollback stock dengan tracking
-                        const stockRollback = await rollbackStockForExpiredPayment(order, session);
+                        const stockRollback = await rollbackStockForExpiredPayment(order, paymentSession);
 
                         if (stockRollback.alreadyRolledBack) {
                             log.info(`Stock already rolled back for order ${order.order_id}`);
@@ -642,7 +620,7 @@ const monitorExpiredPayments = async () => {
                         }
 
                         // ✅ Release table dengan tracking
-                        const tableRelease = await releaseTableForCanceledOrder(order, session);
+                        const tableRelease = await releaseTableForCanceledOrder(order, paymentSession);
 
                         if (tableRelease.alreadyReleased) {
                             log.info(`Table already released for order ${order.order_id}`);
@@ -658,11 +636,11 @@ const monitorExpiredPayments = async () => {
                                 order_id: payment.order_id,
                                 _id: { $ne: payment._id },
                                 status: 'pending'
-                            }).session(session).lean();
+                            }).session(paymentSession).lean();
 
                             if (otherPendingPayments) {
                                 shouldCancelOrder = false;
-                                log.info(`Order ${payment.order_id} has other pending payments, not canceling`);
+                                log.info(`Order ${order.order_id} has other pending payments, not canceling`);
                             }
                         }
 
@@ -672,89 +650,358 @@ const monitorExpiredPayments = async () => {
                                 {
                                     status: 'Canceled',
                                     updatedAtWIB: getWIBNow(),
-                                    cancellationReason: `Payment expired at ${expiryDate.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`,
+                                    cancellationReason: `Payment expired at ${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`,
                                     canceledBySystem: true,
                                     canceledAt: getWIBNow()
                                 },
-                                { session }
+                                { session: paymentSession }
                             );
 
-                            log.success(`Order ${order.order_id} auto-canceled due to payment expiry`);
+                            log.success(`✅ Order ${order.order_id} auto-canceled due to payment expiry`);
+                            processedCount++;
+                        } else {
+                            skippedCount++;
                         }
-
-                        processedCount++;
                     });
 
-                } catch (error) {
+                } catch (transactionError) {
                     errorCount++;
-                    log.error(`Error processing payment ${payment.payment_code}:`, error.message);
+                    log.error(`Transaction error for payment ${payment.payment_code}:`, transactionError.message);
+
+                    // Fallback: Update payment status tanpa transaction
+                    try {
+                        await Payment.findByIdAndUpdate(payment._id, {
+                            status: 'expire',
+                            processedExpiry: true,
+                            expiredAt: getWIBNow(),
+                            notes: `Auto-expired with error: ${transactionError.message}`
+                        });
+                        log.info(`Payment ${payment.payment_code} marked as expire (fallback)`);
+                    } catch (fallbackError) {
+                        log.error(`Fallback update failed for ${payment.payment_code}:`, fallbackError.message);
+                    }
+
+                } finally {
+                    await paymentSession.endSession();
                 }
-            }));
+
+                // ✅ Delay antar processing untuk hindari overload
+                if (i < expiredPayments.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+                }
+
+            } catch (error) {
+                errorCount++;
+                log.error(`Error processing payment ${payment.payment_code}:`, error.message);
+            }
         }
 
         log.info(`\n📊 Payment Expiry Monitor Summary:`);
-        log.success(`Processed: ${processedCount}`);
-        log.info(`Skipped: ${skippedCount} (non-expired)`);
-        log.info(`Reservation orders skipped: ${reservationSkippedCount}`);
-        log.error(`Errors: ${errorCount}`);
-        log.info(`Total Checked: ${expiredPayments.length}`);
+        log.success(`✅ Processed: ${processedCount} (non-reservation, non-openbill)`);
+        log.info(`ℹ️  Skipped: ${skippedCount}`);
+        log.info(`⚠️  Reservation orders skipped: ${reservationSkippedCount}`);
+        log.info(`⚠️  Open Bill orders skipped: ${openBillSkippedCount}`);
+        log.error(`❌ Errors: ${errorCount}`);
+        log.info(`📊 Total Checked: ${expiredPayments.length}`);
 
         return {
             processedCount,
             skippedCount,
             reservationSkippedCount,
+            openBillSkippedCount,
             errorCount,
             totalChecked: expiredPayments.length
         };
 
     } catch (error) {
-        log.error('Error in monitorExpiredPayments:', error.message);
+        log.error('❌ Error in monitorExpiredPayments:', error.message);
         return { error: error.message };
     } finally {
         await session.endSession();
     }
 };
+
+/**
+ * ✅ PERBAIKAN BARU: Monitor reservation expiry (beda logic dengan regular orders)
+ * Reservation hanya expire berdasarkan reservation_date dan reservation_time, bukan payment expiry
+ */
+const monitorReservationExpiry = async () => {
+    try {
+        const now = getWIBNow();
+        log.info('Starting reservation expiry monitor...');
+
+        // Cari reservations yang sudah lewat waktu tapi masih pending
+        const Reservation = mongoose.model('Reservation');
+
+        const expiredReservations = await Reservation.find({
+            status: 'pending',
+            reservation_date: { $lt: now }, // Tanggal reservasi sudah lewat
+            reservation_time: { $lt: now.getHours() + ':' + now.getMinutes() } // Waktu sudah lewat
+        }).lean();
+
+        if (expiredReservations.length === 0) {
+            log.success(`No expired reservations to process`);
+            return { expiredCount: 0, totalFound: 0 };
+        }
+
+        log.info(`Found ${expiredReservations.length} expired reservations`);
+
+        let expiredCount = 0;
+
+        for (const reservation of expiredReservations) {
+            try {
+                // Update reservation status
+                await Reservation.findByIdAndUpdate(
+                    reservation._id,
+                    {
+                        status: 'expired',
+                        updatedAtWIB: getWIBNow(),
+                        cancellationReason: 'Reservation expired - customer did not arrive'
+                    }
+                );
+
+                // Cari dan cancel order terkait reservation
+                const relatedOrder = await Order.findOne({
+                    originalReservationId: reservation._id,
+                    status: 'Pending'
+                });
+
+                if (relatedOrder) {
+                    // Rollback stock
+                    await rollbackStockForExpiredPayment(relatedOrder);
+
+                    // Cancel order
+                    await Order.findByIdAndUpdate(
+                        relatedOrder._id,
+                        {
+                            status: 'Canceled',
+                            updatedAtWIB: getWIBNow(),
+                            cancellationReason: 'Reservation expired - auto cancelled',
+                            canceledBySystem: true,
+                            canceledAt: getWIBNow()
+                        }
+                    );
+
+                    // Release table
+                    await releaseTableForCanceledOrder(relatedOrder);
+                }
+
+                expiredCount++;
+                log.success(`Reservation ${reservation.reservation_id} expired and processed`);
+
+            } catch (error) {
+                log.error(`Error processing reservation ${reservation.reservation_id}:`, error.message);
+            }
+        }
+
+        log.success(`✅ Processed ${expiredCount} expired reservations`);
+        return { expiredCount, totalFound: expiredReservations.length };
+
+    } catch (error) {
+        log.error('❌ Error in monitorReservationExpiry:', error.message);
+        return { error: error.message };
+    }
+};
+
+/**
+ * ✅ PERBAIKAN BARU: Monitor Open Bill expiry
+ * Open Bill hanya expire setelah 7 hari (bukan 24 jam)
+ */
+const monitorOpenBillExpiry = async () => {
+    try {
+        const now = getWIBNow();
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        log.info('Starting open bill expiry monitor (7 days)...');
+
+        // Cari open bills yang sudah lebih dari 7 hari
+        const expiredOpenBills = await Order.find({
+            isOpenBill: true,
+            status: 'Pending',
+            createdAt: { $lt: sevenDaysAgo },
+            canceledBySystem: { $ne: true }
+        }).lean();
+
+        if (expiredOpenBills.length === 0) {
+            log.success(`No expired open bills to process`);
+            return { expiredCount: 0, totalFound: 0 };
+        }
+
+        log.info(`Found ${expiredOpenBills.length} open bills older than 7 days`);
+
+        let expiredCount = 0;
+
+        for (const order of expiredOpenBills) {
+            try {
+                // Untuk open bill, kita tidak rollback stock (karena sudah dikonsumsi)
+                // Hanya cancel order dan release table
+
+                // Cancel order
+                await Order.findByIdAndUpdate(
+                    order._id,
+                    {
+                        status: 'Canceled',
+                        updatedAtWIB: getWIBNow(),
+                        cancellationReason: 'Open bill expired after 7 days',
+                        canceledBySystem: true,
+                        canceledAt: getWIBNow()
+                    }
+                );
+
+                // Release table
+                await releaseTableForCanceledOrder(order);
+
+                expiredCount++;
+                log.success(`Open Bill ${order.order_id} expired after 7 days and processed`);
+
+            } catch (error) {
+                log.error(`Error processing open bill ${order.order_id}:`, error.message);
+            }
+        }
+
+        log.success(`✅ Processed ${expiredCount} expired open bills`);
+        return { expiredCount, totalFound: expiredOpenBills.length };
+
+    } catch (error) {
+        log.error('❌ Error in monitorOpenBillExpiry:', error.message);
+        return { error: error.message };
+    }
+};
+
+// Fungsi untuk auto-cancel pending orders yang sudah lama (> 1 hari)
+// PERBAIKAN: Hanya cancel untuk NON-Reservation dan NON-OpenBill orders
+async function autoCancelOldPendingOrders(outletId) {
+    try {
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+        const Order = mongoose.model('Order');
+
+        // ✅ PERBAIKAN: Hanya cancel order yang BUKAN Reservation DAN BUKAN Open Bill
+        const result = await Order.updateMany(
+            {
+                "outlet": new mongoose.Types.ObjectId(outletId),
+                "status": "Pending",
+                "createdAt": { $lt: oneDayAgo },
+                "canceledBySystem": { $ne: true },
+                "orderType": {
+                    $nin: ["Reservation"]  // ✅ EXCLUDE Reservation dari auto-cancel
+                },
+                "isOpenBill": false  // ✅ EXCLUDE Open Bill dari auto-cancel
+            },
+            {
+                $set: {
+                    status: "Cancelled",
+                    canceledBySystem: true,
+                    canceledAt: new Date(),
+                    cancellationReason: "Auto-cancelled: Order pending for more than 24 hours (non-reservation, non-openbill)"
+                }
+            }
+        );
+
+        if (result.modifiedCount > 0) {
+            console.log(`✅ Auto-cancelled ${result.modifiedCount} pending orders (non-reservation, non-openbill) older than 24 hours`);
+
+            // Sync ulang status meja setelah cancel order
+            setTimeout(async () => {
+                try {
+                    await Table.syncTableStatusWithActiveOrders(outletId);
+                    console.log(`✅ Table re-sync completed after auto-cancel for outlet ${outletId}`);
+                } catch (syncError) {
+                    console.error('⚠️ Table re-sync error:', syncError.message);
+                }
+            }, 2000);
+        }
+
+        return result.modifiedCount;
+
+    } catch (error) {
+        console.error('❌ Error auto-cancelling orders:', error);
+        return 0;
+    }
+}
+
 /**
  * ✅ Setup cron job untuk monitoring
  */
+/**
+ * ✅ Setup cron job untuk monitoring dengan logika baru
+ */
 export const setupPaymentExpiryMonitor = () => {
-    log.info('🚀 Setting up payment expiry monitoring system...\n');
+    log.info('🚀 Setting up payment expiry monitoring system with new logic...\n');
 
-    // Payment expiry check - setiap 5 menit
+    // 1. Payment expiry check - setiap 5 menit (untuk NON-Reservation dan NON-OpenBill)
     cron.schedule('*/5 * * * *', async () => {
-        log.info(`[${getWIBNow().toISOString()}] Running payment expiry monitor...`);
+        log.info(`[${getWIBNow().toISOString()}] Running payment expiry monitor (non-reservation, non-openbill)...`);
         await monitorExpiredPayments();
     });
-    log.success('Payment expiry monitor started - Running every 5 minutes');
+    log.success('✅ Payment expiry monitor started - Running every 5 minutes (excludes reservation & open bill)');
 
-    // Auto-complete OnProcess orders - setiap hari jam 01:00 WIB
+    // 2. Auto-cancel pending orders > 24 jam - setiap hari jam 03:00 WIB
+    // PERBAIKAN: Hanya untuk NON-Reservation dan NON-OpenBill
+    cron.schedule('0 3 * * *', async () => {
+        log.info(`[${getWIBNow().toISOString()}] Running auto-cancel for old pending orders (non-reservation, non-openbill)...`);
+
+        const outlets = await mongoose.model('Outlet').find({ is_active: true }).select('_id');
+
+        for (const outlet of outlets) {
+            const cancelledCount = await autoCancelOldPendingOrders(outlet._id);
+            if (cancelledCount > 0) {
+                log.success(`✅ Outlet ${outlet._id}: Cancelled ${cancelledCount} pending orders (non-reservation, non-openbill)`);
+            }
+        }
+
+    }, {
+        timezone: 'Asia/Jakarta'
+    });
+    log.success('✅ Pending order auto-cancel started - Running daily at 03:00 WIB (excludes reservation & open bill)');
+
+    // 3. Reservation expiry check - setiap jam (berdasarkan reservation time)
+    cron.schedule('0 * * * *', async () => {
+        log.info(`[${getWIBNow().toISOString()}] Running reservation expiry monitor...`);
+        await monitorReservationExpiry();
+    });
+    log.success('✅ Reservation expiry monitor started - Running hourly');
+
+    // 4. Open Bill expiry check - setiap hari jam 04:00 WIB (7 days expiry)
+    cron.schedule('0 4 * * *', async () => {
+        log.info(`[${getWIBNow().toISOString()}] Running open bill expiry monitor (7 days)...`);
+        await monitorOpenBillExpiry();
+    }, {
+        timezone: 'Asia/Jakarta'
+    });
+    log.success('✅ Open bill expiry monitor started - Running daily at 04:00 WIB (7 days expiry)');
+
+    // 5. Auto-complete OnProcess orders - setiap hari jam 01:00 WIB
     cron.schedule('0 1 * * *', async () => {
         log.info(`[${getWIBNow().toISOString()}] Running auto-complete for expired OnProcess orders...`);
         await autoCompleteExpiredOnProcessOrders();
     }, {
         timezone: 'Asia/Jakarta'
     });
-    log.success('OnProcess auto-complete monitor started - Running daily at 01:00 WIB');
+    log.success('✅ OnProcess auto-complete monitor started - Running daily at 01:00 WIB');
 
-    // Cleanup orphaned payments - setiap hari jam 02:00 WIB
+    // 6. Cleanup orphaned payments - setiap hari jam 02:00 WIB
     cron.schedule('0 2 * * *', async () => {
         log.info(`[${getWIBNow().toISOString()}] Running orphaned payments cleanup...`);
         await cleanupOrphanedPayments();
     }, {
         timezone: 'Asia/Jakarta'
     });
-    log.success('Orphaned payments cleanup started - Running daily at 02:00 WIB\n');
+    log.success('✅ Orphaned payments cleanup started - Running daily at 02:00 WIB\n');
 
-    // ✅ NEW: Auto-activate Reserved orders - setiap 1 menit
-    cron.schedule('* * * * *', async () => {
-        log.info(`[${getWIBNow().toISOString()}] Running auto-activate for Reserved orders...`);
-        await autoActivateReservedOrders();
-    });
-    log.success('Reserved orders auto-activate monitor started - Running every 1 minute');
+    log.info('📋 CRON JOB SUMMARY:');
+    log.info('─────────────────────');
+    log.info('• Payment Expiry: Every 5 min (excludes Reservation & Open Bill)');
+    log.info('• Auto-cancel: Daily at 03:00 (excludes Reservation & Open Bill)');
+    log.info('• Reservation Expiry: Hourly');
+    log.info('• Open Bill Expiry: Daily at 04:00 (7 days)');
+    log.info('• OnProcess Auto-complete: Daily at 01:00');
+    log.info('• Orphaned Payments: Daily at 02:00');
+    log.info('─────────────────────\n');
 
-    // ✅ IMPORTANT: Jangan jalankan initial check saat startup
-    // Karena bisa menyebabkan double processing
-    log.info('✅ Cron jobs initialized. Initial checks will run on schedule.');
+    log.info('✅ Cron jobs initialized with new logic.');
 };
 
 /**

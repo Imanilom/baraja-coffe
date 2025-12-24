@@ -1,12 +1,14 @@
-use mongodb::{Client, Collection, Database};
+use mongodb::{Collection, Database};
 use mongodb::bson::{doc, oid::ObjectId};
 use futures::stream::TryStreamExt;
-use chrono::{DateTime, Utc};
-use crate::db::models::{Promo, AutoPromo, Voucher, OrderItem, MenuItem, VoucherUsage};
-use crate::error::Result;
+use chrono::Utc;
+use crate::db::models::{Promo, AutoPromo, Voucher, OrderItem};
+use crate::error::AppResult;
+use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone)]
 pub struct PromoService {
-    promo_collection: Collection<Promo>,
+    _promo_collection: Collection<Promo>,
     auto_promo_collection: Collection<AutoPromo>,
     voucher_collection: Collection<Voucher>,
 }
@@ -14,7 +16,7 @@ pub struct PromoService {
 impl PromoService {
     pub fn new(db: Database) -> Self {
         Self {
-            promo_collection: db.collection("promos"),
+            _promo_collection: db.collection("promos"),
             auto_promo_collection: db.collection("autopromos"),
             voucher_collection: db.collection("vouchers"),
         }
@@ -25,7 +27,7 @@ impl PromoService {
         order_items: &[OrderItem],
         outlet_id: ObjectId,
         order_type: &str,
-    ) -> Result<AutoPromoResult> {
+    ) -> AppResult<AutoPromoResult> {
         let now = Utc::now();
         let filter = doc! {
             "isActive": true,
@@ -92,7 +94,7 @@ impl PromoService {
         total_amount: f64,
         outlet_id: ObjectId,
         customer_type: &str,
-    ) -> Result<ManualPromoResult> {
+    ) -> AppResult<ManualPromoResult> {
         // Logic for manual promo (usually selected by user, but here maybe best available?)
         // Node logic: `checkManualPromo` usually takes a specific promo ID or finds valid ones?
         // Node logic: `checkManualPromo(totalBeforeDiscount, outlet, customerType)`
@@ -119,7 +121,7 @@ impl PromoService {
         voucher_code: &str,
         subtotal: f64,
         outlet_id: ObjectId,
-    ) -> Result<VoucherResult> {
+    ) -> AppResult<VoucherResult> {
         let now = Utc::now();
         let filter = doc! {
             "code": voucher_code,
@@ -156,6 +158,7 @@ pub struct AutoPromoResult {
     pub applied_promos: Vec<AppliedPromoDetail>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppliedPromoDetail {
     pub id: ObjectId,
     pub name: String,

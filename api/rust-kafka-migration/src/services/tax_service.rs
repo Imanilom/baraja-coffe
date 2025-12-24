@@ -1,9 +1,10 @@
-use mongodb::{Client, Collection, Database};
+use mongodb::{Collection, Database};
 use mongodb::bson::{doc, oid::ObjectId};
 use futures::stream::TryStreamExt;
 use crate::db::models::{TaxAndService, OrderItem, CustomAmountItem};
-use crate::error::Result;
+use crate::error::AppResult;
 
+#[derive(Debug, Clone)]
 pub struct TaxService {
     tax_collection: Collection<TaxAndService>,
 }
@@ -21,7 +22,7 @@ impl TaxService {
         taxable_amount: f64,
         order_items: &[OrderItem],
         custom_amount_items: &[CustomAmountItem],
-    ) -> Result<TaxCalculationResult> {
+    ) -> AppResult<TaxCalculationResult> {
         let filter = doc! {
             "isActive": true,
             "appliesToOutlets": outlet_id
