@@ -1,17 +1,18 @@
+#![allow(dead_code)]
 use axum::{
-    extract::{State, Path, Query},
+    extract::{State, Query},
     response::IntoResponse,
-    Json,
+    // Json,
 };
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId, DateTime as BsonDateTime};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use chrono::{Utc, NaiveDate, Duration};
 
 use crate::AppState;
 use crate::error::{AppResult, AppError, ApiResponse};
-use crate::db::models::reports::*;
+// use crate::db::models::reports::*;
 
 #[derive(Debug, Deserialize)]
 pub struct CustomerReportQuery {
@@ -174,12 +175,12 @@ pub async fn get_customer_reports(
     ];
     
     let mut cursor = order_collection.aggregate(pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
     let mut customers = Vec::new();
-    while cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
+    while cursor.advance().await.map_err(|e| AppError::Database(e))? {
         let doc = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
         
         customers.push(json!({
             "userId": doc.get_object_id("userId").ok(),
@@ -271,11 +272,11 @@ pub async fn get_customer_insights(
     ];
     
     let mut cursor = order_collection.aggregate(metrics_pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
-    let overview = if cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
+    let overview = if cursor.advance().await.map_err(|e| AppError::Database(e))? {
         let doc = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
         
         json!({
             "totalOrders": doc.get_i32("totalOrders").unwrap_or(0),
@@ -308,12 +309,12 @@ pub async fn get_customer_insights(
     ];
     
     let mut top_cursor = order_collection.aggregate(top_customers_pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
     let mut top_customers = Vec::new();
-    while top_cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
+    while top_cursor.advance().await.map_err(|e| AppError::Database(e))? {
         let doc = top_cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
         
         top_customers.push(json!({
             "customerId": doc.get_object_id("_id").ok(),

@@ -1,5 +1,6 @@
-use std::sync::Arc;
-use serde::{Deserialize, Serialize};
+#![allow(dead_code)]
+// use std::sync::Arc;
+use serde::Serialize;
 use mongodb::bson::oid::ObjectId;
 
 use crate::websocket::socket_state::{SocketState, ConnectedDevice};

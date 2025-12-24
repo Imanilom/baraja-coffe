@@ -1,5 +1,5 @@
 use crate::error::{AppError, AppResult};
-use redis::{Client, AsyncCommands};
+use redis::Client;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{info, warn};

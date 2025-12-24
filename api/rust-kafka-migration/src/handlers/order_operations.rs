@@ -1,18 +1,18 @@
-// Extended order management handlers for POS/Cashier system
+use futures::stream::TryStreamExt;
 use axum::{
-    extract::{State, Path, Query},
+    extract::{State, Path},
     response::IntoResponse,
     Json,
 };
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use chrono::Utc;
 
 use crate::AppState;
 use crate::error::{AppResult, AppError, ApiResponse};
-use crate::db::models::order::{Order, OrderItem};
+use crate::db::models::order::Order;
 
 // ============================================
 // GET ORDERS
@@ -52,8 +52,8 @@ pub async fn get_pending_orders(
         .await?;
 
     let mut orders = Vec::new();
-    while cursor.advance().await? {
-        orders.push(cursor.deserialize_current()?);
+    while let Some(doc) = cursor.try_next().await? {
+        orders.push(doc);
     }
 
     Ok(ApiResponse::success(json!({
@@ -81,8 +81,8 @@ pub async fn get_active_orders(
         .await?;
 
     let mut orders = Vec::new();
-    while cursor.advance().await? {
-        orders.push(cursor.deserialize_current()?);
+    while let Some(doc) = cursor.try_next().await? {
+        orders.push(doc);
     }
 
     Ok(ApiResponse::success(json!({
@@ -123,8 +123,8 @@ pub async fn get_cashier_orders(
         .await?;
 
     let mut orders = Vec::new();
-    while cursor.advance().await? {
-        orders.push(cursor.deserialize_current()?);
+    while let Some(doc) = cursor.try_next().await? {
+        orders.push(doc);
     }
 
     Ok(ApiResponse::success(json!({
@@ -195,7 +195,7 @@ pub async fn confirm_order_by_cashier(
 ) -> AppResult<impl IntoResponse> {
     // In Node.js, this uses job_id from queue
     // For now, treat it as order_id
-    confirm_order(state, Path(job_id), Json(ConfirmOrderRequest { payment_method: None })).await
+    confirm_order(State(state), Path(job_id), Json(ConfirmOrderRequest { payment_method: None })).await
 }
 
 /// Batch confirm orders
@@ -256,7 +256,11 @@ pub async fn edit_order(
     // Remove items
     if let Some(remove_ids) = payload.remove_items {
         order.items.retain(|item| {
-            !remove_ids.contains(&item.menu_item.to_string())
+            if let Some(item_id) = &item.menu_item {
+                !remove_ids.contains(&item_id.to_string())
+            } else {
+                false
+            }
         });
     }
 

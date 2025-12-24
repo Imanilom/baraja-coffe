@@ -1,13 +1,14 @@
+use futures::stream::TryStreamExt;
 use axum::{
-    extract::{State, Path, Query},
+    extract::{State, Query},
     response::IntoResponse,
-    Json,
+    // Json,
 };
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId, DateTime as BsonDateTime};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
-use chrono::{Utc, NaiveDate};
+use chrono::NaiveDate;
 
 use crate::AppState;
 use crate::error::{AppResult, AppError, ApiResponse};
@@ -50,12 +51,11 @@ pub async fn get_sales_report(
     let mut cursor = order_collection
         .find(None, None)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
 
     let mut orders = Vec::new();
-    while cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let order = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+    while let Some(doc) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
+        let order = doc; // already deserialized if typed, but here it's Document
         orders.push(order);
     }
 
@@ -169,12 +169,9 @@ pub async fn get_sales_summary(
     ];
     
     let mut cursor = order_collection.aggregate(summary_pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
-    let summary = if cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let doc = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    let summary = if let Some(doc) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         SalesSummary {
             total_sales: doc.get_f64("totalSales").unwrap_or(0.0),
             total_transactions: doc.get_i32("totalTransactions").unwrap_or(0),
@@ -224,15 +221,12 @@ pub async fn get_sales_summary(
     ];
     
     let mut payment_cursor = order_collection.aggregate(payment_pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
     let mut payment_breakdown = Vec::new();
     let mut total_payment_amount = 0.0;
     
-    while payment_cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let doc = payment_cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    while let Some(doc) = payment_cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         let amount = doc.get_f64("total").unwrap_or(0.0);
         total_payment_amount += amount;
         
@@ -265,15 +259,12 @@ pub async fn get_sales_summary(
     ];
     
     let mut order_type_cursor = order_collection.aggregate(order_type_pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
     let mut order_type_breakdown = Vec::new();
     let mut total_orders = 0;
     
-    while order_type_cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let doc = order_type_cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    while let Some(doc) = order_type_cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         let count = doc.get_i32("count").unwrap_or(0);
         total_orders += count;
         
@@ -309,13 +300,10 @@ pub async fn get_cashiers_list(
     let mut cursor = user_collection
         .find(doc! { "role": "cashier" }, None)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
 
     let mut cashiers = Vec::new();
-    while cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let cashier = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    while let Some(cashier) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         cashiers.push(json!({
             "_id": cashier.get_object_id("_id").ok(),
             "username": cashier.get_str("username").unwrap_or("Unknown"),

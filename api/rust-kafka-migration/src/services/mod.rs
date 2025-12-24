@@ -18,5 +18,5 @@ pub use session_service::SessionService;
 pub use loyalty_service::LoyaltyService;
 pub use tax_service::TaxService;
 pub use promo_service::PromoService;
-pub use print_queue_service::PrintQueueService;
-pub use stock_deduction_service::StockDeductionService;
+// pub use print_queue_service::PrintQueueService;
+// pub use stock_deduction_service::StockDeductionService;

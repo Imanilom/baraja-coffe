@@ -51,7 +51,7 @@ fn menu_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(handlers::get_menu_items).post(handlers::create_menu_item))
         .route("/:id", get(handlers::get_menu_item).put(handlers::update_menu_item).delete(handlers::delete_menu_item))
-        .route("/categories", get(handlers::get_categories))
+        .route("/categories", get(handlers::menu::get_categories))
 }
 
 /// Create inventory routes

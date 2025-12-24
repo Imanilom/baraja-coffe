@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use mongodb::bson::oid::ObjectId;
 use chrono::{DateTime, Utc};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct SplitPayment {
     #[serde(rename = "paymentMethod")]
     pub payment_method: String,
@@ -25,20 +25,20 @@ pub struct SplitPayment {
     pub refund_details: Option<RefundDetails>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct VaNumber {
     pub bank: String,
     pub va_number: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PaymentAction {
     pub name: String,
     pub method: String,
     pub url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PaymentDetails {
     // Cash
     #[serde(rename = "cashTendered", skip_serializing_if = "Option::is_none")]
@@ -71,7 +71,7 @@ pub struct PaymentDetails {
     pub transfer_reference: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct RefundDetails {
     #[serde(rename = "refundAmount", default)]
     pub refund_amount: f64,
@@ -83,7 +83,7 @@ pub struct RefundDetails {
     pub refunded_by: Option<ObjectId>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct OrderItem {
     #[serde(rename = "menuItem", skip_serializing_if = "Option::is_none")]
     pub menu_item: Option<ObjectId>,
@@ -160,7 +160,7 @@ pub struct MenuItemData {
 
 fn default_true() -> bool { true }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct OrderItemAddon {
     pub name: String,
     pub price: f64,
@@ -168,13 +168,13 @@ pub struct OrderItemAddon {
     pub options: Vec<AddonOption>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AddonOption {
     pub label: String,
     pub price: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct OrderItemTopping {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -182,7 +182,7 @@ pub struct OrderItemTopping {
     pub price: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct CustomAmountItem {
     pub amount: f64,
     #[serde(default = "default_custom_item_name")]

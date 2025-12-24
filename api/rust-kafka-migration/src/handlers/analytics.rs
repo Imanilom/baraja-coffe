@@ -1,17 +1,17 @@
 use axum::{
     extract::{State, Path, Query},
     response::IntoResponse,
-    Json,
 };
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
-use chrono::{Utc, Duration};
+use chrono::{Utc, Duration, Timelike};
+// // use futures::stream::TryStreamExt;
 
 use crate::AppState;
 use crate::error::{AppResult, AppError, ApiResponse};
-use crate::db::models::analytics::{CashierMetrics, PrintFailureAnalysis, OrderCompletionMetrics};
+// // use crate::db::models::analytics::{CashierMetrics, PrintFailureAnalysis, OrderCompletionMetrics};
 
 #[derive(Debug, Deserialize)]
 pub struct GetMetricsQuery {
@@ -77,7 +77,7 @@ pub async fn get_cashier_metrics(
             order.get_datetime("createdAt"),
             order.get_datetime("confirmedAt")
         ) {
-            let duration = confirmed_at.signed_duration_since(*created_at);
+            let duration = confirmed_at.to_chrono().signed_duration_since(created_at.to_chrono());
             completion_times.push(duration.num_seconds() as f64);
         }
     }
@@ -157,7 +157,7 @@ pub async fn get_print_failure_analysis(
                 }
 
                 if let Ok(created_at) = log.get_datetime("createdAt") {
-                    let hour = created_at.hour() as i32;
+                    let hour = created_at.to_chrono().hour() as i32;
                     *failure_hours.entry(hour).or_insert(0) += 1;
                 }
             }
@@ -237,7 +237,7 @@ pub async fn get_order_completion_metrics(
             order.get_datetime("createdAt"),
             order.get_datetime("confirmedAt")
         ) {
-            let duration_secs = confirmed_at.signed_duration_since(*created_at).num_seconds() as f64;
+            let duration_secs = confirmed_at.to_chrono().signed_duration_since(created_at.to_chrono()).num_seconds() as f64;
             let duration_mins = duration_secs / 60.0;
             
             completion_times.push(duration_mins);
@@ -250,7 +250,7 @@ pub async fn get_order_completion_metrics(
             }
 
             // By hour
-            let hour = created_at.hour() as i32;
+            let hour = created_at.to_chrono().hour() as i32;
             hour_metrics.entry(hour)
                 .or_insert_with(Vec::new)
                 .push(duration_mins);
