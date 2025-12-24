@@ -2409,12 +2409,16 @@ export const createUnifiedOrder = async (req, res) => {
       cashierNotes = '',
       serviceCharge = 0,
       taxPercentage = 10,
-      closeOpenBill = false
+      closeOpenBill = false,
+
+      // ========== DISCOUNT FIELDS ==========
+      voucherCode,
+      customerType,
+      manualDiscount = 0,
+      manualDiscountReason = ''
     } = req.body;
 
     // ========== VALIDASI AWAL ==========
-
-    // Validasi outletId
     if (!outletId) {
       return res.status(400).json({
         success: false,
@@ -2422,7 +2426,6 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // Validasi source
     if (!['Web', 'App', 'Cashier'].includes(source)) {
       return res.status(400).json({
         success: false,
@@ -2430,29 +2433,24 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // Validasi khusus untuk Web: TIDAK BOLEH split payment
-    if (source === 'Web' && isSplitPayment) {
-      return res.status(400).json({
-        success: false,
-        message: 'Split payment tidak diizinkan untuk Web source'
-      });
-    }
-
-    // Validasi khusus untuk Web: cashierId harus null
-    if (source === 'Web' && cashierId) {
-      console.warn('cashierId provided for Web source, ignoring:', cashierId);
-      cashierId = null;
-    }
-
-    // Validasi user/contact untuk Web
+    // Validasi khusus untuk Web
     if (source === 'Web') {
+      if (isSplitPayment) {
+        return res.status(400).json({
+          success: false,
+          message: 'Split payment tidak diizinkan untuk Web source'
+        });
+      }
+      if (cashierId) {
+        console.warn('cashierId provided for Web source, ignoring:', cashierId);
+        cashierId = null;
+      }
       if (!user || typeof user !== 'string' || user.trim() === '') {
         return res.status(400).json({
           success: false,
           message: 'Nama pelanggan diperlukan untuk Web orders'
         });
       }
-
       if (!contact || !contact.phone || typeof contact.phone !== 'string' || contact.phone.trim() === '') {
         return res.status(400).json({
           success: false,
@@ -2461,7 +2459,7 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Validasi khusus untuk Cashier: cashierId harus ada
+    // Validasi khusus untuk Cashier
     if (source === 'Cashier' && !cashierId) {
       return res.status(400).json({
         success: false,
@@ -2486,7 +2484,7 @@ export const createUnifiedOrder = async (req, res) => {
       return res.status(200).json(result);
     }
 
-    // Generate order ID early
+    // Generate order ID
     if (tableNumber && !order_id) {
       if (isOpenBill) {
         orderId = generateOpenBillOrderId(String(tableNumber));
@@ -2505,14 +2503,15 @@ export const createUnifiedOrder = async (req, res) => {
       outletId,
       tableNumber,
       isOpenBill,
-      isSplitPayment
+      isSplitPayment,
+      hasItems: req.body.items?.length || 0
     });
 
     // ========== CASHIER: OPEN BILL CREATION ==========
     if (source === 'Cashier' && isOpenBill) {
-      console.log('💰 Processing Open Bill creation');
+      console.log('💰 Processing Open Bill creation with createOrderHandler');
 
-      const result = await processOpenBillOrder({
+      const result = await processOpenBillOrderWithHandler({
         req,
         orderId,
         outletId,
@@ -2523,7 +2522,13 @@ export const createUnifiedOrder = async (req, res) => {
         cashierNotes,
         serviceCharge,
         taxPercentage,
-        items: req.body.items || []
+        items: req.body.items || [],
+        voucherCode,
+        customerType,
+        manualDiscount,
+        manualDiscountReason,
+        customerId,
+        loyaltyPointsToRedeem
       });
 
       return res.status(200).json(result);
@@ -2545,7 +2550,11 @@ export const createUnifiedOrder = async (req, res) => {
         device_id,
         customerId,
         loyaltyPointsToRedeem,
-        orderType
+        orderType,
+        voucherCode,
+        customerType,
+        manualDiscount,
+        manualDiscountReason
       });
 
       return res.status(200).json(result);
@@ -2566,7 +2575,7 @@ export const createUnifiedOrder = async (req, res) => {
       outletId
     });
 
-    // PRE-CHECK: Cek order existence SEBELUM lock (optimization)
+    // PRE-CHECK: Cek order existence SEBELUM lock
     const existingOrderCheck = await Order.findOne({
       order_id: orderId,
       outletId: outletId
@@ -2652,7 +2661,11 @@ export const createUnifiedOrder = async (req, res) => {
         delivery_option,
         recipient_data,
         user,
-        contact
+        contact,
+        voucherCode,
+        customerType,
+        manualDiscount,
+        manualDiscountReason
       });
     }, {
       owner: `order-${source}-${process.pid}-${Date.now()}`,
@@ -2715,7 +2728,7 @@ export const createUnifiedOrder = async (req, res) => {
 };
 
 // ========== HELPER: PROCESS OPEN BILL ORDER ==========
-const processOpenBillOrder = async ({
+const processOpenBillOrderWithHandler = async ({
   req,
   orderId,
   outletId,
@@ -2726,7 +2739,13 @@ const processOpenBillOrder = async ({
   cashierNotes = '',
   serviceCharge = 0,
   taxPercentage = 10,
-  items = []
+  items = [],
+  voucherCode,
+  customerType,
+  manualDiscount = 0,
+  manualDiscountReason = '',
+  customerId,
+  loyaltyPointsToRedeem
 }) => {
   try {
     // Cek outlet
@@ -2752,164 +2771,119 @@ const processOpenBillOrder = async ({
 
     if (existingOpenBill) {
       throw new Error(`Meja ${tableNumber} sudah memiliki open bill aktif (Order ID: ${existingOpenBill.order_id})`);
-    };
-
-    // Hitung total dari items awal
-    let totalBeforeDiscount = 0;
-    let itemsWithDetails = [];
-
-    if (items && items.length > 0) {
-      for (const item of items) {
-        const menuItem = await MenuItem.findById(item.id);
-        if (!menuItem) {
-          throw new Error(`Menu item ${item.id} tidak ditemukan`);
-        }
-
-        // Cek stok
-        const primaryWarehouseId = menuItem.primaryWarehouseId;
-        if (primaryWarehouseId) {
-          const currentStock = menuItem.getStockForWarehouse(primaryWarehouseId);
-          if (currentStock < item.quantity) {
-            throw new Error(`Stok tidak cukup untuk ${menuItem.name}. Stok tersedia: ${currentStock}`);
-          }
-        }
-
-        // Hitung subtotal
-        let subtotal = menuItem.price * item.quantity;
-
-        // PROSES ADDONS - PERBAIKAN DISINI
-        let processedAddons = [];
-        if (item.selectedAddons && item.selectedAddons.length > 0) {
-          for (const addonData of item.selectedAddons) {
-            // Cari addon berdasarkan ID
-            const menuAddon = menuItem.addons.find(a => a._id.toString() === addonData.id);
-
-            if (menuAddon && addonData.options && addonData.options.length > 0) {
-              // Ambil option yang dipilih
-              const selectedOptionId = addonData.options[0].id;
-              const option = menuAddon.options.find(o => o._id.toString() === selectedOptionId);
-
-              if (option) {
-                subtotal += option.price * item.quantity;
-
-                // Simpan data addon yang diproses
-                processedAddons.push({
-                  addonId: addonData.id,
-                  addonName: menuAddon.name,
-                  optionId: selectedOptionId,
-                  optionLabel: option.label,
-                  optionPrice: option.price
-                });
-              }
-            }
-          }
-        }
-
-        // PROSES TOPPINGS - PERBAIKAN DISINI
-        let processedToppings = [];
-        if (item.selectedToppings && item.selectedToppings.length > 0) {
-          for (const toppingData of item.selectedToppings) {
-            // Cari topping berdasarkan ID
-            const menuTopping = menuItem.toppings.find(t => t._id.toString() === toppingData.id);
-
-            if (menuTopping) {
-              subtotal += menuTopping.price * item.quantity;
-
-              // Simpan data topping yang diproses
-              processedToppings.push({
-                toppingId: toppingData.id,
-                toppingName: menuTopping.name,
-                toppingPrice: menuTopping.price
-              });
-            }
-          }
-        }
-
-        totalBeforeDiscount += subtotal;
-
-        // Format item untuk disimpan
-        itemsWithDetails.push({
-          menuItem: item.id,
-          menuItemData: {
-            _id: menuItem._id,
-            name: menuItem.name,
-            price: menuItem.price,
-            category: menuItem.category || menuItem.mainCategory,
-            sku: menuItem.sku || '',
-            isActive: menuItem.isActive
-          },
-          quantity: item.quantity,
-          subtotal: subtotal,
-          addons: processedAddons,  // Gunakan processedAddons
-          toppings: processedToppings,  // Gunakan processedToppings
-          notes: item.notes || '',
-          guestName: item.guestName || '',
-          dineType: item.dineType || 'Dine-In',
-          batchNumber: 1,
-          addedAt: new Date(),
-          kitchenStatus: 'pending',
-          isPrinted: false,
-          outletId: outletId
-        });
-
-        // Kurangi stok
-        if (primaryWarehouseId) {
-          const newStock = currentStock - item.quantity;
-          await menuItem.updateStockForWarehouse(primaryWarehouseId, newStock);
-        }
-      }
     }
 
-    // Hitung tax dan grand total
-    const taxAmount = totalBeforeDiscount * (taxPercentage / 100);
-    const grandTotal = totalBeforeDiscount + taxAmount + serviceCharge;
-
-    // Buat open bill order
-    const openBillOrder = new Order({
-      order_id: orderId,
-      source: 'Cashier',
-      orderType: 'Dine-In',
-      tableNumber: tableNumber,
-      outletId: outletId,
-      outlet: outletId,
-      device_id: device_id,
-      cashierId: cashierId,
-      items: itemsWithDetails,
-      totalBeforeDiscount: totalBeforeDiscount,
-      totalAfterDiscount: totalBeforeDiscount,
-      totalCustomAmount: 0,
-      grandTotal: grandTotal,
-      taxPercentage: taxPercentage,
-      taxAmount: taxAmount,
-      serviceCharge: serviceCharge,
-      isOpenBill: true,
-      openBillStartedAt: new Date(),
-      openBillStatus: 'active',
-      customersCount: customersCount,
-      cashierNotes: cashierNotes,
-      status: 'Pending',
-      user: req.body.user || `Guest-${tableNumber}`,
-      contact: req.body.contact || { phone: '0000000000' },
-      created_by: {
-        employee_id: cashierId,
-        employee_name: 'Cashier',
-        created_at: new Date()
-      },
-      tableStatus: 'occupied'
+    console.log('🔄 Processing open bill with createOrderHandler:', {
+      orderId,
+      tableNumber,
+      itemsCount: items.length,
+      customersCount,
+      cashierId
     });
 
-    // Simpan order
-    await openBillOrder.save();
+    // Format items untuk createOrderHandler (sesuai format yang diharapkan)
+    const formattedItems = items.map(item => {
+      const formattedItem = {
+        id: item.id,
+        quantity: item.quantity,
+        dineType: item.dineType || 'Dine-In',
+        notes: item.notes || '',
+        guestName: item.guestName || ''
+      };
+
+      // Format addons
+      if (item.selectedAddons && item.selectedAddons.length > 0) {
+        formattedItem.selectedAddons = item.selectedAddons.map(addon => ({
+          id: addon.id,
+          options: addon.options || []
+        }));
+      }
+
+      // Format toppings
+      if (item.selectedToppings && item.selectedToppings.length > 0) {
+        formattedItem.selectedToppings = item.selectedToppings.map(topping => ({
+          id: topping.id
+        }));
+      }
+
+      return formattedItem;
+    });
+
+    // Prepare order data untuk createOrderHandler
+    const orderData = {
+      orderType: 'Dine-In',
+      tableNumber,
+      outletId,
+      customerId: customerId || null,
+      loyaltyPointsToRedeem: loyaltyPointsToRedeem || 0,
+      customAmountItems: [],
+      voucherCode: voucherCode || null,
+      customerType: customerType || 'regular',
+      items: formattedItems,
+      paymentDetails: null, // Untuk open bill, payment details akan diisi saat close
+      user: req.body.user || `Guest-${tableNumber}`,
+      contact: req.body.contact || { phone: '0000000000' },
+      cashierId,
+      device_id,
+      isSplitPayment: false,
+      source: 'Cashier',
+      isOpenBill: true,
+      manualDiscount: manualDiscount || 0,
+      manualDiscountReason: manualDiscountReason || '',
+      cashierNotes,
+      customersCount
+    };
+
+    // Gunakan createOrderHandler untuk membuat order
+    const orderResult = await createOrderHandler({
+      orderId,
+      orderData,
+      source: 'Cashier',
+      isOpenBill: true,
+      isReservation: false,
+      requiresDelivery: false,
+      recipientData: null,
+      paymentDetails: null // Open bill belum ada payment
+    });
+
+    console.log('✅ Open bill created via createOrderHandler:', {
+      orderId,
+      grandTotal: orderResult.grandTotal,
+      status: 'OpenBill_Active'
+    });
+
+    // Update order dengan informasi open bill tambahan
+    const updatedOrder = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      {
+        $set: {
+          isOpenBill: true,
+          openBillStartedAt: new Date(),
+          openBillStatus: 'active',
+          customersCount: customersCount,
+          cashierNotes: cashierNotes,
+          serviceCharge: serviceCharge,
+          taxPercentage: taxPercentage,
+          tableStatus: 'occupied',
+          openBillInfo: {
+            startedBy: cashierId,
+            initialItemsCount: items.length,
+            initialTotal: orderResult.grandTotal
+          }
+        }
+      },
+      { new: true }
+    );
 
     // Update status meja
     await updateTableStatus(tableNumber, outletId, 'occupied', orderId);
 
     // Broadcast ke kitchen jika ada items
-    if (itemsWithDetails.length > 0 && global.io) {
+    if (items.length > 0 && global.io) {
       global.io.to(`kitchen_${outletId}`).emit('new_order_created', {
         orderId,
         tableNumber,
-        items: itemsWithDetails,
+        items: formattedItems,
         source: 'Cashier',
         isOpenBill: true,
         timestamp: new Date()
@@ -2924,29 +2898,37 @@ const processOpenBillOrder = async ({
       cashierId,
       customersCount,
       startTime: new Date(),
-      itemsCount: itemsWithDetails.length,
-      initialTotal: grandTotal
+      itemsCount: items.length,
+      initialTotal: orderResult.grandTotal
     });
 
-    console.log(`✅ Open bill created: ${orderId} for table ${tableNumber}`);
-
-    // Log untuk debugging
-    console.log('📋 Items dengan addons/toppings:', JSON.stringify(itemsWithDetails, null, 2));
+    console.log(`✅ Open bill created successfully: ${orderId} for table ${tableNumber}`);
 
     return {
       success: true,
       status: 'OpenBill_Active',
       orderId,
       tableNumber,
-      totalBeforeDiscount,
-      taxAmount,
-      serviceCharge,
-      grandTotal,
-      itemsCount: itemsWithDetails.length,
-      customersCount,
-      openBillStartedAt: openBillOrder.openBillStartedAt,
+      orderData: {
+        _id: updatedOrder._id,
+        order_id: updatedOrder.order_id,
+        items: updatedOrder.items,
+        discounts: updatedOrder.discounts,
+        appliedPromos: updatedOrder.appliedPromos,
+        appliedVoucher: updatedOrder.appliedVoucher,
+        taxAndServiceDetails: updatedOrder.taxAndServiceDetails,
+        totalBeforeDiscount: updatedOrder.totalBeforeDiscount,
+        totalAfterDiscount: updatedOrder.totalAfterDiscount,
+        totalTax: updatedOrder.totalTax,
+        totalServiceFee: updatedOrder.totalServiceFee,
+        grandTotal: updatedOrder.grandTotal,
+        isOpenBill: updatedOrder.isOpenBill,
+        openBillStatus: updatedOrder.openBillStatus,
+        openBillStartedAt: updatedOrder.openBillStartedAt,
+        customersCount: updatedOrder.customersCount,
+        cashierNotes: updatedOrder.cashierNotes
+      },
       message: `Open bill berhasil dibuat untuk meja ${tableNumber}`,
-      items: itemsWithDetails,  // Tambahkan ini untuk debugging
       actions: [
         {
           name: 'add_item',
@@ -2961,6 +2943,12 @@ const processOpenBillOrder = async ({
           description: 'Lihat detail open bill'
         },
         {
+          name: 'apply_discount',
+          method: 'POST',
+          url: `/api/open-bill/${orderId}/apply-discount`,
+          description: 'Terapkan diskon ke open bill'
+        },
+        {
           name: 'close_bill',
           method: 'POST',
           url: `/api/open-bill/${orderId}/close`,
@@ -2970,10 +2958,11 @@ const processOpenBillOrder = async ({
     };
 
   } catch (error) {
-    console.error('❌ Error processing open bill order:', error);
+    console.error('❌ Error processing open bill order with handler:', error);
     throw error;
   }
 };
+
 // ========== HELPER: CLOSE OPEN BILL HANDLER ==========
 const closeOpenBillHandler = async ({
   orderId,
