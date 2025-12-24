@@ -3,7 +3,7 @@
 
 const ENDPOINT = 'https://qmvjgsln-3000.asse.devtunnels.ms/api/unified-order';
 const PRINT_HISTORY_ENDPOINT = 'https://qmvjgsln-3000.asse.devtunnels.ms/api/print/order';
-const NUM_REQUESTS = 10;
+const NUM_REQUESTS = 5;
 
 const requestBody = {
     "order_id": null,

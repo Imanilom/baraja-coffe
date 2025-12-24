@@ -7,7 +7,11 @@ export class PrintLogger {
         try {
             // FIXED: Gunakan menuItemId untuk mencari stock
             const menuItemId = item.menuItemId || item._id || item.id;
-            console.log('🔄 Using menuItemId for stock check:', menuItemId);
+
+            // FIXED: Extract item name correctly from various possible locations
+            const itemName = item.name || item.menuItemData?.name || item.menuItem?.name || 'Unknown Item';
+
+            console.log('🔄 Using menuItemId for stock check:', menuItemId, 'Name:', itemName);
 
             const stockStatus = await this.checkMenuItemStock(menuItemId, workstation);
 
@@ -38,7 +42,7 @@ export class PrintLogger {
                 console.log(`⚠️ [PROBLEMATIC PRINT ATTEMPT]
 OrderId: ${orderId}
 menuItemId: ${menuItemId}
-Item: ${item.name}
+Item: ${itemName}
 Workstation: ${workstation}
 manualStock: ${stockStatus.manualStock}
 effectiveStock: ${stockStatus.effectiveStock}
@@ -48,21 +52,28 @@ Issues: ${warningNotes}`);
                 console.log(`🖨️ [PRINT ATTEMPT]
 OrderId: ${orderId}
 menuItemId: ${menuItemId}
-Item: ${item.name}
+Item: ${itemName}
 Workstation: ${workstation}
 manualStock: ${stockStatus.manualStock}
 effectiveStock: ${stockStatus.effectiveStock}
 Stock Status: ${stockStatus.status}`);
             }
 
+            // Ensure printer_type is valid enum
+            const validPrinterTypes = ['wifi', 'bluetooth', 'usb', null];
+            let printerType = printerConfig?.type;
+            if (printerType === 'unknown' || !validPrinterTypes.includes(printerType)) {
+                printerType = null;
+            }
+
             const log = new PrintLog({
                 order_id: orderId,
                 item_id: menuItemId,
-                item_name: item.name,
+                item_name: itemName,
                 item_quantity: item.qty || item.quantity,
                 workstation: workstation,
                 print_status: printStatus,
-                printer_type: printerConfig?.type,
+                printer_type: printerType,
                 printer_info: printerConfig?.info,
                 print_attempts: 1,
 
@@ -106,10 +117,11 @@ Stock Status: ${stockStatus.status}`);
             // Fallback: create minimal log without validation issues
             try {
                 const menuItemId = item.menuItemId || item._id || item.id;
+                const itemName = item.name || item.menuItemData?.name || item.menuItem?.name || 'Unknown Item';
                 const fallbackLog = new PrintLog({
                     order_id: orderId,
                     item_id: menuItemId,
-                    item_name: item.name,
+                    item_name: itemName,
                     item_quantity: item.qty || item.quantity,
                     workstation: workstation,
                     print_status: 'failed',
