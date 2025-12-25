@@ -53,16 +53,12 @@ pub struct WorkstationMapping {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Topping {
-    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    pub id: Option<ObjectId>,
     pub name: String,
     pub price: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddonOptionDetail {
-    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    pub id: Option<ObjectId>,
     pub label: String,
     pub price: f64,
     
@@ -72,8 +68,6 @@ pub struct AddonOptionDetail {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Addon {
-    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    pub id: Option<ObjectId>,
     pub name: String,
     pub options: Vec<AddonOptionDetail>,
 }

@@ -15,6 +15,7 @@
  * ==================================================================================
  */
 import Payment from '../models/Payment.model.js';
+import QRCode from 'qrcode';
 import { MenuItem } from "../models/MenuItem.model.js";
 import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
@@ -25,6 +26,8 @@ import Reservation from '../models/Reservation.model.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
 import { db } from '../utils/mongo.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
+import { Device } from '../models/Device.model.js';
+import { PrintLogger } from '../services/print-logger.service.js';
 /**
  * ==================================================================================
  * SECTION 1: CONFIGURATION & CONSTANTS
@@ -443,6 +446,160 @@ function parseIndonesianDate(dateString) {
     }
     return new Date(dateString);
 }
+
+/**
+ * ==================================================================================
+ * SECTION 8.5: GRO ORDER BROADCAST TO WORKSTATIONS
+ * ==================================================================================
+ * Broadcasts GRO orders directly to Bar Depan and Kitchen devices for immediate print.
+ * This ensures GRO orders are printed without delay.
+ */
+async function broadcastGROOrderToWorkstations({
+    orderId, tableNumber, orderItems, orderType, outlet, customerName, isReservation, service
+}) {
+    try {
+        if (!orderItems || orderItems.length === 0) {
+            console.log('📭 No items to broadcast to workstations');
+            return;
+        }
+
+        console.log('\n🖨️ ========== GRO WORKSTATION BROADCAST ==========');
+        console.log(`📋 Order ID: ${orderId}`);
+        console.log(`🪑 Table: ${tableNumber || 'N/A'}`);
+        console.log(`📦 Items: ${orderItems.length}`);
+        console.log(`📅 Type: ${orderType}${isReservation ? ' (Reservation)' : ''}`);
+
+        // Get target devices: bar_depan + kitchen from same outlet
+        const targetDevices = await Device.find({
+            outlet: outlet,
+            isActive: true,
+            $or: [
+                { location: 'depan' },   // Bar Depan
+                { location: 'kitchen' }  // Kitchen/Dapur
+            ]
+        }).lean();
+
+        if (targetDevices.length === 0) {
+            console.log('⚠️ No active workstation devices found for outlet:', outlet);
+            console.log('==================================================\n');
+            return;
+        }
+
+        console.log(`📱 Found ${targetDevices.length} workstation devices`);
+
+        // Separate items by workstation type
+        const beverageItems = orderItems.filter(item => {
+            const mainCat = (item.menuItem?.mainCategory || item.mainCategory || '').toLowerCase();
+            const ws = (item.menuItem?.workstation || item.workstation || '').toLowerCase();
+            return mainCat.includes('beverage') || mainCat.includes('minuman') || ws.includes('bar');
+        });
+
+        const kitchenItems = orderItems.filter(item => {
+            const mainCat = (item.menuItem?.mainCategory || item.mainCategory || '').toLowerCase();
+            const ws = (item.menuItem?.workstation || item.workstation || '').toLowerCase();
+            return !mainCat.includes('beverage') && !mainCat.includes('minuman') && !ws.includes('bar');
+        });
+
+        console.log(`   🍹 Beverage items: ${beverageItems.length}`);
+        console.log(`   🍳 Kitchen items: ${kitchenItems.length}`);
+
+        // ✅ LOGGING: Log pending attempts on server side (Non-blocking)
+        const logPromises = [];
+
+        // Log Beverage Items
+        if (beverageItems.length > 0) {
+            beverageItems.forEach(item => {
+                logPromises.push(PrintLogger.logPrintAttempt(
+                    orderId,
+                    item,
+                    'bar_depan', // Default logic: GRO usually prints to bar depan/kitchen
+                    { type: 'unknown', info: 'GRO Broadcast' },
+                    { is_auto_print: true }
+                ));
+            });
+        }
+
+        // Log Kitchen Items
+        if (kitchenItems.length > 0) {
+            kitchenItems.forEach(item => {
+                logPromises.push(PrintLogger.logPrintAttempt(
+                    orderId,
+                    item,
+                    'kitchen',
+                    { type: 'unknown', info: 'GRO Broadcast' },
+                    { is_auto_print: true }
+                ));
+            });
+        }
+
+        // Fire-and-forget logging
+        Promise.allSettled(logPromises).then((results) => {
+            const successCount = results.filter(r => r.status === 'fulfilled').length;
+            console.log(`📝 [GRO-LOG] Logged ${successCount}/${logPromises.length} print attempts`);
+        }).catch(err => console.error('⚠️ [GRO-LOG] Failed to log:', err));
+
+        // Emit to each device
+        let sentCount = 0;
+        for (const device of targetDevices) {
+            const isBarDevice = device.location === 'depan';
+            const relevantItems = isBarDevice ? beverageItems : kitchenItems;
+
+            if (relevantItems.length === 0) {
+                console.log(`   ⏭️ Skipping ${device.deviceName} - No relevant items`);
+                continue;
+            }
+
+            const printData = {
+                orderId,
+                tableNumber: tableNumber || '',
+                orderType: orderType || 'Dine-In',
+                source: 'Gro',
+                name: customerName || 'Guest',
+                service: service || 'Dine-In',
+                orderItems: relevantItems.map(item => ({
+                    _id: item._id?.toString() || item.menuItem?._id?.toString(),
+                    menuItemId: item.menuItem?._id?.toString() || item._id?.toString(),
+                    name: item.menuItem?.name || item.menuItemData?.name || item.name || 'Unknown',
+                    quantity: item.quantity || 1,
+                    notes: item.notes || '',
+                    addons: item.addons || [],
+                    toppings: item.toppings || [],
+                    workstation: item.menuItem?.workstation || item.workstation || 'kitchen',
+                    mainCategory: item.menuItem?.mainCategory || item.mainCategory
+                })),
+                deviceId: device.deviceId,
+                targetDevice: device.deviceName,
+                isReservation: isReservation || false,
+                isGROOrder: true,
+                timestamp: new Date()
+            };
+
+            const eventType = isBarDevice ? 'beverage_immediate_print' : 'kitchen_immediate_print';
+
+            // Send via socket
+            if (device.socketId && global.io) {
+                global.io.to(device.socketId).emit(eventType, printData);
+                console.log(`   ✅ Sent to ${device.deviceName} via socket: ${device.socketId}`);
+                sentCount++;
+            } else {
+                // Fallback: send to room based on location
+                const roomName = isBarDevice ? 'bar_depan' : 'kitchen_room';
+                if (global.io) {
+                    global.io.to(roomName).emit(eventType, printData);
+                    console.log(`   ✅ Sent to ${device.deviceName} via room: ${roomName}`);
+                    sentCount++;
+                }
+            }
+        }
+
+        console.log(`📊 Broadcast complete: ${sentCount} devices notified`);
+        console.log('==================================================\n');
+
+    } catch (error) {
+        console.error('❌ Error broadcasting GRO order to workstations:', error);
+    }
+}
+
 /**
  * ==================================================================================
  * SECTION 9: MAIN OPTIMIZED CONTROLLER
@@ -472,6 +629,9 @@ export const createAppOrder = async (req, res) => {
                 groId,
                 userName,
                 guestPhone,
+                // ✅ NEW: DP Already Paid (instant settlement)
+                dpAlreadyPaid,
+                dpBankInfo,
             } = req.body;
             console.log('🚀 Optimized createAppOrder:', {
                 isGroMode,
@@ -973,6 +1133,8 @@ export const createAppOrder = async (req, res) => {
                         created_by: createdByData
                     });
                     await reservationRecord.save();
+
+                    // Link reservation to order
                     newOrder.reservation = reservationRecord._id;
                     await newOrder.save();
                     console.log('✅ Reservation created:', {
@@ -988,6 +1150,72 @@ export const createAppOrder = async (req, res) => {
                         message: 'Error creating reservation',
                         error: reservationError.message
                     });
+                }
+            }
+
+            // ✅ NEW: DP Already Paid - Create instant settlement payment
+            if (dpAlreadyPaid && isGroMode && orderType === 'reservation' && reservationRecord) {
+                try {
+                    console.log('💳 Processing DP Already Paid - Creating instant settlement...');
+
+                    // Calculate DP amount (50% of grandTotal by default)
+                    const dpAmount = Math.ceil(grandTotal * 0.5);
+                    const remainingAmount = grandTotal - dpAmount;
+
+                    // ✅ Generate QR Code
+                    const qrData = { order_id: newOrder._id.toString() };
+                    const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
+                    const actions = [{
+                        name: "generate-qr-code",
+                        method: "GET",
+                        url: qrCodeBase64,
+                    }];
+
+                    // Create Payment with settlement status
+                    const dpPayment = new Payment({
+                        order_id: newOrder.order_id,
+                        payment_code: `DP-${newOrder.order_id}-${Date.now()}`,
+                        method: 'cash', // ✅ Use cash method for instant settlement
+                        status: 'settlement', // ✅ Instant settlement like Cash
+                        method_type: dpBankInfo?.bankName || 'Bank Transfer', // ✅ Show actual bank name (BCA/Mandiri)
+                        paymentType: 'Down Payment',
+                        amount: dpAmount,
+                        totalAmount: grandTotal,
+                        remainingAmount: remainingAmount,
+                        fraud_status: 'accept',
+                        transaction_time: new Date().toISOString(),
+                        paidAt: new Date(),
+                        isDownPayment: true,
+                        downPaymentAmount: dpAmount,
+                        bankCode: dpBankInfo?.bankCode || 'manual',
+                        bankName: dpBankInfo?.bankName || 'Bank Transfer',
+                        bankName: dpBankInfo?.bankName || 'Bank Transfer',
+                        notes: `DP sudah dibayar via transfer ${dpBankInfo?.bankName || 'Bank'} - dicatat oleh GRO`,
+                        actions: actions, // ✅ Include QR code actions
+                    });
+
+                    await dpPayment.save();
+
+                    // Update reservation with isDownPaymentPaid
+                    reservationRecord.isDownPaymentPaid = true;
+                    reservationRecord.remainingBalance = remainingAmount;
+                    await reservationRecord.save();
+
+                    // Update order with payment info
+                    newOrder.paymentStatus = 'partial_paid';
+                    newOrder.paymentId = dpPayment._id;
+                    await newOrder.save();
+
+                    console.log('✅ DP Already Paid processed:', {
+                        paymentId: dpPayment._id,
+                        dpAmount,
+                        remainingAmount,
+                        bank: dpBankInfo?.bankName
+                    });
+                } catch (dpError) {
+                    console.error('⚠️ DP Already Paid processing failed:', dpError.message);
+                    // Don't fail the whole order, just log the error
                 }
             }
             // RESPONSE
@@ -1081,6 +1309,23 @@ export const createAppOrder = async (req, res) => {
                 io.to('cashier_room').emit('new_order', { mappedOrders });
                 console.log(`📤 Socket emitted: new_order → cashier_room`);
             }
+
+            // 🔥 GRO IMMEDIATE PRINT: Broadcast to workstations (Bar Depan + Kitchen)
+            // For GRO orders, send items directly to workstation devices for immediate print
+            if (isGroMode && orderItems.length > 0) {
+                // CRITICAL: For open bill, only send NEW items (orderItems), not all items (newOrder.items)
+                await broadcastGROOrderToWorkstations({
+                    orderId: newOrder.order_id,
+                    tableNumber: newOrder.tableNumber,
+                    orderItems: orderItems,  // Only new items for both new order and open bill
+                    orderType: formattedOrderType,
+                    outlet: outlet || newOrder.outlet,
+                    customerName: finalUserName,
+                    isReservation: orderType === 'reservation',
+                    service: newOrder.type || 'Dine-In'
+                });
+            }
+
             console.log(`✅ Order completed in ${Date.now() - startTime}ms`);
             res.status(201).json(responseData);
         })(), REQUEST_TIMEOUT_MS);

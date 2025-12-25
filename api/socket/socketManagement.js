@@ -224,16 +224,24 @@ class SocketManagement {
                 source,
                 order_type: orderType,
                 customer_name: customerName,
-                service
+                service,
+                // 🔧 NEW: Device-based routing parameters
+                sourceCashierArea,  // 'depan' | 'belakang' - from kasir's device.location
+                isReservation,      // Reservations always go to bar_depan
+                isGROOrder          // GRO orders go to bar_depan + kitchen
             } = orderData;
             const outletId = outlet?._id || outlet;
             console.log('╔═══════════════════════════════════════════════════════════╗');
-            console.log('📡 BROADCASTING ORDER WITH BAR-FIRST PRIORITY');
+            console.log('📡 BROADCASTING ORDER WITH SMART ROUTING');
             console.log('╠═══════════════════════════════════════════════════════════╣');
             console.log(`   Order ID: ${orderId}`);
             console.log(`   Table: ${tableNumber || 'N/A'}`);
             console.log(`   Total Items: ${items?.length || 0}`);
             console.log(`   Outlet: ${outletId}`);
+            console.log(`   Source: ${source}`);
+            if (sourceCashierArea) console.log(`   📍 Cashier Area: ${sourceCashierArea}`);
+            if (isReservation) console.log(`   📅 Is Reservation: true`);
+            if (isGROOrder) console.log(`   👔 Is GRO Order: true`);
             console.log('╚═══════════════════════════════════════════════════════════╝');
             // Get all connected devices
             const connectedDevices = Array.from(this.connectedDevices.values());
@@ -278,7 +286,7 @@ class SocketManagement {
             console.log(`      Kitchen Devices: ${kitchenDevices.length}`);
             console.log(`      Other Devices: ${otherDevices.length}`);
             let sentCount = 0;
-            // ✅ STEP 1: Send to BAR devices FIRST
+            // ✅ STEP 1: Send to BAR devices FIRST with SMART ROUTING
             console.log('\n🍹 STEP 1: Broadcasting to BAR devices...');
             for (const device of barDevices) {
                 const relevantItems = beverageItems;
@@ -286,11 +294,36 @@ class SocketManagement {
                     console.log(`   ⏭️  Skipping ${device.deviceName} - No beverage items`);
                     continue;
                 }
-                // Check table assignment
-                if (tableNumber && !this._isTableAssignedToDevice(tableNumber, device)) {
+
+                // 🔧 SMART ROUTING LOGIC
+                const deviceLocation = (device.location || '').toLowerCase();
+
+                // PRIORITY 1: Reservations and GRO orders → bar_depan only
+                if (isReservation || isGROOrder) {
+                    if (!deviceLocation.includes('depan')) {
+                        console.log(`   ⏭️  Skipping ${device.deviceName} - Reservation/GRO → bar_depan only`);
+                        continue;
+                    }
+                    console.log(`   📍 Routing to bar_depan (Reservation/GRO)`);
+                }
+                // PRIORITY 2: Kasir with device area → route to matching bar
+                else if (sourceCashierArea) {
+                    if (sourceCashierArea === 'belakang' && !deviceLocation.includes('belakang')) {
+                        console.log(`   ⏭️  Skipping ${device.deviceName} - Order from kasir belakang`);
+                        continue;
+                    }
+                    if (sourceCashierArea === 'depan' && deviceLocation.includes('belakang')) {
+                        console.log(`   ⏭️  Skipping ${device.deviceName} - Order from kasir depan`);
+                        continue;
+                    }
+                    console.log(`   📍 Routing based on cashier area: ${sourceCashierArea}`);
+                }
+                // PRIORITY 3: Fallback to table assignment (for scan table orders)
+                else if (tableNumber && !this._isTableAssignedToDevice(tableNumber, device)) {
                     console.log(`   ⏭️  Skipping ${device.deviceName} - Table ${tableNumber} not assigned`);
                     continue;
                 }
+
                 const printData = {
                     orderId,
                     tableNumber,
@@ -301,10 +334,11 @@ class SocketManagement {
                     orderItems: relevantItems,
                     deviceId: device.deviceId,
                     targetDevice: device.deviceName,
+                    isReservation: isReservation || false,
                     timestamp: new Date()
                 };
                 global.io.to(device.socketId).emit('beverage_immediate_print', printData);
-                console.log(`   ✅ [BAR FIRST] Sent to: ${device.deviceName}`);
+                console.log(`   ✅ [BAR] Sent to: ${device.deviceName} (${deviceLocation})`);
                 console.log(`      Socket ID: ${device.socketId}`);
                 console.log(`      Items: ${relevantItems.length}`);
                 sentCount++;

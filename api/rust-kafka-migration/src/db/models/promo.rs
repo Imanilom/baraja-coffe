@@ -112,7 +112,6 @@ pub struct Schedule {
     #[serde(rename = "dayOfWeek", skip_serializing_if = "Option::is_none")]
     pub day_of_week: Option<i32>,
     #[serde(rename = "startTime", skip_serializing_if = "Option::is_none")]
-    pub start_time: Option<String>,
     #[serde(rename = "endTime", skip_serializing_if = "Option::is_none")]
     pub end_time: Option<String>,
 }
@@ -147,9 +146,9 @@ impl AutoPromo {
             
             if end < start {
                 // Crosses midnight
-                return current_time.as_str() >= start || current_time.as_str() <= end;
+                return current_time >= start || current_time <= end;
             } else {
-                return current_time.as_str() >= start && current_time.as_str() <= end;
+                return current_time >= start && current_time <= end;
             }
         }
         

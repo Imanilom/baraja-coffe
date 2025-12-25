@@ -44,11 +44,10 @@ router.post('/tables', async (req, res) => {
     }
 });
 
-// Get all tables (with optional area filter) - PERBAIKAN
+// Get all tables (with optional area filter)
 router.get('/tables', async (req, res) => {
     try {
-        const { area_id, status, outlet_id, disable_sync } = req.query;
-
+        const { area_id, status, outlet_id } = req.query;
         // Validate that outlet_id is provided
         if (!outlet_id) {
             return res.status(400).json({
@@ -56,42 +55,34 @@ router.get('/tables', async (req, res) => {
                 message: 'outlet_id is required'
             });
         }
-
-        // OPTIONAL: Jalankan sync sebelum mengambil data jika tidak disable
-        if (disable_sync !== 'true') {
-            try {
-                await Table.syncTableStatusWithActiveOrders(outlet_id);
-                console.log(`✅ Sync completed for outlet ${outlet_id}`);
-            } catch (syncError) {
-                console.error('⚠️ Sync error (non-critical):', syncError.message);
-                // Jangan gagalkan request hanya karena sync error
-            }
-        }
-
         // Build the aggregation pipeline
         const pipeline = [
-            // Stage 1: Lookup (join) dengan areas collection
+            // Stage 1: Filter by active tables first (optional, for performance)
             {
-                $lookup: {
-                    from: 'areas',
-                    localField: 'area_id',
-                    foreignField: '_id',
-                    as: 'area_info'
+                $match: {
+                    is_active: true
                 }
             },
-            // Stage 2: Unwind array
+            // Stage 2: Lookup (join) with areas collection to get area details including outlet_id
+            {
+                $lookup: {
+                    from: 'areas',           // Nama koleksi 'areas' di MongoDB
+                    localField: 'area_id',   // Field di koleksi 'tables'
+                    foreignField: '_id',     // Field di koleksi 'areas'
+                    as: 'area_info'          // Nama field baru yang akan dibuat
+                }
+            },
+            // Stage 3: Unwind the array (since lookup returns an array)
             {
                 $unwind: "$area_info"
             },
-            // Stage 3: Filter by outlet_id dan is_active
+            // Stage 4: Match by outlet_id (and other optional filters)
             {
                 $match: {
-                    "area_info.outlet_id": new mongoose.Types.ObjectId(outlet_id),
-                    "is_active": true
+                    "area_info.outlet_id": new mongoose.Types.ObjectId(outlet_id) // <-- Filter by outlet_id here
                 }
             }
         ];
-
         // Add optional filters
         if (area_id) {
             pipeline.push({
@@ -100,7 +91,6 @@ router.get('/tables', async (req, res) => {
                 }
             });
         }
-
         if (status) {
             pipeline.push({
                 $match: {
@@ -108,22 +98,17 @@ router.get('/tables', async (req, res) => {
                 }
             });
         }
-
-        // Stage: Sort by area_code then table_number
+        // Stage: Sort
         pipeline.push({
-            $sort: {
-                "area_info.area_code": 1,
-                "table_number": 1
-            }
+            $sort: { table_number: 1 }
         });
-
-        // Stage: Project fields
+        // Stage: Optionally project only needed fields and flatten area data
         pipeline.push({
             $project: {
                 _id: 1,
                 table_number: 1,
                 seats: 1,
-                capacity: "$seats",
+                capacity: "$seats", // Alias for consistency if frontend expects 'capacity'
                 table_type: 1,
                 is_available: 1,
                 is_active: 1,
@@ -131,36 +116,26 @@ router.get('/tables', async (req, res) => {
                 position: 1,
                 shape: 1,
                 updatedAt: 1,
-                createdAt: 1,
-                statusHistory: { $slice: ["$statusHistory", -5] }, // Ambil 5 history terakhir
-                // Flatten area info
+                created_at: 1,
+                updated_at: 1,
+                // Flatten area info into the main document
                 area_id: {
                     _id: "$area_info._id",
                     area_code: "$area_info.area_code",
-                    area_name: "$area_info.area_name",
-                    outlet_id: "$area_info.outlet_id"
+                    area_name: "$area_info.area_name"
+                    // Tambahkan field lain dari area jika diperlukan, misalnya:
+                    // outlet_id: "$area_info.outlet_id" // Opsional, jika ingin dikirim ke frontend
                 }
             }
         });
-
-        // Execute aggregation
+        // Execute the aggregation
         const tables = await Table.aggregate(pipeline);
-
-        // OPTIONAL: Auto-cancel old pending orders (lebih dari 1 hari)
-        await autoCancelOldPendingOrders(outlet_id);
-
         res.json({
             success: true,
-            data: tables,
-            meta: {
-                total: tables.length,
-                outlet_id: outlet_id,
-                timestamp: new Date().toISOString()
-            }
+            data: tables
         });
-
     } catch (error) {
-        console.error('❌ Error fetching tables:', error);
+        console.error('Error fetching tables:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching tables',
@@ -168,46 +143,6 @@ router.get('/tables', async (req, res) => {
         });
     }
 });
-
-// Fungsi untuk auto-cancel pending orders yang sudah lama (> 1 hari)
-async function autoCancelOldPendingOrders(outletId) {
-    try {
-        const oneDayAgo = new Date();
-        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-
-        const Order = mongoose.model('Order');
-
-        const result = await Order.updateMany(
-            {
-                "outlet": new mongoose.Types.ObjectId(outletId),
-                "status": "Pending",
-                "createdAt": { $lt: oneDayAgo },
-                "canceledBySystem": { $ne: true }
-            },
-            {
-                $set: {
-                    status: "Cancelled",
-                    canceledBySystem: true,
-                    canceledAt: new Date(),
-                    cancellationReason: "Auto-cancelled: Order pending for more than 24 hours"
-                }
-            }
-        );
-
-        if (result.modifiedCount > 0) {
-            console.log(`✅ Auto-cancelled ${result.modifiedCount} pending orders older than 24 hours`);
-
-            // Sync ulang status meja setelah cancel order
-            await Table.syncTableStatusWithActiveOrders(outletId);
-        }
-
-        return result.modifiedCount;
-
-    } catch (error) {
-        console.error('❌ Error auto-cancelling orders:', error);
-        return 0;
-    }
-}
 
 // Get single table by ID
 router.get('/tables/:id', async (req, res) => {
@@ -383,28 +318,6 @@ router.put('/tables/:id', async (req, res) => {
             if (exists) return res.status(400).json({ success: false, message: 'Table number already exists in this area' });
         }
 
-        // Logika sinkronisasi status
-        let finalStatus = status ?? table.status;
-        let finalIsAvailable = is_available;
-
-        // Jika status diubah ke 'available', pastikan is_available = true
-        if (status === 'available') {
-            finalIsAvailable = true;
-        }
-        // Jika status diubah ke 'occupied' atau 'reserved', pastikan is_available = false
-        else if (status === 'occupied' || status === 'reserved') {
-            finalIsAvailable = false;
-        }
-
-        // Jika is_available diubah manual, sesuaikan status
-        if (is_available !== undefined) {
-            if (is_available && finalStatus !== 'available') {
-                finalStatus = 'available';
-            } else if (!is_available && finalStatus === 'available') {
-                finalStatus = 'maintenance'; // atau status default lain
-            }
-        }
-
         Object.assign(table, {
             table_number: table_number ? table_number.toUpperCase() : table.table_number,
             area_id: area_id || table.area_id,
@@ -412,54 +325,16 @@ router.put('/tables/:id', async (req, res) => {
             table_type: table_type ?? table.table_type,
             shape: shape ?? table.shape,
             position: position ?? table.position,
-            status: finalStatus,
-            is_available: finalIsAvailable ?? table.is_available,
-            is_active: is_active ?? table.is_active,
-            last_status_change: new Date() // Tambahkan timestamp perubahan status
+            status: status ?? table.status,
+            is_available: is_available ?? table.is_available,
+            is_active: is_active ?? table.is_active
         });
 
         const updated = await table.save();
-
-        // Log perubahan status
-        console.log(`Table ${updated.table_number} status changed to ${updated.status}, is_available: ${updated.is_available}`);
-
-        res.json({
-            success: true,
-            message: 'Table updated successfully',
-            data: updated
-        });
+        res.json({ success: true, message: 'Table updated successfully', data: updated });
     } catch (error) {
         console.error('Error updating table:', error);
         res.status(500).json({ success: false, message: 'Error updating table', error: error.message });
-    }
-});
-
-// Synchronize table status with orders
-router.post('/tables/sync-with-orders', async (req, res) => {
-    try {
-        const { outletId } = req.body;
-
-        if (!outletId) {
-            return res.status(400).json({ success: false, message: 'outletId is required' });
-        }
-
-        if (!mongoose.Types.ObjectId.isValid(outletId)) {
-            return res.status(400).json({ success: false, message: 'Invalid outletId' });
-        }
-
-        // Delegate actual sync logic to Table model static method
-        const result = await Table.syncTableStatusWithActiveOrders(outletId);
-
-        res.json({
-            success: true,
-            message: result.updatedTables && result.updatedTables > 0
-                ? `${result.updatedTables} tables synchronized`
-                : 'All tables are already in sync',
-            data: result
-        });
-    } catch (error) {
-        console.error('Error syncing tables with orders:', error);
-        res.status(500).json({ success: false, message: 'Error syncing tables', error: error.message });
     }
 });
 

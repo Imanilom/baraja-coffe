@@ -1956,3 +1956,116 @@ export const filterMenuItems = async (req, res) => {
     });
   }
 };
+
+// ⚡ OPTIMIZED: Single-call endpoint untuk workstation
+// Mengembalikan SEMUA kategori + menu + stock dalam 1 request
+// Mengubah dari 20+ sequential calls menjadi 1 call
+export const getWorkstationMenuData = async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { workstation } = req.query;
+
+    if (!workstation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workstation is required (kitchen or bar)'
+      });
+    }
+
+    console.log(`⚡ [OPTIMIZED] Loading all data for workstation: ${workstation}`);
+
+    // 1. Fetch menu items dengan stock dalam 1 query
+    const menuItems = await MenuItem.find({
+      isActive: true,
+      workstation: workstation.toLowerCase()
+    })
+      .populate('category', 'name')
+      .sort({ name: 1 })
+      .lean();
+
+    // 2. Fetch stock data untuk semua menu items sekaligus
+    const menuItemIds = menuItems.map(item => item._id);
+    const stockData = await MenuStock.find({
+      menuItemId: { $in: menuItemIds }
+    }).lean();
+
+    // 3. Create stock lookup map
+    const stockMap = {};
+    stockData.forEach(stock => {
+      stockMap[stock.menuItemId.toString()] = stock;
+    });
+
+    // 4. Group menu items by category
+    const categoryMap = {};
+
+    menuItems.forEach(item => {
+      const categoryId = item.category?._id?.toString() || 'uncategorized';
+      const categoryName = item.category?.name || 'Uncategorized';
+
+      if (!categoryMap[categoryId]) {
+        categoryMap[categoryId] = {
+          id: categoryId,
+          name: categoryName,
+          itemCount: 0,
+          menus: []
+        };
+      }
+
+      // Get stock info
+      const stock = stockMap[item._id.toString()] || {};
+      const calculatedStock = stock.calculatedStock || 0;
+      const manualStock = stock.manualStock !== undefined ? stock.manualStock : null;
+      const effectiveStock = (manualStock !== null && manualStock > 0) ? manualStock : calculatedStock;
+
+      categoryMap[categoryId].menus.push({
+        menuItemId: item._id.toString(),
+        name: item.name,
+        imageUrl: item.imageURL,
+        price: item.price,
+        calculatedStock: calculatedStock,
+        manualStock: manualStock,
+        effectiveStock: effectiveStock,
+        isAvailable: effectiveStock > 0,
+        lastUpdated: stock.lastAdjustedAt || stock.lastCalculatedAt || null
+      });
+
+      categoryMap[categoryId].itemCount++;
+    });
+
+    // 5. Convert to array and sort by category name
+    const categories = Object.values(categoryMap);
+    categories.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Sort menus within each category
+    categories.forEach(cat => {
+      cat.menus.sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    const queryTime = Date.now() - startTime;
+    console.log(`✅ [OPTIMIZED] Loaded ${menuItems.length} menus in ${categories.length} categories (${queryTime}ms)`);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        workstation: workstation,
+        categories: categories,
+        totalMenus: menuItems.length,
+        totalCategories: categories.length
+      },
+      meta: {
+        queryTime: queryTime,
+        optimized: true,
+        singleCall: true
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in getWorkstationMenuData:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch workstation menu data',
+      error: error.message
+    });
+  }
+};

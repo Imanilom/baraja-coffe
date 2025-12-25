@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::db::models::{User, UserResponse, AuthType};
-// use crate::db::repositories::UserRepository;
+use crate::db::repositories::UserRepository;
 use crate::error::{ApiResponse, AppError, AppResult};
 use crate::utils::generate_token;
 use crate::AppState;
@@ -50,7 +50,7 @@ pub async fn signup(
         ));
     }
 
-    let user_repo = &state.user_repo;
+    let user_repo = UserRepository::new(state.db.clone());
 
     // Check if user already exists
     if user_repo.find_by_email(&payload.email).await?.is_some() {
@@ -134,7 +134,7 @@ pub async fn signin(
         ));
     }
 
-    let user_repo = &state.user_repo;
+    let user_repo = UserRepository::new(state.db.clone());
 
     // Find user with role
     let (mut user, role) = user_repo
@@ -210,7 +210,7 @@ pub async fn get_me(
     State(state): State<Arc<AppState>>,
     axum::Extension(user_id): axum::Extension<crate::middleware::UserId>,
 ) -> AppResult<Json<ApiResponse<UserResponse>>> {
-    let user_repo = &state.user_repo;
+    let user_repo = UserRepository::new(state.db.clone());
 
     let (user, role) = user_repo
         .find_with_role(&user_id.0)
@@ -235,7 +235,7 @@ pub async fn update_profile(
     axum::Extension(user_id): axum::Extension<crate::middleware::UserId>,
     Json(payload): Json<UpdateProfileRequest>,
 ) -> AppResult<Json<ApiResponse<UserResponse>>> {
-    let user_repo = &state.user_repo;
+    let user_repo = UserRepository::new(state.db.clone());
 
     // Update profile
     user_repo
@@ -281,7 +281,7 @@ pub async fn change_password(
         ));
     }
 
-    let user_repo = &state.user_repo;
+    let user_repo = UserRepository::new(state.db.clone());
 
     // Get user
     let user = user_repo
