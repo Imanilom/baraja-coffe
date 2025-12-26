@@ -4094,17 +4094,30 @@ export const charge = async (req, res) => {
       console.log("settledDownPayment:", settledDownPayment);
 
       if (settledDownPayment) {
-        // Hitung total final payment baru
-        const additionalAmount = total_order_amount || gross_amount;
-        const newFinalPaymentAmount = existingFinalPayment.amount + additionalAmount;
+        /**
+         * ============================================================================
+         * FINAL PAYMENT UPDATE - Menambah pesanan ke Final Payment yang sudah ada
+         * ============================================================================
+         * 
+         * Konvensi penamaan (sesuai standard):
+         * - amount      = Jumlah yang harus dibayar customer
+         * - totalAmount = Akumulasi nilai order tambahan (harga produk baru)
+         * 
+         * Perhitungan:
+         * - newAmountToPay         = existing.amount + additionalOrderValue
+         * - newAdditionalOrderTotal = existing.totalAmount + additionalOrderValue
+         * ============================================================================
+         */
+        const additionalOrderValue = total_order_amount || gross_amount;
+        const newAmountToPay = existingFinalPayment.amount + additionalOrderValue;
+        const newAdditionalOrderTotal = existingFinalPayment.totalAmount + additionalOrderValue;
 
-        console.log("Updating existing final payment:");
-        console.log("Previous final payment amount:", existingFinalPayment.amount);
-        console.log("Added order amount:", additionalAmount);
-        console.log("New final payment amount:", newFinalPaymentAmount);
-
-        // ✅ FIX: Calculate correct total amount (Accumulate Additional Order Value)
-        const newTotalAmount = existingFinalPayment.totalAmount + (total_order_amount || gross_amount);
+        console.log("=== FINAL PAYMENT UPDATE ===");
+        console.log("  Previous amount (to pay):", existingFinalPayment.amount);
+        console.log("  Previous totalAmount (order value):", existingFinalPayment.totalAmount);
+        console.log("  Additional order value:", additionalOrderValue);
+        console.log("  New amount (to pay):", newAmountToPay);
+        console.log("  New totalAmount (order value):", newAdditionalOrderTotal);
 
 
         // === Update untuk CASH ===
@@ -4153,7 +4166,7 @@ export const charge = async (req, res) => {
             transaction_id: transactionId,
             payment_code: payment_code,
             order_id: order_id,
-            gross_amount: newFinalPaymentAmount.toString() + ".00",
+            gross_amount: newAmountToPay.toString() + ".00",
             currency: "IDR",
             payment_type: "cash",
             transaction_time: currentTime,
@@ -4165,15 +4178,15 @@ export const charge = async (req, res) => {
             expiry_time: expiryTime,
           };
 
-          // Update existing final payment
+          // Update existing final payment (CASH)
           await Payment.updateOne(
             { _id: existingFinalPayment._id },
             {
               $set: {
                 transaction_id: transactionId,
                 payment_code: payment_code,
-                amount: newTotalAmount,
-                totalAmount: newFinalPaymentAmount, // ✅ Updated to include DP
+                amount: newAmountToPay,              // Jumlah yang harus dibayar
+                totalAmount: newAdditionalOrderTotal, // Akumulasi nilai order tambahan
                 method: payment_type,
                 status: 'pending',
                 fraud_status: 'accept',
@@ -4191,16 +4204,17 @@ export const charge = async (req, res) => {
           return res.status(200).json({
             ...rawResponse,
             paymentType: 'Final Payment',
-            totalAmount: newTotalAmount, // ✅ Updated response
+            amount: newAmountToPay,
+            totalAmount: newAdditionalOrderTotal,
             remainingAmount: 0,
             is_down_payment: false,
             relatedPaymentId: settledDownPayment._id,
             createdAt: updatedPayment.createdAt,
             updatedAt: updatedPayment.updatedAt,
             isUpdated: true,
-            previousAmount: existingFinalPayment.amount,
-            addedTotalAmount: additionalAmount,
-            newAmount: newFinalPaymentAmount,
+            previousAmountToPay: existingFinalPayment.amount,
+            previousOrderValue: existingFinalPayment.totalAmount,
+            addedOrderValue: additionalOrderValue,
             message: "Final payment updated due to additional order items"
           });
 
@@ -4209,7 +4223,7 @@ export const charge = async (req, res) => {
           let chargeParams = {
             payment_type: payment_type,
             transaction_details: {
-              gross_amount: parseInt(newFinalPaymentAmount),
+              gross_amount: parseInt(newAmountToPay),
               order_id: payment_code,
             },
           };
@@ -4232,15 +4246,15 @@ export const charge = async (req, res) => {
 
           const response = await coreApi.charge(chargeParams);
 
-          // Update existing final payment
+          // Update existing final payment (NON-CASH)
           await Payment.updateOne(
             { _id: existingFinalPayment._id },
             {
               $set: {
                 transaction_id: response.transaction_id,
                 payment_code: payment_code,
-                amount: newTotalAmount,
-                totalAmount: newFinalPaymentAmount, // ✅ Updated to include DP
+                amount: newAmountToPay,              // Jumlah yang harus dibayar
+                totalAmount: newAdditionalOrderTotal, // Akumulasi nilai order tambahan
                 method: payment_type,
                 status: response.transaction_status || 'pending',
                 fraud_status: response.fraud_status,
@@ -4265,14 +4279,15 @@ export const charge = async (req, res) => {
           return res.status(200).json({
             ...response,
             paymentType: 'Final Payment',
-            totalAmount: newTotalAmount, // ✅ Updated response
+            amount: newAmountToPay,
+            totalAmount: newAdditionalOrderTotal,
             remainingAmount: 0,
             is_down_payment: false,
             relatedPaymentId: settledDownPayment._id,
             isUpdated: true,
-            previousAmount: existingFinalPayment.amount,
-            addedTotalAmount: additionalAmount,
-            newAmount: newFinalPaymentAmount,
+            previousAmountToPay: existingFinalPayment.amount,
+            previousOrderValue: existingFinalPayment.totalAmount,
+            addedOrderValue: additionalOrderValue,
             message: "Final payment updated due to additional order items"
           });
         }
@@ -4368,16 +4383,28 @@ export const charge = async (req, res) => {
           // Tetap reference ke Final Payment terakhir untuk pemetaan
           relatedPaymentId = settledFinalPayment._id;
         } else {
-          // Jika hanya DP yang settlement, lanjutkan logic Final Payment seperti biasa
+          /**
+           * ============================================================================
+           * FINAL PAYMENT CREATE - Membuat Final Payment pertama kali
+           * ============================================================================
+           * 
+           * Konvensi penamaan (sesuai standard):
+           * - amount      = Jumlah yang harus dibayar customer
+           *               = dp.remainingAmount + nilai order baru
+           * - totalAmount = Nilai order tambahan (harga produk baru)
+           * - remainingAmount = 0 (karena ini pembayaran final)
+           * ============================================================================
+           */
           paymentType = 'Final Payment';
-          amount = gross_amount; // Gunakan amount yang dikirim user
-          totalAmount = settledDownPayment.amount + gross_amount; // DP amount + final payment amount
+          amount = settledDownPayment.remainingAmount + gross_amount; // Sisa DP + order baru
+          totalAmount = gross_amount; // Nilai order tambahan
           remainingAmount = 0;
 
-          console.log("Creating final payment:");
-          console.log("Down payment amount:", settledDownPayment.amount);
-          console.log("Final payment amount:", gross_amount);
-          console.log("Total amount:", totalAmount);
+          console.log("=== FINAL PAYMENT CREATE ===");
+          console.log("  DP remainingAmount:", settledDownPayment.remainingAmount);
+          console.log("  New order value:", gross_amount);
+          console.log("  Amount to pay:", amount);
+          console.log("  TotalAmount (order value):", totalAmount);
 
           // Final payment → selalu link ke DP utama
           relatedPaymentId = settledDownPayment._id;
