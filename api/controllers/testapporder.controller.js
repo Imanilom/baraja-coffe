@@ -15,6 +15,7 @@
  * ==================================================================================
  */
 import Payment from '../models/Payment.model.js';
+import dayjs from 'dayjs';
 import QRCode from 'qrcode';
 import { MenuItem } from "../models/MenuItem.model.js";
 import { Order } from "../models/order.model.js";
@@ -401,16 +402,14 @@ const calculateTaxAndServiceCached = async (subtotal, outlet, isReservation, isO
  * ==================================================================================
  */
 export async function generateOrderId(tableNumber) {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const dateStr = `${year}${month}${day}`;
+    const now = dayjs();
+    const dateStr = now.format('YYYYMMDD');
+    const dayStr = now.format('DD');
     let tableOrDayCode = tableNumber;
     if (!tableNumber) {
         const days = ['MD', 'TU', 'WD', 'TH', 'FR', 'ST', 'SN'];
-        const dayCode = days[now.getDay()];
-        tableOrDayCode = `${dayCode}${day}`;
+        const dayCode = days[now.day()]; // dayjs().day() is 0 (Sun) to 6 (Sat)
+        tableOrDayCode = `${dayCode}${dayStr}`;
     }
     const key = `order_seq_${tableOrDayCode}_${dateStr}`;
     // Use MongoDB atomic operation with retry
@@ -422,7 +421,7 @@ export async function generateOrderId(tableNumber) {
         );
     });
     const seq = result.value.seq;
-    return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
+    return `ORD-${dayStr}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
 }
 /**
  * ==================================================================================
@@ -822,8 +821,9 @@ export const createAppOrder = async (req, res) => {
                     orderStatus = existingOrder ? existingOrder.status : 'OnProcess';
                 } else if (orderType === 'reservation') {
                     orderStatus = 'Reserved';
-                } else if (orderType === 'dineIn') {
-                    orderStatus = 'OnProcess';
+                } else if (['dineIn', 'takeAway', 'pickup', 'delivery'].includes(orderType)) {
+                    // ✅ User Request: Direct to 'Waiting' for these types from GRO
+                    orderStatus = 'Waiting';
                 }
             }
             // CREATED_BY METADATA
@@ -1184,8 +1184,8 @@ export const createAppOrder = async (req, res) => {
                         totalAmount: grandTotal,
                         remainingAmount: remainingAmount,
                         fraud_status: 'accept',
-                        transaction_time: new Date().toISOString(),
-                        paidAt: new Date(),
+                        transaction_time: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+                        paidAt: dayjs().toDate(),
                         isDownPayment: true,
                         downPaymentAmount: dpAmount,
                         bankCode: dpBankInfo?.bankCode || 'manual',

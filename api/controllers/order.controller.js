@@ -3616,6 +3616,32 @@ function generateTransactionId() {
 const CASH_PAYMENT_EXPIRY_MINUTES = 30;
 const RESERVATION_PAYMENT_EXPIRY_HOURS = 6; // ✅ Reservasi: 6 jam expiry
 
+/**
+ * ============================================================================
+ * PAYMENT FIELD NAMING CONVENTION (STANDARD)
+ * ============================================================================
+ * 
+ * DOWN PAYMENT (DP):
+ * ------------------
+ * downPayment.amount          = Jumlah DP yang harus dibayar (50% dari total)
+ * downPayment.totalAmount     = Harga produk yang masuk (nilai order)
+ * downPayment.remainingAmount = Sisa pembayaran setelah DP (totalAmount - amount)
+ * 
+ * FINAL PAYMENT (Pelunasan setelah Open Bill):
+ * --------------------------------------------
+ * finalPayment.amount         = Sisa pembayaran yang harus dibayar
+ *                               = dp.remainingAmount + nilai tambahan order
+ * finalPayment.totalAmount    = Nilai tambahan order (harga produk baru)
+ * finalPayment.remainingAmount = 0
+ * 
+ * FULL PAYMENT (Pembayaran penuh):
+ * --------------------------------
+ * fullPayment.amount          = Total yang harus dibayar
+ * fullPayment.totalAmount     = Harga produk (sama dengan amount)
+ * fullPayment.remainingAmount = 0
+ * 
+ * ============================================================================
+ */
 export const charge = async (req, res) => {
   try {
     const {
