@@ -3615,6 +3615,7 @@ function generateTransactionId() {
 // Constant untuk expired time (optional, untuk memudahkan maintenance)
 const CASH_PAYMENT_EXPIRY_MINUTES = 30;
 const RESERVATION_PAYMENT_EXPIRY_HOURS = 6; // ✅ Reservasi: 6 jam expiry
+const GRO_CASH_PAYMENT_EXPIRY_HOURS = 6; // ✅ GRO Order: 6 jam expiry
 
 /**
  * ============================================================================
@@ -3656,7 +3657,11 @@ export const charge = async (req, res) => {
 
     const payment_code = generatePaymentCode();
     let order_id, gross_amount;
-
+    console.log("=== CHARGE ENDPOINT RECEIVED ===");
+    console.log("  down_payment_amount:", down_payment_amount);
+    console.log("  dp_already_paid:", req.body.dp_already_paid);
+    console.log("  bank_info:", req.body.bank_info);
+    console.log("  is_down_payment:", is_down_payment);
     // === Ambil order_id & gross_amount sesuai tipe ===
     if (payment_type === 'cash') {
       order_id = req.body.order_id;
@@ -3684,41 +3689,54 @@ export const charge = async (req, res) => {
       // Tambahkan ke total amount dulu
       const newTotalAmount = existingDownPayment.totalAmount + (total_order_amount || gross_amount);
 
-      // Hitung proporsi amount dan remaining amount (50:50 dari total)
-      const newDownPaymentAmount = newTotalAmount / 2;
+      // ✅ FIX: Gunakan custom down_payment_amount jika ada, jika tidak gunakan 50:50
+      let newDownPaymentAmount;
+      if (down_payment_amount && down_payment_amount > 0) {
+        // User provided custom DP amount
+        newDownPaymentAmount = down_payment_amount;
+      } else {
+        // Default: 50:50 split dari total
+        newDownPaymentAmount = newTotalAmount / 2;
+      }
       const newRemainingAmount = newTotalAmount - newDownPaymentAmount;
 
       console.log("Updating existing down payment:");
       console.log("Previous total amount:", existingDownPayment.totalAmount);
       console.log("Added total amount:", total_order_amount || gross_amount);
       console.log("New total amount:", newTotalAmount);
-      console.log("New down payment amount (50%):", newDownPaymentAmount);
-      console.log("New remaining amount (50%):", newRemainingAmount);
+      console.log("Custom DP provided:", down_payment_amount);
+      console.log("New down payment amount:", newDownPaymentAmount);
+      console.log("New remaining amount:", newRemainingAmount);
 
       // === Update untuk CASH ===
       if (payment_type === 'cash') {
         const transactionId = generateTransactionId();
-        const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const currentTime = dayjs().format('YYYY-MM-DD HH:mm:ss'); // ✅ Use dayjs
 
-        // ✅ PERBAIKAN: Reservasi dapat expiry 6 jam SETELAH reservation_time
+        // ✅ PERBAIKAN: Reservasi & GRO Order dapat expiry lebih lama
         let expiryTime;
+
+        // Check if GRO order
+        const isGroOrder = order.source === 'Gro' || !!order.groId;
+        const typeLower = (order.orderType || '').toLowerCase();
+        const isGroExtendedType = ['dine-in', 'dinein', 'take away', 'takeaway', 'pickup', 'delivery'].includes(typeLower);
+
         if (order.orderType === 'Reservation' && order.reservation) {
           // Untuk reservasi: 6 jam setelah reservation_time
           const reservation = order.reservation;
-          const reservationDate = new Date(reservation.reservation_date);
+          const reservationDate = dayjs(reservation.reservation_date);
           const timeParts = (reservation.reservation_time || '00:00').split(':');
-          const reservationDateTime = new Date(
-            reservationDate.getFullYear(),
-            reservationDate.getMonth(),
-            reservationDate.getDate(),
-            parseInt(timeParts[0]),
-            parseInt(timeParts[1])
-          );
-          const expiryDateTime = new Date(reservationDateTime.getTime() + RESERVATION_PAYMENT_EXPIRY_HOURS * 60 * 60 * 1000);
-          expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+          const reservationDateTime = reservationDate
+            .hour(parseInt(timeParts[0]))
+            .minute(parseInt(timeParts[1]))
+            .second(0);
+          expiryTime = reservationDateTime.add(RESERVATION_PAYMENT_EXPIRY_HOURS, 'hour').format('YYYY-MM-DD HH:mm:ss');
+        } else if (isGroOrder && isGroExtendedType) {
+          // ✅ GRO Order: 6 jam dari sekarang
+          expiryTime = dayjs().add(GRO_CASH_PAYMENT_EXPIRY_HOURS, 'hour').format('YYYY-MM-DD HH:mm:ss');
         } else {
           // Untuk order biasa: 30 menit dari sekarang
-          expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+          expiryTime = dayjs().add(CASH_PAYMENT_EXPIRY_MINUTES, 'minute').format('YYYY-MM-DD HH:mm:ss');
         }
 
         const qrData = { order_id: order._id.toString() };
@@ -3888,27 +3906,32 @@ export const charge = async (req, res) => {
       // === Update untuk CASH ===
       if (payment_type === 'cash') {
         const transactionId = generateTransactionId();
-        const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const currentTime = dayjs().format('YYYY-MM-DD HH:mm:ss'); // ✅ Use dayjs
 
-        // ✅ PERBAIKAN: Reservasi dapat expiry 6 jam SETELAH reservation_time
+        // ✅ PERBAIKAN: Reservasi & GRO Order dapat expiry lebih lama
         let expiryTime;
+
+        // Check if GRO order
+        const isGroOrder = order.source === 'Gro' || !!order.groId;
+        const typeLower = (order.orderType || '').toLowerCase();
+        const isGroExtendedType = ['dine-in', 'dinein', 'take away', 'takeaway', 'pickup', 'delivery'].includes(typeLower);
+
         if (order.orderType === 'Reservation' && order.reservation) {
           // Untuk reservasi: 6 jam setelah reservation_time
           const reservation = order.reservation;
-          const reservationDate = new Date(reservation.reservation_date);
+          const reservationDate = dayjs(reservation.reservation_date);
           const timeParts = (reservation.reservation_time || '00:00').split(':');
-          const reservationDateTime = new Date(
-            reservationDate.getFullYear(),
-            reservationDate.getMonth(),
-            reservationDate.getDate(),
-            parseInt(timeParts[0]),
-            parseInt(timeParts[1])
-          );
-          const expiryDateTime = new Date(reservationDateTime.getTime() + RESERVATION_PAYMENT_EXPIRY_HOURS * 60 * 60 * 1000);
-          expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+          const reservationDateTime = reservationDate
+            .hour(parseInt(timeParts[0]))
+            .minute(parseInt(timeParts[1]))
+            .second(0);
+          expiryTime = reservationDateTime.add(RESERVATION_PAYMENT_EXPIRY_HOURS, 'hour').format('YYYY-MM-DD HH:mm:ss');
+        } else if (isGroOrder && isGroExtendedType) {
+          // ✅ GRO Order: 6 jam dari sekarang
+          expiryTime = dayjs().add(GRO_CASH_PAYMENT_EXPIRY_HOURS, 'hour').format('YYYY-MM-DD HH:mm:ss');
         } else {
           // Untuk order biasa: 30 menit dari sekarang
-          expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+          expiryTime = dayjs().add(CASH_PAYMENT_EXPIRY_MINUTES, 'minute').format('YYYY-MM-DD HH:mm:ss');
         }
 
         const qrData = { order_id: order._id.toString() };
@@ -4080,34 +4103,39 @@ export const charge = async (req, res) => {
         console.log("Added order amount:", additionalAmount);
         console.log("New final payment amount:", newFinalPaymentAmount);
 
-        // ✅ FIX: Calculate correct total amount (DP + Final)
-        const newTotalAmount = newFinalPaymentAmount + settledDownPayment.amount;
+        // ✅ FIX: Calculate correct total amount (Accumulate Additional Order Value)
+        const newTotalAmount = existingFinalPayment.totalAmount + (total_order_amount || gross_amount);
 
 
         // === Update untuk CASH ===
         if (payment_type === 'cash') {
           const transactionId = generateTransactionId();
-          const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+          const currentTime = dayjs().format('YYYY-MM-DD HH:mm:ss'); // ✅ Use dayjs
 
-          // ✅ PERBAIKAN: Reservasi dapat expiry 6 jam SETELAH reservation_time
+          // ✅ PERBAIKAN: Reservasi & GRO Order dapat expiry lebih lama
           let expiryTime;
+
+          // Check if GRO order
+          const isGroOrder = order.source === 'Gro' || !!order.groId;
+          const typeLower = (order.orderType || '').toLowerCase();
+          const isGroExtendedType = ['dine-in', 'dinein', 'take away', 'takeaway', 'pickup', 'delivery'].includes(typeLower);
+
           if (order.orderType === 'Reservation' && order.reservation) {
             // Untuk reservasi: 6 jam setelah reservation_time
             const reservation = order.reservation;
-            const reservationDate = new Date(reservation.reservation_date);
+            const reservationDate = dayjs(reservation.reservation_date);
             const timeParts = (reservation.reservation_time || '00:00').split(':');
-            const reservationDateTime = new Date(
-              reservationDate.getFullYear(),
-              reservationDate.getMonth(),
-              reservationDate.getDate(),
-              parseInt(timeParts[0]),
-              parseInt(timeParts[1])
-            );
-            const expiryDateTime = new Date(reservationDateTime.getTime() + RESERVATION_PAYMENT_EXPIRY_HOURS * 60 * 60 * 1000);
-            expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+            const reservationDateTime = reservationDate
+              .hour(parseInt(timeParts[0]))
+              .minute(parseInt(timeParts[1]))
+              .second(0);
+            expiryTime = reservationDateTime.add(RESERVATION_PAYMENT_EXPIRY_HOURS, 'hour').format('YYYY-MM-DD HH:mm:ss');
+          } else if (isGroOrder && isGroExtendedType) {
+            // ✅ GRO Order: 6 jam dari sekarang
+            expiryTime = dayjs().add(GRO_CASH_PAYMENT_EXPIRY_HOURS, 'hour').format('YYYY-MM-DD HH:mm:ss');
           } else {
             // Untuk order biasa: 30 menit dari sekarang
-            expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+            expiryTime = dayjs().add(CASH_PAYMENT_EXPIRY_MINUTES, 'minute').format('YYYY-MM-DD HH:mm:ss');
           }
 
           const qrData = { order_id: order._id.toString() };
@@ -4260,7 +4288,20 @@ export const charge = async (req, res) => {
     // === Tentukan payment type ===
     let paymentType, amount, remainingAmount, totalAmount;
 
-    if (is_down_payment === true) {
+    // ✅ Debug: Log is_down_payment value and type
+    console.log("=== PAYMENT TYPE DETERMINATION ===");
+    console.log("  is_down_payment value:", is_down_payment);
+    console.log("  is_down_payment type:", typeof is_down_payment);
+
+    // ✅ FIX: Handle both boolean true and string "true"
+    const isDownPaymentFlag = is_down_payment === true || is_down_payment === 'true';
+
+    if (isDownPaymentFlag) {
+      console.log("=== ENTERING DOWN PAYMENT BLOCK ===");
+      console.log("  down_payment_amount:", down_payment_amount);
+      console.log("  total_order_amount:", total_order_amount);
+      console.log("  gross_amount:", gross_amount);
+
       // ✅ PREVENT DUPLICATE: Check if a settled Down Payment already exists
       const existingSettledDP = await Payment.findOne({
         order_id: order_id,
@@ -4292,6 +4333,12 @@ export const charge = async (req, res) => {
       amount = down_payment_amount || gross_amount;
       totalAmount = total_order_amount || gross_amount;
       remainingAmount = totalAmount - amount;
+
+      console.log("=== DOWN PAYMENT VALUES SET ===");
+      console.log("  paymentType:", paymentType);
+      console.log("  amount (DP):", amount);
+      console.log("  totalAmount:", totalAmount);
+      console.log("  remainingAmount:", remainingAmount);
     } else {
       // Cek untuk final payment logic - HANYA yang sudah settlement
       const settledDownPayment = await Payment.findOne({
@@ -4349,27 +4396,32 @@ export const charge = async (req, res) => {
     // === CASE 1: CASH ===
     if (payment_type === 'cash') {
       const transactionId = generateTransactionId();
-      const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const currentTime = dayjs().format('YYYY-MM-DD HH:mm:ss'); // ✅ Use dayjs
 
-      // ✅ PERBAIKAN: Reservasi dapat expiry 6 jam SETELAH reservation_time
+      // ✅ PERBAIKAN: Reservasi & GRO Order dapat expiry lebih lama
       let expiryTime;
+
+      // Check if GRO order
+      const isGroOrder = order.source === 'Gro' || !!order.groId;
+      const typeLower = (order.orderType || '').toLowerCase();
+      const isGroExtendedType = ['dine-in', 'dinein', 'take away', 'takeaway', 'pickup', 'delivery'].includes(typeLower);
+
       if (order.orderType === 'Reservation' && order.reservation) {
         // Untuk reservasi: 6 jam setelah reservation_time
         const reservation = order.reservation;
-        const reservationDate = new Date(reservation.reservation_date);
+        const reservationDate = dayjs(reservation.reservation_date);
         const timeParts = (reservation.reservation_time || '00:00').split(':');
-        const reservationDateTime = new Date(
-          reservationDate.getFullYear(),
-          reservationDate.getMonth(),
-          reservationDate.getDate(),
-          parseInt(timeParts[0]),
-          parseInt(timeParts[1])
-        );
-        const expiryDateTime = new Date(reservationDateTime.getTime() + RESERVATION_PAYMENT_EXPIRY_HOURS * 60 * 60 * 1000);
-        expiryTime = expiryDateTime.toISOString().replace('T', ' ').substring(0, 19);
+        const reservationDateTime = reservationDate
+          .hour(parseInt(timeParts[0]))
+          .minute(parseInt(timeParts[1]))
+          .second(0);
+        expiryTime = reservationDateTime.add(RESERVATION_PAYMENT_EXPIRY_HOURS, 'hour').format('YYYY-MM-DD HH:mm:ss');
+      } else if (isGroOrder && isGroExtendedType) {
+        // ✅ GRO Order: 6 jam dari sekarang
+        expiryTime = dayjs().add(GRO_CASH_PAYMENT_EXPIRY_HOURS, 'hour').format('YYYY-MM-DD HH:mm:ss');
       } else {
         // Untuk order biasa: 30 menit dari sekarang
-        expiryTime = new Date(Date.now() + CASH_PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+        expiryTime = dayjs().add(CASH_PAYMENT_EXPIRY_MINUTES, 'minute').format('YYYY-MM-DD HH:mm:ss');
       }
 
       const qrData = { order_id: order._id.toString() };
@@ -4386,14 +4438,14 @@ export const charge = async (req, res) => {
       const isInstantSettlement = req.body.dp_already_paid === true || req.body.dp_already_paid === 'true';
       const initialStatus = isInstantSettlement ? 'settlement' : 'pending';
 
-      // Jika manual transfer, gunakan nama bank sebagai method
-      // User request: "BCA (PT SCN) pun tidak masuk ke method_type"
-      // Kita simpan di method (dan paymentType jika perlu, tapi paymentType biasanya 'Down Payment' dll)
-      // Kita gunakan req.body.bank_info?.bankName atau custom string
-      let effectiveMethod = payment_type;
+      // ✅ FIX: Method tetap 'cash', nama bank masuk ke method_type saja
+      let effectiveMethod = payment_type; // Keep as 'cash'
+
+
       if (isInstantSettlement && req.body.bank_info && req.body.bank_info.bankName) {
-        effectiveMethod = req.body.bank_info.bankName; // e.g. "BCA (PT SCN)"
-        console.log('✅ Instant Settlement detected. Method set to:', effectiveMethod);
+        console.log('✅ Instant Settlement detected. Bank info:', req.body.bank_info.bankName);
+        console.log('   Method stays as:', effectiveMethod);
+        console.log('   Bank name will be saved to method_type');
       }
 
       const rawResponse = {
@@ -4416,21 +4468,31 @@ export const charge = async (req, res) => {
         expiry_time: expiryTime,
       };
 
-      console.log('ini amount yang disimpan:', totalAmount);
-      console.log('ini totalAmount yang disimpan:', amount);
+      console.log('=== CREATING NEW PAYMENT ===');
+      console.log('  amount (DP/sisa):', amount);
+      console.log('  totalAmount (total order):', totalAmount);
+      console.log('  remainingAmount:', remainingAmount);
+      console.log('  paymentType:', paymentType);
 
       const payment = new Payment({
         transaction_id: transactionId,
         order_id: order_id,
         payment_code: payment_code,
-        amount: totalAmount,
-        totalAmount: amount,
+        // ✅ FIX: amount = nilai DP atau sisa pembayaran
+        amount: amount,
+        // ✅ FIX: totalAmount = nilai total order atau tambahan order
+        totalAmount: totalAmount,
         method: effectiveMethod, // Saved here (e.g. BCA (PT SCN))
+        // ✅ FIX: method_type untuk dp_already_paid - tampilkan nama bank
+        method_type: isInstantSettlement && req.body.bank_info?.bankName
+          ? req.body.bank_info.bankName
+          : null,
         status: initialStatus,
         fraud_status: 'accept',
         transaction_time: currentTime,
         expiry_time: expiryTime,
         settlement_time: isInstantSettlement ? currentTime : null, // Set settlement time
+        paidAt: isInstantSettlement ? new Date() : null, // ✅ Set paidAt for instant settlement
         currency: 'IDR',
         merchant_id: 'G055993835',
         paymentType: paymentType,
@@ -5604,7 +5666,7 @@ export const createFinalPayment = async (req, res) => {
         order_id: order_id,
         payment_code: payment_code,
         amount: remainingAmount,
-        totalAmount: settledDownPayment.totalAmount,
+        totalAmount: 0, // ✅ FIX: Initial "Additional Order Value" is 0
         method: payment_type,
         status: 'pending',
         fraud_status: 'accept',
@@ -5675,7 +5737,7 @@ export const createFinalPayment = async (req, res) => {
       order_id: order_id,
       payment_code: payment_code,
       amount: parseInt(remainingAmount),
-      totalAmount: settledDownPayment.totalAmount,
+      totalAmount: 0, // ✅ FIX: Initial "Additional Order Value" is 0
       method: payment_type,
       status: response.transaction_status || 'pending',
       fraud_status: response.fraud_status,

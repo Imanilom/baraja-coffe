@@ -14,7 +14,7 @@
  * 
  * ==================================================================================
  */
-import Payment from '../models/Payment.model.js';
+
 import dayjs from 'dayjs';
 import QRCode from 'qrcode';
 import { MenuItem } from "../models/MenuItem.model.js";
@@ -631,6 +631,8 @@ export const createAppOrder = async (req, res) => {
                 // ✅ NEW: DP Already Paid (instant settlement)
                 dpAlreadyPaid,
                 dpBankInfo,
+                // ✅ FIX: Custom DP Amount from frontend
+                customDpAmount,
             } = req.body;
             console.log('🚀 Optimized createAppOrder:', {
                 isGroMode,
@@ -1153,70 +1155,14 @@ export const createAppOrder = async (req, res) => {
                 }
             }
 
-            // ✅ NEW: DP Already Paid - Create instant settlement payment
-            if (dpAlreadyPaid && isGroMode && orderType === 'reservation' && reservationRecord) {
-                try {
-                    console.log('💳 Processing DP Already Paid - Creating instant settlement...');
-
-                    // Calculate DP amount (50% of grandTotal by default)
-                    const dpAmount = Math.ceil(grandTotal * 0.5);
-                    const remainingAmount = grandTotal - dpAmount;
-
-                    // ✅ Generate QR Code
-                    const qrData = { order_id: newOrder._id.toString() };
-                    const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
-
-                    const actions = [{
-                        name: "generate-qr-code",
-                        method: "GET",
-                        url: qrCodeBase64,
-                    }];
-
-                    // Create Payment with settlement status
-                    const dpPayment = new Payment({
-                        order_id: newOrder.order_id,
-                        payment_code: `DP-${newOrder.order_id}-${Date.now()}`,
-                        method: 'cash', // ✅ Use cash method for instant settlement
-                        status: 'settlement', // ✅ Instant settlement like Cash
-                        method_type: dpBankInfo?.bankName || 'Bank Transfer', // ✅ Show actual bank name (BCA/Mandiri)
-                        paymentType: 'Down Payment',
-                        amount: dpAmount,
-                        totalAmount: grandTotal,
-                        remainingAmount: remainingAmount,
-                        fraud_status: 'accept',
-                        transaction_time: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-                        paidAt: dayjs().toDate(),
-                        isDownPayment: true,
-                        downPaymentAmount: dpAmount,
-                        bankCode: dpBankInfo?.bankCode || 'manual',
-                        bankName: dpBankInfo?.bankName || 'Bank Transfer',
-                        bankName: dpBankInfo?.bankName || 'Bank Transfer',
-                        notes: `DP sudah dibayar via transfer ${dpBankInfo?.bankName || 'Bank'} - dicatat oleh GRO`,
-                        actions: actions, // ✅ Include QR code actions
-                    });
-
-                    await dpPayment.save();
-
-                    // Update reservation with isDownPaymentPaid
-                    reservationRecord.isDownPaymentPaid = true;
-                    reservationRecord.remainingBalance = remainingAmount;
-                    await reservationRecord.save();
-
-                    // Update order with payment info
-                    newOrder.paymentStatus = 'partial_paid';
-                    newOrder.paymentId = dpPayment._id;
-                    await newOrder.save();
-
-                    console.log('✅ DP Already Paid processed:', {
-                        paymentId: dpPayment._id,
-                        dpAmount,
-                        remainingAmount,
-                        bank: dpBankInfo?.bankName
-                    });
-                } catch (dpError) {
-                    console.error('⚠️ DP Already Paid processing failed:', dpError.message);
-                    // Don't fail the whole order, just log the error
-                }
+            // ✅ REFACTORED: DP Already Paid is now handled by /api/charge endpoint
+            // This ensures all payment creation goes through a single endpoint for consistency.
+            // The frontend will call /api/charge with dp_already_paid=true after order creation.
+            if (dpAlreadyPaid && isGroMode && orderType === 'reservation') {
+                console.log('💳 DP Already Paid flag set - Payment will be created via /api/charge endpoint');
+                console.log('   Order ID:', newOrder.order_id);
+                console.log('   Custom DP Amount:', customDpAmount);
+                console.log('   Bank Info:', dpBankInfo?.bankName);
             }
             // RESPONSE
             const responseData = {
