@@ -16,7 +16,7 @@ dotenv.config();
 // validators/order.validator.js
 export const validateOrderData = (data, source) => {
   const errors = [];
-  
+
   // Validasi dasar
   if (!data.user || typeof data.user !== 'string' || data.user.trim() === '') {
     errors.push('Nama pelanggan diperlukan');
@@ -49,7 +49,7 @@ export const validateOrderData = (data, source) => {
           errors.push(`Payment method ${method} tidak valid untuk Web orders. Harus salah satu dari: ${validWebMethods.join(', ')}`);
         }
       }
-      
+
       // Validasi amount untuk Web
       if (!data.paymentDetails.amount || isNaN(data.paymentDetails.amount) || data.paymentDetails.amount <= 0) {
         errors.push('Payment amount harus lebih dari 0 untuk Web orders');
@@ -115,7 +115,7 @@ export const validateOrderData = (data, source) => {
       if (!data.contact.phone || typeof data.contact.phone !== 'string' || data.contact.phone.trim() === '') {
         errors.push('Nomor telepon pelanggan diperlukan');
       }
-      
+
       // Validasi email opsional tapi jika ada harus valid
       if (data.contact.email && !isValidEmail(data.contact.email)) {
         errors.push('Format email tidak valid');
@@ -339,9 +339,19 @@ const generateTransactionId = () => {
   ).join('-');
 };
 
-const getCurrentTime = () => new Date().toISOString().replace('T', ' ').substring(0, 19);
-const getExpiryTime = (minutes = 15) =>
-  new Date(Date.now() + minutes * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+export const getCurrentTime = () => {
+  const now = new Date();
+  const offset = 7 * 60 * 60 * 1000; // WIB (UTC+7)
+  const localDate = new Date(now.getTime() + offset);
+  return localDate.toISOString().replace('T', ' ').substring(0, 19);
+};
+
+export const getExpiryTime = (minutes = 15) => {
+  const now = new Date();
+  const offset = 7 * 60 * 60 * 1000; // WIB (UTC+7)
+  const expiryDate = new Date(now.getTime() + (minutes * 60 * 1000) + offset);
+  return expiryDate.toISOString().replace('T', ' ').substring(0, 19);
+};
 
 /**
  * Generate QR Code untuk pembayaran cash

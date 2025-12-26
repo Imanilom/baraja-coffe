@@ -1283,7 +1283,7 @@ export const getReservations = async (req, res) => {
 
     // ========== FILTER UNTUK DINE-IN ORDERS ==========
     const orderFilter = {
-      orderType: 'Dine-In'
+      orderType: { $in: ['Dine-In', 'Take Away', 'Pickup', 'Delivery', 'Event'] }
     };
 
     if (status) {
@@ -1304,7 +1304,8 @@ export const getReservations = async (req, res) => {
           break;
       }
     } else {
-      orderFilter.status = { $nin: ['Canceled', 'Completed'] };
+      // ✅ FIX: Default filter menyertakan SEMUA status termasuk 'Canceled' dan 'Completed'
+      // Tidak ada filter status yang diterapkan
     }
 
     if (date) {
@@ -1395,6 +1396,7 @@ export const getReservations = async (req, res) => {
     const transformedOrders = filteredOrders.map(order => ({
       _id: order._id,
       type: 'dine-in-order',
+      orderType: order.orderType, // ✅ Pass actual order type (Dine-In, Take Away, etc.)
       reservation_code: order.order_id,
       status: order.status,
       guest_name: order.user || 'Customer',
@@ -1732,7 +1734,9 @@ export const getOrderDetailById = async (req, res) => {
     const order = await Order.findById(orderId)
       .populate('items.menuItem')
       .populate('appliedVoucher')
-      .populate('taxAndServiceDetails');
+      .populate('taxAndServiceDetails')
+      .populate('groId', 'username email')      // ✅ Add: GRO user info
+      .populate('cashierId', 'username email'); // ✅ Add: Cashier user info
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found.' });
@@ -1832,11 +1836,16 @@ export const getOrderDetailById = async (req, res) => {
         _id: reservation._id.toString(),
         reservationCode: reservation.reservation_code,
         reservationDate: formatReservationDate(reservation.reservation_date),
+        reservationDateRaw: reservation.reservation_date, // ✅ Raw date for frontend
         reservationTime: reservation.reservation_time,
         guestCount: reservation.guest_count,
+        guestName: reservation.guest_name, // ✅ Guest name from reservation
+        guestPhone: reservation.guest_phone, // ✅ Guest phone from reservation
         status: reservation.status,
         reservationType: reservation.reservation_type,
         notes: reservation.notes,
+        food_serving_time: reservation.food_serving_time, // ✅ Food serving time
+        createdAt: reservation.createdAt, // ✅ Reservation created time
         area: {
           _id: reservation.area_id?._id,
           name: reservation.area_id?.area_name || 'Unknown Area'
@@ -1905,6 +1914,9 @@ export const getOrderDetailById = async (req, res) => {
       hasPendingFinalPayment: hasPendingFinalPayment,  // true only if pending
       isFinalPaymentSettled: isFinalPaymentSettled,    // ✅ new flag
       // ✅ NEW: Detail Down Payment
+      // - amount: Jumlah DP yang dibayar
+      // - totalAmount: Total tagihan sebelum DP
+      // - remainingAmount: Sisa pembayaran setelah DP
       downPaymentDetails: downPayment ? {
         _id: downPayment._id,
         amount: downPayment.amount,
@@ -1913,11 +1925,13 @@ export const getOrderDetailById = async (req, res) => {
         method: downPayment.method,
         status: downPayment.status,
       } : null,
-      // ✅ TAMBAHAN: Detail final payment (pending atau settlement)
-      pendingFinalPaymentDetails: finalPayment ? {
+      // ✅ CLEAR NAMING: Detail Final Payment
+      // - amount: Jumlah yang harus dibayar (sisa pembayaran)
+      // - totalAmount: Nilai tambahan order
+      finalPaymentDetails: finalPayment ? {
         _id: finalPayment._id,
-        amount: finalPayment.amount,
-        totalAmount: finalPayment.totalAmount,
+        amount: finalPayment.amount,           // Sisa pembayaran
+        totalAmount: finalPayment.totalAmount, // Tambahan order
         method: finalPayment.method,
         status: finalPayment.status,
         actions: finalPayment.actions || [],  // QR CODE
@@ -1977,6 +1991,7 @@ export const getOrderDetailById = async (req, res) => {
     const orderData = {
       _id: order._id.toString(),
       orderId: order.order_id || order._id.toString(),
+      orderType: order.orderType, // ✅ Pass order type
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
       items: formattedItems,
@@ -1993,6 +2008,25 @@ export const getOrderDetailById = async (req, res) => {
       taxAndServiceDetails: taxAndServiceDetails,
       totalTax: totalTax,
       reservation: reservationData,
+
+      // ✅ NEW: User/Source/Creator data
+      user: order.user || 'Guest',
+      source: order.source || 'Unknown',
+      createdBy: (order.cashierId || order.groId) ? {
+        _id: (order.cashierId?._id || order.groId?._id)?.toString(),
+        username: order.cashierId?.username || order.groId?.username || 'System',
+        role: order.cashierId ? 'Kasir' : 'GRO'
+      } : null,
+      groInfo: order.groId ? {
+        _id: order.groId._id?.toString(),
+        username: order.groId.username
+      } : null,
+      cashierInfo: order.cashierId ? {
+        _id: order.cashierId._id?.toString(),
+        username: order.cashierId.username
+      } : null,
+      createdAt: order.createdAt,
+
       dineInData: order.orderType === 'Dine-In' ? {
         tableNumber: order.tableNumber,
       } : null,
