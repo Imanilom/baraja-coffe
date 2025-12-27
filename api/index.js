@@ -203,10 +203,10 @@ const startServer = async () => {
     });
     console.log('warning : Connected to MongoDB PROD ✅');
 
-    // setupStockCalibrationCron();
-    // // startAutoCancelScheduler();
-    // setupPaymentExpiryMonitor();
-    // initTableSyncJob(2); // ✅ Run table sync every 2 minutes
+    setupStockCalibrationCron();
+    // startAutoCancelScheduler();
+    setupPaymentExpiryMonitor();
+    initTableSyncJob(2); // ✅ Run table sync every 2 minutes
     // Jalankan sekali untuk generate secret
     // console.log('Webhook Secret:', generateWebhookSecret());
 

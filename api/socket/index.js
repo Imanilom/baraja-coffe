@@ -460,6 +460,20 @@ export default function socketHandler(io) {
             }
         });
 
+        // ✅ JOIN GRO ROOM - For GRO dashboard real-time updates
+        socket.on('join_gro_room', (data, callback) => {
+            socket.join('gro_room');
+            console.log(`📋 Client ${socket.id} joined gro_room`);
+
+            if (typeof callback === 'function') {
+                callback({
+                    status: 'joined',
+                    room: 'gro_room',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
         // ✅ JOIN SPECIFIC AREA ROOM
         socket.on('join_area', (tableCode) => {
             const areaRoom = `area_${tableCode}`;
