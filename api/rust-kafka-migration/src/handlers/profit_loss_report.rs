@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+use futures::stream::TryStreamExt;
 use axum::{
     extract::{State, Query},
     response::IntoResponse,
@@ -6,7 +8,7 @@ use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId, DateTime as BsonDateTime};
 use serde::Deserialize;
 use serde_json::json;
-use chrono::{Utc, NaiveDate};
+use chrono::NaiveDate;
 
 use crate::AppState;
 use crate::error::{AppResult, AppError, ApiResponse};
@@ -151,7 +153,7 @@ pub async fn get_profit_loss_report(
     ];
     
     let mut cursor = order_collection.aggregate(pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
     let mut period_breakdown = Vec::new();
     let mut overall_summary = json!({
@@ -170,10 +172,7 @@ pub async fn get_profit_loss_report(
         "avgOrderValue": 0.0
     });
     
-    while cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let doc = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    while let Some(doc) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         let period_data = json!({
             "period": doc.get_str("period").unwrap_or(""),
             "summary": {
@@ -298,12 +297,9 @@ pub async fn get_discount_usage_report(
     ];
     
     let mut cursor = order_collection.aggregate(pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
-    let result = if cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let doc = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    let result = if let Some(doc) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         let total_orders = doc.get_i32("totalOrders").unwrap_or(0);
         let orders_with_discount = doc.get_i32("ordersWithDiscount").unwrap_or(0);
         let total_discount = doc.get_f64("totalDiscountAmount").unwrap_or(0.0);

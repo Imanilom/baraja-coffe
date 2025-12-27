@@ -1,12 +1,14 @@
+#![allow(dead_code)]
+use futures::stream::TryStreamExt;
 use axum::{
     extract::{State, Query},
-    response::{IntoResponse, Response},
+    response::Response,
     http::{header, StatusCode},
 };
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId, DateTime as BsonDateTime};
 use serde::Deserialize;
-use chrono::{Utc, NaiveDate};
+use chrono::NaiveDate;
 
 use crate::AppState;
 use crate::error::{AppResult, AppError};
@@ -61,15 +63,12 @@ pub async fn export_sales_to_csv(
     }
     
     let mut cursor = order_collection.find(filter, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
     // Build CSV
     let mut csv_content = String::from("Order ID,Date,Customer,Order Type,Payment Method,Total Before Discount,Total Discount,Tax,Service Fee,Grand Total\n");
     
-    while cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let doc = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    while let Some(doc) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         let order_id = doc.get_str("order_id").unwrap_or("");
         let created_at = doc.get_datetime("createdAt").ok()
             .map(|dt| dt.to_chrono().to_rfc3339())
@@ -155,15 +154,12 @@ pub async fn export_customers_to_csv(
     ];
     
     let mut cursor = order_collection.aggregate(pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
     // Build CSV
     let mut csv_content = String::from("Customer Name,Order Count,Total Spent,Average Order Value\n");
     
-    while cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let doc = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    while let Some(doc) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         let customer_name = doc.get_str("customerName").unwrap_or("Unknown");
         let order_count = doc.get_i32("orderCount").unwrap_or(0);
         let total_spent = doc.get_f64("totalSpent").unwrap_or(0.0);
@@ -243,15 +239,12 @@ pub async fn export_profit_loss_to_csv(
     ];
     
     let mut cursor = order_collection.aggregate(pipeline, None).await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e))?;
     
     // Build CSV
     let mut csv_content = String::from("Date,Total Orders,Total Revenue,Total Cost,Total Profit,Profit Margin %\n");
     
-    while cursor.advance().await.map_err(|e| AppError::Database(e.to_string()))? {
-        let doc = cursor.deserialize_current()
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        
+    while let Some(doc) = cursor.try_next().await.map_err(|e| AppError::Database(e))? {
         let date = doc.get_str("_id").unwrap_or("");
         let total_orders = doc.get_i32("totalOrders").unwrap_or(0);
         let total_revenue = doc.get_f64("totalRevenue").unwrap_or(0.0);

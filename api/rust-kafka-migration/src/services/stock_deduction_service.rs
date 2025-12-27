@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId};
 use serde::{Deserialize, Serialize};
@@ -65,7 +66,7 @@ impl StockDeductionService {
         let menu_item = menu_collection
             .find_one(doc! { "_id": menu_item_id }, None)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?
+            .map_err(|e| AppError::Database(e))?
             .ok_or_else(|| AppError::NotFound("Menu item not found".to_string()))?;
 
         let menu_item_name = menu_item.get_str("name")
@@ -79,7 +80,7 @@ impl StockDeductionService {
         let recipe = recipe_collection
             .find_one(doc! { "menuItemId": menu_item_id }, None)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?
+            .map_err(|e| AppError::Database(e))?
             .ok_or_else(|| AppError::NotFound(format!("Recipe not found for {}", menu_item_name)))?;
 
         // Get products from recipe
@@ -88,7 +89,7 @@ impl StockDeductionService {
 
         // Deduct stock for each product in recipe
         for product_doc in products {
-            if let Ok(product_obj) = product_doc.as_document() {
+            if let Some(product_obj) = product_doc.as_document() {
                 let product_id = product_obj.get_object_id("productId")
                     .map_err(|_| AppError::BadRequest("Invalid product ID in recipe".to_string()))?;
                 
@@ -116,7 +117,7 @@ impl StockDeductionService {
                 "warehouse": warehouse_id
             }, None)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?
+            .map_err(|e| AppError::Database(e))?
             .ok_or_else(|| AppError::NotFound(format!("Menu stock not found for {}", menu_item_name)))?;
 
         let previous_stock = menu_stock.get_f64("quantity").unwrap_or(0.0);
@@ -143,7 +144,7 @@ impl StockDeductionService {
                 None,
             )
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
 
         tracing::info!(
             "✅ Stock deducted: {} x{} ({}→{})",
@@ -180,7 +181,7 @@ impl StockDeductionService {
                 "warehouse": warehouse_id
             }, None)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?
+            .map_err(|e| AppError::Database(e))?
             .ok_or_else(|| AppError::NotFound("Product stock not found".to_string()))?;
 
         let current_stock = product_stock.get_f64("quantity").unwrap_or(0.0);
@@ -207,7 +208,7 @@ impl StockDeductionService {
                 None,
             )
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(|e| AppError::Database(e))?;
 
         Ok(())
     }
@@ -228,7 +229,7 @@ impl StockDeductionService {
                     "warehouse": reservation.warehouse_id
                 }, None)
                 .await
-                .map_err(|e| AppError::Database(e.to_string()))?;
+                .map_err(|e| AppError::Database(e))?;
 
             if let Some(stock) = menu_stock {
                 let available = stock.get_f64("quantity").unwrap_or(0.0);
@@ -265,7 +266,7 @@ impl StockDeductionService {
                     None,
                 )
                 .await
-                .map_err(|e| AppError::Database(e.to_string()))?;
+                .map_err(|e| AppError::Database(e))?;
 
             tracing::info!(
                 "♻️ Stock restored: {} x{}",

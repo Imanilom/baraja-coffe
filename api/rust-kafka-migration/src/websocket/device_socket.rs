@@ -1,7 +1,8 @@
+#![allow(dead_code)]
 use axum::{
     extract::{ws::{WebSocket, WebSocketUpgrade, Message}, State},
     response::IntoResponse,
-    http::StatusCode,
+    // http::StatusCode,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use std::sync::Arc;
@@ -155,7 +156,7 @@ async fn validate_device(
 
     let device = collection.find_one(filter, None)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?
+        .map_err(|e| AppError::Database(e))?
         .ok_or_else(|| AppError::Unauthorized("Device not registered or inactive".to_string()))?;
 
     Ok(outlet_id)

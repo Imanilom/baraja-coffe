@@ -3142,9 +3142,10 @@ const processWebAppOrder = async ({
       method: validatedPaymentDetails?.method || 'Cash',
       status: 'pending',
       paymentType: 'Full',
-      amount: validatedPaymentDetails?.amount || newOrder.grandTotal,
+      amount: newOrder.grandTotal,
       totalAmount: newOrder.grandTotal,
       remainingAmount: newOrder.grandTotal,
+
     };
 
     const payment = await Payment.create(paymentData);
@@ -6903,9 +6904,9 @@ export const getCashierOrderHistory = async (req, res) => {
       return res.status(400).json({ message: 'Cashier ID is required.' });
     }
 
-    // Hitung tanggal 7 hari yang lalu
+    // Hitung tanggal 3 hari yang lalu
     const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 3);
 
     const baseFilter = {
       $and: [
@@ -7149,6 +7150,18 @@ export const cashierCharge = async (req, res) => {
         success: false,
         message: 'Order tidak ditemukan'
       });
+    }
+
+    if (gross_amount < order.grandTotal) {
+      console.warn('⚠️ Payment amount less than grandTotal, auto-correcting:', {
+        order_id,
+        payment_amount: gross_amount,
+        grand_total: order.grandTotal,
+        difference: order.grandTotal - gross_amount
+      });
+
+      // Auto-correct ke grandTotal
+      gross_amount = order.grandTotal;
     }
 
     // Untuk split payment, update payment yang spesifik

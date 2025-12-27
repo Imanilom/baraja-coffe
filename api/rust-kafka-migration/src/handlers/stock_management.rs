@@ -1,9 +1,9 @@
 use axum::{
-    extract::{State, Json},
+    extract::{State, Json, Path},
     response::IntoResponse,
 };
 use std::sync::Arc;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use mongodb::bson::oid::ObjectId;
 
@@ -48,7 +48,7 @@ pub async fn check_stock_availability(
     let reservations: Result<Vec<StockReservation>, _> = payload.reservations
         .into_iter()
         .map(|r| {
-            Ok(StockReservation {
+            Ok::<StockReservation, AppError>(StockReservation {
                 menu_item_id: ObjectId::parse_str(&r.menu_item_id)
                     .map_err(|_| AppError::BadRequest("Invalid menu item ID".to_string()))?,
                 quantity: r.quantity,
@@ -81,7 +81,7 @@ pub async fn deduct_stock(
     let reservations: Result<Vec<StockReservation>, _> = payload.reservations
         .into_iter()
         .map(|r| {
-            Ok(StockReservation {
+            Ok::<StockReservation, AppError>(StockReservation {
                 menu_item_id: ObjectId::parse_str(&r.menu_item_id)
                     .map_err(|_| AppError::BadRequest("Invalid menu item ID".to_string()))?,
                 quantity: r.quantity,

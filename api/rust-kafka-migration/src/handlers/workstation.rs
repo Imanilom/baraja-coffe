@@ -5,13 +5,13 @@ use axum::{
 };
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use chrono::Utc;
 
 use crate::AppState;
 use crate::error::{AppResult, AppError, ApiResponse};
-use crate::db::models::workstation::{WorkstationItem, ItemStatus};
+// use crate::db::models::workstation::{WorkstationItem, ItemStatus};
 
 #[derive(Debug, Deserialize)]
 pub struct GetWorkstationOrdersQuery {
@@ -146,7 +146,7 @@ pub async fn bulk_update_workstation_items(
     let order_collection: mongodb::Collection<mongodb::bson::Document> = 
         state.db.collection("orders");
     
-    for item_update in payload.items {
+    for item_update in &payload.items {
         let item_oid = ObjectId::parse_str(&item_update.item_id)
             .map_err(|_| AppError::BadRequest("Invalid item ID".to_string()))?;
 
@@ -181,7 +181,7 @@ pub async fn get_kitchen_orders(
     State(state): State<Arc<AppState>>,
     Query(query): Query<GetWorkstationOrdersQuery>,
 ) -> AppResult<impl IntoResponse> {
-    get_workstation_orders(state, Path("kitchen".to_string()), Query(query)).await
+    get_workstation_orders(State(state), Path("kitchen".to_string()), Query(query)).await
 }
 
 /// Get bar orders (backward compatibility)
@@ -190,5 +190,5 @@ pub async fn get_bar_orders(
     Path(bar_type): Path<String>,
     Query(query): Query<GetWorkstationOrdersQuery>,
 ) -> AppResult<impl IntoResponse> {
-    get_workstation_orders(state, Path(format!("bar-{}", bar_type)), Query(query)).await
+    get_workstation_orders(State(state), Path(format!("bar-{}", bar_type)), Query(query)).await
 }

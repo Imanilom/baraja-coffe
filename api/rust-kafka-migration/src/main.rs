@@ -22,7 +22,7 @@ use db::DbConnection;
 use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository, OrderRepository};
 use error::AppResult;
 use kafka::KafkaProducer;
-use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService, SessionService};
+use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService, SessionService, OrderService};
 use websocket::SocketState;
 
 /// Application state shared across all handlers
@@ -40,6 +40,7 @@ pub struct AppState {
     pub tax_service: TaxService,
     pub promo_service: PromoService,
     pub session_service: SessionService,
+    pub order_service: OrderService,
     pub lock_util: crate::utils::LockUtil,
     pub socket_state: SocketState,
 }
@@ -80,13 +81,14 @@ async fn main() -> AppResult<()> {
     let menu_service = MenuService::new(menu_repo.clone(), inventory_repo.clone(), kafka.clone());
     let inventory_service = InventoryService::new(inventory_repo.clone(), menu_repo.clone(), kafka.clone());
     let outlet_service = OutletService::new(outlet_repo.clone());
-    let loyalty_service = LoyaltyService::new(db.clone());
-    let tax_service = TaxService::new(db.clone());
-    let promo_service = PromoService::new(db.clone());
+    let loyalty_service = LoyaltyService::new(db.database().clone());
+    let tax_service = TaxService::new(db.database().clone());
+    let promo_service = PromoService::new(db.database().clone());
+    let order_service = OrderService::new(db.database().clone());
 
     // Initialize Redis and LockUtil
     let redis_client = redis::Client::open(config.redis.url.as_str())
-        .map_err(|e| error::AppError::Config(config::ConfigError::Message(e.to_string())))?;
+        .map_err(|e| crate::error::AppError::Config(::config::ConfigError::Message(e.to_string())))?;
     let lock_util = utils::LockUtil::new(redis_client.clone());
     tracing::info!("Redis connection initialized");
 
@@ -101,7 +103,7 @@ async fn main() -> AppResult<()> {
     // Create application state
     let state = Arc::new(AppState {
         config: config.clone(),
-        db: db.database,
+        db: db.database().clone(),
         kafka,
         user_repo,
         order_repo,
@@ -112,6 +114,7 @@ async fn main() -> AppResult<()> {
         tax_service,
         promo_service,
         session_service,
+        order_service,
         lock_util,
         socket_state,
     });

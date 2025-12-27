@@ -5,7 +5,7 @@ use axum::{
 };
 use std::sync::Arc;
 use mongodb::bson::{doc, oid::ObjectId};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use chrono::Utc;
 
