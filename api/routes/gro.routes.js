@@ -2,6 +2,7 @@ import express from 'express';
 import {
     getDashboardStats,
     getReservations,
+    getReservationStats, // ✅ NEW: Lightweight stats endpoint
     getReservationDetail,
     confirmReservation,
     // completeReservation,
@@ -32,6 +33,9 @@ const router = express.Router();
 
 // Dashboard Statistics
 router.get('/dashboard-stats', getDashboardStats);
+
+// ✅ NEW: Fast stats endpoint for dashboard counts
+router.get('/stats', authMiddleware, getReservationStats);
 
 // Reservation Management
 router.get('/reservations', authMiddleware, getReservations);
