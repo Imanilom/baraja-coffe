@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Category from '../../models/Category.model.js';
 import { Order } from '../../models/order.model.js';
 import Payment from '../../models/Payment.model.js';
@@ -234,31 +235,75 @@ class DailyProfitController {
 
   async getProductSalesReport(req, res) {
     try {
-      const { startDate, endDate, outletId, includeDeleted = 'true' } = req.query;
+      const productSearch = req.query.product || '';
 
-      if (!startDate || !endDate) {
-        return res.status(400).json({
-          success: false,
-          message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
-        });
+      // Build match stage untuk filter
+      const matchStage = {
+        status: 'Completed'
+      };
+
+      // Filter by outlet
+      if (req.query.outlet) {
+        try {
+          const mongoose = require('mongoose');
+          matchStage.outlet = mongoose.Types.ObjectId(req.query.outlet);
+        } catch (err) {
+          matchStage.outlet = req.query.outlet;
+        }
       }
 
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      // PERBAIKAN: Parse tanggal sebagai local time (bukan UTC)
+      // Kemudian konversi ke UTC dengan offset -7 jam
+      const startLocal = new Date(startDate);
+      startLocal.setHours(0, 0, 0, 0);
+
+      const endLocal = new Date(endDate);
+      endLocal.setHours(23, 59, 59, 999);
+
+      // Kurangi 7 jam karena createdAtWIB disimpan dalam format WIB tapi MongoDB query dalam UTC
+      const startUTC = new Date(startLocal.getTime() - (7 * 60 * 60 * 1000));
+      const endUTC = new Date(endLocal.getTime() - (7 * 60 * 60 * 1000));
+
+      console.log('Date Filter Debug:', {
+        input: { startDate, endDate },
+        localTime: {
+          start: startLocal.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+          end: endLocal.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })
+        },
+        utcTime: {
+          start: startUTC.toISOString(),
+          end: endUTC.toISOString()
+        }
+      });
 
       const filter = {
-        createdAtWIB: { $gte: start, $lte: end },
-        status: { $in: ['Completed', 'OnProcess'] }
+        createdAtWIB: { $gte: startUTC, $lte: endUTC },
+        status: { $in: ['Completed'] }
       };
 
       if (outletId && outletId !== 'all') {
         filter.outlet = outletId;
       }
 
+      console.log('MongoDB Filter:', JSON.stringify(filter, null, 2));
+
       const orders = await Order.find(filter)
         .populate('items.menuItem.category')
         .lean();
+
+      console.log(`Total orders found: ${orders.length}`);
+
+      // Debug: tampilkan beberapa sample order dates
+      if (orders.length > 0) {
+        console.log('Sample order dates:');
+        orders.slice(0, 3).forEach(order => {
+          console.log({
+            orderId: order._id,
+            createdAtWIB: order.createdAtWIB,
+            createdAtWIBFormatted: new Date(order.createdAtWIB).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })
+          });
+        });
+      }
 
       // Filter hanya orders dengan pembayaran yang berhasil
       const paidOrders = orders.filter(order => {
@@ -268,6 +313,8 @@ class DailyProfitController {
         const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
         return totalPaid > 0;
       });
+
+      console.log(`Paid orders: ${paidOrders.length}`);
 
       // Manual populate category dari menuItemData
       const categoryIds = new Set();
@@ -281,7 +328,7 @@ class DailyProfitController {
         });
       });
 
-      // Fetch semua categories sekaligus (tanpa mongoose.model)
+      // Fetch semua categories sekaligus
       const categories = await Category.find({
         _id: { $in: Array.from(categoryIds) }
       }).lean();
@@ -327,7 +374,7 @@ class DailyProfitController {
             }
           }
 
-          // Kalau masih null, skip item ini (jangan tampilkan "Uncategorized")
+          // Kalau masih null, skip item ini
           if (!categoryName) return;
 
           // Hitung diskon per item (proporsional dari total diskon order)
@@ -363,7 +410,7 @@ class DailyProfitController {
             });
           }
 
-          // Buat unique key: kombinasi product ID + addons (untuk pisahkan Hot/Iced dll)
+          // Buat unique key: kombinasi product ID + addons
           const uniqueKey = `${productId}${addonsKey}`;
 
           // Buat display name dengan variant
@@ -430,6 +477,8 @@ class DailyProfitController {
         }
       });
 
+      console.log(`Total unique products: ${productMap.size}`);
+
       // Convert map to array dan format angka
       const productSummary = Array.from(productMap.values()).map(product => ({
         productId: product.productId,
@@ -450,36 +499,42 @@ class DailyProfitController {
         ? productSummary
         : productSummary.filter(product => !product.isDeleted);
 
-      // Sort by total revenue descending
-      const sortedProducts = filteredProducts.sort((a, b) => b.totalRevenue - a.totalRevenue);
+      // Sort by name ascending
+      const sortedProducts = filteredProducts.sort((a, b) => {
+        return a.productName.localeCompare(b.productName, 'id-ID', { sensitivity: 'base' });
+      });
+
+      console.log(`Final products count: ${sortedProducts.length}`);
 
       res.json({
         success: true,
-        data: {
-          products: sortedProducts,
-          summary: {
-            totalProducts: sortedProducts.length,
-            totalRevenue: sortedProducts.reduce((sum, product) => sum + product.totalRevenue, 0),
-            totalGrossSales: sortedProducts.reduce((sum, product) => sum + product.grossSales, 0),
-            totalDiscount: sortedProducts.reduce((sum, product) => sum + product.totalDiscount, 0),
-            totalQuantity: sortedProducts.reduce((sum, product) => sum + product.totalQuantity, 0),
-            activeProducts: sortedProducts.filter(p => p.isActive && !p.isDeleted).length,
-            deletedProducts: sortedProducts.filter(p => p.isDeleted).length
+        data: productData,
+        grandTotal: grandTotal,
+        metadata: {
+          filters: {
+            outlet: req.query.outlet || 'all',
+            dateRange: req.query.startDate && req.query.endDate
+              ? `${req.query.startDate} to ${req.query.endDate}`
+              : 'all',
+            product: productSearch || 'all'
           },
-          period: {
-            startDate,
-            endDate,
-            outlet: outletId || 'All Outlets'
-          }
+          totalOrders: orderCountResult,
+          totalProducts: productData.length,
+          processedAt: new Date().toISOString()
         }
       });
 
+      res.status(200).json(response);
+
     } catch (error) {
-      console.error('Error in getProductSalesReport:', error);
+      console.error('Get product sales report error:', error);
+      console.error('Error stack:', error.stack);
+
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Failed to fetch product sales report',
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }
@@ -487,84 +542,176 @@ class DailyProfitController {
   /**
    * Get daily profit for a date range - DUKUNG SPLIT PAYMENT
    */
+  // async getDailyProfitRange(req, res) {
+  //   try {
+  //     const { startDate, endDate, outletId } = req.query;
+
+  //     if (!startDate || !endDate) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
+  //       });
+  //     }
+
+  //     const start = new Date(startDate);
+  //     const end = new Date(endDate);
+  //     end.setHours(23, 59, 59, 999);
+
+  //     // Build query filter
+  //     const filter = {
+  //       createdAtWIB: {
+  //         $gte: start,
+  //         $lte: end
+  //       },
+  //       // status: { $in: ['Completed', 'OnProcess'] }
+  //       status: { $in: ['Completed'] }
+  //     };
+
+  //     if (outletId && outletId !== 'all') {
+  //       filter.outlet = outletId;
+  //     }
+
+  //     // Gunakan data denormalized tanpa populate
+  //     const orders = await Order.find(filter).lean();
+
+  //     // Group by date
+  //     const dailyProfits = {};
+
+  //     orders.forEach(order => {
+  //       // MODIFIKASI: Hitung total payment dari array payments
+  //       const completedPayments = order.payments?.filter(p =>
+  //         p.status === 'completed' || p.status === 'pending'
+  //       ) || [];
+
+  //       const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+  //       if (totalPaid > 0) {
+  //         const orderDate = order.createdAtWIB.toISOString().split('T')[0];
+  //         const orderRevenue = order.grandTotal || 0;
+  //         const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) +
+  //           (order.discounts?.manualDiscount || 0) +
+  //           (order.discounts?.voucherDiscount || 0);
+  //         const orderNetProfit = orderRevenue - orderDiscounts;
+
+  //         if (!dailyProfits[orderDate]) {
+  //           dailyProfits[orderDate] = {
+  //             date: orderDate,
+  //             totalRevenue: 0,
+  //             totalNetProfit: 0,
+  //             totalOrders: 0,
+  //             totalItemsSold: 0,
+  //             totalPaidAmount: 0
+  //           };
+  //         }
+
+  //         dailyProfits[orderDate].totalRevenue += orderRevenue;
+  //         dailyProfits[orderDate].totalNetProfit += orderNetProfit;
+  //         dailyProfits[orderDate].totalOrders += 1;
+  //         dailyProfits[orderDate].totalPaidAmount += totalPaid;
+
+  //         // Count items - ini akan bekerja bahkan jika menuItems dihapus
+  //         const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  //         dailyProfits[orderDate].totalItemsSold += itemsCount;
+  //       }
+  //     });
+
+  //     // Convert to array and sort by date
+  //     const result = Object.values(dailyProfits).sort((a, b) =>
+  //       new Date(a.date) - new Date(b.date)
+  //     );
+
+  //     res.json({
+  //       success: true,
+  //       data: result
+  //     });
+
+  //   } catch (error) {
+  //     console.error('Error in getDailyProfitRange:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Internal server error',
+  //       error: error.message
+  //     });
+  //   }
+  // }
+
   async getDailyProfitRange(req, res) {
     try {
-      const { startDate, endDate, outletId } = req.query;
+      const filters = { status: 'Completed' };
 
-      if (!startDate || !endDate) {
-        return res.status(400).json({
-          success: false,
-          message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
-        });
-      }
+      if (req.query.outlet) filters.outlet = req.query.outlet;
 
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      // Date range filter
+      if (req.query.startDate || req.query.endDate) {
+        filters.createdAt = {};
 
-      // Build query filter
-      const filter = {
-        createdAtWIB: {
-          $gte: start,
-          $lte: end
-        },
-        status: { $in: ['Completed', 'OnProcess'] }
-      };
-
-      if (outletId && outletId !== 'all') {
-        filter.outlet = outletId;
-      }
-
-      // Gunakan data denormalized tanpa populate
-      const orders = await Order.find(filter).lean();
-
-      // Group by date
-      const dailyProfits = {};
-
-      orders.forEach(order => {
-        // MODIFIKASI: Hitung total payment dari array payments
-        const completedPayments = order.payments?.filter(p =>
-          p.status === 'completed' || p.status === 'pending'
-        ) || [];
-
-        const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-
-        if (totalPaid > 0) {
-          const orderDate = order.createdAtWIB.toISOString().split('T')[0];
-          const orderRevenue = order.grandTotal || 0;
-          const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) +
-            (order.discounts?.manualDiscount || 0) +
-            (order.discounts?.voucherDiscount || 0);
-          const orderNetProfit = orderRevenue - orderDiscounts;
-
-          if (!dailyProfits[orderDate]) {
-            dailyProfits[orderDate] = {
-              date: orderDate,
-              totalRevenue: 0,
-              totalNetProfit: 0,
-              totalOrders: 0,
-              totalItemsSold: 0,
-              totalPaidAmount: 0
-            };
-          }
-
-          dailyProfits[orderDate].totalRevenue += orderRevenue;
-          dailyProfits[orderDate].totalNetProfit += orderNetProfit;
-          dailyProfits[orderDate].totalOrders += 1;
-          dailyProfits[orderDate].totalPaidAmount += totalPaid;
-
-          // Count items - ini akan bekerja bahkan jika menuItems dihapus
-          const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-          dailyProfits[orderDate].totalItemsSold += itemsCount;
+        if (req.query.startDate) {
+          const startDate = new Date(req.query.startDate + 'T00:00:00.000+07:00');
+          filters.createdAt.$gte = startDate;
         }
-      });
 
-      // Convert to array and sort by date
-      const result = Object.values(dailyProfits).sort((a, b) =>
-        new Date(a.date) - new Date(b.date)
-      );
+        if (req.query.endDate) {
+          const endDate = new Date(req.query.endDate + 'T23:59:59.999+07:00');
+          filters.createdAt.$lte = endDate;
+        }
+      }
 
-      res.json({
+      // AGGREGATION PIPELINE - Grouping di database, bukan di aplikasi!
+      const dailySales = await Order.aggregate([
+        // Stage 1: Filter
+        { $match: filters },
+
+        // Stage 2: Project hanya field yang dibutuhkan
+        {
+          $project: {
+            grandTotal: 1,
+            createdAt: 1,
+            date: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$createdAt",
+                timezone: "Asia/Jakarta"
+              }
+            }
+          }
+        },
+
+        // Stage 3: Group by date
+        {
+          $group: {
+            _id: "$date",
+            count: { $sum: 1 },
+            penjualanTotal: { $sum: "$grandTotal" },
+            timestamp: { $first: "$createdAt" }
+          }
+        },
+
+        // Stage 4: Sort by date (descending)
+        { $sort: { timestamp: -1 } },
+
+        // Stage 5: Format output
+        {
+          $project: {
+            _id: 0,
+            date: {
+              $dateToString: {
+                format: "%d-%m-%Y",
+                date: { $dateFromString: { dateString: "$_id" } },
+                timezone: "Asia/Jakarta"
+              }
+            },
+            count: 1,
+            penjualanTotal: { $round: ["$penjualanTotal", 0] },
+            timestamp: 1
+          }
+        }
+      ]);
+
+      // Calculate grand totals
+      const grandTotalItems = dailySales.reduce((sum, day) => sum + day.count, 0);
+      const grandTotalPenjualan = dailySales.reduce((sum, day) => sum + day.penjualanTotal, 0);
+
+      res.status(200).json({
         success: true,
         data: result
       });
@@ -755,38 +902,70 @@ class DailyProfitController {
       // PERBAIKAN: Pastikan semua items memiliki menuItemData
       const ordersWithPayments = orders.map(order => {
         if (order.items && Array.isArray(order.items)) {
+          // order.items = order.items.map(item => {
+          //   // Prioritas: menuItemData > menuItem > default
+          //   if (!item.menuItemData || !item.menuItemData.name) {
+          //     if (item.menuItem) {
+          //       item.menuItemData = {
+          //         name: item.menuItem.name || 'Unknown Item',
+          //         price: item.menuItem.price || 0,
+          //         category:
+          //           typeof item.menuItem.category === 'object'
+          //             ? item.menuItem.category.name
+          //             : 'Uncategorized',
+          //         sku: item.menuItem.sku || '',
+          //         isActive: item.menuItem.isActive !== false,
+          //         selectedAddons: item.addons || [],
+          //         selectedToppings: item.toppings || []
+          //       };
+          //     } else {
+          //       // Fallback untuk item yang tidak memiliki menuItem reference
+          //       item.menuItemData = {
+          //         name: 'Unknown Item',
+          //         price: item.subtotal / (item.quantity || 1) || 0,
+          //         category: 'Unknown',
+          //         sku: 'N/A',
+          //         isActive: false,
+          //         selectedAddons: item.addons || [],
+          //         selectedToppings: item.toppings || []
+          //       };
+          //     }
+          //   } else if (!item.menuItemData.selectedAddons) {
+          //     // Pastikan addons dan toppings selalu ada
+          //     item.menuItemData.selectedAddons = item.addons || [];
+          //     item.menuItemData.selectedToppings = item.toppings || [];
+          //   }
+          //   return item;
+          // });
           order.items = order.items.map(item => {
-            // Prioritas: menuItemData > menuItem > default
-            if (!item.menuItemData || !item.menuItemData.name) {
-              if (item.menuItem) {
-                item.menuItemData = {
-                  name: item.menuItem.name || 'Unknown Item',
-                  price: item.menuItem.price || 0,
-                  category: item.menuItem.category?.name || item.menuItem.mainCategory || 'Uncategorized',
-                  sku: item.menuItem.sku || '',
-                  isActive: item.menuItem.isActive !== false,
-                  selectedAddons: item.addons || [],
-                  selectedToppings: item.toppings || []
-                };
-              } else {
-                // Fallback untuk item yang tidak memiliki menuItem reference
-                item.menuItemData = {
-                  name: 'Unknown Item',
-                  price: item.subtotal / (item.quantity || 1) || 0,
-                  category: 'Unknown',
-                  sku: 'N/A',
-                  isActive: false,
-                  selectedAddons: item.addons || [],
-                  selectedToppings: item.toppings || []
-                };
-              }
-            } else if (!item.menuItemData.selectedAddons) {
-              // Pastikan addons dan toppings selalu ada
-              item.menuItemData.selectedAddons = item.addons || [];
-              item.menuItemData.selectedToppings = item.toppings || [];
+            // Pastikan menuItemData ada
+            if (!item.menuItemData) {
+              item.menuItemData = {};
             }
+
+            // Sinkronisasi dari menuItem (populate)
+            if (item.menuItem) {
+              item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
+              item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
+
+              // 🔥 FIX UTAMA: ambil CATEGORY NAME, BUKAN ID
+              if (item.menuItem.category && typeof item.menuItem.category === 'object') {
+                item.menuItemData.category = item.menuItem.category.name;
+              } else {
+                item.menuItemData.category = item.menuItemData.category || 'Uncategorized';
+              }
+
+              item.menuItemData.sku = item.menuItem.sku || '';
+              item.menuItemData.isActive = item.menuItem.isActive !== false;
+            }
+
+            // Pastikan addons & toppings selalu ada
+            item.menuItemData.selectedAddons = item.addons || [];
+            item.menuItemData.selectedToppings = item.toppings || [];
+
             return item;
           });
+
         }
 
         const relatedPayments = paymentMap[order.order_id] || [];
@@ -1447,6 +1626,105 @@ class DailyProfitController {
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
+        error: error.message
+      });
+    }
+  };
+
+  async getHourlySalesRange(req, res) {
+    try {
+      const filters = { status: 'Completed' };
+
+      if (req.query.outlet) filters.outlet = req.query.outlet;
+
+      // Date range filter with Jakarta timezone
+      if (req.query.startDate || req.query.endDate) {
+        filters.createdAt = {};
+
+        if (req.query.startDate) {
+          const startDate = new Date(req.query.startDate + 'T00:00:00.000+07:00');
+          filters.createdAt.$gte = startDate;
+        }
+
+        if (req.query.endDate) {
+          const endDate = new Date(req.query.endDate + 'T23:59:59.999+07:00');
+          filters.createdAt.$lte = endDate;
+        }
+      }
+
+      // AGGREGATION PIPELINE - Group by hour
+      const hourlySales = await Order.aggregate([
+        // Stage 1: Filter
+        { $match: filters },
+
+        // Stage 2: Project fields yang dibutuhkan dan extract hour
+        {
+          $project: {
+            grandTotal: 1,
+            createdAt: 1,
+            hour: {
+              $dateToString: {
+                format: "%H:00",
+                date: "$createdAt",
+                timezone: "Asia/Jakarta"
+              }
+            }
+          }
+        },
+
+        // Stage 3: Group by hour
+        {
+          $group: {
+            _id: "$hour",
+            count: { $sum: 1 },
+            grandTotalSum: { $sum: "$grandTotal" },
+            products: { $push: "$$ROOT" }
+          }
+        },
+
+        // Stage 4: Sort by hour (ascending: 00:00 to 23:00)
+        { $sort: { _id: 1 } },
+
+        // Stage 5: Format output
+        {
+          $project: {
+            _id: 0,
+            hour: "$_id",
+            count: 1,
+            grandTotalSum: { $round: ["$grandTotalSum", 0] },
+            products: 1
+          }
+        }
+      ]);
+
+      // Calculate grand totals
+      const grandTotalItems = hourlySales.reduce((sum, hour) => sum + hour.count, 0);
+      const grandTotalPenjualan = hourlySales.reduce((sum, hour) => sum + hour.grandTotalSum, 0);
+
+      res.status(200).json({
+        success: true,
+        data: hourlySales,
+        metadata: {
+          totalHours: hourlySales.length,
+          grandTotalItems,
+          grandTotalPenjualan,
+          averagePerTransaction: grandTotalItems > 0
+            ? Math.round(grandTotalPenjualan / grandTotalItems)
+            : 0,
+          filters: {
+            outlet: req.query.outlet || 'all',
+            dateRange: req.query.startDate && req.query.endDate
+              ? `${req.query.startDate} to ${req.query.endDate}`
+              : 'all'
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Get hourly sales aggregated error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch hourly sales',
         error: error.message
       });
     }

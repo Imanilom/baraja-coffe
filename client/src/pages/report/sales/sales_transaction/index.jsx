@@ -68,6 +68,12 @@ const SalesTransaction = () => {
     const [totalOrders, setTotalOrders] = useState(0);
     const [limit, setLimit] = useState(20);
 
+    // ============================================
+    // NEW STATES FOR DELETE FUNCTIONALITY
+    // ============================================
+    const [selectedItems, setSelectedItems] = useState([]);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const dropdownRef = useRef(null);
     const receiptRef = useRef();
     const handlePrint = useReactToPrint({
@@ -221,6 +227,7 @@ const SalesTransaction = () => {
     };
 
     useEffect(() => {
+        setSelectedItems([]); // Clear selection when filters change
         fetchProducts();
     }, [currentPage, limit, selectedOutlet, dateRange]);
 
@@ -278,7 +285,6 @@ const SalesTransaction = () => {
                 const customer = (product.user || '').toLowerCase();
                 if (customer.includes(searchTermLower)) return true;
 
-                // Search dalam items
                 const itemsMatch = product.items?.some(item => {
                     const menuItemDataName = (item?.menuItemData?.name || '').toLowerCase();
                     if (menuItemDataName.includes(searchTermLower)) return true;
@@ -303,7 +309,6 @@ const SalesTransaction = () => {
 
                 if (itemsMatch) return true;
 
-                // Search dalam customAmountItems
                 const customAmountMatch = product.customAmountItems?.some(customItem => {
                     const customName = (customItem?.name || '').toLowerCase();
                     return customName.includes(searchTermLower);
@@ -348,11 +353,143 @@ const SalesTransaction = () => {
         return totals;
     }, [filteredData]);
 
+    // ============================================
+    // DELETE MULTIPLE FUNCTIONS
+    // ============================================
+
+    /**
+     * Handle Select Single Item
+     */
+    const handleSelectItem = (orderId) => {
+        setSelectedItems(prev => {
+            if (prev.includes(orderId)) {
+                return prev.filter(id => id !== orderId);
+            } else {
+                return [...prev, orderId];
+            }
+        });
+    };
+
+    /**
+     * Handle Select All Items (current page only)
+     */
+    const handleSelectAll = () => {
+        if (selectedItems.length === filteredData.length) {
+            setSelectedItems([]);
+        } else {
+            setSelectedItems(filteredData.map(item => item._id));
+        }
+    };
+
+    /**
+     * Clear Selection
+     */
+    const handleClearSelection = () => {
+        setSelectedItems([]);
+    };
+
+    /**
+     * Delete Multiple Orders
+     */
+    const handleDeleteMultiple = async () => {
+        if (selectedItems.length === 0) {
+            alert('Pilih minimal satu transaksi untuk dihapus');
+            return;
+        }
+
+        // Konfirmasi dengan detail
+        const confirmMessage =
+            `⚠️ PERINGATAN PENGHAPUSAN ⚠️\n\n` +
+            `Anda akan menghapus ${selectedItems.length} transaksi.\n\n` +
+            `Tindakan ini akan:\n` +
+            `• Menghapus data transaksi dari sistem\n` +
+            `• Mempengaruhi laporan penjualan\n` +
+            `• Tidak dapat dibatalkan\n\n` +
+            `Apakah Anda yakin ingin melanjutkan?`;
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
+        setIsDeleting(true);
+
+        try {
+            // Kirim request bulk delete
+            const response = await axios.delete('/api/report/sales-report/bulk', {
+                data: { orderIds: selectedItems },
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.success) {
+                const { deletedCount, notFoundCount } = response.data.data;
+
+                // Success message
+                let message = `✅ Berhasil menghapus ${deletedCount} transaksi`;
+                if (notFoundCount > 0) {
+                    message += `\n⚠️ ${notFoundCount} transaksi tidak ditemukan`;
+                }
+
+                alert(message);
+
+                // Reset selection
+                setSelectedItems([]);
+
+                // Refresh data
+                await fetchProducts();
+
+                // Jika halaman saat ini kosong setelah delete, kembali ke halaman sebelumnya
+                if (filteredData.length === selectedItems.length && currentPage > 1) {
+                    handlePageChange(currentPage - 1);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error deleting multiple orders:', error);
+
+            let errorMessage = 'Gagal menghapus transaksi.\n\n';
+
+            if (error.response) {
+                // Server responded with error
+                switch (error.response.status) {
+                    case 400:
+                        errorMessage += error.response.data.message || 'Data tidak valid';
+                        if (error.response.data.protectedOrderIds) {
+                            errorMessage += `\n\nBeberapa transaksi tidak dapat dihapus karena masih dalam proses.`;
+                        }
+                        break;
+                    case 403:
+                        errorMessage += 'Anda tidak memiliki izin untuk menghapus transaksi';
+                        break;
+                    case 404:
+                        errorMessage += 'Transaksi tidak ditemukan';
+                        break;
+                    case 500:
+                        errorMessage += 'Terjadi kesalahan pada server';
+                        break;
+                    default:
+                        errorMessage += error.response.data.message || 'Terjadi kesalahan';
+                }
+            } else if (error.request) {
+                // Request made but no response
+                errorMessage += 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
+            } else {
+                // Something else happened
+                errorMessage += error.message;
+            }
+
+            alert(errorMessage);
+
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const handleExport = async () => {
         setIsExporting(true);
 
         try {
-            // Pastikan outlets sudah di-load
             if (outlets.length === 0) {
                 await fetchOutlets();
             }
@@ -370,20 +507,18 @@ const SalesTransaction = () => {
                 params.append('endDate', formatDateForAPI(dateRange.endDate));
             }
 
-            // PERBAIKAN KRITIS: Kirim searchTerm ke backend
             if (searchTerm) {
                 params.append('search', searchTerm);
             }
 
             const response = await axios.get(`/api/report/orders?${params.toString()}`, {
-                timeout: 120000 // 120 detik untuk data besar
+                timeout: 120000
             });
 
             const allData = Array.isArray(response.data?.data) ? response.data.data : [];
 
-            // Validasi jumlah data
             const expectedCount = searchTerm ? filteredData.length : totalOrders;
-            if (allData.length < expectedCount * 0.9) { // Toleransi 10%
+            if (allData.length < expectedCount * 0.9) {
                 console.warn(`⚠️ WARNING: Expected ~${expectedCount} orders but got ${allData.length}`);
                 const proceed = window.confirm(
                     `Peringatan: Hanya ${allData.length} dari ~${expectedCount} transaksi yang berhasil di-fetch.\n\n` +
@@ -396,7 +531,6 @@ const SalesTransaction = () => {
                 }
             }
 
-            // Validasi setiap order
             const validOrders = allData.filter(order => {
                 if (!order.items || !Array.isArray(order.items) || order.items.length === 0) {
                     console.warn('⚠️ Order without items:', order.order_id);
@@ -405,7 +539,6 @@ const SalesTransaction = () => {
                 return true;
             });
 
-            // PERBAIKAN: Tidak perlu filter lagi karena backend sudah filter
             const exportData = validOrders;
 
             if (exportData.length === 0) {
@@ -435,7 +568,6 @@ const SalesTransaction = () => {
                     const paymentCode = order.paymentDetails?.payment_code || '-';
                     const transactionId = order.paymentDetails?.transaction_id || '-';
 
-                    // Hitung subtotal dari items dan customAmountItems
                     const itemsSubtotal = order.items.reduce((acc, item) => {
                         return acc + (Number(item.subtotal) || 0);
                     }, 0);
@@ -454,13 +586,11 @@ const SalesTransaction = () => {
                         (order.discounts?.manualDiscount || 0) +
                         (order.discounts?.voucherDiscount || 0);
 
-                    // Process regular items
                     const itemRows = order.items.map((item, index) => {
                         const itemName = item.menuItemData?.name || item.menuItem?.name || 'Produk tidak diketahui';
                         const itemSKU = item.menuItemData?.sku || item.menuItem?.sku || '-';
                         const itemPrice = item.menuItemData?.price || item.menuItem?.price || 0;
 
-                        // Extract category
                         let itemCategory = '-';
                         if (item.menuItemData?.category) {
                             itemCategory = typeof item.menuItemData.category === 'object'
@@ -474,7 +604,6 @@ const SalesTransaction = () => {
                             itemCategory = item.menuItem.mainCategory;
                         }
 
-                        // Extract addons
                         const addonLabels = [];
                         if (Array.isArray(item?.addons)) {
                             item.addons.forEach(addon => {
@@ -539,7 +668,6 @@ const SalesTransaction = () => {
                         };
                     });
 
-                    // Process customAmountItems
                     const customAmountRows = (order.customAmountItems || []).map((customItem, index) => {
                         const isFirstRow = index === 0 && order.items.length === 0;
 
@@ -689,6 +817,56 @@ const SalesTransaction = () => {
                 </button>
             </div>
 
+            {/* ============================================ */}
+            {/* DELETE MULTIPLE ACTION BAR */}
+            {/* ============================================ */}
+            {/* {selectedItems.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mx-6 mb-4 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-sm font-semibold text-blue-900">
+                                {selectedItems.length} transaksi dipilih
+                            </span>
+                        </div>
+                        <button
+                            onClick={handleClearSelection}
+                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-all"
+                        >
+                            Batal Pilih
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={handleDeleteMultiple}
+                        disabled={isDeleting}
+                        className={`px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-all ${isDeleting
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
+                            }`}
+                    >
+                        {isDeleting ? (
+                            <>
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Menghapus...</span>
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Hapus ({selectedItems.length})</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            )} */}
+
             {loading ? (
                 <SalesTransactionTableSkeleton />
             ) : (
@@ -715,6 +893,10 @@ const SalesTransaction = () => {
                     filteredData={filteredData}
                     handleLimitChange={handleLimitChange}
                     totalOrders={totalOrders}
+                    selectedItems={selectedItems}
+                    handleSelectItem={handleSelectItem}
+                    handleSelectAll={handleSelectAll}
+                    isDeleting={isDeleting}
                 />
             )}
         </div>

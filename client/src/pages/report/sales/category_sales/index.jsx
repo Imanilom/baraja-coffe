@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link, useSearchParams } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
+import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
-import Paginated from "../../../../components/paginated";
 import SalesCategorySkeleton from "./skeleton";
+import { exportCategorySalesExcel } from "../../../../utils/exportCategorySalesExcel";
 
 const CategorySales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -45,7 +45,7 @@ const CategorySales = () => {
         }),
     };
 
-    const [products, setProducts] = useState([]);
+    const [groupedArray, setGroupedArray] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [isExporting, setIsExporting] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -68,7 +68,6 @@ const CategorySales = () => {
         const endDateParam = searchParams.get('endDate');
         const outletParam = searchParams.get('outletId');
         const searchParam = searchParams.get('search');
-        const pageParam = searchParams.get('page');
 
         if (startDateParam && endDateParam) {
             setDateRange({
@@ -90,14 +89,10 @@ const CategorySales = () => {
         if (searchParam) {
             setSearchTerm(searchParam);
         }
-
-        if (pageParam) {
-            setCurrentPage(parseInt(pageParam, 10));
-        }
     }, [searchParams]);
 
     // Update URL when filters change
-    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch, newPage) => {
+    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
@@ -113,10 +108,6 @@ const CategorySales = () => {
 
         if (newSearch) {
             params.set('search', newSearch);
-        }
-
-        if (newPage && newPage > 1) {
-            params.set('page', newPage.toString());
         }
 
         setSearchParams(params);
@@ -170,28 +161,19 @@ const CategorySales = () => {
     // Handler functions
     const handleDateRangeChange = (newValue) => {
         setDateRange(newValue);
-        setCurrentPage(1);
-        updateURLParams(newValue, selectedOutlet, searchTerm, 1);
+        updateURLParams(newValue, selectedOutlet, searchTerm);
     };
 
     const handleOutletChange = (selected) => {
         const newOutlet = selected?.value || "";
         setSelectedOutlet(newOutlet);
-        setCurrentPage(1);
-        updateURLParams(dateRange, newOutlet, searchTerm, 1);
+        updateURLParams(dateRange, newOutlet, searchTerm);
     };
 
     const handleSearchChange = (e) => {
         const newSearch = e.target.value;
         setSearchTerm(newSearch);
-        setCurrentPage(1);
-        updateURLParams(dateRange, selectedOutlet, newSearch, 1);
-    };
-
-    const handlePageChange = (newPage) => {
-        setCurrentPage(newPage);
-        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        updateURLParams(dateRange, selectedOutlet, newSearch);
     };
 
     const options = useMemo(() => [
@@ -394,10 +376,10 @@ const CategorySales = () => {
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
-            // Get date range
-            const dateRangeText = dateRange?.startDate && dateRange?.endDate
-                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-                : new Date().toLocaleDateString('id-ID');
+        // Get date range
+        const dateRangeText = dateRange?.startDate && dateRange?.endDate
+            ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
+            : new Date().toLocaleDateString('id-ID');
 
             // Create export data
             const exportData = [
@@ -524,7 +506,7 @@ const CategorySales = () => {
             </div>
 
             {/* Filters */}
-            <div className="px-6">
+            <div className="px-6 pb-6">
                 <div className="flex justify-between py-3 gap-2">
                     <div className="flex flex-col col-span-3 w-2/5">
                         <div className="relative text-gray-500">
@@ -586,7 +568,7 @@ const CategorySales = () => {
                                 {paginatedData.map((group, index) => {
                                     const average = group.quantity > 0
                                         ? group.subtotal / group.quantity
-                                        : 0;
+                                        : 0);
 
                                     return (
                                         <tr key={index} className="text-left text-sm hover:bg-gray-50">
@@ -628,19 +610,16 @@ const CategorySales = () => {
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(grandTotal.quantity > 0 ? grandTotal.subtotal / grandTotal.quantity : 0)}
+                                        {formatCurrency(
+                                            grandTotal.average ||
+                                            (grandTotal.quantity > 0 ? grandTotal.subtotal / grandTotal.quantity : 0)
+                                        )}
                                     </p>
                                 </td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-
-                <Paginated
-                    currentPage={currentPage}
-                    setCurrentPage={handlePageChange}
-                    totalPages={totalPages}
-                />
             </div>
         </div>
     );

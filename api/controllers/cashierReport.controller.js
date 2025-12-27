@@ -469,7 +469,7 @@ export const getSalesSummary = async (req, res) => {
                                         $filter: {
                                             input: '$payments',
                                             as: 'payment',
-                                            cond: { $in: ['$$payment.status', ['settlement', 'paid']] }
+                                            cond: { $in: ['$$payment.status', ['settlement', 'paid', 'partial']] }
                                         }
                                     },
                                     as: 'p',
@@ -490,7 +490,23 @@ export const getSalesSummary = async (req, res) => {
                     totalTransactions: { $sum: 1 },
                     totalTax: { $sum: '$totalTax' },
                     totalServiceFee: { $sum: '$totalServiceFee' },
-                    totalItems: { $sum: { $size: '$items' } },
+                    // ✅ FIXED: Hitung berdasarkan quantity items + customAmountItems (count as 1 each)
+                    totalItems: {
+                        $sum: {
+                            $add: [
+                                // Sum quantity dari regular items
+                                {
+                                    $reduce: {
+                                        input: { $ifNull: ['$items', []] },
+                                        initialValue: 0,
+                                        in: { $add: ['$$value', { $ifNull: ['$$this.quantity', 0] }] }
+                                    }
+                                },
+                                // Count customAmountItems (setiap item = 1)
+                                { $size: { $ifNull: ['$customAmountItems', []] } }
+                            ]
+                        }
+                    },
                     avgOrderValue: { $avg: '$grandTotal' },
                     totalDiscount: {
                         $sum: {
@@ -519,7 +535,7 @@ export const getSalesSummary = async (req, res) => {
             { $unwind: '$payments' },
             {
                 $match: {
-                    'payments.status': { $in: ['settlement', 'paid'] },
+                    'payments.status': { $in: ['settlement', 'paid', 'partial'] },
                     'payments.isAdjustment': { $ne: true }, // Exclude adjustment payments
                     ...(paymentMethod && { 'payments.method_type': { $in: paymentMethod.split(',') } })
                 }
@@ -563,7 +579,7 @@ export const getSalesSummary = async (req, res) => {
             }, {
                 $match: {
                     'payments.method_type': { $in: paymentMethod.split(',') },
-                    'payments.status': { $in: ['settlement', 'paid'] }
+                    'payments.status': { $in: ['settlement', 'paid', 'partial'] }
                 }
             }] : []),
             {
@@ -586,6 +602,7 @@ export const getSalesSummary = async (req, res) => {
             totalTransactions: 0,
             totalTax: 0,
             totalServiceFee: 0,
+            totalItems: 0,
             avgOrderValue: 0,
             totalDiscount: 0
         };
@@ -619,7 +636,7 @@ export const getSalesSummary = async (req, res) => {
                     totalTax: summary.totalTax,
                     totalServiceFee: summary.totalServiceFee,
                     totalDiscount: summary.totalDiscount,
-                    totalItems: summary.totalItems
+                    totalItems: summary.totalItems // ✅ Sekarang berdasarkan quantity
                 },
                 paymentMethodBreakdown: paymentMethodData,
                 orderTypeBreakdown: orderTypeData

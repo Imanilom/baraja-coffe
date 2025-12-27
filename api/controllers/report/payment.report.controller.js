@@ -224,11 +224,11 @@ export const generateSalesReport = async (req, res) => {
         splitPaymentOrders: processedOrders.filter(o => o.hasSplitPayment).length,
         singlePaymentOrders: processedOrders.filter(o => !o.hasSplitPayment).length
       },
-      paymentMethods: paymentMethodBreakdown,
-      splitPaymentAnalysis: splitPaymentAnalysis,
-      itemSales: itemSalesBreakdown,
-      periodBreakdown: periodSummary,
-      rawDataCount: processedOrders.length
+      paymentMethods: paymentMethodData,
+      splitPaymentAnalysis: splitPaymentData,
+      itemSales: itemSalesData,
+      periodBreakdown: periodBreakdownData,
+      rawDataCount: summary.totalTransactions
     };
 
     return res.status(200).json({

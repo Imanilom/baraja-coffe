@@ -1,3 +1,8 @@
+// ============================================
+// FRONTEND - SalesTransactionTable Component
+// File: SalesTransactionTable.jsx (Updated)
+// ============================================
+
 import React from "react";
 import { FaSearch } from "react-icons/fa";
 import Select from "react-select";
@@ -23,8 +28,21 @@ const SalesTransactionTable = ({
     receiptRef,
     currentPage,
     totalPages,
-    handlePageChange
+    handlePageChange,
+    // New props for delete functionality
+    selectedItems = [],
+    handleSelectItem,
+    handleSelectAll,
+    isDeleting = false
 }) => {
+
+    // Check if all items on current page are selected
+    const isAllSelected = paginatedData.length > 0 &&
+        paginatedData.every(item => selectedItems.includes(item._id));
+
+    // Check if some items are selected (for indeterminate state)
+    const isSomeSelected = paginatedData.some(item => selectedItems.includes(item._id)) && !isAllSelected;
+
     return (
         <>
             <div className="flex flex-wrap gap-4 md:justify-between items-center px-6 py-3">
@@ -73,11 +91,30 @@ const SalesTransactionTable = ({
                     </div>
                 </div>
             </div>
+
             <main className="flex-1 px-6">
                 <div className="bg-white shadow rounded-lg overflow-x-auto">
                     <table className="min-w-full text-sm text-gray-900">
                         <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                             <tr className="text-left text-[13px]">
+                                {/* Checkbox Column */}
+                                {/* <th className="px-4 py-3 w-12">
+                                    <div className="flex items-center justify-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={isAllSelected}
+                                            ref={input => {
+                                                if (input) {
+                                                    input.indeterminate = isSomeSelected;
+                                                }
+                                            }}
+                                            onChange={handleSelectAll}
+                                            disabled={isDeleting || paginatedData.length === 0}
+                                            className="w-4 h-4 text-[#005429] bg-gray-100 border-gray-300 rounded focus:ring-[#005429] focus:ring-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                                            title="Pilih semua di halaman ini"
+                                        />
+                                    </div>
+                                </th> */}
                                 <th className="px-4 py-3 font-semibold w-2/12">Tanggal</th>
                                 <th className="px-4 py-3 font-semibold w-1/12">Kasir</th>
                                 <th className="px-4 py-3 font-semibold w-1/12">ID Struk</th>
@@ -97,6 +134,7 @@ const SalesTransactionTable = ({
                                         const cashier = product?.cashierId || {};
                                         const orderType = product?.orderType || {};
                                         const paymentMethod = product?.actualPaymentMethod || "N/A";
+                                        const isSelected = selectedItems.includes(product._id);
 
                                         let menuNames = [];
                                         let totalSubtotal = 0;
@@ -105,12 +143,10 @@ const SalesTransactionTable = ({
                                         if (Array.isArray(product?.items)) {
                                             menuNames = product.items.map((item) => {
                                                 try {
-                                                    // Nama menu (prioritas: menuItemData → menuItem → fallback)
                                                     const menuName = item?.menuItemData?.name ||
                                                         item?.menuItem?.name ||
                                                         "Produk tidak diketahui";
 
-                                                    // Ambil addon labels yang dipilih
                                                     const addonLabels = [];
                                                     if (Array.isArray(item?.addons)) {
                                                         item.addons.forEach(addon => {
@@ -124,7 +160,6 @@ const SalesTransactionTable = ({
                                                         });
                                                     }
 
-                                                    // Gabungkan nama menu dengan addons (jika ada)
                                                     if (addonLabels.length > 0) {
                                                         return `${menuName} ( ${addonLabels.join(', ')} )`;
                                                     }
@@ -153,10 +188,8 @@ const SalesTransactionTable = ({
                                                 }
                                             });
 
-                                            // Gabungkan dengan menuNames
                                             menuNames = [...menuNames, ...customNames];
 
-                                            // Tambahkan ke total subtotal
                                             const customSubtotal = product.customAmountItems.reduce((sum, i) => {
                                                 return sum + (Number(i?.amount) || 0);
                                             }, 0);
@@ -165,21 +198,69 @@ const SalesTransactionTable = ({
 
                                         return (
                                             <tr
-                                                className="text-left text-sm cursor-pointer hover:bg-slate-50"
+                                                className={`text-left text-sm transition-colors ${isSelected
+                                                    ? 'bg-blue-50 hover:bg-blue-100'
+                                                    : 'hover:bg-slate-50'
+                                                    }`}
                                                 key={product._id}
-                                                onClick={() => setSelectedTrx(product)}
                                             >
-                                                <td className="px-4 py-3">{formatDateTime(date) || "N/A"}</td>
-                                                <td className="px-4 py-3">{cashier?.username || "-"}</td>
-                                                <td className="px-4 py-3">{orderId || "N/A"}</td>
-                                                <td className="px-4 py-3">{menuNames.join(", ")}</td>
-                                                <td className="px-4 py-3">{orderType || "N/A"}</td>
-                                                <td className="px-4 py-3">
+                                                {/* Checkbox Cell */}
+                                                {/* <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => handleSelectItem(product._id)}
+                                                            disabled={isDeleting}
+                                                            className="w-4 h-4 text-[#005429] bg-gray-100 border-gray-300 rounded focus:ring-[#005429] focus:ring-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                    </div>
+                                                </td> */}
+
+                                                {/* Data Cells - Clickable to open modal */}
+                                                <td
+                                                    className="px-4 py-3 cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
+                                                    {formatDateTime(date) || "N/A"}
+                                                </td>
+                                                <td
+                                                    className="px-4 py-3 cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
+                                                    {cashier?.username || "-"}
+                                                </td>
+                                                <td
+                                                    className="px-4 py-3 cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
+                                                    {orderId || "N/A"}
+                                                </td>
+                                                <td
+                                                    className="px-4 py-3 cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
+                                                    {menuNames.join(", ")}
+                                                </td>
+                                                <td
+                                                    className="px-4 py-3 cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
+                                                    {orderType || "N/A"}
+                                                </td>
+                                                <td
+                                                    className="px-4 py-3 cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
                                                     <div className="flex flex-col gap-1">
                                                         <span>{paymentMethod}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3 text-right">
+                                                <td
+                                                    className="px-4 py-3 text-right cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
                                                     {product.grandTotal.toLocaleString() || ""}
                                                 </td>
                                             </tr>
@@ -188,7 +269,7 @@ const SalesTransactionTable = ({
                                         console.error(`Error rendering product ${index}:`, err, product);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="8" className="px-4 py-3 text-red-500">
+                                                <td colSpan="9" className="px-4 py-3 text-red-500">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -199,14 +280,14 @@ const SalesTransactionTable = ({
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={8}>Tidak ada data ditemukan</td>
+                                    <td colSpan={9}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
 
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="px-4 py-2" colSpan="5">
+                                <td className="px-4 py-2" colSpan="6">
                                     Grand Total
                                 </td>
                                 <td className="px-2 py-2 text-right rounded" colSpan="2">
@@ -217,6 +298,7 @@ const SalesTransactionTable = ({
                             </tr>
                         </tfoot>
                     </table>
+
                     {selectedTrx && (
                         <TransactionModal
                             selectedTrx={selectedTrx}
@@ -227,6 +309,7 @@ const SalesTransactionTable = ({
                         />
                     )}
                 </div>
+
                 {/* Pagination Controls */}
                 <Paginated
                     currentPage={currentPage}

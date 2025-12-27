@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link, useSearchParams } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
+import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
@@ -20,23 +20,11 @@ const OutletSales = () => {
             fontSize: '13px',
             color: '#6b7280',
             boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
-            '&:hover': {
-                borderColor: '#9ca3af',
-            },
+            '&:hover': { borderColor: '#9ca3af' },
         }),
-        singleValue: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        input: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        placeholder: (provided) => ({
-            ...provided,
-            color: '#9ca3af',
-            fontSize: '13px',
-        }),
+        singleValue: (provided) => ({ ...provided, color: '#6b7280' }),
+        input: (provided) => ({ ...provided, color: '#6b7280' }),
+        placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '13px' }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
@@ -46,21 +34,29 @@ const OutletSales = () => {
         }),
     };
 
-    const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
+    const [salesData, setSalesData] = useState([]);
+    const [allSalesData, setAllSalesData] = useState([]); // Untuk export
+    const [grandTotals, setGrandTotals] = useState({
+        totalOutlets: 0,
+        totalTransactions: 0,
+        totalSales: 0,
+        averagePerTransaction: 0
+    });
+    const [pagination, setPagination] = useState({
+        currentPage: 1,
+        totalPages: 1,
+        itemsPerPage: 50,
+        totalItems: 0
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const [search, setSearch] = useState("");
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
-    const [filteredData, setFilteredData] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
 
-    const ITEMS_PER_PAGE = 50;
-    const dropdownRef = useRef(null);
-
-    // Initialize from URL params or set default to today
+    // Initialize from URL params
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
@@ -80,73 +76,80 @@ const OutletSales = () => {
             });
         }
 
-        if (outletParam) {
-            setSelectedOutlet(outletParam);
-        }
-
-        if (pageParam) {
-            setCurrentPage(parseInt(pageParam, 10));
-        }
+        if (outletParam) setSelectedOutlet(outletParam);
+        if (pageParam) setCurrentPage(parseInt(pageParam, 10));
     }, [searchParams]);
 
-    // Fetch products and outlets data
+    // Fetch outlets (hanya sekali)
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
+        const fetchOutlets = async () => {
             try {
-                const [productsResponse, outletsResponse] = await Promise.all([
-                    axios.get('/api/orders'),
-                    axios.get('/api/outlet')
-                ]);
-
-                const productsData = Array.isArray(productsResponse.data)
-                    ? productsResponse.data
-                    : Array.isArray(productsResponse.data?.data)
-                        ? productsResponse.data.data
+                const response = await axios.get('/api/outlet');
+                const outletsData = Array.isArray(response.data)
+                    ? response.data
+                    : Array.isArray(response.data?.data)
+                        ? response.data.data
                         : [];
-
-                const completedData = productsData.filter(item => item.status === "Completed");
-                setProducts(completedData);
-
-                const outletsData = Array.isArray(outletsResponse.data)
-                    ? outletsResponse.data
-                    : Array.isArray(outletsResponse.data?.data)
-                        ? outletsResponse.data.data
-                        : [];
-
                 setOutlets(outletsData);
-                setError(null);
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                setProducts([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
+                console.error("Error fetching outlets:", err);
             }
         };
-
-        fetchData();
+        fetchOutlets();
     }, []);
 
-    // Update URL when filters change
+    // Fetch sales data dengan agregasi
+    const fetchSalesData = useCallback(async () => {
+        if (!dateRange?.startDate || !dateRange?.endDate) return;
+
+        setLoading(true);
+        try {
+            const params = {
+                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD'),
+                page: currentPage,
+                limit: 50
+            };
+
+            if (selectedOutlet) {
+                params.outletId = selectedOutlet;
+            }
+
+            const response = await axios.get('/api/report/sales-report/transaction-outlet', { params });
+
+            if (response.data.success) {
+                setSalesData(response.data.data.items);
+                setAllSalesData(response.data.data.allData); // Simpan semua data untuk export
+                setGrandTotals(response.data.data.grandTotal);
+                setPagination(response.data.data.pagination);
+            }
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching sales data:", err);
+            setError("Gagal memuat data penjualan. Silakan coba lagi.");
+            setSalesData([]);
+            setAllSalesData([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [dateRange, selectedOutlet, currentPage]);
+
+    // Fetch data ketika filter berubah
+    useEffect(() => {
+        fetchSalesData();
+    }, [fetchSalesData]);
+
+    // Update URL params
     const updateURLParams = useCallback((newDateRange, newOutlet, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
-            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
-            params.set('startDate', startDate);
-            params.set('endDate', endDate);
+            params.set('startDate', dayjs(newDateRange.startDate).format('YYYY-MM-DD'));
+            params.set('endDate', dayjs(newDateRange.endDate).format('YYYY-MM-DD'));
         }
 
-        if (newOutlet) {
-            params.set('outletId', newOutlet);
-        }
-
-        if (newPage && newPage > 1) {
-            params.set('page', newPage.toString());
-        }
+        if (newOutlet) params.set('outletId', newOutlet);
+        if (newPage && newPage > 1) params.set('page', newPage.toString());
 
         setSearchParams(params);
     }, [setSearchParams]);
@@ -171,109 +174,6 @@ const OutletSales = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-        let filtered = [...products];
-
-        // Filter by outlet
-        if (selectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    const outletId = product?.outlet?._id ||
-                        product?.outlet?.id ||
-                        product?.cashier?.outlet?.[0]?.outletId?._id ||
-                        product?.cashier?.outlet?.[0]?.outletId?.id;
-
-                    return outletId === selectedOutlet;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (dateRange?.startDate && dateRange?.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) return false;
-
-                    const productDate = dayjs(product.createdAt);
-                    const startDate = dayjs(dateRange.startDate).startOf('day');
-                    const endDate = dayjs(dateRange.endDate).endOf('day');
-
-                    return productDate.isAfter(startDate.subtract(1, 'second')) &&
-                        productDate.isBefore(endDate.add(1, 'second'));
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, selectedOutlet, dateRange]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Group data by outlet - FIXED: gunakan grandTotal (total termasuk pajak)
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            try {
-                const outletName = product?.outlet?.name ||
-                    product?.cashier?.outlet?.[0]?.outletId?.name ||
-                    'Unknown';
-
-                // Gunakan grandTotal (total akhir termasuk pajak & service)
-                // Atau totalPrice jika ingin tanpa pajak
-                const totalTransaction = Number(product?.grandTotal) ||
-                    Number(product?.totalPrice) ||
-                    0;
-
-                if (!grouped[outletName]) {
-                    grouped[outletName] = {
-                        count: 0,
-                        subtotalTotal: 0,
-                        products: []
-                    };
-                }
-
-                grouped[outletName].products.push(product);
-                grouped[outletName].count++;
-                grouped[outletName].subtotalTotal += totalTransaction;
-            } catch (err) {
-                console.error("Error grouping product:", err);
-            }
-        });
-
-        return Object.entries(grouped).map(([outletName, data]) => ({
-            outletName,
-            ...data
-        })).sort((a, b) => b.subtotalTotal - a.subtotalTotal);
-    }, [filteredData]);
-
-    // Paginate grouped data
-    const paginatedData = useMemo(() => {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return groupedArray.slice(startIndex, endIndex);
-    }, [groupedArray, currentPage]);
-
-    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
-
-    // Calculate grand totals
-    const { grandTotalItems, grandTotalSubtotal } = useMemo(() => {
-        return groupedArray.reduce((totals, group) => ({
-            grandTotalItems: totals.grandTotalItems + group.count,
-            grandTotalSubtotal: totals.grandTotalSubtotal + group.subtotalTotal
-        }), { grandTotalItems: 0, grandTotalSubtotal: 0 });
-    }, [groupedArray]);
-
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -288,24 +188,29 @@ const OutletSales = () => {
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ], [outlets]);
 
-    // Export to Excel - FIXED: tambahkan informasi filter dan format yang lebih baik
+    // Export to Excel - menggunakan allSalesData yang sudah ada
     const exportToExcel = () => {
+        if (allSalesData.length === 0) {
+            alert('Tidak ada data untuk di-export');
+            return;
+        }
+
         // Data outlet
-        const rows = groupedArray.map((group, index) => ({
+        const rows = allSalesData.map((group, index) => ({
             'No': index + 1,
             'Outlet': group.outletName || 'Unknown',
             'Jumlah Transaksi': group.count,
             'Total Penjualan': group.subtotalTotal,
-            'Rata-Rata per Transaksi': group.count > 0 ? Math.round(group.subtotalTotal / group.count) : 0
+            'Rata-Rata per Transaksi': Math.round(group.averagePerTransaction)
         }));
 
         // Tambahkan grand total
         rows.push({
             'No': '',
             'Outlet': 'GRAND TOTAL',
-            'Jumlah Transaksi': grandTotalItems,
-            'Total Penjualan': grandTotalSubtotal,
-            'Rata-Rata per Transaksi': grandTotalItems > 0 ? Math.round(grandTotalSubtotal / grandTotalItems) : 0
+            'Jumlah Transaksi': grandTotals.totalTransactions,
+            'Total Penjualan': grandTotals.totalSales,
+            'Rata-Rata per Transaksi': Math.round(grandTotals.averagePerTransaction)
         });
 
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -313,26 +218,20 @@ const OutletSales = () => {
         // Format kolom currency
         const range = XLSX.utils.decode_range(ws['!ref']);
         for (let R = range.s.r + 1; R <= range.e.r; R++) {
-            const cellD = XLSX.utils.encode_cell({ r: R, c: 3 }); // Total Penjualan
-            const cellE = XLSX.utils.encode_cell({ r: R, c: 4 }); // Rata-rata
-
+            const cellD = XLSX.utils.encode_cell({ r: R, c: 3 });
+            const cellE = XLSX.utils.encode_cell({ r: R, c: 4 });
             if (ws[cellD]) ws[cellD].z = '#,##0';
             if (ws[cellE]) ws[cellE].z = '#,##0';
         }
 
-        // Set column widths
         ws['!cols'] = [
-            { wch: 5 },  // No
-            { wch: 30 }, // Outlet
-            { wch: 18 }, // Jumlah Transaksi
-            { wch: 20 }, // Total Penjualan
-            { wch: 25 }  // Rata-rata
+            { wch: 5 }, { wch: 30 }, { wch: 18 }, { wch: 20 }, { wch: 25 }
         ];
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Outlet");
 
-        // Tambahkan sheet info filter
+        // Info sheet
         const filterInfo = [
             ['LAPORAN PENJUALAN PER OUTLET'],
             [''],
@@ -340,19 +239,16 @@ const OutletSales = () => {
             ['Outlet', selectedOutlet ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet' : 'Semua Outlet'],
             ['Tanggal Export', dayjs().format('DD MMMM YYYY HH:mm')],
             [''],
-            ['Total Outlet', groupedArray.length],
-            ['Total Transaksi', grandTotalItems],
-            ['Total Penjualan', grandTotalSubtotal]
+            ['Total Outlet', grandTotals.totalOutlets],
+            ['Total Transaksi', grandTotals.totalTransactions],
+            ['Total Penjualan', grandTotals.totalSales]
         ];
 
         const wsInfo = XLSX.utils.aoa_to_sheet(filterInfo);
         wsInfo['!cols'] = [{ wch: 20 }, { wch: 40 }];
         XLSX.utils.book_append_sheet(wb, wsInfo, "Info");
 
-        const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
-        const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
-        const filename = `Laporan_Penjualan_Per_Outlet_${startDate}_${endDate}.xlsx`;
-
+        const filename = `Laporan_Penjualan_Per_Outlet_${dayjs(dateRange.startDate).format('DD-MM-YYYY')}_${dayjs(dateRange.endDate).format('DD-MM-YYYY')}.xlsx`;
         XLSX.writeFile(wb, filename);
     };
 
@@ -367,7 +263,7 @@ const OutletSales = () => {
                     <p className="text-xl font-semibold mb-2">Error</p>
                     <p>{error}</p>
                     <button
-                        onClick={() => window.location.reload()}
+                        onClick={fetchSalesData}
                         className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
                     >
                         Refresh
@@ -390,7 +286,7 @@ const OutletSales = () => {
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={groupedArray.length === 0}
+                    disabled={allSalesData.length === 0}
                     className="flex gap-2 items-center bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <FaDownload /> Ekspor Excel
@@ -440,15 +336,15 @@ const OutletSales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
                             </tr>
                         </thead>
-                        {paginatedData.length > 0 ? (
+                        {salesData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((group, index) => (
+                                {salesData.map((group, index) => (
                                     <tr key={index} className="hover:bg-gray-50">
                                         <td className="px-4 py-3">{group.outletName}</td>
-                                        <td className="px-4 py-3 text-right">{group.count}</td>
+                                        <td className="px-4 py-3 text-right">{group.count.toLocaleString()}</td>
                                         <td className="px-4 py-3 text-right">{formatCurrency(group.subtotalTotal)}</td>
                                         <td className="px-4 py-3 text-right">
-                                            {group.count > 0 ? formatCurrency(Math.round(group.subtotalTotal / group.count)) : formatCurrency(0)}
+                                            {formatCurrency(Math.round(group.averagePerTransaction))}
                                         </td>
                                     </tr>
                                 ))}
@@ -466,17 +362,17 @@ const OutletSales = () => {
                                 <td className="px-4 py-2">Grand Total</td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {grandTotalItems.toLocaleString()}
+                                        {grandTotals.totalTransactions.toLocaleString()}
                                     </p>
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(grandTotalSubtotal)}
+                                        {formatCurrency(grandTotals.totalSales)}
                                     </p>
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {grandTotalItems > 0 ? formatCurrency(Math.round(grandTotalSubtotal / grandTotalItems)) : formatCurrency(0)}
+                                        {formatCurrency(Math.round(grandTotals.averagePerTransaction))}
                                     </p>
                                 </td>
                             </tr>
@@ -488,7 +384,7 @@ const OutletSales = () => {
                 <Paginated
                     currentPage={currentPage}
                     setCurrentPage={handlePageChange}
-                    totalPages={totalPages}
+                    totalPages={pagination.totalPages}
                 />
             </div>
         </div>

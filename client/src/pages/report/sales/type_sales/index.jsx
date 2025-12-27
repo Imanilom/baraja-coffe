@@ -45,22 +45,19 @@ const TypeSales = () => {
         }),
     };
 
-    const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
+    const [groupedData, setGroupedData] = useState([]);
+    const [grandTotal, setGrandTotal] = useState({ penjualanTotal: 0, count: 0 });
+    const [totalPages, setTotalPages] = useState(1);
     const [isExporting, setIsExporting] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
 
     const ITEMS_PER_PAGE = 50;
-    const dropdownRef = useRef(null);
-
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
 
     // Initialize from URL params or set default to today
     useEffect(() => {
@@ -96,6 +93,19 @@ const TypeSales = () => {
         }
     }, []);
 
+    // Fetch outlets data
+    useEffect(() => {
+        const fetchOutlets = async () => {
+            try {
+                const response = await axios.get('/api/outlet');
+                setOutlets(response.data.data || []);
+            } catch (err) {
+                console.error("Error fetching outlets:", err);
+            }
+        };
+        fetchOutlets();
+    }, []);
+
     // Update URL when filters change
     const updateURLParams = useCallback((newDateRange, newOutlet, newSearch, newPage) => {
         const params = new URLSearchParams();
@@ -122,46 +132,54 @@ const TypeSales = () => {
         setSearchParams(params);
     }, [setSearchParams]);
 
-    // Fetch products and outlets data
+    // Fetch data from API - FIXED: Added dependencies
     useEffect(() => {
         const fetchData = async () => {
+            // Skip if dateRange is not set yet
+            if (!dateRange?.startDate || !dateRange?.endDate) {
+                return;
+            }
+
             setLoading(true);
             try {
-                const [productsResponse, outletsResponse] = await Promise.all([
-                    axios.get('/api/orders'),
-                    axios.get('/api/outlet')
-                ]);
+                const params = new URLSearchParams();
 
-                const productsData = Array.isArray(productsResponse.data)
-                    ? productsResponse.data
-                    : Array.isArray(productsResponse.data?.data)
-                        ? productsResponse.data.data
-                        : [];
+                // Format dates properly
+                const startDate = new Date(dateRange.startDate).toISOString().split('T')[0];
+                const endDate = new Date(dateRange.endDate).toISOString().split('T')[0];
 
-                const completedData = productsData.filter(item => item.status === "Completed");
-                setProducts(completedData);
+                params.append('startDate', startDate);
+                params.append('endDate', endDate);
 
-                const outletsData = Array.isArray(outletsResponse.data)
-                    ? outletsResponse.data
-                    : Array.isArray(outletsResponse.data?.data)
-                        ? outletsResponse.data.data
-                        : [];
+                if (selectedOutlet) {
+                    params.append('outletId', selectedOutlet);
+                }
+                if (searchTerm) {
+                    params.append('search', searchTerm);
+                }
+                params.append('page', currentPage);
+                params.append('limit', ITEMS_PER_PAGE);
 
-                setOutlets(outletsData);
-                setError(null);
+                const response = await axios.get(`/api/report/sales-report/transaction-type?${params}`);
+
+                if (response.data.success) {
+                    setGroupedData(response.data.data.items || []);
+                    setGrandTotal(response.data.data.grandTotal || { penjualanTotal: 0, count: 0 });
+                    setTotalPages(response.data.data.pagination.totalPages || 1);
+                } else {
+                    setError(response.data.message || 'Failed to fetch data');
+                }
+
             } catch (err) {
                 console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                setProducts([]);
-                setFilteredData([]);
-                setOutlets([]);
+                setError(err.response?.data?.message || 'Terjadi kesalahan saat mengambil data');
             } finally {
                 setLoading(false);
             }
         };
 
         fetchData();
-    }, []);
+    }, [dateRange, selectedOutlet, searchTerm, currentPage]); // FIXED: Added dependencies
 
     // Handler functions
     const handleDateRangeChange = (newValue) => {
@@ -195,144 +213,6 @@ const TypeSales = () => {
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ], [outlets]);
 
-    // Apply filter function - FIXED LOGIC
-    const applyFilter = useCallback(() => {
-        let filtered = ensureArray([...products]);
-
-        // Filter by outlet - FIXED: Compare by ID
-        if (selectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet || product.cashier.outlet.length === 0) {
-                        return false;
-                    }
-
-                    // Compare by ID instead of name
-                    const outletId = product.cashier.outlet[0]?.outletId?._id ||
-                        product.cashier.outlet[0]?.outletId;
-                    return outletId === selectedOutlet;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (dateRange?.startDate && dateRange?.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(dateRange.startDate);
-                    const endDate = new Date(dateRange.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate.getTime()) || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-                        return false;
-                    }
-
-                    return productDate >= startDate && productDate <= endDate;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by search term (order type)
-        if (searchTerm) {
-            filtered = filtered.filter(product => {
-                try {
-                    const orderType = (product?.orderType || '').toLowerCase();
-                    const searchTermLower = searchTerm.toLowerCase();
-                    return orderType.includes(searchTermLower);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, selectedOutlet, dateRange, searchTerm]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // FIXED: Group by order type - Use grandTotal from product
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            try {
-                const orderType = product?.orderType || 'N/A';
-
-                // PERBAIKAN UTAMA: Ambil grandTotal dari product
-                let penjualan = 0;
-                if (product.grandTotal !== undefined && product.grandTotal !== null) {
-                    penjualan = Number(product.grandTotal) || 0;
-                } else if (Array.isArray(product?.items)) {
-                    // Fallback: sum dari items jika grandTotal tidak tersedia
-                    penjualan = product.items.reduce((sum, item) => {
-                        return sum + (Number(item?.subtotal) || 0);
-                    }, 0);
-                }
-
-                if (!grouped[orderType]) {
-                    grouped[orderType] = {
-                        orderType,
-                        penjualanTotal: 0,
-                        count: 0
-                    };
-                }
-
-                grouped[orderType].penjualanTotal += penjualan;
-                grouped[orderType].count += 1;
-            } catch (err) {
-                console.error("Error grouping product:", err);
-            }
-        });
-
-        // Convert to array and sort by orderType
-        return Object.values(grouped).sort((a, b) =>
-            a.orderType.localeCompare(b.orderType, 'id')
-        );
-    }, [filteredData]);
-
-    const paginatedData = useMemo(() => {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return groupedArray.slice(startIndex, endIndex);
-    }, [groupedArray, currentPage]);
-
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
-
-    // FIXED: Calculate grand totals from grandTotal
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.penjualanTotal += curr.penjualanTotal;
-                acc.count += curr.count;
-                return acc;
-            },
-            {
-                penjualanTotal: 0,
-                count: 0,
-            }
-        );
-    }, [groupedArray]);
-
     const formatCurrency = (amount) => {
         if (isNaN(amount) || !isFinite(amount)) return 'Rp 0';
         return new Intl.NumberFormat('id-ID', {
@@ -343,9 +223,9 @@ const TypeSales = () => {
         }).format(amount);
     };
 
-    // Export current data to Excel - FIXED: Use grandTotal data
+    // Export to Excel - Using data from API
     const exportToExcel = async () => {
-        if (groupedArray.length === 0) {
+        if (groupedData.length === 0) {
             alert("Tidak ada data untuk diekspor");
             return;
         }
@@ -365,11 +245,6 @@ const TypeSales = () => {
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : new Date().toLocaleDateString('id-ID');
 
-            // Calculate totals from groupedArray (using grandTotal)
-            const totalTransaksi = groupedArray.reduce((sum, item) => sum + item.count, 0);
-            const totalPenjualan = groupedArray.reduce((sum, item) => sum + item.penjualanTotal, 0);
-            const totalFee = 0; // Placeholder - ganti dengan perhitungan fee jika ada
-
             // Create export data
             const exportData = [
                 { col1: 'Laporan Tipe Penjualan', col2: '', col3: '', col4: '' },
@@ -381,21 +256,21 @@ const TypeSales = () => {
             ];
 
             // Add data rows
-            groupedArray.forEach(item => {
+            groupedData.forEach(item => {
                 exportData.push({
                     col1: item.orderType,
                     col2: item.count,
                     col3: item.penjualanTotal,
-                    col4: 0 // Placeholder - ganti dengan fee per item jika ada
+                    col4: 0
                 });
             });
 
             // Add Grand Total row
             exportData.push({
                 col1: 'Grand Total',
-                col2: totalTransaksi,
-                col3: totalPenjualan,
-                col4: totalFee
+                col2: grandTotal.count,
+                col3: grandTotal.penjualanTotal,
+                col4: 0
             });
 
             // Create worksheet
@@ -406,10 +281,10 @@ const TypeSales = () => {
 
             // Set column widths
             ws['!cols'] = [
-                { wch: 25 }, // Tipe Penjualan
-                { wch: 20 }, // Jumlah Transaksi
-                { wch: 20 }, // Total Transaksi
-                { wch: 15 }  // Total Fee
+                { wch: 25 },
+                { wch: 20 },
+                { wch: 20 },
+                { wch: 15 }
             ];
 
             // Merge cells for title
@@ -473,7 +348,7 @@ const TypeSales = () => {
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={isExporting || groupedArray.length === 0}
+                    disabled={isExporting || groupedData.length === 0}
                     className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isExporting ? (
@@ -543,9 +418,9 @@ const TypeSales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Total Fee</th>
                             </tr>
                         </thead>
-                        {paginatedData.length > 0 ? (
+                        {groupedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((group, index) => (
+                                {groupedData.map((group, index) => (
                                     <tr key={index} className="text-left text-sm hover:bg-gray-50">
                                         <td className="px-4 py-3">
                                             {group.orderType}

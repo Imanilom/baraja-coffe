@@ -7086,9 +7086,9 @@ export const getCashierOrderHistory = async (req, res) => {
       return res.status(400).json({ message: 'Cashier ID is required.' });
     }
 
-    // Hitung tanggal 7 hari yang lalu
+    // Hitung tanggal 3 hari yang lalu
     const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 3);
 
     const baseFilter = {
       $and: [
