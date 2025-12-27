@@ -11,15 +11,12 @@ import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import SalesHourlySkeleton from "./skeleton";
 
+// Extend dayjs with plugins
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
 const HourlySales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-
-    // ✅ PERBAIKAN: Gunakan number, bukan array
-    const [grandTotalItems, setGrandTotalItems] = useState(0);
-    const [grandTotalPenjualan, setGrandTotalPenjualan] = useState(0);
 
     const customStyles = {
         control: (provided, state) => ({
@@ -29,11 +26,23 @@ const HourlySales = () => {
             fontSize: '13px',
             color: '#6b7280',
             boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
-            '&:hover': { borderColor: '#9ca3af' },
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
         }),
-        singleValue: (provided) => ({ ...provided, color: '#6b7280' }),
-        input: (provided) => ({ ...provided, color: '#6b7280' }),
-        placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '13px' }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
@@ -48,13 +57,15 @@ const HourlySales = () => {
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
+    const [filteredData, setFilteredData] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
 
     const ITEMS_PER_PAGE = 50;
 
-    // Initialize from URL params
+    // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
@@ -62,68 +73,79 @@ const HourlySales = () => {
         const pageParam = searchParams.get('page');
 
         if (startDateParam && endDateParam) {
-            setDateRange({ startDate: startDateParam, endDate: endDateParam });
+            setDateRange({
+                startDate: startDateParam,
+                endDate: endDateParam,
+            });
         } else {
             const today = dayjs().format('YYYY-MM-DD');
-            setDateRange({ startDate: today, endDate: today });
+            setDateRange({
+                startDate: today,
+                endDate: today,
+            });
         }
 
-        if (outletParam) setSelectedOutlet(outletParam);
-        if (pageParam) setCurrentPage(parseInt(pageParam, 10));
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
     }, [searchParams]);
 
-    // Update URL params
+    // Update URL when filters change
     const updateURLParams = useCallback((newDateRange, newOutlet, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            params.set('startDate', dayjs(newDateRange.startDate).format('YYYY-MM-DD'));
-            params.set('endDate', dayjs(newDateRange.endDate).format('YYYY-MM-DD'));
+            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
+            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
         }
 
-        if (newOutlet) params.set('outletId', newOutlet);
-        if (newPage && newPage > 1) params.set('page', newPage.toString());
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
+        }
+
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
+        }
 
         setSearchParams(params);
     }, [setSearchParams]);
 
-    // Fetch data
+    // Fetch products and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const params = {};
-
-                if (dateRange?.startDate && dateRange?.endDate) {
-                    params.startDate = dayjs(dateRange.startDate).format('YYYY-MM-DD');
-                    params.endDate = dayjs(dateRange.endDate).format('YYYY-MM-DD');
-                }
-
-                if (selectedOutlet) params.outlet = selectedOutlet;
-
-                const [salesResponse, outletsResponse] = await Promise.all([
-                    axios.get('/api/report/hourly-profit/range', { params }),
+                const [productsResponse, outletsResponse] = await Promise.all([
+                    axios.get('/api/orders'),
                     axios.get('/api/outlet')
                 ]);
 
-                if (!salesResponse.data?.success || !outletsResponse.data?.success) {
-                    throw new Error('Invalid response');
-                }
+                const productsData = Array.isArray(productsResponse.data)
+                    ? productsResponse.data
+                    : Array.isArray(productsResponse.data?.data)
+                        ? productsResponse.data.data
+                        : [];
 
-                const hourlySalesData = salesResponse.data.data || [];
-                const outletsData = outletsResponse.data.data || [];
+                const completedData = productsData.filter(item => item.status === "Completed");
+                setProducts(completedData);
 
-                setProducts(hourlySalesData);
+                const outletsData = Array.isArray(outletsResponse.data)
+                    ? outletsResponse.data
+                    : Array.isArray(outletsResponse.data?.data)
+                        ? outletsResponse.data.data
+                        : [];
+
                 setOutlets(outletsData);
-
-                // ✅ Set grand totals dari metadata
-                setGrandTotalItems(salesResponse.data.metadata?.grandTotalItems || 0);
-                setGrandTotalPenjualan(salesResponse.data.metadata?.grandTotalPenjualan || 0);
-
                 setError(null);
             } catch (err) {
                 console.error("Error fetching data:", err);
-                setError(err.response?.data?.message || err.message || "Failed to load data");
+                setError("Failed to load data. Please try again later.");
                 setProducts([]);
                 setOutlets([]);
             } finally {
@@ -131,10 +153,10 @@ const HourlySales = () => {
             }
         };
 
-        if (dateRange) fetchData();
-    }, [dateRange, selectedOutlet]);
+        fetchData();
+    }, []);
 
-    // Handlers
+    // Handler functions
     const handleDateRangeChange = (newValue) => {
         setDateRange(newValue);
         setCurrentPage(1);
@@ -159,12 +181,112 @@ const HourlySales = () => {
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ], [outlets]);
 
+    // Apply filter function - FIXED LOGIC
+    const applyFilter = useCallback(() => {
+        let filtered = [...products];
+
+        // Filter by outlet - PERBAIKAN: cek struktur data yang benar
+        if (selectedOutlet) {
+            filtered = filtered.filter(product => {
+                try {
+                    // Cek berbagai kemungkinan struktur data
+                    const outletId = product?.outlet?._id ||
+                        product?.outlet?.id ||
+                        product?.cashier?.outlet?.[0]?.outletId?._id ||
+                        product?.cashier?.outlet?.[0]?.outletId?.id;
+
+                    return outletId === selectedOutlet;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by date range - PERBAIKAN: gunakan dayjs untuk konsistensi
+        if (dateRange?.startDate && dateRange?.endDate) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product.createdAt) return false;
+
+                    const productDate = dayjs(product.createdAt);
+                    const startDate = dayjs(dateRange.startDate).startOf('day');
+                    const endDate = dayjs(dateRange.endDate).endOf('day');
+
+                    return productDate.isSameOrAfter(startDate) &&
+                        productDate.isSameOrBefore(endDate);
+                } catch (err) {
+                    console.error("Error filtering by date:", err);
+                    return false;
+                }
+            });
+        }
+
+        setFilteredData(filtered);
+    }, [products, selectedOutlet, dateRange]);
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // Group data by hour - PERBAIKAN: gunakan grandTotal bukan subtotal
+    const groupedArray = useMemo(() => {
+        const grouped = {};
+
+        filteredData.forEach(product => {
+            try {
+                // Group by hour (HH:00 format)
+                const hourOnly = dayjs(product.createdAt).format('HH:00');
+
+                // ✅ PERBAIKAN: gunakan grandTotal dari product
+                const grandTotal = Number(product?.grandTotal) || 0;
+
+                if (!grouped[hourOnly]) {
+                    grouped[hourOnly] = {
+                        count: 0,
+                        grandTotalSum: 0,
+                        products: []
+                    };
+                }
+
+                grouped[hourOnly].products.push(product);
+                grouped[hourOnly].count++;
+                grouped[hourOnly].grandTotalSum += grandTotal;
+            } catch (err) {
+                console.error("Error grouping product:", err);
+            }
+        });
+
+        // Convert to array and sort by hour (ascending - 00:00 to 23:00)
+        return Object.entries(grouped)
+            .map(([hour, data]) => ({
+                hour,
+                ...data
+            }))
+            .sort((a, b) => {
+                const hourA = parseInt(a.hour.split(':')[0], 10);
+                const hourB = parseInt(b.hour.split(':')[0], 10);
+                return hourA - hourB;
+            });
+    }, [filteredData]);
+
+    // Paginate data
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        return products.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-    }, [products, currentPage]);
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return groupedArray.slice(startIndex, endIndex);
+    }, [groupedArray, currentPage]);
 
-    const totalPages = Math.ceil(products.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
+
+    // Calculate grand totals - PERBAIKAN: gunakan grandTotalSum
+    const { grandTotalItems, grandTotalSales } = useMemo(() => {
+        return groupedArray.reduce((totals, group) => ({
+            grandTotalItems: totals.grandTotalItems + group.count,
+            grandTotalSales: totals.grandTotalSales + group.grandTotalSum
+        }), { grandTotalItems: 0, grandTotalSales: 0 });
+    }, [groupedArray]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -175,9 +297,9 @@ const HourlySales = () => {
         }).format(amount);
     };
 
-    // Export to Excel
+    // Export to Excel - PERBAIKAN: gunakan grandTotal
     const exportToExcel = async () => {
-        if (products.length === 0) {
+        if (groupedArray.length === 0) {
             alert("Tidak ada data untuk diekspor");
             return;
         }
@@ -187,19 +309,22 @@ const HourlySales = () => {
         try {
             await new Promise(resolve => setTimeout(resolve, 500));
 
+            // Get outlet name
             const outletName = selectedOutlet
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
+            // Get date range
             const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
             const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
             const dateRangeText = `${startDate} - ${endDate}`;
 
-            // ✅ Gunakan grandTotalPenjualan, bukan grandTotalSales
+            // PERBAIKAN: hitung rata-rata dari grandTotal
             const rataRataTotal = grandTotalItems > 0
-                ? Math.round(grandTotalPenjualan / grandTotalItems)
+                ? Math.round(grandTotalSales / grandTotalItems)
                 : 0;
 
+            // Create export data
             const exportData = [
                 { col1: 'Laporan Penjualan Per Jam', col2: '', col3: '', col4: '' },
                 { col1: '', col2: '', col3: '', col4: '' },
@@ -209,7 +334,8 @@ const HourlySales = () => {
                 { col1: 'Waktu', col2: 'Jumlah Transaksi', col3: 'Penjualan', col4: 'Rata-Rata' }
             ];
 
-            products.forEach(group => {
+            // Add data rows (already sorted by groupedArray)
+            groupedArray.forEach(group => {
                 const avgPerTransaction = group.count > 0
                     ? Math.round(group.grandTotalSum / group.count)
                     : 0;
@@ -222,31 +348,41 @@ const HourlySales = () => {
                 });
             });
 
+            // Add Grand Total row
             exportData.push({
                 col1: 'Grand Total',
                 col2: grandTotalItems,
-                col3: grandTotalPenjualan,
+                col3: grandTotalSales,
                 col4: rataRataTotal
             });
 
+            // Create worksheet
             const ws = XLSX.utils.json_to_sheet(exportData, {
                 header: ['col1', 'col2', 'col3', 'col4'],
                 skipHeader: true
             });
 
+            // Set column widths
             ws['!cols'] = [
-                { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 }
+                { wch: 20 },
+                { wch: 20 },
+                { wch: 20 },
+                { wch: 15 }
             ];
 
+            // Merge cells for title
             ws['!merges'] = [
                 { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
             ];
 
+            // Create workbook
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Jam");
 
+            // Generate filename
             const fileName = `Laporan_Penjualan_Per_Jam_${outletName.replace(/\s+/g, '_')}_${startDate.replace(/\//g, '-')}_${endDate.replace(/\//g, '-')}.xlsx`;
 
+            // Export file
             XLSX.writeFile(wb, fileName);
         } catch (error) {
             console.error("Error exporting to Excel:", error);
@@ -256,7 +392,9 @@ const HourlySales = () => {
         }
     };
 
-    if (loading) return <SalesHourlySkeleton />;
+    if (loading) {
+        return <SalesHourlySkeleton />;
+    }
 
     if (error) {
         return (
@@ -277,6 +415,7 @@ const HourlySales = () => {
 
     return (
         <div className="">
+            {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     <p>Laporan</p>
@@ -287,7 +426,7 @@ const HourlySales = () => {
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={isExporting || products.length === 0}
+                    disabled={isExporting || groupedArray.length === 0}
                     className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isExporting ? (
@@ -303,7 +442,8 @@ const HourlySales = () => {
                 </button>
             </div>
 
-            <div className="px-6 pb-6">
+            {/* Filters */}
+            <div className="px-6">
                 <div className="flex justify-between py-3 gap-2">
                     <div className="flex flex-col col-span-5 w-2/5">
                         <div className="relative text-gray-500">
@@ -333,6 +473,7 @@ const HourlySales = () => {
                     </div>
                 </div>
 
+                {/* Table */}
                 <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
@@ -378,13 +519,13 @@ const HourlySales = () => {
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(grandTotalPenjualan)}
+                                        {formatCurrency(grandTotalSales)}
                                     </p>
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
                                         {grandTotalItems > 0
-                                            ? formatCurrency(Math.round(grandTotalPenjualan / grandTotalItems))
+                                            ? formatCurrency(Math.round(grandTotalSales / grandTotalItems))
                                             : formatCurrency(0)
                                         }
                                     </p>
@@ -394,6 +535,7 @@ const HourlySales = () => {
                     </table>
                 </div>
 
+                {/* Pagination Controls */}
                 <Paginated
                     currentPage={currentPage}
                     setCurrentPage={handlePageChange}

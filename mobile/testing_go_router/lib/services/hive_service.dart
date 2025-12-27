@@ -38,8 +38,7 @@ class HiveService {
     Hive.registerAdapter(DeviceModelAdapter());
     Hive.registerAdapter(MenuStockModelAdapter());
     Hive.registerAdapter(AutoPromoModelAdapter());
-    Hive.registerAdapter(ConditionsAdapter());
-    Hive.registerAdapter(ActiveHoursAdapter());
+
     await _openBoxes();
   }
 

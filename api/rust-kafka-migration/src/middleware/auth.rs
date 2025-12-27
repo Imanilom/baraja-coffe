@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use axum::{
     extract::{Request, State},
     middleware::Next,

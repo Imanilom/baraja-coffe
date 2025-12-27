@@ -1,14 +1,13 @@
-use mongodb::{Collection, Database};
+use mongodb::{Client, Collection, Database};
 use mongodb::bson::{doc, oid::ObjectId};
-use mongodb::options::{FindOneOptions, FindOptions};
+use mongodb::options::{ClientOptions, FindOneOptions, FindOptions};
 use futures::stream::TryStreamExt;
 use chrono::Utc;
 use crate::db::models::{LoyaltyProgram, LoyaltyLevel, CustomerLoyalty};
-use crate::error::AppResult;
+use crate::error::Result;
 
-#[derive(Debug, Clone)]
 pub struct LoyaltyService {
-    pub _db: Database,
+    db: Database,
     loyalty_program_collection: Collection<LoyaltyProgram>,
     loyalty_level_collection: Collection<LoyaltyLevel>,
     customer_loyalty_collection: Collection<CustomerLoyalty>,
@@ -20,7 +19,7 @@ impl LoyaltyService {
             loyalty_program_collection: db.collection("loyaltyprograms"),
             loyalty_level_collection: db.collection("loyaltylevels"),
             customer_loyalty_collection: db.collection("customerloyalties"),
-            _db: db,
+            db,
         }
     }
 
@@ -29,7 +28,7 @@ impl LoyaltyService {
         order_amount: f64,
         customer_id: ObjectId,
         outlet_id: ObjectId,
-    ) -> AppResult<(f64, Option<serde_json::Value>)> {
+    ) -> Result<(f64, Option<serde_json::Value>)> {
         // Find active loyalty program
         let filter = doc! {
             "isActive": true,
@@ -127,7 +126,7 @@ impl LoyaltyService {
         Ok((total_points_earned, Some(loyalty_details)))
     }
 
-    async fn update_loyalty_level(&self, customer_loyalty: &mut CustomerLoyalty) -> AppResult<Option<LoyaltyLevel>> {
+    async fn update_loyalty_level(&self, customer_loyalty: &mut CustomerLoyalty) -> Result<Option<LoyaltyLevel>> {
         let sort = doc! { "requiredPoints": 1 };
         let find_options = FindOneOptions::builder().sort(sort.clone()).build();
         let find_many_options = FindOptions::builder().sort(sort).build();
@@ -170,7 +169,7 @@ impl LoyaltyService {
         customer_id: ObjectId,
         points_to_redeem: f64,
         outlet_id: ObjectId,
-    ) -> AppResult<(f64, f64)> {
+    ) -> Result<(f64, f64)> {
         if points_to_redeem <= 0.0 {
             return Ok((0.0, 0.0));
         }

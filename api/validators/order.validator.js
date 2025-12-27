@@ -16,7 +16,7 @@ dotenv.config();
 // validators/order.validator.js
 export const validateOrderData = (data, source) => {
   const errors = [];
-  
+
   // Validasi dasar
   if (!data.user || typeof data.user !== 'string' || data.user.trim() === '') {
     errors.push('Nama pelanggan diperlukan');
@@ -49,7 +49,7 @@ export const validateOrderData = (data, source) => {
           errors.push(`Payment method ${method} tidak valid untuk Web orders. Harus salah satu dari: ${validWebMethods.join(', ')}`);
         }
       }
-      
+
       // Validasi amount untuk Web
       if (!data.paymentDetails.amount || isNaN(data.paymentDetails.amount) || data.paymentDetails.amount <= 0) {
         errors.push('Payment amount harus lebih dari 0 untuk Web orders');
@@ -115,7 +115,7 @@ export const validateOrderData = (data, source) => {
       if (!data.contact.phone || typeof data.contact.phone !== 'string' || data.contact.phone.trim() === '') {
         errors.push('Nomor telepon pelanggan diperlukan');
       }
-      
+
       // Validasi email opsional tapi jika ada harus valid
       if (data.contact.email && !isValidEmail(data.contact.email)) {
         errors.push('Format email tidak valid');
@@ -339,9 +339,19 @@ const generateTransactionId = () => {
   ).join('-');
 };
 
-const getCurrentTime = () => new Date().toISOString().replace('T', ' ').substring(0, 19);
-const getExpiryTime = (minutes = 15) =>
-  new Date(Date.now() + minutes * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+export const getCurrentTime = () => {
+  const now = new Date();
+  const offset = 7 * 60 * 60 * 1000; // WIB (UTC+7)
+  const localDate = new Date(now.getTime() + offset);
+  return localDate.toISOString().replace('T', ' ').substring(0, 19);
+};
+
+export const getExpiryTime = (minutes = 15) => {
+  const now = new Date();
+  const offset = 7 * 60 * 60 * 1000; // WIB (UTC+7)
+  const expiryDate = new Date(now.getTime() + (minutes * 60 * 1000) + offset);
+  return expiryDate.toISOString().replace('T', ' ').substring(0, 19);
+};
 
 /**
  * Generate QR Code untuk pembayaran cash
@@ -979,7 +989,7 @@ export const charge = async (req, res) => {
                 transaction_id: transactionId,
                 payment_code: payment_code,
                 amount: newFinalPaymentAmount,
-                totalAmount: newFinalPaymentAmount,
+                totalAmount: settledDownPayment.remainingAmount + newFinalPaymentAmount,
                 method: payment_type,
                 status: 'pending',
                 fraud_status: 'accept',
@@ -997,7 +1007,7 @@ export const charge = async (req, res) => {
           return res.status(200).json({
             ...rawResponse,
             paymentType: 'Final Payment',
-            totalAmount: newFinalPaymentAmount,
+            totalAmount: settledDownPayment.remainingAmount + newFinalPaymentAmount,
             remainingAmount: 0,
             is_down_payment: false,
             relatedPaymentId: settledDownPayment._id,
@@ -1046,7 +1056,7 @@ export const charge = async (req, res) => {
                 transaction_id: response.transaction_id,
                 payment_code: response_code,
                 amount: newFinalPaymentAmount,
-                totalAmount: newFinalPaymentAmount,
+                totalAmount: settledDownPayment.remainingAmount + newFinalPaymentAmount,
                 method: payment_type,
                 status: response.transaction_status || 'pending',
                 fraud_status: response.fraud_status,
@@ -1071,7 +1081,7 @@ export const charge = async (req, res) => {
           return res.status(200).json({
             ...response,
             paymentType: 'Final Payment',
-            totalAmount: newFinalPaymentAmount,
+            totalAmount: settledDownPayment.remainingAmount + newFinalPaymentAmount,
             remainingAmount: 0,
             is_down_payment: false,
             relatedPaymentId: settledDownPayment._id,
@@ -1130,8 +1140,8 @@ export const charge = async (req, res) => {
         } else {
           // Jika hanya DP yang settlement, lanjutkan logic Final Payment seperti biasa
           paymentType = 'Final Payment';
-          amount = gross_amount; // Gunakan amount yang dikirim user
-          totalAmount = settledDownPayment.amount + gross_amount; // DP amount + final payment amount
+          amount = gross_amount; // Amount pesanan tambahan
+          totalAmount = settledDownPayment.remainingAmount + gross_amount; // DP.remainingAmount + additional order
           remainingAmount = 0;
 
           console.log("Creating final payment:");
