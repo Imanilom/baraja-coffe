@@ -7,6 +7,12 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import ProductSalesSkeleton from "./skeleton";
+import dayjs from "dayjs";
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
 const ProductSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -94,14 +100,12 @@ const ProductSales = () => {
     }, []);
 
     // Update URL when filters change
-    const updateURLParams = (newDateRange, newOutlet, newSearch, newPage) => {
+    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
-            params.set('startDate', startDate);
-            params.set('endDate', endDate);
+            params.set('startDate', dayjs(newDateRange.startDate).format('YYYY-MM-DD'));
+            params.set('endDate', dayjs(newDateRange.endDate).format('YYYY-MM-DD'));
         }
 
         if (newOutlet && newOutlet !== 'all') {
@@ -117,7 +121,7 @@ const ProductSales = () => {
         }
 
         setSearchParams(params);
-    };
+    }, [setSearchParams]);
 
     // Fetch products and outlets data
     const fetchData = async () => {
@@ -125,8 +129,8 @@ const ProductSales = () => {
 
         setLoading(true);
         try {
-            const startDate = new Date(dateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(dateRange.endDate).toISOString().split('T')[0];
+            const startDate = dayjs(dateRange.startDate).format('YYYY-MM-DD');
+            const endDate = dayjs(dateRange.endDate).format('YYYY-MM-DD');
 
             // Fetch products data with new endpoint
             const productsResponse = await axios.get('/api/report/sales/product-sales', {

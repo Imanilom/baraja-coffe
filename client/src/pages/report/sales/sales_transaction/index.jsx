@@ -273,7 +273,7 @@ const SalesTransaction = () => {
         updateURLParams(dateRange, selectedOutlet, searchTerm, 1, newLimit);
     };
 
-    const applySearchFilter = useCallback((data, search) => {
+    const applyFilter = useCallback((data, search) => {
         if (!search) return data;
 
         const searchTermLower = search.toLowerCase();
@@ -323,8 +323,8 @@ const SalesTransaction = () => {
     }, []);
 
     const filteredData = useMemo(() => {
-        return applySearchFilter(products, searchTerm);
-    }, [products, searchTerm, applySearchFilter]);
+        return applyFilter(products, searchTerm);
+    }, [products, searchTerm, applyFilter]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
