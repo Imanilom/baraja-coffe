@@ -130,4 +130,14 @@ router.get('/orders', DailyProfitController.getOrdersWithPayments);
 
 router.get('/sales-report/payment-method-detail', DailyProfitController.getPaymentMethodDetailReport);
 
+router.get('/sales-report/transaction-category', DailyProfitController.getCategorySalesReport);
+
+router.get('/sales-report/transaction-type', DailyProfitController.getTypeSalesReport);
+
+router.get('/sales-report/transaction-outlet', DailyProfitController.getSalesOutlet);
+
+router.delete('/sales-report/bulk', DailyProfitController.deleteMultipleOrders);
+
+router.delete('/sales-report/:id', DailyProfitController.deleteSingleOrder);
+
 export default router;
