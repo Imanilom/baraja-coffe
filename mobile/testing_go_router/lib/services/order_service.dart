@@ -380,6 +380,27 @@ class OrderService {
       throw Exception('Failed to patch order: $e');
     }
   }
+
+  Future<Map<String, dynamic>> closeOpenBill(String orderId) async {
+    final box = Hive.box('userBox');
+    final user = box.get('user') as UserModel;
+    final loginDevice = box.get('device') as DeviceModel;
+
+    try {
+      if (orderId.isEmpty) {
+        throw Exception("orderId tidak boleh kosong");
+      }
+      final res = await _dio.post('/api/close-open-bill/$orderId');
+
+      if (res.data['success'] == true) {
+        return res.data;
+      } else {
+        throw Exception('Failed to close open bill: ${res.data['message']}');
+      }
+    } catch (e) {
+      throw Exception('Failed to close open bill: $e');
+    }
+  }
 }
 
 Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
