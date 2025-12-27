@@ -470,6 +470,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Future<void> _finishOrderToBackend() async {
+    final sw = Stopwatch()..start();
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -487,6 +488,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     try {
       final result = await notifier.submitOrder(ref);
+      debugPrint('submitOrder took: ${sw.elapsedMilliseconds}ms');
+
       // idealnya submitOrder balikin sesuatu: success / response
 
       // SUCCESS → baru:
@@ -508,9 +511,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           final menuRepo = MenuItemRepository();
 
           // Kurangi stok di Hive sesuai qty yang dibeli
-          await menuRepo.decreaseLocalStockFromOrderItems(widget.order.items);
+          menuRepo
+              .decreaseLocalStockFromOrderItems(widget.order.items)
+              .catchError((e) {
+                debugPrint('decreaseLocalStockFromOrderItems gagal: $e');
+              });
 
-          // Refresh data menu di kasir supaya badge stok langsung update
+          // refresh menu badge stok
           ref.invalidate(reservationMenuItemProvider);
 
           debugPrint('✅ Stok lokal berhasil dikurangi setelah transaksi');
@@ -544,6 +551,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     } finally {
       //pop context
       // if (mounted) Navigator.pop(context);
+      sw.stop();
+      debugPrint('refresh took: ${sw.elapsedMilliseconds}ms');
     }
   }
 
@@ -974,65 +983,129 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   style: TextStyle(color: Colors.grey[500], fontSize: 12),
                 ),
               )
-              : ListView.separated(
-                itemCount: _payments.length,
-                separatorBuilder: (_, __) => const Divider(height: 10),
-                itemBuilder: (context, index) {
-                  final p = _payments[index];
-                  return Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Colors.grey[200],
-                        child: Text(
-                          '${index + 1}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                // mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Tombol Hapus Payment Terakhir
+                  Container(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        ElevatedButton(
+                          onPressed:
+                              _payments.isNotEmpty
+                                  ? () => _showDeletePaymentDialog()
+                                  : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[100],
+                            foregroundColor: Colors.red[800],
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color: Colors.red[300]!,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.delete_outline, size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Hapus Payment',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      ],
+                    ),
+                  ),
+
+                  // Daftar Payments
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: _payments.length,
+                      separatorBuilder: (_, __) => const Divider(height: 10),
+                      itemBuilder: (context, index) {
+                        final p = _payments[index];
+
+                        return Row(
                           children: [
-                            Text(
-                              PaymentDetails.buildPaymentMethodLabel(p),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Nominal: ${formatRupiah(p.amount)}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            if (p.changeAmount != null &&
-                                (p.changeAmount ?? 0) > 0)
-                              Text(
-                                'Kembalian: ${formatRupiah(p.changeAmount!)}',
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: Colors.grey[200],
+                              child: Text(
+                                '${index + 1}',
                                 style: const TextStyle(
                                   fontSize: 11,
-                                  color: Colors.blueGrey,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
                                 ),
                               ),
-                            if (p.remainingAmount > 0)
-                              Text(
-                                'Sisa setelah ini: ${formatRupiah(p.remainingAmount)}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.orange,
-                                ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    PaymentDetails.buildPaymentMethodLabel(p),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Nominal: ${formatRupiah(p.amount)}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  if (p.changeAmount != null &&
+                                      (p.changeAmount ?? 0) > 0)
+                                    Text(
+                                      'Kembalian: ${formatRupiah(p.changeAmount!)}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.blueGrey,
+                                      ),
+                                    ),
+                                  if (p.remainingAmount > 0)
+                                    Text(
+                                      'Sisa setelah ini: ${formatRupiah(p.remainingAmount)}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.orange,
+                                      ),
+                                    ),
+                                ],
                               ),
+                            ),
+                            // Tombol hapus per item (opsional)
+                            // IconButton(
+                            //   onPressed:
+                            //       () => _showDeleteSinglePaymentDialog(index),
+                            //   icon: const Icon(Icons.close, size: 16),
+                            //   color: Colors.grey[500],
+                            //   padding: EdgeInsets.zero,
+                            //   constraints: const BoxConstraints(),
+                            // ),
                           ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
     );
   }
@@ -1789,6 +1862,111 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         ),
       ],
     );
+  }
+
+  void _showDeletePaymentDialog() {
+    if (_payments.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Hapus Payment'),
+          content: const Text(
+            'Apakah Anda yakin ingin menghapus semua payment?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _deleteAllPayments();
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Hapus Semua'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteSinglePaymentDialog(int index) {
+    if (index < 0 || index >= _payments.length) return;
+
+    final payment = _payments[index];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Hapus Payment'),
+          content: Text(
+            'Apakah Anda yakin ingin menghapus payment:\n${PaymentDetails.buildPaymentMethodLabel(payment)}\n${formatRupiah(payment.amount)}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _deleteSinglePayment(index);
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _deleteAllPayments() {
+    setState(() {
+      _payments.clear();
+
+      // Jika dalam mode split, reset status semua kartu split
+      if (_mode == PaymentMode.split) {
+        for (var i = 0; i < _splitCards.length; i++) {
+          _splitCards[i] = _splitCards[i].copyWith(
+            isPaid: false,
+            isManual: false,
+          );
+        }
+        _rebalanceUnpaidCards();
+      }
+    });
+  }
+
+  void _deleteSinglePayment(int index) {
+    if (index < 0 || index >= _payments.length) return;
+
+    final deletedPayment = _payments[index];
+
+    setState(() {
+      _payments.removeAt(index);
+
+      // Jika dalam mode split, cari dan reset kartu split yang sesuai
+      if (_mode == PaymentMode.split) {
+        // Cari kartu split yang sesuai dengan payment yang dihapus
+        // Berdasarkan amount, method, dan type
+        for (var i = 0; i < _splitCards.length; i++) {
+          final card = _splitCards[i];
+          if (card.isPaid &&
+              card.amount == deletedPayment.amount &&
+              card.method?.id == deletedPayment.method) {
+            _splitCards[i] = card.copyWith(isPaid: false, isManual: false);
+            break;
+          }
+        }
+        _rebalanceUnpaidCards();
+      }
+    });
   }
 
   // ======= UTIL =======

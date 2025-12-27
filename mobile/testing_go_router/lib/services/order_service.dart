@@ -390,7 +390,7 @@ class OrderService {
       if (orderId.isEmpty) {
         throw Exception("orderId tidak boleh kosong");
       }
-      final res = await _dio.post('/api/close-open-bill/$orderId');
+      final res = await _dio.post('/api/open-bill/$orderId/close');
 
       if (res.data['success'] == true) {
         return res.data;

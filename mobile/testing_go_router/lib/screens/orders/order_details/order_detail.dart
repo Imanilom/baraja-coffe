@@ -5,7 +5,12 @@ import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
+import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
+import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
+import 'package:kasirbaraja/providers/orders/pending_order_provider.dart';
+import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 // import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/screens/orders/order_details/dialog_order_type.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
@@ -21,7 +26,8 @@ class OrderDetail extends ConsumerWidget {
     final isLoading = ref.watch(openBillLoadingProvider);
 
     final hasName = (orderDetail?.user ?? '').trim().isNotEmpty;
-    final isTakeAway = orderDetail?.orderType == OrderType.takeAway;
+    final isTakeAway =
+        (orderDetail?.orderType ?? OrderType.dineIn) == OrderType.takeAway;
     final hasTable = (orderDetail?.tableNumber ?? '').trim().isNotEmpty;
     final needTable = !isTakeAway;
 
@@ -30,38 +36,71 @@ class OrderDetail extends ConsumerWidget {
     const String onNull = 'Pilih menu untuk memulai pesanan';
 
     Future<void> handleOpenBill() async {
+      final sw = Stopwatch()..start();
+
       if (orderDetail == null) return;
 
       final ok = await _ensureRequiredFields(context, ref, orderDetail);
       if (!ok) return;
 
+      // tanda openbill dulu (opsional, tapi oke)
       ref.read(orderDetailProvider.notifier).updateIsOpenBill(true);
 
+      // nyalakan loading
       ref.read(openBillLoadingProvider.notifier).state = true;
 
+      final menuRepo = MenuItemRepository();
+
       try {
-        // ini harus method yang bener-bener call backend dan throw kalau gagal
+        // 1) critical path: submit backend
         await ref.read(orderDetailProvider.notifier).submitOrder(ref);
+        debugPrint('handleOpenBill took: ${sw.elapsedMilliseconds} ms');
 
         if (!context.mounted) return;
+
+        // 2) matikan loading SECEPATNYA setelah backend sukses
+        ref.read(openBillLoadingProvider.notifier).state = false;
 
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Open Bill berhasil')));
 
-        // sukses: clear order
-        ref.read(orderDetailProvider.notifier).clearOrder();
-      } catch (e) {
-        ref.read(orderDetailProvider.notifier).updateIsOpenBill(false);
-        if (!context.mounted) return;
+        // 3) refresh pending order (kalau harus langsung tampil)
+        // kalau ini berat dan gak harus langsung, jadikan fire-and-forget juga
+        ref.read(pendingOrderProvider.notifier).refresh().catchError((e) {
+          debugPrint('refresh pending order gagal: $e');
+        });
 
+        // 4) post-processing lokal (JANGAN bikin user nunggu)
+        // kurangi stok lokal hanya jika sukses
+        menuRepo.decreaseLocalStockFromOrderItems(orderDetail.items).catchError(
+          (e) {
+            debugPrint('decreaseLocalStockFromOrderItems gagal: $e');
+          },
+        );
+
+        // refresh menu badge stok
+        ref.invalidate(reservationMenuItemProvider);
+
+        // 5) clear order paling akhir (sukses)
+        ref.read(orderDetailProvider.notifier).clearOrder();
+        ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
+      } catch (e) {
+        // gagal: revert flag openbill
+        ref.read(orderDetailProvider.notifier).updateIsOpenBill(false);
+
+        // matikan loading
+        ref.read(openBillLoadingProvider.notifier).state = false;
+
+        if (!context.mounted) return;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Open Bill gagal: $e')));
 
-        // gagal: jangan clear
+        // gagal: jangan clear order, jangan kurangi stok
       } finally {
-        ref.read(openBillLoadingProvider.notifier).state = false;
+        sw.stop();
+        debugPrint('refresh took: ${sw.elapsedMilliseconds} ms');
       }
     }
 

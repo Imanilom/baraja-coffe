@@ -66,7 +66,7 @@ final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
 final reservationMenuItemProvider = FutureProvider<List<MenuItemModel>>((
   ref,
 ) async {
-  final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+  final menuItems = await ref.watch(menuItemRepository).getLocalMenuItems();
   var searchQuery = ref.watch(searchQueryProvider);
   var category = ref.watch(categoryProvider);
 
