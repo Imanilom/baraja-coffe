@@ -199,11 +199,17 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     // await mongoose.connect(process.env.MONGO, {
-    //   serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+    //   serverSelectionTimeoutMS: 10000,
+    //   maxPoolSize: 50, // Increase pool size for high concurrency
+    //   minPoolSize: 10, // Maintain minimum connections
+    //   socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     // });
     // console.log('✅ Connected to MongoDB TEST');
     await mongoose.connect(process.env.MONGO_PROD, {
       serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+      maxPoolSize: 50, // Increase pool size for high concurrency
+      minPoolSize: 10, // Maintain minimum connections
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
     console.log('warning : Connected to MongoDB PROD ✅');
 
