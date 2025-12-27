@@ -45,7 +45,6 @@ const CategorySales = () => {
         }),
     };
 
-    const [groupedArray, setGroupedArray] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [isExporting, setIsExporting] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -568,7 +567,7 @@ const CategorySales = () => {
                                 {paginatedData.map((group, index) => {
                                     const average = group.quantity > 0
                                         ? group.subtotal / group.quantity
-                                        : 0);
+                                        : 0;
 
                                     return (
                                         <tr key={index} className="text-left text-sm hover:bg-gray-50">

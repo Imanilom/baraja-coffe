@@ -208,10 +208,10 @@ const startServer = async () => {
     //   socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     // });
     // console.log('✅ Connected to MongoDB TEST');
-    await mongoose.connect(process.env.MONGO_PROD, {
-      serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
-    });
-    console.log('warning : Connected to MongoDB PROD ✅');
+    // await mongoose.connect(process.env.MONGO_PROD, {
+    //   serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+    // });
+    // console.log('warning : Connected to MongoDB PROD ✅');
 
     setupStockCalibrationCron();
     // startAutoCancelScheduler();

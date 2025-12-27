@@ -478,7 +478,7 @@ class DailyProfitController {
           totalProducts: productData.length,
           processedAt: new Date().toISOString()
         }
-      };
+      });
 
       res.status(200).json(response);
 
