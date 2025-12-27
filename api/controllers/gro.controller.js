@@ -1906,9 +1906,17 @@ export const getOrderDetailById = async (req, res) => {
       paymentType: payment?.paymentType || 'Full',
       isDownPayment: !!downPayment,  // true jika ada Down Payment
       downPaymentPaid: downPayment?.status === 'settlement',
-      method: payment
-        ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
-        : 'Unknown',
+      // method: payment
+      //   ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
+      //   : 'Unknown',
+      method: (
+        payment?.permata_va_number ??
+        payment?.va_numbers?.[0]?.bank ??
+        payment?.method_type ??
+        payment?.method ??
+        order?.payments?.[0]?.paymentMethod ??
+        'Unknown'
+      ).toUpperCase(),
       // ✅ FIX: Status = settlement jika Final Payment sudah dibayar
       status: isFinalPaymentSettled ? 'settlement' : paymentStatus,
       hasPendingFinalPayment: hasPendingFinalPayment,  // true only if pending

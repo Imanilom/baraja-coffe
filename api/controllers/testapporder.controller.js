@@ -913,11 +913,28 @@ export const createAppOrder = async (req, res) => {
                     })) || [];
                     const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
                     const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
-                    const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
+
+                    // ✅ Calculate ORIGINAL subtotal from database price (for totalBeforeDiscount)
+                    const originalSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
+
+                    // ✅ FIX: Use totalprice from frontend if available (already includes discount)
+                    // Otherwise fallback to database price calculation
+                    let itemSubtotal;
+                    if (item.totalprice && item.totalprice > 0) {
+                        // Frontend sent totalprice (price already discounted per unit)
+                        itemSubtotal = item.totalprice * item.quantity;
+                        console.log(`   📦 ${item.productName}: Original: ${originalSubtotal}, Discounted: ${itemSubtotal}`);
+                    } else {
+                        // Fallback: calculate from database price (no discount)
+                        itemSubtotal = originalSubtotal;
+                        console.log(`   📦 ${item.productName}: No discount, using DB price: ${itemSubtotal}`);
+                    }
+
                     orderItems.push({
                         menuItem: menuItem._id,
                         quantity: item.quantity,
-                        subtotal: itemSubtotal,
+                        subtotal: itemSubtotal,               // ✅ Discounted price (for payment)
+                        originalSubtotal: originalSubtotal,   // ✅ Original DB price (for totalBeforeDiscount)
                         addons: processedAddons,
                         toppings: processedToppings,
                         notes: item.notes || '',
@@ -925,6 +942,7 @@ export const createAppOrder = async (req, res) => {
                         outletName: menuItem.availableAt?.[0]?.name || null,
                         isPrinted: false,
                         payment_id: null,
+                        dineType: item.dineType || 'Dine-In', // ✅ NEW: Include dineType from request
                     });
                 }
             }
@@ -944,33 +962,43 @@ export const createAppOrder = async (req, res) => {
                 console.log(`✅ Processed ${processedCustomAmounts.length} custom amounts`);
             }
             // PRICE CALCULATION
-            let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-            // ✅ ADD CUSTOM AMOUNTS to total
+            // ✅ FIX: totalBeforeDiscount uses ORIGINAL database price
+            let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + (item.originalSubtotal || item.subtotal), 0);
+            // ✅ FIX: totalAfterDiscount uses DISCOUNTED price (for payment)
+            let totalAfterDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+            // ✅ ADD CUSTOM AMOUNTS to both totals (custom amounts don't have discount)
             const totalCustomAmount = processedCustomAmounts.reduce((sum, ca) => sum + ca.amount, 0);
             totalBeforeDiscount += totalCustomAmount;
-            console.log(`💰 Total calculation:`);
-            console.log(`   Items subtotal: ${orderItems.reduce((sum, item) => sum + item.subtotal, 0)}`);
+            totalAfterDiscount += totalCustomAmount;
+
+            console.log(`💰 Price Calculation:`);
+            console.log(`   Original (DB) subtotal: ${orderItems.reduce((sum, item) => sum + (item.originalSubtotal || item.subtotal), 0)}`);
+            console.log(`   Discounted subtotal: ${orderItems.reduce((sum, item) => sum + item.subtotal, 0)}`);
             console.log(`   Custom amounts: ${totalCustomAmount}`);
-            console.log(`   Total before discount: ${totalBeforeDiscount}`);
+            console.log(`   totalBeforeDiscount: ${totalBeforeDiscount}`);
+            console.log(`   totalAfterDiscount: ${totalAfterDiscount}`);
+
             if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0 && processedCustomAmounts.length === 0) {
                 totalBeforeDiscount = 25000;
+                totalAfterDiscount = 25000;
             }
-            // Tax and service calculation
+            // Tax and service calculation - ✅ FIX: Tax is calculated on DISCOUNTED price
             let taxServiceCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
-            if (totalBeforeDiscount > 0) {
+            if (totalAfterDiscount > 0) {
                 taxServiceCalculation = await calculateTaxAndServiceCached(
-                    totalBeforeDiscount,
+                    totalAfterDiscount,  // ✅ Tax on discounted price
                     outlet || "67cbc9560f025d897d69f889",
                     orderType === 'reservation',
                     isOpenBill
                 );
             }
-            // Apply voucher discount
-            let totalAfterDiscount = totalBeforeDiscount;
+            // Apply voucher discount on top of menu discount
+            // ✅ FIX: Don't redeclare totalAfterDiscount, just apply voucher on it
             if (discountType === 'percentage') {
-                totalAfterDiscount = totalBeforeDiscount - (totalBeforeDiscount * (voucherAmount / 100));
+                totalAfterDiscount = totalAfterDiscount - (totalAfterDiscount * (voucherAmount / 100));
             } else if (discountType === 'fixed') {
-                totalAfterDiscount = totalBeforeDiscount - voucherAmount;
+                totalAfterDiscount = totalAfterDiscount - voucherAmount;
                 if (totalAfterDiscount < 0) totalAfterDiscount = 0;
             }
             const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
@@ -990,14 +1018,19 @@ export const createAppOrder = async (req, res) => {
                     console.log(`✅ Added ${processedCustomAmounts.length} custom amounts to existing order`);
                 }
                 // Recalculate totals
-                const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+                // ✅ FIX: Use originalSubtotal for totalBeforeDiscount, subtotal for totalAfterDiscount
+                const newItemsOriginalTotal = orderItems.reduce((sum, item) => sum + (item.originalSubtotal || item.subtotal), 0);
+                const newItemsDiscountedTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
                 const newCustomAmountsTotal = processedCustomAmounts.reduce((sum, ca) => sum + ca.amount, 0);
-                const updatedTotalBeforeDiscount = existingOrder.totalBeforeDiscount + newItemsTotal + newCustomAmountsTotal;
-                let updatedTotalAfterDiscount = updatedTotalBeforeDiscount;
+
+                const updatedTotalBeforeDiscount = existingOrder.totalBeforeDiscount + newItemsOriginalTotal + newCustomAmountsTotal;
+                let updatedTotalAfterDiscount = (existingOrder.totalAfterDiscount || existingOrder.totalBeforeDiscount) + newItemsDiscountedTotal + newCustomAmountsTotal;
+
+                // Apply voucher on discounted total
                 if (voucherId && discountType === 'percentage') {
-                    updatedTotalAfterDiscount = updatedTotalBeforeDiscount - (updatedTotalBeforeDiscount * (voucherAmount / 100));
+                    updatedTotalAfterDiscount = updatedTotalAfterDiscount - (updatedTotalAfterDiscount * (voucherAmount / 100));
                 } else if (voucherId && discountType === 'fixed') {
-                    updatedTotalAfterDiscount = updatedTotalBeforeDiscount - voucherAmount;
+                    updatedTotalAfterDiscount = updatedTotalAfterDiscount - voucherAmount;
                     if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
                 }
                 let updatedTaxCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };

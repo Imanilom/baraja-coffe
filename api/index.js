@@ -157,6 +157,10 @@ app.use('/api/revision', revisionRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/hr', hrRoutes);
 
+// ✅ App Config Routes (for dynamic settings like useDiscountPrice)
+import appconfigRoutes from './routes/appconfig.routes.js';
+app.use('/api/app-config', appconfigRoutes);
+
 
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));
