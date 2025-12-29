@@ -45,7 +45,7 @@ const CategorySales = () => {
         }),
     };
 
-    const [groupedArray, setGroupedArray] = useState([]);
+    const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [isExporting, setIsExporting] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -376,10 +376,10 @@ const CategorySales = () => {
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
-        // Get date range
-        const dateRangeText = dateRange?.startDate && dateRange?.endDate
-            ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-            : new Date().toLocaleDateString('id-ID');
+            // Get date range
+            const dateRangeText = dateRange?.startDate && dateRange?.endDate
+                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
+                : new Date().toLocaleDateString('id-ID');
 
             // Create export data
             const exportData = [
@@ -568,7 +568,7 @@ const CategorySales = () => {
                                 {paginatedData.map((group, index) => {
                                     const average = group.quantity > 0
                                         ? group.subtotal / group.quantity
-                                        : 0);
+                                        : 0;
 
                                     return (
                                         <tr key={index} className="text-left text-sm hover:bg-gray-50">
