@@ -44,10 +44,11 @@ const syncOutletTables = async (outletId, outletName) => {
         const allTables = await Table.find({
             area_id: { $in: areaIds },
             is_active: true
-        });
+        }).lean();
 
         let updatedCount = 0;
         const updates = [];
+        const bulkOps = [];
 
         for (const table of allTables) {
             const tableNumberUpper = table.table_number.toUpperCase();
@@ -56,41 +57,58 @@ const syncOutletTables = async (outletId, outletName) => {
 
             // Check if status needs update
             if (shouldBeOccupied && currentStatus !== 'occupied') {
-                table.status = 'occupied';
-                table.is_available = false;
-                table.updatedAt = new Date();
-
-                if (!table.statusHistory) table.statusHistory = [];
-                table.statusHistory.push({
-                    fromStatus: currentStatus,
-                    toStatus: 'occupied',
-                    updatedBy: 'Cron Sync Job',
-                    notes: 'Auto-sync: Active order found',
-                    updatedAt: new Date()
+                bulkOps.push({
+                    updateOne: {
+                        filter: { _id: table._id },
+                        update: {
+                            $set: {
+                                status: 'occupied',
+                                is_available: false,
+                                updatedAt: new Date()
+                            },
+                            $push: {
+                                statusHistory: {
+                                    fromStatus: currentStatus,
+                                    toStatus: 'occupied',
+                                    updatedBy: 'Cron Sync Job',
+                                    notes: 'Auto-sync: Active order found',
+                                    updatedAt: new Date()
+                                }
+                            }
+                        }
+                    }
                 });
-
-                await table.save();
-                updatedCount++;
                 updates.push({ table: table.table_number, from: currentStatus, to: 'occupied' });
 
             } else if (!shouldBeOccupied && currentStatus !== 'available') {
-                table.status = 'available';
-                table.is_available = true;
-                table.updatedAt = new Date();
-
-                if (!table.statusHistory) table.statusHistory = [];
-                table.statusHistory.push({
-                    fromStatus: currentStatus,
-                    toStatus: 'available',
-                    updatedBy: 'Cron Sync Job',
-                    notes: 'Auto-sync: No active orders found',
-                    updatedAt: new Date()
+                bulkOps.push({
+                    updateOne: {
+                        filter: { _id: table._id },
+                        update: {
+                            $set: {
+                                status: 'available',
+                                is_available: true,
+                                updatedAt: new Date()
+                            },
+                            $push: {
+                                statusHistory: {
+                                    fromStatus: currentStatus,
+                                    toStatus: 'available',
+                                    updatedBy: 'Cron Sync Job',
+                                    notes: 'Auto-sync: No active orders found',
+                                    updatedAt: new Date()
+                                }
+                            }
+                        }
+                    }
                 });
-
-                await table.save();
-                updatedCount++;
                 updates.push({ table: table.table_number, from: currentStatus, to: 'available' });
             }
+        }
+
+        if (bulkOps.length > 0) {
+            const result = await Table.bulkWrite(bulkOps);
+            updatedCount = result.modifiedCount;
         }
 
         const duration = Date.now() - startTime;
