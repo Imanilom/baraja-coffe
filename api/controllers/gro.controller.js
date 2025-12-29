@@ -1176,20 +1176,66 @@ export const getReservations = async (req, res) => {
       status,
       date,
       area_id,
-      search
+      search,
+      payment_status // ✅ NEW: Support filtering by payment status
     } = req.query;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // ✅ PERFORMANCE: Check cache first (30s TTL)
-    const cacheKey = getReservationsCacheKey({ date, status, area_id, search, page, limit });
+    const cacheKey = getReservationsCacheKey({ date, status, area_id, search, page, limit, payment_status }); // ✅ Updated cache key
     const cachedData = await getCache(cacheKey);
     if (cachedData) {
       return res.json(cachedData);
     }
 
+    // ========== PRE-FETCH FILTER IDs (Payment Status / Search) ==========
+    let paymentFilterOrderIds = null;
+
+    if (payment_status) {
+      const paymentQuery = {};
+
+      if (payment_status === 'settlement') {
+        paymentQuery.status = { $in: ['settlement', 'capture'] };
+      } else {
+        paymentQuery.status = payment_status; // 'pending', 'expire', etc.
+      }
+
+      // Cari order yang sudah lunas dari tabel Payment
+      const payments = await Payment.find(paymentQuery).select('order_id').lean();
+      paymentFilterOrderIds = new Set(payments.map(p => p.order_id));
+
+      // Jika filter aktif tapi tidak ada data, return kosong langsung untuk hemat resource
+      if (paymentFilterOrderIds.size === 0) {
+        return res.json({
+          success: true,
+          data: [],
+          pagination: {
+            current_page: parseInt(page),
+            total_pages: 0,
+            total_records: 0
+          }
+        });
+      }
+    }
+
     // ========== FILTER UNTUK RESERVATIONS ==========
     const reservationFilter = {};
+
+    // ✅ Apply Payment Status Filter to Reservations
+    if (paymentFilterOrderIds) {
+      // Kita perlu mencari Reservation yang punya order_id yang ada di set paymentFilterOrderIds
+      // Masalahnya: reservation.order_id adalah ObjectId (Ref: Order), sedangkan payment.order_id string custom "ORD-..."
+
+      // 1. Cari _id (ObjectId) dari Order yang punya order_id (String) tersebut
+      const orderObjectIds = await Order.find({
+        order_id: { $in: Array.from(paymentFilterOrderIds) }
+      }).select('_id').lean();
+
+      const allowedObjectIds = orderObjectIds.map(o => o._id);
+
+      reservationFilter.order_id = { $in: allowedObjectIds };
+    }
 
     if (status) {
       if (status === 'active') {
@@ -1286,6 +1332,12 @@ export const getReservations = async (req, res) => {
       orderType: { $in: ['Dine-In', 'Take Away', 'Pickup', 'Delivery', 'Event'] }
     };
 
+    // ✅ Apply Payment Status Filter to Dine-In Orders
+    if (paymentFilterOrderIds) {
+      // Di sini kita bisa langsung filter berdasarkan string order_id
+      orderFilter.order_id = { $in: Array.from(paymentFilterOrderIds) };
+    }
+
     if (status) {
       switch (status) {
         case 'pending':
@@ -1338,6 +1390,12 @@ export const getReservations = async (req, res) => {
     });
 
     orderFilter._id = { $nin: reservedOrderIds };
+
+    // ✅ Apply Payment Status Filter to Dine-In Orders
+    if (paymentFilterOrderIds) {
+      // Di sini kita bisa langsung filter berdasarkan string order_id
+      orderFilter.order_id = { $in: Array.from(paymentFilterOrderIds) };
+    }
 
     // ✅ Query orders dengan custom amount items
     let dineInOrdersQuery = Order.find(orderFilter)
