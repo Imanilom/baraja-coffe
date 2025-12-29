@@ -636,6 +636,12 @@ OrderSchema.index({ tableReleased: 1, orderType: 1 });
 OrderSchema.index({ 'payments.status': 1 }); // Index untuk query payment status
 OrderSchema.index({ splitPaymentStatus: 1 }); // Index untuk query split payment
 
+// ✅ NEW: Compound indexes for GRO Dashboard performance
+// Query: Order.find({ outlet, status: $in, orderType: $in, tableNumber: $exists, createdAt: $gte/$lt })
+OrderSchema.index({ outlet: 1, orderType: 1, status: 1, createdAt: -1 }); // Main GRO query
+OrderSchema.index({ outlet: 1, orderType: 1, tableNumber: 1, status: 1 }); // Table availability query
+OrderSchema.index({ order_id: 1 }); // For Payment lookup by order_id
+
 // Middleware untuk auto-sync table status
 OrderSchema.post('save', async function (doc, next) {
   try {
