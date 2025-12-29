@@ -83,7 +83,7 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                         </div>
                         <div className="flex justify-between">
                             <span className="font-medium text-gray-600">Kasir</span>
-                            <p>{selectedTrx.cashierId?.username || "-"}</p>
+                            <p>{selectedTrx.groId?.name ? `${selectedTrx.groId?.name} ( GRO )` : selectedTrx.cashierId?.username || "-"}</p>
                         </div>
                         <div className="flex justify-between">
                             <span className="font-medium text-gray-600">Pelanggan</span>
@@ -211,10 +211,10 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                         </div>
 
                         {/* Payment Amount */}
-                        <div className="flex justify-between font-medium text-green-800 rounded">
+                        {/* <div className="flex justify-between font-medium text-green-800 rounded">
                             <span>Jumlah Dibayar</span>
                             <span>{formatCurrency(paymentAmount)}</span>
-                        </div>
+                        </div> */}
 
                         {/* Change Amount */}
                         <div className="flex justify-between">

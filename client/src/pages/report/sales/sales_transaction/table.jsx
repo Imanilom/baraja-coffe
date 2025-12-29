@@ -1,6 +1,6 @@
 // ============================================
 // FRONTEND - SalesTransactionTable Component
-// File: SalesTransactionTable.jsx (Updated)
+// File: SalesTransactionTable.jsx (Fixed)
 // ============================================
 
 import React from "react";
@@ -29,7 +29,7 @@ const SalesTransactionTable = ({
     currentPage,
     totalPages,
     handlePageChange,
-    // New props for delete functionality
+    // Props for delete functionality (optional)
     selectedItems = [],
     handleSelectItem,
     handleSelectAll,
@@ -37,11 +37,11 @@ const SalesTransactionTable = ({
 }) => {
 
     // Check if all items on current page are selected
-    const isAllSelected = paginatedData.length > 0 &&
+    const isAllSelected = paginatedData?.length > 0 &&
         paginatedData.every(item => selectedItems.includes(item._id));
 
     // Check if some items are selected (for indeterminate state)
-    const isSomeSelected = paginatedData.some(item => selectedItems.includes(item._id)) && !isAllSelected;
+    const isSomeSelected = paginatedData?.some(item => selectedItems.includes(item._id)) && !isAllSelected;
 
     return (
         <>
@@ -97,7 +97,7 @@ const SalesTransactionTable = ({
                     <table className="min-w-full text-sm text-gray-900">
                         <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                             <tr className="text-left text-[13px]">
-                                {/* Checkbox Column */}
+                                {/* Uncomment untuk enable checkbox selection */}
                                 {/* <th className="px-4 py-3 w-12">
                                     <div className="flex items-center justify-center">
                                         <input
@@ -109,7 +109,7 @@ const SalesTransactionTable = ({
                                                 }
                                             }}
                                             onChange={handleSelectAll}
-                                            disabled={isDeleting || paginatedData.length === 0}
+                                            disabled={isDeleting || paginatedData?.length === 0}
                                             className="w-4 h-4 text-[#005429] bg-gray-100 border-gray-300 rounded focus:ring-[#005429] focus:ring-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                                             title="Pilih semua di halaman ini"
                                         />
@@ -125,21 +125,22 @@ const SalesTransactionTable = ({
                             </tr>
                         </thead>
 
-                        {paginatedData.length > 0 ? (
+                        {paginatedData?.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((product, index) => {
                                     try {
-                                        const orderId = product?.order_id || {};
-                                        const date = product?.createdAt || {};
-                                        const cashier = product?.cashierId || {};
-                                        const orderType = product?.orderType || {};
+                                        const orderId = product?.order_id || "N/A";
+                                        const date = product?.createdAt;
+                                        const cashier = product?.cashierId;
+                                        const gro = product?.groId;
+                                        const orderType = product?.orderType || "N/A";
                                         const paymentMethod = product?.actualPaymentMethod || "N/A";
                                         const isSelected = selectedItems.includes(product._id);
 
                                         let menuNames = [];
                                         let totalSubtotal = 0;
 
-                                        // ✅ Proses regular items
+                                        // Process regular items
                                         if (Array.isArray(product?.items)) {
                                             menuNames = product.items.map((item) => {
                                                 try {
@@ -161,7 +162,7 @@ const SalesTransactionTable = ({
                                                     }
 
                                                     if (addonLabels.length > 0) {
-                                                        return `${menuName} ( ${addonLabels.join(', ')} )`;
+                                                        return `${menuName} (${addonLabels.join(', ')})`;
                                                     }
 
                                                     return menuName;
@@ -176,7 +177,7 @@ const SalesTransactionTable = ({
                                             }, 0);
                                         }
 
-                                        // ✅ Proses custom amount items
+                                        // Process custom amount items
                                         if (Array.isArray(product?.customAmountItems)) {
                                             const customNames = product.customAmountItems.map((customItem) => {
                                                 try {
@@ -196,15 +197,20 @@ const SalesTransactionTable = ({
                                             totalSubtotal += customSubtotal;
                                         }
 
+                                        // Fallback jika tidak ada produk
+                                        if (menuNames.length === 0) {
+                                            menuNames = ["Tidak ada produk"];
+                                        }
+
                                         return (
                                             <tr
                                                 className={`text-left text-sm transition-colors ${isSelected
                                                     ? 'bg-blue-50 hover:bg-blue-100'
                                                     : 'hover:bg-slate-50'
                                                     }`}
-                                                key={product._id}
+                                                key={product._id || index}
                                             >
-                                                {/* Checkbox Cell */}
+                                                {/* Uncomment untuk enable checkbox */}
                                                 {/* <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                                                     <div className="flex items-center justify-center">
                                                         <input
@@ -223,19 +229,19 @@ const SalesTransactionTable = ({
                                                     className="px-4 py-3 cursor-pointer"
                                                     onClick={() => setSelectedTrx(product)}
                                                 >
-                                                    {formatDateTime(date) || "N/A"}
+                                                    {date ? formatDateTime(date) : "N/A"}
                                                 </td>
                                                 <td
                                                     className="px-4 py-3 cursor-pointer"
                                                     onClick={() => setSelectedTrx(product)}
                                                 >
-                                                    {cashier?.username || "-"}
+                                                    {gro?.name ? `${gro.name} (GRO)` : cashier?.username || "N/A"}
                                                 </td>
                                                 <td
                                                     className="px-4 py-3 cursor-pointer"
                                                     onClick={() => setSelectedTrx(product)}
                                                 >
-                                                    {orderId || "N/A"}
+                                                    {orderId}
                                                 </td>
                                                 <td
                                                     className="px-4 py-3 cursor-pointer"
@@ -247,29 +253,29 @@ const SalesTransactionTable = ({
                                                     className="px-4 py-3 cursor-pointer"
                                                     onClick={() => setSelectedTrx(product)}
                                                 >
-                                                    {orderType || "N/A"}
+                                                    {orderType}
                                                 </td>
                                                 <td
                                                     className="px-4 py-3 cursor-pointer"
                                                     onClick={() => setSelectedTrx(product)}
                                                 >
-                                                    <div className="flex flex-col gap-1">
-                                                        <span>{paymentMethod}</span>
-                                                    </div>
+                                                    {paymentMethod}
                                                 </td>
                                                 <td
                                                     className="px-4 py-3 text-right cursor-pointer"
                                                     onClick={() => setSelectedTrx(product)}
                                                 >
-                                                    {product.grandTotal.toLocaleString() || ""}
+                                                    {product?.grandTotal
+                                                        ? `Rp ${product.grandTotal.toLocaleString('id-ID')}`
+                                                        : "Rp 0"}
                                                 </td>
                                             </tr>
                                         );
                                     } catch (err) {
                                         console.error(`Error rendering product ${index}:`, err, product);
                                         return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="9" className="px-4 py-3 text-red-500">
+                                            <tr className="text-left text-sm" key={`error-${index}`}>
+                                                <td colSpan="7" className="px-4 py-3 text-red-500 text-center">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -280,7 +286,7 @@ const SalesTransactionTable = ({
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={9}>Tidak ada data ditemukan</td>
+                                    <td colSpan={7}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
@@ -290,9 +296,9 @@ const SalesTransactionTable = ({
                                 <td className="px-4 py-2" colSpan="6">
                                     Grand Total
                                 </td>
-                                <td className="px-2 py-2 text-right rounded" colSpan="2">
+                                <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">
-                                        Rp {grandTotalFinal.toLocaleString()}
+                                        Rp {grandTotalFinal?.toLocaleString('id-ID') || '0'}
                                     </p>
                                 </td>
                             </tr>
@@ -311,11 +317,13 @@ const SalesTransactionTable = ({
                 </div>
 
                 {/* Pagination Controls */}
-                <Paginated
-                    currentPage={currentPage}
-                    setCurrentPage={handlePageChange}
-                    totalPages={totalPages}
-                />
+                {totalPages > 1 && (
+                    <Paginated
+                        currentPage={currentPage}
+                        setCurrentPage={handlePageChange}
+                        totalPages={totalPages}
+                    />
+                )}
             </main>
         </>
     );
