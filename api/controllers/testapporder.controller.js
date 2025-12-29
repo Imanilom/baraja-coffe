@@ -185,12 +185,23 @@ const validateAndReserveStockOptimized = async (items) => {
                 .select('_id name price availableStock isActive __v')
                 .lean(),
             MenuStock.find({ menuItemId: { $in: menuItemIds } })
-                .select('menuItemId currentStock manualStock calculatedStock __v')
+                .select('menuItemId warehouseId currentStock manualStock calculatedStock __v')
+                .sort({ warehouseId: -1 }) // ✅ Prefer records WITH warehouseId (null comes last)
                 .lean()
         ]);
         // Create lookup maps
         const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
-        const stockMap = new Map(menuStocks.map(stock => [stock.menuItemId.toString(), stock]));
+        // ✅ FIXED: Prefer records with warehouseId, fallback to legacy
+        const stockMap = new Map();
+        menuStocks.forEach(stock => {
+            const menuItemIdStr = stock.menuItemId.toString();
+            const existingStock = stockMap.get(menuItemIdStr);
+
+            // If no existing record, or this one has warehouseId and existing doesn't, use this one
+            if (!existingStock || (stock.warehouseId && !existingStock.warehouseId)) {
+                stockMap.set(menuItemIdStr, stock);
+            }
+        });
         // OPTIMIZATION 2: Validate semua items secara parallel
         const validationPromises = regularItems.map(async (item) => {
             const menuItem = menuItemMap.get(item.productId);

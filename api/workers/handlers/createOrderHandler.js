@@ -551,7 +551,8 @@ export async function createOrderHandler({
         outletId: verifiedOrder.outletId?.toString(),
         source: source,
         isAppOrder: source === 'App',
-        isWebOrder: source === 'Web'
+        isWebOrder: source === 'Web',
+        isOpenBill: isOpenBill || false  // ✅ NEW: Pass isOpenBill flag to workstation
       });
 
       console.log(`📡 Immediate print triggered for order ${orderId}`);
