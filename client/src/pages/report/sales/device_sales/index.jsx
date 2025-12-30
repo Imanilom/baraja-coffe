@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import DeviceSalesSkeleton from "./skeleton";
+import { exportDeviceSalesExcel } from '../../../../utils/exportDeviceSalesExcel';
 
 const DeviceSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -243,67 +244,19 @@ const DeviceSales = () => {
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : new Date().toLocaleDateString('id-ID');
 
-            // Create export data
-            const exportData = [
-                { col1: 'Laporan Penjualan Per Perangkat', col2: '', col3: '', col4: '', col5: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '', col5: '' },
-                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '', col5: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '' },
-                { col1: 'Nama Perangkat', col2: 'Tipe', col3: 'Jumlah Transaksi', col4: 'Penjualan', col5: 'Rata-Rata' }
-            ];
-
-            // Add data rows
-            deviceData.forEach(device => {
-                exportData.push({
-                    col1: device.deviceName || '-',
-                    col2: device.deviceType || '-',
-                    col3: device.transactionCount || 0,
-                    col4: device.totalSales || 0,
-                    col5: device.averagePerTransaction || 0
-                });
-            });
-
-            // Add Grand Total row
-            exportData.push({
-                col1: 'Grand Total',
-                col2: '',
-                col3: summary.totalTransactions,
-                col4: summary.totalSales,
-                col5: summary.averagePerTransaction
-            });
-
-            // Create worksheet
-            const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2', 'col3', 'col4', 'col5'],
-                skipHeader: true
-            });
-
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 25 },
-                { wch: 15 },
-                { wch: 20 },
-                { wch: 20 },
-                { wch: 15 }
-            ];
-
-            // Merge cells for title
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }
-            ];
-
-            // Create workbook and add worksheet
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Perangkat");
-
-            // Generate filename
             const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const fileName = `Laporan_Penjualan_Per_Perangkat_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
 
-            // Export file
-            XLSX.writeFile(wb, fileName);
+            await exportDeviceSalesExcel({
+                data: deviceData,
+                summary,
+                fileName: `Laporan_Penjualan_Per_Perangkat_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
+                headerInfo: [
+                    ['Outlet', outletName],
+                    ['Tanggal', dateRangeText],
+                    ['Tanggal Export', new Date().toLocaleString('id-ID')]
+                ]
+            });
 
         } catch (error) {
             console.error("Error exporting to Excel:", error);

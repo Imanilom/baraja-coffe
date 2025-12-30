@@ -10,6 +10,7 @@ import ProductSalesSkeleton from "./skeleton";
 import dayjs from "dayjs";
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import { exportProductSalesExcel } from '../../../../utils/exportProductSalesExcel';
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -231,8 +232,7 @@ const ProductSales = () => {
     };
 
     // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare header info
+    const exportToExcel = async () => {
         const outletName = selectedOutlet === 'all'
             ? 'Semua Outlet'
             : outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet';
@@ -240,87 +240,20 @@ const ProductSales = () => {
         const startDateFormatted = new Date(dateRange.startDate).toLocaleDateString('id-ID');
         const endDateFormatted = new Date(dateRange.endDate).toLocaleDateString('id-ID');
 
-        // Create header rows
-        const headerInfo = [
-            ['LAPORAN PENJUALAN PRODUK'],
-            [],
-            ['Periode', `: ${startDateFormatted} - ${endDateFormatted}`],
-            ['Outlet', `: ${outletName}`],
-            ['Tanggal Export', `: ${new Date().toLocaleString('id-ID')}`],
-            [],
-            []
-        ];
+        const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+        const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
 
-        // Prepare data rows
-        const dataRows = products.map((product, index) => ({
-            'No': index + 1,
-            'Nama Produk': product.productName,
-            'Qty Terjual': product.quantity,
-            'Total Penjualan (Rp)': product.subtotal,
-            'Rata-rata (Rp)': product.average,
-        }));
-
-        // Add grand total row
-        if (grandTotal) {
-            dataRows.push({
-                'No': '',
-                'Nama Produk': 'GRAND TOTAL',
-                'Qty Terjual': grandTotal.quantity,
-                'Total Penjualan (Rp)': grandTotal.subtotal,
-                'Rata-rata (Rp)': grandTotal.average,
-            });
-        }
-
-        // Create worksheet from header and data
-        const ws = XLSX.utils.aoa_to_sheet(headerInfo);
-        XLSX.utils.sheet_add_json(ws, dataRows, { origin: -1, skipHeader: false });
-
-        // Add summary section separately
-        const currentRow = headerInfo.length + dataRows.length + 2;
-
-        const summaryData = [
-            [''],
-            ['RINGKASAN'],
-            ['Total Produk', `: ${metadata?.totalProducts || products.length} produk`],
-            ['Total Orders', `: ${metadata?.totalOrders || 0} order`],
-            ['Total Item Terjual', `: ${grandTotal?.quantity?.toLocaleString() || 0} item`],
-            ['Total Penjualan', `: Rp ${grandTotal?.subtotal?.toLocaleString('id-ID') || 0}`],
-            ['Rata-rata per Item', `: Rp ${grandTotal?.average?.toLocaleString('id-ID') || 0}`],
-        ];
-
-        XLSX.utils.sheet_add_aoa(ws, summaryData, { origin: currentRow });
-
-        // Set column widths
-        ws['!cols'] = [
-            { wch: 5 },   // No
-            { wch: 40 },  // Nama Produk
-            { wch: 15 },  // Qty Terjual
-            { wch: 20 },  // Total Penjualan
-            { wch: 18 },  // Rata-rata
-        ];
-
-        // Style the header
-        const headerStyle = {
-            font: { bold: true, sz: 14 },
-            alignment: { horizontal: 'center', vertical: 'center' }
-        };
-
-        // Apply header style
-        if (ws['A1']) ws['A1'].s = headerStyle;
-
-        // Merge cells for title
-        ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } } // Merge title row
-        ];
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
-
-        const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-        const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-        const filename = `Laporan_Penjualan_Produk_${startDate}_${endDate}.xlsx`;
-
-        XLSX.writeFile(wb, filename);
+        await exportProductSalesExcel({
+            data: products,
+            grandTotal,
+            metadata,
+            fileName: `Laporan_Penjualan_Produk_${startDate}_${endDate}.xlsx`,
+            headerInfo: [
+                ['Periode', `${startDateFormatted} - ${endDateFormatted}`],
+                ['Outlet', outletName],
+                ['Tanggal Export', new Date().toLocaleString('id-ID')]
+            ]
+        });
     };
 
     if (loading) {

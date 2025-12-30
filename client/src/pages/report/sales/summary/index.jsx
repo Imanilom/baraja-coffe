@@ -7,6 +7,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import SalesReportSkeleton from "./skeleton";
 import { useSelector } from "react-redux";
+import { exportSummaryExcel } from '../../../../utils/exportSummaryExcel';
 
 const Summary = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -256,10 +257,7 @@ const Summary = () => {
     // Export current data to Excel
     const exportToExcel = async () => {
         setIsExporting(true);
-
         try {
-            await new Promise(resolve => setTimeout(resolve, 500));
-
             const outletName = selectedOutlet
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
@@ -268,43 +266,17 @@ const Summary = () => {
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : 'Semua Tanggal';
 
-            const exportData = [
-                { col1: 'Laporan Ringkasan Penjualan', col2: '' },
-                { col1: '', col2: '' },
-                { col1: 'Outlet', col2: outletName },
-                { col1: 'Tanggal', col2: dateRangeText },
-                { col1: '', col2: '' },
-                { col1: '', col2: 'Total Nominal (Rp)' },
-                { col1: 'Penjualan Kotor', col2: calculatedValues.penjualanKotor },
-                { col1: 'Total Diskon', col2: calculatedValues.diskonTotal },
-                { col1: 'Penjualan Bersih', col2: calculatedValues.penjualanBersih },
-                { col1: 'Service Charge', col2: calculatedValues.serviceCharge },
-                { col1: 'Pajak', col2: calculatedValues.pajak },
-                { col1: 'Total Penjualan', col2: calculatedValues.totalPenjualan },
-                { col1: '', col2: '' },
-                { col1: 'Total Transaksi', col2: summaryData.totalTransactions },
-                { col1: 'Total Item Terjual', col2: summaryData.totalItems },
-                { col1: 'Rata-rata Nilai Transaksi', col2: summaryData.avgOrderValue },
-            ];
-
-            const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2'],
-                skipHeader: true
+            await exportSummaryExcel({
+                summaryData,
+                calculatedValues,
+                paymentBreakdown,
+                orderTypeBreakdown,
+                fileName: `Laporan_Ringkasan_${outletName}_${formatDateLocal(dateRange.startDate)}_${formatDateLocal(dateRange.endDate)}.xlsx`,
+                headerInfo: [
+                    ['Outlet', outletName],
+                    ['Tanggal', dateRangeText]
+                ]
             });
-
-            ws['!cols'] = [
-                { wch: 25 },
-                { wch: 20 }
-            ];
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Laporan Ringkasan");
-
-            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const filename = `Laporan_Ringkasan_${outletName}_${startDate}_${endDate}.xlsx`;
-
-            XLSX.writeFile(wb, filename);
         } catch (error) {
             console.error("Error exporting to Excel:", error);
             alert("Gagal mengekspor data. Silakan coba lagi.");

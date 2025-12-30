@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import CustomerSalesSkeleton from "./skeleton";
+import { exportCustomerSalesExcel } from '../../../../utils/exportCustomerSalesExcel';
 
 const CustomerSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -287,87 +288,19 @@ const CustomerSales = () => {
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : new Date().toLocaleDateString('id-ID');
 
-            // Create export data
-            const excelData = [
-                { col1: 'Laporan Penjualan Per Pelanggan', col2: '', col3: '', col4: '', col5: '', col6: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '', col5: '', col6: '' },
-                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '', col5: '', col6: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' },
-                { col1: 'Nama Pelanggan', col2: 'Tipe Pelanggan', col3: 'No Telepon', col4: 'Jumlah Transaksi', col5: 'Total Penjualan', col6: 'Rata-rata per Transaksi' }
-            ];
-
-            // Add data rows
-            allCustomerData.forEach(customer => {
-                excelData.push({
-                    col1: customer.customerName || 'Walk-in Customer',
-                    col2: customer.customerType || '-',
-                    col3: customer.customerPhone || '-',
-                    col4: customer.transactionCount || 0,
-                    col5: customer.totalSales || 0,
-                    col6: customer.averagePerTransaction || 0
-                });
-            });
-
-            // Add summary rows
-            excelData.push({ col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' });
-            excelData.push({
-                col1: 'Grand Total',
-                col2: '',
-                col3: '',
-                col4: summary.totalTransactions,
-                col5: summary.totalSales,
-                col6: summary.averagePerTransaction
-            });
-            excelData.push({
-                col1: 'Total Pelanggan',
-                col2: summary.totalCustomers,
-                col3: '',
-                col4: '',
-                col5: '',
-                col6: ''
-            });
-            excelData.push({
-                col1: 'Rata-rata per Pelanggan',
-                col2: summary.averagePerCustomer,
-                col3: '',
-                col4: '',
-                col5: '',
-                col6: ''
-            });
-
-            // Create worksheet
-            const ws = XLSX.utils.json_to_sheet(excelData, {
-                header: ['col1', 'col2', 'col3', 'col4', 'col5', 'col6'],
-                skipHeader: true
-            });
-
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 30 },
-                { wch: 20 },
-                { wch: 18 },
-                { wch: 18 },
-                { wch: 20 },
-                { wch: 25 }
-            ];
-
-            // Merge cells for title
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }
-            ];
-
-            // Create workbook and add worksheet
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Pelanggan");
-
-            // Generate filename
             const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const fileName = `Laporan_Penjualan_Per_Pelanggan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
 
-            // Export file
-            XLSX.writeFile(wb, fileName);
+            await exportCustomerSalesExcel({
+                data: allCustomerData,
+                summary,
+                fileName: `Laporan_Penjualan_Per_Pelanggan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
+                headerInfo: [
+                    ['Outlet', outletName],
+                    ['Tanggal', dateRangeText],
+                    ['Tanggal Export', new Date().toLocaleString('id-ID')]
+                ]
+            });
 
         } catch (error) {
             console.error("Error exporting to Excel:", error);

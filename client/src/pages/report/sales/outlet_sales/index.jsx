@@ -8,6 +8,7 @@ import Select from "react-select";
 import dayjs from "dayjs";
 import Paginated from "../../../../components/paginated";
 import SalesOutletSkeleton from "./skeleton";
+import { exportOutletSalesExcel } from '../../../../utils/exportOutletSalesExcel';
 
 const OutletSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -189,67 +190,30 @@ const OutletSales = () => {
     ], [outlets]);
 
     // Export to Excel - menggunakan allSalesData yang sudah ada
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
         if (allSalesData.length === 0) {
             alert('Tidak ada data untuk di-export');
             return;
         }
 
-        // Data outlet
-        const rows = allSalesData.map((group, index) => ({
-            'No': index + 1,
-            'Outlet': group.outletName || 'Unknown',
-            'Jumlah Transaksi': group.count,
-            'Total Penjualan': group.subtotalTotal,
-            'Rata-Rata per Transaksi': Math.round(group.averagePerTransaction)
-        }));
+        const outletName = selectedOutlet
+            ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
+            : 'Semua Outlet';
 
-        // Tambahkan grand total
-        rows.push({
-            'No': '',
-            'Outlet': 'GRAND TOTAL',
-            'Jumlah Transaksi': grandTotals.totalTransactions,
-            'Total Penjualan': grandTotals.totalSales,
-            'Rata-Rata per Transaksi': Math.round(grandTotals.averagePerTransaction)
+        const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+        const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
+        const periodText = `${dayjs(dateRange.startDate).format('DD MMMM YYYY')} - ${dayjs(dateRange.endDate).format('DD MMMM YYYY')}`;
+
+        await exportOutletSalesExcel({
+            data: allSalesData,
+            grandTotals,
+            fileName: `Laporan_Penjualan_Per_Outlet_${startDate}_${endDate}.xlsx`,
+            headerInfo: [
+                ['Periode', periodText],
+                ['Outlet', outletName],
+                ['Tanggal Export', dayjs().format('DD MMMM YYYY HH:mm')]
+            ]
         });
-
-        const ws = XLSX.utils.json_to_sheet(rows);
-
-        // Format kolom currency
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        for (let R = range.s.r + 1; R <= range.e.r; R++) {
-            const cellD = XLSX.utils.encode_cell({ r: R, c: 3 });
-            const cellE = XLSX.utils.encode_cell({ r: R, c: 4 });
-            if (ws[cellD]) ws[cellD].z = '#,##0';
-            if (ws[cellE]) ws[cellE].z = '#,##0';
-        }
-
-        ws['!cols'] = [
-            { wch: 5 }, { wch: 30 }, { wch: 18 }, { wch: 20 }, { wch: 25 }
-        ];
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Outlet");
-
-        // Info sheet
-        const filterInfo = [
-            ['LAPORAN PENJUALAN PER OUTLET'],
-            [''],
-            ['Periode', `${dayjs(dateRange.startDate).format('DD MMMM YYYY')} - ${dayjs(dateRange.endDate).format('DD MMMM YYYY')}`],
-            ['Outlet', selectedOutlet ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet' : 'Semua Outlet'],
-            ['Tanggal Export', dayjs().format('DD MMMM YYYY HH:mm')],
-            [''],
-            ['Total Outlet', grandTotals.totalOutlets],
-            ['Total Transaksi', grandTotals.totalTransactions],
-            ['Total Penjualan', grandTotals.totalSales]
-        ];
-
-        const wsInfo = XLSX.utils.aoa_to_sheet(filterInfo);
-        wsInfo['!cols'] = [{ wch: 20 }, { wch: 40 }];
-        XLSX.utils.book_append_sheet(wb, wsInfo, "Info");
-
-        const filename = `Laporan_Penjualan_Per_Outlet_${dayjs(dateRange.startDate).format('DD-MM-YYYY')}_${dayjs(dateRange.endDate).format('DD-MM-YYYY')}.xlsx`;
-        XLSX.writeFile(wb, filename);
     };
 
     if (loading) {

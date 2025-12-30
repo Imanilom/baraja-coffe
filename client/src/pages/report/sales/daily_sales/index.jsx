@@ -10,6 +10,7 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import DailySalesSkeleton from "./skeleton";
+import { exportDailySalesExcel } from '../../../../utils/exportDailySalesExcel';
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -75,9 +76,7 @@ const DailySales = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const params = {
-                    // Tidak perlu mode lagi, ini dedicated endpoint
-                };
+                const params = {};
 
                 // Kirim filter ke backend
                 if (dateRange?.startDate && dateRange?.endDate) {
@@ -90,7 +89,7 @@ const DailySales = () => {
                 }
 
                 const [salesResponse, outletsResponse] = await Promise.all([
-                    axios.get('/api/report/daily-profit/range', { params }), // ✅ Endpoint baru!
+                    axios.get('/api/report/daily-profit/range', { params }),
                     axios.get('/api/outlet')
                 ]);
 
@@ -152,40 +151,13 @@ const DailySales = () => {
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ], [outlets]);
 
-    // Group data by date - Optimized dengan Map
-    const groupedArray = useMemo(() => {
-        const grouped = new Map();
-
-        products.forEach(product => {
-            const date = dayjs(product.createdAt).format('DD-MM-YYYY');
-            const penjualan = Number(product.grandTotal) || 0;
-
-            if (!grouped.has(date)) {
-                grouped.set(date, {
-                    count: 0,
-                    penjualanTotal: 0,
-                    timestamp: product.createdAt
-                });
-            }
-
-            const data = grouped.get(date);
-            data.count++;
-            data.penjualanTotal += penjualan;
-        });
-
-        // Convert to array and sort
-        return Array.from(grouped.entries())
-            .map(([date, data]) => ({ date, ...data }))
-            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    }, [products]);
-
     // Paginate data
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         return products.slice(startIndex, startIndex + ITEMS_PER_PAGE);
     }, [products, currentPage]);
 
-    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(products.length / ITEMS_PER_PAGE);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -196,9 +168,9 @@ const DailySales = () => {
         }).format(amount || 0);
     };
 
-    // Export to Excel
-    const exportToExcel = () => {
-        if (groupedArray.length === 0) {
+    // Export to Excel - FIXED: menggunakan products langsung
+    const exportToExcel = async () => {
+        if (products.length === 0) {
             alert("Tidak ada data untuk diekspor");
             return;
         }
@@ -212,47 +184,19 @@ const DailySales = () => {
 
             const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
             const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
-            const rataRataTotal = grandTotalItems > 0 ? Math.round(grandTotalPenjualan / grandTotalItems) : 0;
+            const periodText = `${startDate} - ${endDate}`;
 
-            const exportData = [
-                { col1: 'Laporan Penjualan Harian', col2: '', col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
-                { col1: 'Tanggal', col2: `${startDate} - ${endDate}`, col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Tanggal', col2: 'Jumlah Transaksi', col3: 'Penjualan', col4: 'Rata-Rata' }
-            ];
-
-            groupedArray.forEach(group => {
-                const avgPerTransaction = group.count > 0 ? Math.round(group.penjualanTotal / group.count) : 0;
-                exportData.push({
-                    col1: group.date,
-                    col2: group.count,
-                    col3: group.penjualanTotal,
-                    col4: avgPerTransaction
-                });
+            await exportDailySalesExcel({
+                data: products,
+                grandTotalItems,
+                grandTotalPenjualan,
+                fileName: `Laporan_Penjualan_Harian_${outletName.replace(/\s+/g, '_')}_${startDate.replace(/\//g, '-')}_${endDate.replace(/\//g, '-')}.xlsx`,
+                headerInfo: [
+                    ['Outlet', outletName],
+                    ['Tanggal', periodText],
+                    ['Tanggal Export', dayjs().format('DD MMMM YYYY HH:mm')]
+                ]
             });
-
-            exportData.push({
-                col1: 'Grand Total',
-                col2: grandTotalItems,
-                col3: grandTotalPenjualan,
-                col4: rataRataTotal
-            });
-
-            const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2', 'col3', 'col4'],
-                skipHeader: true
-            });
-
-            ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 }];
-            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Harian");
-
-            const fileName = `Laporan_Penjualan_Harian_${outletName.replace(/\s+/g, '_')}_${startDate.replace(/\//g, '-')}_${endDate.replace(/\//g, '-')}.xlsx`;
-            XLSX.writeFile(wb, fileName);
 
         } catch (error) {
             console.error("Error exporting:", error);
@@ -294,7 +238,7 @@ const DailySales = () => {
                 </div>
                 <button
                     onClick={exportToExcel}
-                    disabled={isExporting || groupedArray.length === 0}
+                    disabled={isExporting || products.length === 0}
                     className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isExporting ? (

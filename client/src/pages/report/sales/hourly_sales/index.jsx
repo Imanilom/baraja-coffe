@@ -10,6 +10,7 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import SalesHourlySkeleton from "./skeleton";
+import { exportHourlySalesExcel } from '../../../../utils/exportHourlySalesExcel';
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -195,59 +196,18 @@ const HourlySales = () => {
             const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
             const dateRangeText = `${startDate} - ${endDate}`;
 
-            // ✅ Gunakan grandTotalPenjualan, bukan grandTotalSales
-            const rataRataTotal = grandTotalItems > 0
-                ? Math.round(grandTotalPenjualan / grandTotalItems)
-                : 0;
-
-            const exportData = [
-                { col1: 'Laporan Penjualan Per Jam', col2: '', col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
-                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Waktu', col2: 'Jumlah Transaksi', col3: 'Penjualan', col4: 'Rata-Rata' }
-            ];
-
-            products.forEach(group => {
-                const avgPerTransaction = group.count > 0
-                    ? Math.round(group.grandTotalSum / group.count)
-                    : 0;
-
-                exportData.push({
-                    col1: group.hour,
-                    col2: group.count,
-                    col3: group.grandTotalSum,
-                    col4: avgPerTransaction
-                });
+            await exportHourlySalesExcel({
+                data: products,
+                grandTotalItems,
+                grandTotalPenjualan,
+                fileName: `Laporan_Penjualan_Per_Jam_${outletName.replace(/\s+/g, '_')}_${startDate.replace(/\//g, '-')}_${endDate.replace(/\//g, '-')}.xlsx`,
+                headerInfo: [
+                    ['Outlet', outletName],
+                    ['Tanggal', dateRangeText],
+                    ['Tanggal Export', dayjs().format('DD MMMM YYYY HH:mm')]
+                ]
             });
 
-            exportData.push({
-                col1: 'Grand Total',
-                col2: grandTotalItems,
-                col3: grandTotalPenjualan,
-                col4: rataRataTotal
-            });
-
-            const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2', 'col3', 'col4'],
-                skipHeader: true
-            });
-
-            ws['!cols'] = [
-                { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 }
-            ];
-
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
-            ];
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Jam");
-
-            const fileName = `Laporan_Penjualan_Per_Jam_${outletName.replace(/\s+/g, '_')}_${startDate.replace(/\//g, '-')}_${endDate.replace(/\//g, '-')}.xlsx`;
-
-            XLSX.writeFile(wb, fileName);
         } catch (error) {
             console.error("Error exporting to Excel:", error);
             alert("Gagal mengekspor data. Silakan coba lagi.");
