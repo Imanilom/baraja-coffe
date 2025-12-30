@@ -399,6 +399,29 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               },
             ),
           ),
+          //promo button,
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              icon: const Icon(Icons.local_offer_outlined, size: 20),
+              label: const Text('Promo', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF4CAF50),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(32),
+                  side: const BorderSide(color: Color(0xFF4CAF50)),
+                ),
+                backgroundColor: const Color(0xFF4CAF50).withOpacity(0.1),
+              ),
+              onPressed: () {
+                context.pushNamed('promotions');
+              },
+            ),
+          ),
         ],
       ),
       body: IndexedStack(

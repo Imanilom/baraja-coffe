@@ -465,9 +465,6 @@ export const getMenuItems = async (req, res) => {
 
     // 4) Buat pipeline untuk aggregation
     const aggregationPipeline = [
-      // Match only active items
-      { $match: { isActive: true } },
-
       // Lookup untuk recipes
       {
         $lookup: {
