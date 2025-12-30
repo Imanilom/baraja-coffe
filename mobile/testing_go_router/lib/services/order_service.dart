@@ -442,6 +442,8 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'outletId': user.outletId,
     'outlet': user.outletId,
+    'appliedPromos': order.appliedPromos,
+    'discounts': order.discounts,
     'totalPrice': order.grandTotal,
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,

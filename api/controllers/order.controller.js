@@ -8351,15 +8351,15 @@ export const getCashierOrderHistory = async (req, res) => {
     }
 
     // Hitung tanggal 3 hari yang lalu
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 3);
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
     const baseFilter = {
       $and: [
         { cashierId: { $exists: true } },
         { cashierId: { $ne: null } },
         { cashierId: cashierId }, // Langsung tambahkan di sini
-        { createdAt: { $gte: sevenDaysAgo } } // Filter 7 hari terakhir
+        { createdAt: { $gte: threeDaysAgo } }, // Filter 3 hari terakhir
       ],
     };
 

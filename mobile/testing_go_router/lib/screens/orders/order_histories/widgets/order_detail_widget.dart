@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
@@ -332,6 +333,13 @@ class OrderDetailWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _buildPriceRow('Subtotal', order.totalBeforeDiscount),
+          //discount,
+          if (order.discounts == null || order.discounts?.totalDiscount != 0)
+            _buildPriceRow(
+              'Discount',
+              order.discounts?.totalDiscount ?? 0,
+              isDiscount: true,
+            ),
           _buildPriceRow('Tax', order.totalTax),
           // _buildPriceRow('Discount', -order.discounts),
           const Divider(),
@@ -351,6 +359,7 @@ class OrderDetailWidget extends ConsumerWidget {
     int amount, {
     bool isBold = false,
     Color? color,
+    bool? isDiscount,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -365,7 +374,9 @@ class OrderDetailWidget extends ConsumerWidget {
             ),
           ),
           Text(
-            formatRupiah(amount),
+            isDiscount == true
+                ? '- ${formatRupiah(amount)}'
+                : formatRupiah(amount),
             style: TextStyle(
               color: color ?? Colors.black,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,

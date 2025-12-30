@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
@@ -30,6 +31,15 @@ class OrderDetail extends ConsumerWidget {
         (orderDetail?.orderType ?? OrderType.dineIn) == OrderType.takeAway;
     final hasTable = (orderDetail?.tableNumber ?? '').trim().isNotEmpty;
     final needTable = !isTakeAway;
+
+    // final manualDiscount = orderDetail?.discounts?.totalDiscount ?? 0;
+    // final autoDiscount = (orderDetail?.appliedPromos ?? []).fold<int>(
+    //   0,
+    //   (sum, p) =>
+    //       sum + p.affectedItems.fold(0, (s, it) => s + it.discountAmount),
+    // );
+    // final totalDiscount = manualDiscount + autoDiscount;
+    final totalDiscount = orderDetail?.discounts?.totalDiscount ?? 0;
 
     // final savedPrinter = ref.read(savedPrintersProvider.notifier);
 
@@ -156,14 +166,36 @@ class OrderDetail extends ConsumerWidget {
         children: [
           Expanded(
             child: TextButton(
-              onPressed: isLoading ? null : () => handleOpenBill(),
+              // onPressed: isLoading ? null : () => handleOpenBill(),
+              onPressed: () {
+                //alert dialog fitur belum jadi
+                showDialog(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: const Text('Fitur belum jadi'),
+                        content: const Text(
+                          'Fitur ini belum jadi, silahkan tunggu beberapa hari lagi',
+                        ),
+                        actions: [
+                          TextButton(
+                            child: const Text('OK'),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                );
+              },
               style: TextButton.styleFrom(
-                backgroundColor: Colors.green[50],
+                backgroundColor: Colors.grey[50],
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text('Open Bill'),
+              child: const Text(
+                'Open Bill',
+                style: TextStyle(color: Colors.grey),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -585,139 +617,91 @@ class OrderDetail extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _OrderSummaryRow(
-                      label: 'Subtotal',
-                      value: formatRupiah(
-                        orderDetail.totalAfterDiscount.toInt(),
+                    // =======================
+                    // PROMO TERPAKAI (appliedPromos)
+                    // =======================
+                    //daftar promo terpakai dengan row scroll
+                    if ((orderDetail.appliedPromos ?? []).isNotEmpty) ...[
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Promo Terpakai',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ),
+                      const SizedBox(height: 6),
+                      ...orderDetail.appliedPromos!.map((p) {
+                        final promoDiscount = p.affectedItems.fold(
+                          0,
+                          (s, it) => s + it.discountAmount,
+                        );
+
+                        final freebies = p.freeItems;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p.promoName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (freebies.isNotEmpty)
+                                      Text(
+                                        'Gratis: ${freebies.map((f) => '${f.menuItemName} x${f.quantity}').join(', ')}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[700],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const Divider(),
+                    ],
+                    _OrderSummaryRow(
+                      label: 'Sub Total Harga',
+                      value: formatRupiah(orderDetail.totalBeforeDiscount),
                     ),
+                    if (totalDiscount > 0)
+                      _OrderSummaryRow(
+                        label: 'Diskon',
+                        value: '- ${formatRupiah(totalDiscount)}',
+                      ),
                     _OrderSummaryRow(
                       label: 'Tax',
-                      value: formatRupiah(orderDetail.totalTax.toInt().round()),
+                      value: formatRupiah(orderDetail.totalTax),
                     ),
+                    if (orderDetail.totalServiceFee > 0)
+                      _OrderSummaryRow(
+                        label: 'Service',
+                        value: formatRupiah(orderDetail.totalServiceFee),
+                      ),
                     const Divider(),
                     _OrderSummaryRow(
                       label: 'Total Harga',
-                      value: formatRupiah(
-                        orderDetail.grandTotal.toInt().round(),
-                      ),
+                      value: formatRupiah(orderDetail.grandTotal),
                       isBold: true,
                     ),
+
                     const SizedBox(height: 8),
                     buildBottomActions(
                       context: context,
                       ref: ref,
                       orderDetail: orderDetail,
                     ),
-                    // Row(
-                    //   children: [
-                    //     // Hapus
-                    //     IconButton(
-                    //       onPressed: () {
-                    //         showDialog(
-                    //           context: context,
-                    //           builder: (context) {
-                    //             return AlertDialog(
-                    //               title: const Text('Hapus Pesanan'),
-                    //               content: const Text(
-                    //                 'Apakah Anda yakin ingin menghapus pesanan ini?',
-                    //               ),
-                    //               actions: [
-                    //                 TextButton(
-                    //                   onPressed: () => Navigator.pop(context),
-                    //                   child: const Text('Batal'),
-                    //                 ),
-                    //                 TextButton(
-                    //                   onPressed: () {
-                    //                     ref
-                    //                         .read(orderDetailProvider.notifier)
-                    //                         .clearOrder();
-                    //                     Navigator.pop(context);
-                    //                   },
-                    //                   child: const Text('Hapus'),
-                    //                 ),
-                    //               ],
-                    //             );
-                    //           },
-                    //         );
-                    //       },
-                    //       icon: const Icon(Icons.clear_rounded),
-                    //       color: Colors.redAccent,
-                    //       style: IconButton.styleFrom(
-                    //         backgroundColor: Colors.red[50],
-                    //         shape: RoundedRectangleBorder(
-                    //           borderRadius: BorderRadius.circular(8),
-                    //         ),
-                    //       ),
-                    //     ),
-
-                    //     const SizedBox(width: 8),
-
-                    //     // openbill
-                    //     Expanded(
-                    //       child: TextButton(
-                    //         // onPressed: () => handleOpenBill(),
-                    //         onPressed: () async {
-                    //           final ok = await _ensureRequiredFields(
-                    //             context,
-                    //             ref,
-                    //             orderDetail,
-                    //           );
-                    //           if (!ok) return;
-
-                    //           //update orderdetail isOpenbill=true
-                    //           ref
-                    //               .read(orderDetailProvider.notifier)
-                    //               .updateIsOpenBill(true);
-
-                    //           handleOpenBill();
-                    //         },
-                    //         style: TextButton.styleFrom(
-                    //           backgroundColor: Colors.green[50],
-                    //           shape: RoundedRectangleBorder(
-                    //             borderRadius: BorderRadius.circular(8),
-                    //           ),
-                    //         ),
-                    //         child: const Text('Open Bill'),
-                    //       ),
-                    //     ),
-
-                    //     const SizedBox(width: 8),
-
-                    //     // Bayar
-                    //     Expanded(
-                    //       child: TextButton(
-                    //         onPressed: () async {
-                    //           final ok = await _ensureRequiredFields(
-                    //             context,
-                    //             ref,
-                    //             orderDetail,
-                    //           );
-                    //           if (!ok) return;
-                    //           ref
-                    //               .read(orderDetailProvider.notifier)
-                    //               .updateIsOpenBill(false);
-
-                    //           if (!context.mounted) return;
-                    //           context.push(
-                    //             '/payment-method',
-                    //             extra: ref.read(orderDetailProvider),
-                    //           );
-                    //         },
-                    //         style: TextButton.styleFrom(
-                    //           backgroundColor: Colors.green,
-                    //           shape: RoundedRectangleBorder(
-                    //             borderRadius: BorderRadius.circular(8),
-                    //           ),
-                    //         ),
-                    //         child: const Text(
-                    //           'Bayar',
-                    //           style: TextStyle(color: Colors.white),
-                    //         ),
-                    //       ),
-                    //     ),
-                    //   ],
-                    // ),
                   ],
                 ),
               ),

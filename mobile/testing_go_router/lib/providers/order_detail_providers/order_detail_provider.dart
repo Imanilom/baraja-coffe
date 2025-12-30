@@ -446,11 +446,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
 
       MenuItemModel? findMenuItemById(String id) {
-        return menuItems.firstWhere((item) => item.id == id);
+        return menuItems.firstWhereOrNull((item) => item.id == id);
       }
 
-      final now =
-          DateTime.now(); // kalau kamu perlu WIB, pastikan device timezone WIB
+      final now = DateTime.now();
 
       final orderAfterPromo = PromoEngine.apply(
         state!.copyWith(
@@ -462,22 +461,40 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         findMenuItemById,
       );
 
+      debugPrint('orderAfterPromo: ${orderAfterPromo.appliedPromos}');
+
       // ambil diskon auto
-      final autoDiscount = PromoEngine.sumAutoDiscount(
-        orderAfterPromo.appliedPromos,
+      final autoDiscount = (orderAfterPromo.appliedPromos ?? []).fold<int>(
+        0,
+        (sum, p) => sum + (p.discount ?? 0),
       );
 
-      // 5. Hitung total setelah diskon (manual + auto)
-      final manualDiscount = state!.discounts?.totalDiscount ?? 0;
-      final totalAfterDiscount =
-          totalBeforeDiscount - manualDiscount - autoDiscount;
+      // ✅ bikin summary diskon jadi 1 sumber kebenaran
+      final existingDiscounts = state!.discounts ?? DiscountModel();
+
+      // manual & voucher ambil dari field masing-masing, bukan totalDiscount
+      final manualDiscount = existingDiscounts.manualDiscount;
+      final voucherDiscount = existingDiscounts.voucherDiscount;
+
+      // simpan auto promo discount ke DiscountModel
+      final newDiscounts = existingDiscounts.copyWith(
+        autoPromoDiscount: autoDiscount,
+      );
+
+      // total diskon gabungan
+      final totalDiscount =
+          newDiscounts.totalDiscount + manualDiscount + voucherDiscount;
+
+      // 5. Hitung total setelah diskon (auto + manual + voucher)
+      final totalAfterDiscount = totalBeforeDiscount - totalDiscount;
 
       // 6. Hitung tax dan service
       int totalTax = 0;
       int totalServiceFee = 0;
 
       // 🔹 Cek dulu: apakah order ini full kategori BAZAR?
-      final isBazaarOrder = _isBazaarOrder(updatedItems);
+      // bazar check pakai items yang sudah final (karena buy_x_get_y nambah item)
+      final isBazaarOrder = _isBazaarOrder(orderAfterPromo.items);
 
       if (totalAfterDiscount > 0 && !isBazaarOrder) {
         // 💰 Mode normal → tetap hitung tax & service
@@ -503,18 +520,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
 
       // 8. Update state sekali saja
-      // state = state!.copyWith(
-      //   items: updatedItems,
-      //   totalBeforeDiscount: totalBeforeDiscount,
-      //   totalAfterDiscount: totalAfterDiscount,
-      //   totalTax: totalTax,
-      //   totalServiceFee: totalServiceFee,
-      //   grandTotal: grandTotal,
-      // );
       state = state!.copyWith(
-        items:
-            orderAfterPromo.items, // penting: ini sudah termasuk free item baru
+        items: orderAfterPromo.items,
         appliedPromos: orderAfterPromo.appliedPromos,
+        discounts: newDiscounts,
         totalBeforeDiscount: totalBeforeDiscount,
         totalAfterDiscount: totalAfterDiscount,
         totalTax: totalTax,
@@ -729,6 +738,23 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       state == null ? 0 : (state!.grandTotal - totalPaid).clamp(0, 1 << 31);
 
   bool get isFullyPaid => remaining == 0;
+
+  int _autoPromoDiscount(OrderDetailModel? s) {
+    if (s == null) return 0;
+    final promos = s.appliedPromos ?? [];
+    return promos.fold(0, (sum, p) {
+      final affected = p.affectedItems.fold(
+        0,
+        (a, it) => a + it.discountAmount,
+      );
+      return sum + affected;
+    });
+  }
+
+  int _manualDiscount(OrderDetailModel? s) => s?.discounts?.totalDiscount ?? 0;
+
+  int totalDiscount(OrderDetailModel? s) =>
+      _manualDiscount(s) + _autoPromoDiscount(s);
 }
 
 // Provider untuk OrderDetailNotifier

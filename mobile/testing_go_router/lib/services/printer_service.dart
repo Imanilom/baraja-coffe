@@ -6,6 +6,7 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
@@ -1330,12 +1331,30 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: formatPrice(orderDetail.totalAfterDiscount).toString(),
+          text: formatPrice(orderDetail.totalBeforeDiscount).toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
       ]),
     );
+    if (orderDetail.discounts != null ||
+        orderDetail.discounts?.totalDiscount != 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Promo Diskon',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text:
+                "- ${formatPrice(orderDetail.discounts?.totalDiscount ?? 0).toString()}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
     bytes.addAll(
       generator.row([
         PosColumn(
