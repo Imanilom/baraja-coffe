@@ -158,7 +158,7 @@ export const signin = async (req, res, next) => {
         .populate("role")
         .populate({
           path: "outlet.outletId",
-          select: ["name", "admin"],
+          select: ["name", "admin", "address", "city", "contactNumber", "openTime", "closeTime"],  // ✅ Include all outlet info
           populate: { path: "admin", select: "name" },
         });
 
@@ -175,6 +175,7 @@ export const signin = async (req, res, next) => {
         "staff",
         "cashier junior",
         "cashier senior",
+        "super kasir",
       ];
 
       if (!user || !allowedRoles.includes(user.role.name)) {

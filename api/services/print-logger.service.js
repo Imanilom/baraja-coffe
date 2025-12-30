@@ -5,9 +5,21 @@ import workstationConfig from '../utils/workstationConfig.js';
 export class PrintLogger {
     static async logPrintAttempt(orderId, item, workstation, printerConfig, stockInfo = {}) {
         try {
-            // FIXED: Gunakan menuItemId untuk mencari stock
-            const menuItemId = item.menuItemId || item._id || item.id;
-            console.log('🔄 Using menuItemId for stock check:', menuItemId);
+            // FIXED: Gunakan menuItemId untuk mencari stock, with fallback for items without ID
+            // Also check nested menuItem._id which is common in order items from controller
+            let menuItemId = item.menuItemId || item._id || item.id || item.menu_item_id ||
+                item.menuItem?._id?.toString() || item.menuItem?.id;
+
+            // FIXED: Extract item name correctly from various possible locations
+            const itemName = item.name || item.menuItemData?.name || item.menuItem?.name || 'Unknown Item';
+
+            // FALLBACK: If no item_id found, generate one from orderId + itemName to prevent validation error
+            if (!menuItemId) {
+                menuItemId = `${orderId}_${(itemName || 'unknown').replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
+                console.warn(`⚠️ No item_id found for item "${itemName}", using generated ID: ${menuItemId}`);
+            }
+
+            console.log('🔄 Using menuItemId for stock check:', menuItemId, 'Name:', itemName);
 
             const stockStatus = await this.checkMenuItemStock(menuItemId, workstation);
 
@@ -38,7 +50,7 @@ export class PrintLogger {
                 console.log(`⚠️ [PROBLEMATIC PRINT ATTEMPT]
 OrderId: ${orderId}
 menuItemId: ${menuItemId}
-Item: ${item.name}
+Item: ${itemName}
 Workstation: ${workstation}
 manualStock: ${stockStatus.manualStock}
 effectiveStock: ${stockStatus.effectiveStock}
@@ -48,21 +60,28 @@ Issues: ${warningNotes}`);
                 console.log(`🖨️ [PRINT ATTEMPT]
 OrderId: ${orderId}
 menuItemId: ${menuItemId}
-Item: ${item.name}
+Item: ${itemName}
 Workstation: ${workstation}
 manualStock: ${stockStatus.manualStock}
 effectiveStock: ${stockStatus.effectiveStock}
 Stock Status: ${stockStatus.status}`);
             }
 
+            // Ensure printer_type is valid enum
+            const validPrinterTypes = ['wifi', 'bluetooth', 'usb', null];
+            let printerType = printerConfig?.type;
+            if (printerType === 'unknown' || !validPrinterTypes.includes(printerType)) {
+                printerType = null;
+            }
+
             const log = new PrintLog({
                 order_id: orderId,
                 item_id: menuItemId,
-                item_name: item.name,
+                item_name: itemName,
                 item_quantity: item.qty || item.quantity,
                 workstation: workstation,
                 print_status: printStatus,
-                printer_type: printerConfig?.type,
+                printer_type: printerType,
                 printer_info: printerConfig?.info,
                 print_attempts: 1,
 
@@ -105,11 +124,19 @@ Stock Status: ${stockStatus.status}`);
 
             // Fallback: create minimal log without validation issues
             try {
-                const menuItemId = item.menuItemId || item._id || item.id;
+                let menuItemId = item.menuItemId || item._id || item.id || item.menu_item_id ||
+                    item.menuItem?._id?.toString() || item.menuItem?.id;
+                const itemName = item.name || item.menuItemData?.name || item.menuItem?.name || 'Unknown Item';
+
+                // FALLBACK: Generate ID if none exists
+                if (!menuItemId) {
+                    menuItemId = `${orderId}_${(itemName || 'unknown').replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
+                }
+
                 const fallbackLog = new PrintLog({
                     order_id: orderId,
                     item_id: menuItemId,
-                    item_name: item.name,
+                    item_name: itemName,
                     item_quantity: item.qty || item.quantity,
                     workstation: workstation,
                     print_status: 'failed',
@@ -239,12 +266,20 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
 
     static async logProblematicItem(orderId, item, workstation, issues, details = '', stockInfo = {}) {
         try {
-            const menuItemId = item.menuItemId || item._id || item.id;
+            let menuItemId = item.menuItemId || item._id || item.id || item.menu_item_id ||
+                item.menuItem?._id?.toString() || item.menuItem?.id;
+            const itemName = item.name || item.menuItemData?.name || item.menuItem?.name || 'Unknown Item';
+
+            // FALLBACK: Generate ID if none exists
+            if (!menuItemId) {
+                menuItemId = `${orderId}_${(itemName || 'unknown').replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
+                console.warn(`⚠️ No item_id found for problematic item "${itemName}", using generated ID: ${menuItemId}`);
+            }
 
             console.log('⚠️ [PROBLEMATIC ITEM LOG]', {
                 orderId,
                 menuItemId,
-                itemName: item.name,
+                itemName: itemName,
                 workstation,
                 issues,
                 details
@@ -295,10 +330,18 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
 
             // FALLBACK YANG LEBIH AMAN
             try {
+                let fallbackId = item.menuItemId || item._id || item.id || item.menu_item_id ||
+                    item.menuItem?._id?.toString() || item.menuItem?.id;
+                const fallbackName = item.name || item.menuItemData?.name || item.menuItem?.name || 'Unknown Item';
+
+                if (!fallbackId) {
+                    fallbackId = `${orderId}_${(fallbackName || 'unknown').replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
+                }
+
                 const fallbackLog = new PrintLog({
                     order_id: orderId,
-                    item_id: item.menuItemId || item._id || item.id,
-                    item_name: item.name || 'Unknown Item',
+                    item_id: fallbackId,
+                    item_name: fallbackName,
                     item_quantity: item.qty || item.quantity || 1, // PASTIKAN ADA VALUE
                     workstation: workstation || 'unknown',
                     print_status: 'printed_with_issues', // VALID VALUE
@@ -320,11 +363,20 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
     // Add this method to the PrintLogger class as well
     static async logSkippedItem(orderId, item, workstation, reason, details = '') {
         try {
-            const menuItemId = item.menuItemId || item._id || item.id;
+            let menuItemId = item.menuItemId || item._id || item.id || item.menu_item_id ||
+                item.menuItem?._id?.toString() || item.menuItem?.id;
+            const itemName = item.name || item.menuItemData?.name || item.menuItem?.name || 'Unknown Item';
+
+            // FALLBACK: Generate ID if none exists
+            if (!menuItemId) {
+                menuItemId = `${orderId}_${(itemName || 'unknown').replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
+                console.warn(`⚠️ No item_id found for skipped item "${itemName}", using generated ID: ${menuItemId}`);
+            }
+
             console.log('⏭️ [SKIPPED ITEM LOG]', {
                 orderId,
                 menuItemId,
-                itemName: item.name,
+                itemName: itemName,
                 workstation,
                 reason
             });
@@ -332,7 +384,7 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
             const log = new PrintLog({
                 order_id: orderId,
                 item_id: menuItemId,
-                item_name: item.name,
+                item_name: itemName,
                 item_quantity: item.qty || item.quantity || 1,
                 workstation: workstation,
                 print_status: 'skipped',

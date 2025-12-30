@@ -5,6 +5,7 @@ import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
 import Payment from '../../models/Payment.model.js';
+import { triggerImmediatePrint, broadcastCashOrderToKitchen } from '../../helpers/broadcast.helper.js';
 
 export async function createOrderHandler({
   orderId,
@@ -16,11 +17,24 @@ export async function createOrderHandler({
   recipientData,
   paymentDetails
 }) {
-  let session;
-  try {
-    session = await mongoose.startSession();
+  let session = null;
 
-    const orderResult = await runWithTransactionRetry(async () => {
+  // Check if loyalty operations need transaction for atomicity
+  const hasLoyaltyOperations = orderData.customerId && orderData.loyaltyPointsToRedeem > 0;
+
+  // Skip transactions for simple Cashier orders (no loyalty) to avoid transaction number mismatch
+  const useTransaction = source !== 'Cashier' || hasLoyaltyOperations;
+
+  try {
+    console.log(`📝 createOrderHandler: source=${source}, useTransaction=${useTransaction}, hasLoyalty=${hasLoyaltyOperations}`);
+
+    if (useTransaction) {
+      session = await mongoose.startSession();
+    }
+
+    const orderResult = await runWithTransactionRetry(async (txnSession) => {
+      // For Cashier without loyalty, use null session (no transaction)
+      const activeSession = useTransaction ? txnSession : null;
       const {
         customerId,
         loyaltyPointsToRedeem,
@@ -61,7 +75,7 @@ export async function createOrderHandler({
         paymentDetailsType: Array.isArray(orderPaymentDetails) ? 'array' : 'object'
       });
 
-      // Process order items dengan custom amount items terpisah
+      // Process order items - use active session (null for simple Cashier)
       const processed = await processOrderItems({
         items,
         outlet: outletId,
@@ -72,7 +86,7 @@ export async function createOrderHandler({
         customerId,
         loyaltyPointsToRedeem,
         customAmountItems
-      }, session);
+      }, activeSession);
 
       if (!processed) {
         throw new Error('Failed to process order items');
@@ -411,7 +425,7 @@ export async function createOrderHandler({
         throw new Error(`VALIDATION_ERROR: ${validationError.message}`);
       }
 
-      await newOrder.save({ session });
+      await newOrder.save({ session: activeSession });
 
       // ✅ LOG ORDER CREATION SUCCESS (User-Friendly Format)
       console.log(`\n✅ ========== ORDER CREATED ==========`);
@@ -464,7 +478,7 @@ export async function createOrderHandler({
         isSplitPayment: isSplitPayment,
         orderData: baseOrderData
       };
-    }, session);
+    }, useTransaction ? session : null, 3); // Pass session only when using transactions
 
     // PERBAIKAN: Tunggu sebentar dan verifikasi order tersimpan
     console.log('🔄 Verifying order in database...');
@@ -487,6 +501,65 @@ export async function createOrderHandler({
       splitPaymentStatus: verifiedOrder.splitPaymentStatus,
       paymentsTotal: verifiedOrder.payments.reduce((sum, p) => sum + p.amount, 0)
     });
+
+    // ✅ FIX: Emit socket event IMMEDIATELY for workstation to receive order
+    // This triggers real-time update without waiting for polling
+    try {
+      // Prepare items with workstation info for routing
+      const itemsForPrint = verifiedOrder.items.map(item => ({
+        _id: item._id?.toString(),
+        menuItemId: item.menuItem?.toString(),
+        name: item.name,
+        quantity: item.quantity,
+        notes: item.notes,
+        addons: item.addons,
+        toppings: item.toppings,
+        workstation: item.workstation || 'kitchen',
+        mainCategory: item.mainCategory,
+        category: item.category
+      }));
+
+      // ✅ ADDED: Include customAmount items in print payload (Routed to Bar Depan)
+      if (verifiedOrder.customAmountItems && verifiedOrder.customAmountItems.length > 0) {
+        verifiedOrder.customAmountItems.forEach(customItem => {
+          itemsForPrint.push({
+            _id: customItem._id?.toString() || `custom-${Date.now()}`,
+            name: customItem.name || 'Custom Amount',
+            quantity: 1, // Default quantity 1
+            notes: customItem.description || '',
+            workstation: 'bar', // Route to BAR
+            mainCategory: 'custom',
+            category: 'custom',
+            isCustomAmount: true, // Flag for identification
+            price: customItem.amount
+          });
+        });
+
+        console.log(`➕ Added ${verifiedOrder.customAmountItems.length} custom amount items to print payload (Routed to Bar)`);
+      }
+
+      await triggerImmediatePrint({
+        orderId: verifiedOrder.order_id,
+        tableNumber: verifiedOrder.tableNumber,
+        orderData: {
+          items: itemsForPrint,
+          orderType: verifiedOrder.orderType,
+          paymentMethod: verifiedOrder.paymentMethod,
+          name: verifiedOrder.name || 'Guest',
+          service: verifiedOrder.orderType || 'Dine-In'
+        },
+        outletId: verifiedOrder.outletId?.toString(),
+        source: source,
+        isAppOrder: source === 'App',
+        isWebOrder: source === 'Web',
+        isOpenBill: isOpenBill || false  // ✅ NEW: Pass isOpenBill flag to workstation
+      });
+
+      console.log(`📡 Immediate print triggered for order ${orderId}`);
+    } catch (printError) {
+      // Don't fail the order if print trigger fails
+      console.error('⚠️ Failed to trigger immediate print (non-blocking):', printError.message);
+    }
 
     // Enqueue inventory update setelah transaction selesai
     const queueResult = await enqueueInventoryUpdate(orderResult);
@@ -544,9 +617,14 @@ export async function createOrderHandler({
 
     throw err;
   } finally {
-    if (session) {
-      await session.endSession();
-      console.log('MongoDB session ended');
+    // Only end session if we created one
+    if (session && useTransaction) {
+      try {
+        await session.endSession();
+        console.log('MongoDB session ended');
+      } catch (e) {
+        console.warn('Failed to end session:', e.message);
+      }
     }
   }
 }

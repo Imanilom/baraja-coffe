@@ -5,6 +5,8 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Table from '../models/Table.model.js';
 import Area from '../models/Area.model.js';
+import Reservation from '../models/Reservation.model.js';
+import { triggerImmediatePrint } from '../helpers/broadcast.helper.js';
 import mongoose from 'mongoose';
 
 // Helper function untuk mendapatkan waktu WIB sekarang
@@ -284,6 +286,188 @@ const autoCompleteExpiredOnProcessOrders = async () => {
 };
 
 /**
+ * ✅ Auto-activate Reserved orders 30 menit sebelum waktu target
+ * Prioritas waktu target:
+ * 1. food_serving_time (jika ada)
+ * 2. reservation_date + reservation_time (fallback)
+ */
+const autoActivateReservedOrders = async () => {
+    try {
+        const now = getWIBNow();
+        log.info(`[${now.toISOString()}] Checking for Reserved orders to activate...`);
+
+        // Cari semua order dengan status Reserved dan tipe Reservation
+        // ✅ IMPORTANT: Populate items.menuItem untuk data print yang lengkap
+        const reservedOrders = await Order.find({
+            status: 'Reserved',
+            orderType: 'Reservation',
+            reservation: { $exists: true, $ne: null }
+        })
+            .populate('reservation')
+            .populate({
+                path: 'items.menuItem',
+                select: 'name price category mainCategory workstation imageURL'
+            });
+
+        if (reservedOrders.length === 0) {
+            log.debug('No Reserved orders found for activation check');
+            return { activatedCount: 0, totalFound: 0, skipped: 0 };
+        }
+
+        log.info(`Found ${reservedOrders.length} Reserved orders to check`);
+
+        let activatedCount = 0;
+        let skippedCount = 0;
+        const activatedOrders = [];
+
+        for (const order of reservedOrders) {
+            try {
+                const reservation = order.reservation;
+
+                if (!reservation) {
+                    log.warning(`Order ${order.order_id} has no reservation data, skipping...`);
+                    skippedCount++;
+                    continue;
+                }
+
+                // Tentukan waktu target (prioritas: food_serving_time)
+                let targetTime;
+                let targetSource = '';
+
+                if (reservation.food_serving_time) {
+                    // Prioritas 1: food_serving_time (sudah Date object)
+                    targetTime = new Date(reservation.food_serving_time);
+                    targetSource = 'food_serving_time';
+                } else if (reservation.reservation_date && reservation.reservation_time) {
+                    // Fallback: reservation_date + reservation_time
+                    const resDate = new Date(reservation.reservation_date);
+                    const [hours, minutes] = (reservation.reservation_time || '00:00').split(':');
+                    resDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+                    targetTime = resDate;
+                    targetSource = 'reservation_time';
+                } else {
+                    log.warning(`Order ${order.order_id} has no valid target time, skipping...`);
+                    skippedCount++;
+                    continue;
+                }
+
+                // Hitung waktu aktivasi (30 menit sebelum target)
+                const activationTime = new Date(targetTime.getTime() - 30 * 60 * 1000);
+
+                log.debug(`Order ${order.order_id}: Target=${targetTime.toISOString()} (${targetSource}), Activation=${activationTime.toISOString()}, Now=${now.toISOString()}`);
+
+                // Jika sudah waktunya aktivasi (now >= activationTime)
+                if (now >= activationTime) {
+                    // Update order status ke OnProcess
+                    order.status = 'OnProcess';
+                    order.updatedAtWIB = now;
+
+                    // Tambahkan note
+                    const activationNote = `\n[${now.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Auto-activated: 30 menit sebelum ${targetSource} (${targetTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })})`;
+                    order.notes = (order.notes || '') + activationNote;
+
+                    await order.save();
+
+                    activatedCount++;
+                    activatedOrders.push({
+                        orderId: order.order_id,
+                        targetTime: targetTime.toISOString(),
+                        targetSource,
+                        activatedAt: now.toISOString()
+                    });
+
+                    log.success(`✅ Order ${order.order_id} activated: Reserved → OnProcess (${targetSource}: ${targetTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })})`);
+
+                    // Emit socket event jika tersedia
+                    if (typeof global.io !== 'undefined' && global.io) {
+                        global.io.to('cashier_room').emit('order_status_updated', {
+                            orderId: order._id,
+                            order_id: order.order_id,
+                            status: 'OnProcess',
+                            updatedBy: 'System Auto-Activate',
+                            timestamp: now
+                        });
+
+                        global.io.to('gro_room').emit('order_status_updated', {
+                            orderId: order._id,
+                            order_id: order.order_id,
+                            status: 'OnProcess',
+                            updatedBy: 'System Auto-Activate',
+                            timestamp: now
+                        });
+
+                        global.io.to('kitchen_room').emit('order_status_updated', {
+                            orderId: order._id,
+                            order_id: order.order_id,
+                            status: 'OnProcess',
+                            updatedBy: 'System Auto-Activate',
+                            timestamp: now
+                        });
+
+                        // 🖨️ TRIGGER IMMEDIATE PRINT untuk kitchen/bar
+                        log.info(`🖨️ Triggering immediate print for activated order ${order.order_id}...`);
+
+                        // Map order items untuk print
+                        const orderItems = order.items.map(item => ({
+                            menuItem: item.menuItem?._id || item.menuItem,
+                            name: item.menuItem?.name || item.name || 'Unknown Item',
+                            quantity: item.quantity || 1,
+                            price: item.menuItem?.price || item.price || 0,
+                            category: item.menuItem?.category || item.category || '',
+                            mainCategory: item.menuItem?.mainCategory || item.mainCategory || '',
+                            workstation: item.menuItem?.workstation || item.workstation || 'kitchen',
+                            notes: item.notes || '',
+                            addons: item.addons || [],
+                            toppings: item.toppings || []
+                        }));
+
+                        // Trigger immediate print
+                        try {
+                            await triggerImmediatePrint({
+                                orderId: order.order_id,
+                                tableNumber: order.tableNumber,
+                                outletId: order.outlet,
+                                source: 'Reservation Auto-Activate',
+                                isAppOrder: false,
+                                isWebOrder: false,
+                                orderData: {
+                                    items: orderItems,
+                                    orderType: order.orderType,
+                                    paymentMethod: order.paymentMethod || 'Cash'
+                                }
+                            });
+                            log.success(`🖨️ Print triggered for order ${order.order_id}`);
+                        } catch (printError) {
+                            log.error(`Failed to trigger print for order ${order.order_id}:`, printError.message);
+                        }
+                    }
+                } else {
+                    log.debug(`Order ${order.order_id} not yet ready for activation. Will activate at ${activationTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`);
+                    skippedCount++;
+                }
+
+            } catch (orderError) {
+                log.error(`Error processing order ${order.order_id}:`, orderError.message);
+                skippedCount++;
+            }
+        }
+
+        log.success(`Auto-activate completed: ${activatedCount} activated, ${skippedCount} skipped, ${reservedOrders.length} total checked`);
+
+        return {
+            activatedCount,
+            totalFound: reservedOrders.length,
+            skipped: skippedCount,
+            activatedOrders
+        };
+
+    } catch (error) {
+        log.error('Error in autoActivateReservedOrders:', error.message);
+        return { error: error.message };
+    }
+};
+
+/**
  * ✅ Cleanup orphaned payments
  */
 const cleanupOrphanedPayments = async () => {
@@ -333,6 +517,10 @@ const cleanupOrphanedPayments = async () => {
 /**
  * ✅ FIXED: Monitor expired payments dengan batch processing dan prevent double processing
  */
+/**
+ * ✅ FIXED: Monitor expired payments dengan batch processing dan prevent double processing
+ * ✅ PERBAIKAN: Exclude Reservation orders dari auto-cancel
+ */
 const monitorExpiredPayments = async () => {
     const session = await mongoose.startSession();
 
@@ -341,7 +529,7 @@ const monitorExpiredPayments = async () => {
 
         log.info('Starting payment expiry monitor...');
 
-        // ✅ FIX: Tambahkan filter untuk exclude payment yang sudah diproses
+        // ✅ FIX: Tambahkan filter untuk exclude payment yang sudah diproses DAN exclude reservasi
         const expiredPayments = await Payment.find({
             status: 'pending', // Hanya pending, karena expire sudah diproses
             expiry_time: { $exists: true, $ne: null },
@@ -363,6 +551,7 @@ const monitorExpiredPayments = async () => {
         let processedCount = 0;
         let skippedCount = 0;
         let errorCount = 0;
+        let reservationSkippedCount = 0;
 
         // ✅ IMPROVEMENT: Process in batches untuk avoid memory issue
         const BATCH_SIZE = 10;
@@ -418,6 +607,13 @@ const monitorExpiredPayments = async () => {
                                 { session }
                             );
 
+                            skippedCount++;
+                            return;
+                        }
+
+                        // ✅ CRITICAL FIX: Skip reservasi - tidak boleh di-expire
+                        if (order.orderType === 'Reservation') {
+                            log.warning(`Skipping reservation order ${order.order_id} - reservations should not expire`);
                             skippedCount++;
                             return;
                         }
@@ -498,11 +694,18 @@ const monitorExpiredPayments = async () => {
 
         log.info(`\n📊 Payment Expiry Monitor Summary:`);
         log.success(`Processed: ${processedCount}`);
-        log.info(`Skipped: ${skippedCount}`);
+        log.info(`Skipped: ${skippedCount} (non-expired)`);
+        log.info(`Reservation orders skipped: ${reservationSkippedCount}`);
         log.error(`Errors: ${errorCount}`);
         log.info(`Total Checked: ${expiredPayments.length}`);
 
-        return { processedCount, skippedCount, errorCount, totalChecked: expiredPayments.length };
+        return {
+            processedCount,
+            skippedCount,
+            reservationSkippedCount,
+            errorCount,
+            totalChecked: expiredPayments.length
+        };
 
     } catch (error) {
         log.error('Error in monitorExpiredPayments:', error.message);
@@ -511,7 +714,6 @@ const monitorExpiredPayments = async () => {
         await session.endSession();
     }
 };
-
 /**
  * ✅ Setup cron job untuk monitoring
  */
@@ -542,6 +744,13 @@ export const setupPaymentExpiryMonitor = () => {
         timezone: 'Asia/Jakarta'
     });
     log.success('Orphaned payments cleanup started - Running daily at 02:00 WIB\n');
+
+    // ✅ NEW: Auto-activate Reserved orders - setiap 1 menit
+    cron.schedule('* * * * *', async () => {
+        log.info(`[${getWIBNow().toISOString()}] Running auto-activate for Reserved orders...`);
+        await autoActivateReservedOrders();
+    });
+    log.success('Reserved orders auto-activate monitor started - Running every 1 minute');
 
     // ✅ IMPORTANT: Jangan jalankan initial check saat startup
     // Karena bisa menyebabkan double processing
@@ -577,9 +786,37 @@ export const triggerCleanupOrphanedPayments = async () => {
     };
 };
 
+export const triggerActivateReservedOrders = async () => {
+    log.info('🔄 Manual trigger: Auto-activate Reserved orders');
+    const result = await autoActivateReservedOrders();
+    return {
+        success: true,
+        message: 'Reserved orders auto-activate completed',
+        result
+    };
+};
+
 /**
  * ✅ API endpoints
  */
+export const manualActivateReservedOrders = async (req, res) => {
+    try {
+        const result = await autoActivateReservedOrders();
+        res.status(200).json({
+            success: true,
+            message: 'Reserved orders auto-activate completed successfully',
+            data: result
+        });
+    } catch (error) {
+        log.error('Error in manual activate reserved:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to auto-activate reserved orders',
+            error: error.message
+        });
+    }
+};
+
 export const manualCheckExpiredPayments = async (req, res) => {
     try {
         const result = await monitorExpiredPayments();
@@ -765,227 +1002,10 @@ export default {
     triggerPaymentExpiryCheck,
     triggerOnProcessAutoComplete,
     triggerCleanupOrphanedPayments,
+    triggerActivateReservedOrders,
     manualCheckExpiredPayments,
     manualTriggerOnProcessComplete,
     manualTriggerCleanupOrphaned,
+    manualActivateReservedOrders,
     forceResetTableStatus
 };
-
-// import cron from 'node-cron';
-// import Payment from '../models/Payment.model.js';
-// import { Order } from '../models/order.model.js';
-// import { MenuItem } from '../models/MenuItem.model.js';
-// import MenuStock from '../models/modul_menu/MenuStock.model.js';
-
-// /**
-//  * ✅ CRITICAL: Rollback stock untuk expired payment
-//  */
-// const rollbackStockForExpiredPayment = async (order) => {
-//     console.log(`🔄 Rolling back stock for expired payment - Order: ${order.order_id}`);
-
-//     try {
-//         for (const item of order.items) {
-//             if (!item.menuItem) continue;
-
-//             // Rollback MenuStock
-//             const menuStock = await MenuStock.findOne({ menuItemId: item.menuItem });
-//             if (menuStock) {
-//                 const updateData = {
-//                     $inc: {
-//                         currentStock: item.quantity
-//                     }
-//                 };
-
-//                 // Tentukan apakah manual atau calculated stock
-//                 if (menuStock.manualStock !== null) {
-//                     updateData.$inc.manualStock = item.quantity;
-//                 } else {
-//                     updateData.$inc.calculatedStock = item.quantity;
-//                 }
-
-//                 await MenuStock.findByIdAndUpdate(menuStock._id, updateData);
-
-//                 console.log(`✅ Rolled back ${item.quantity} units to MenuStock for item ${item.menuItem}`);
-//             }
-
-//             // Rollback MenuItem availableStock
-//             const menuItem = await MenuItem.findByIdAndUpdate(
-//                 item.menuItem,
-//                 { $inc: { availableStock: item.quantity } },
-//                 { new: true }
-//             );
-
-//             if (menuItem) {
-//                 // Re-activate item jika stock sekarang > 0
-//                 if (menuItem.availableStock > 0 && !menuItem.isActive) {
-//                     await MenuItem.findByIdAndUpdate(
-//                         item.menuItem,
-//                         { isActive: true }
-//                     );
-//                     console.log(`🟢 Auto-reactivated menu item: ${menuItem.name}`);
-//                 }
-
-//                 console.log(`✅ Rolled back ${item.quantity} units to MenuItem "${menuItem.name}"`);
-//             }
-//         }
-
-//         return true;
-//     } catch (error) {
-//         console.error(`❌ Failed to rollback stock for order ${order.order_id}:`, error);
-//         return false;
-//     }
-// };
-
-// /**
-//  * ✅ Monitor expired payments dan auto-cancel order + rollback stock
-//  */
-// const monitorExpiredPayments = async () => {
-//     try {
-//         const now = new Date();
-
-//         // Cari semua payment yang pending dan sudah expired
-//         const expiredPayments = await Payment.find({
-//             status: { $in: ['pending', 'expire'] },
-//             expiry_time: { $exists: true, $ne: null }
-//         });
-
-//         if (expiredPayments.length === 0) {
-//             return;
-//         }
-
-//         console.log(`🔍 Found ${expiredPayments.length} payments to check for expiry`);
-
-//         for (const payment of expiredPayments) {
-//             try {
-//                 // Parse expiry_time (format: "YYYY-MM-DD HH:mm:ss")
-//                 let expiryDate;
-//                 if (typeof payment.expiry_time === 'string') {
-//                     // Convert "2025-01-09 14:30:00" to Date object
-//                     expiryDate = new Date(payment.expiry_time.replace(' ', 'T'));
-//                 } else {
-//                     expiryDate = new Date(payment.expiry_time);
-//                 }
-
-//                 // Cek apakah sudah expired
-//                 if (expiryDate <= now) {
-//                     console.log(`⏰ Payment expired - Payment Code: ${payment.payment_code}, Order: ${payment.order_id}`);
-
-//                     // Update payment status ke 'expire'
-//                     await Payment.findByIdAndUpdate(payment._id, {
-//                         status: 'expire'
-//                     });
-
-//                     // Cari order terkait
-//                     const order = await Order.findOne({ order_id: payment.order_id })
-//                         .populate('items.menuItem');
-
-//                     if (!order) {
-//                         console.log(`⚠️ Order not found: ${payment.order_id}`);
-//                         continue;
-//                     }
-
-//                     // Cek apakah ada payment lain yang sudah settlement untuk order ini
-//                     const hasSettledPayment = await Payment.findOne({
-//                         order_id: payment.order_id,
-//                         status: 'settlement'
-//                     });
-
-//                     if (hasSettledPayment) {
-//                         console.log(`ℹ️ Order ${payment.order_id} has settled payment, skipping cancellation`);
-//                         continue;
-//                     }
-
-//                     // ✅ CRITICAL: Rollback stock
-//                     const stockRollbackSuccess = await rollbackStockForExpiredPayment(order);
-
-//                     if (stockRollbackSuccess) {
-//                         console.log(`✅ Stock rollback successful for order ${order.order_id}`);
-//                     }
-
-//                     // Update order status
-//                     let shouldCancelOrder = true;
-
-//                     // Untuk Down Payment atau Final Payment yang expired
-//                     if (payment.paymentType === 'Down Payment' || payment.paymentType === 'Final Payment') {
-//                         // Cek apakah ada payment lain yang masih pending
-//                         const otherPendingPayments = await Payment.findOne({
-//                             order_id: payment.order_id,
-//                             _id: { $ne: payment._id },
-//                             status: 'pending'
-//                         });
-
-//                         if (otherPendingPayments) {
-//                             shouldCancelOrder = false;
-//                             console.log(`ℹ️ Order ${payment.order_id} has other pending payments, not canceling order`);
-//                         }
-//                     }
-
-//                     if (shouldCancelOrder) {
-//                         await Order.findByIdAndUpdate(order._id, {
-//                             status: 'Canceled',
-//                             cancellationReason: `Payment expired at ${expiryDate.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`
-//                         });
-
-//                         console.log(`🚫 Order ${order.order_id} auto-canceled due to payment expiry`);
-//                     }
-
-//                     // Log activity
-//                     console.log(`✅ Processed expired payment: ${payment.payment_code}`);
-//                 }
-//             } catch (error) {
-//                 console.error(`❌ Error processing payment ${payment.payment_code}:`, error);
-//                 continue;
-//             }
-//         }
-
-//     } catch (error) {
-//         console.error('❌ Error in monitorExpiredPayments:', error);
-//     }
-// };
-
-// /**
-//  * ✅ Setup cron job untuk monitoring
-//  * Jalan setiap 5 menit
-//  */
-// export const setupPaymentExpiryMonitor = () => {
-//     // Cron pattern: setiap 5 menit
-//     cron.schedule('*/5 * * * *', async () => {
-//         console.log('🔄 Running payment expiry monitor...');
-//         await monitorExpiredPayments();
-//     });
-
-//     console.log('✅ Payment expiry monitor started - Running every 5 minutes');
-
-//     // Jalankan sekali saat startup
-//     console.log('🚀 Running initial payment expiry check...');
-//     monitorExpiredPayments();
-// };
-
-// /**
-//  * ✅ Manual trigger untuk testing atau on-demand execution
-//  */
-// export const triggerPaymentExpiryCheck = async () => {
-//     console.log('🔄 Manual trigger: Payment expiry check');
-//     await monitorExpiredPayments();
-//     return { success: true, message: 'Payment expiry check completed' };
-// };
-
-// /**
-//  * ✅ API endpoint untuk manual trigger (opsional)
-//  */
-// export const manualCheckExpiredPayments = async (req, res) => {
-//     try {
-//         await monitorExpiredPayments();
-//         res.status(200).json({
-//             success: true,
-//             message: 'Payment expiry check completed successfully'
-//         });
-//     } catch (error) {
-//         console.error('❌ Error in manual check:', error);
-//         res.status(500).json({
-//             success: false,
-//             message: 'Failed to check expired payments',
-//             error: error.message
-//         });
-//     }
-// };

@@ -9,6 +9,7 @@ import { Server } from 'socket.io';
 import WebSocket from 'ws';
 import { initializeFirebase } from './config/firebase.js';
 import { setupStockCalibrationCron } from './jobs/stockCalibration.job.js';
+import { initTableSyncJob } from './jobs/tableSync.job.js';
 import { LockService } from './services/lock.service.js';
 import { startAutoCancelScheduler } from './jobs/orderCheker.job.js';
 // Routes imports...
@@ -156,6 +157,10 @@ app.use('/api/revision', revisionRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/hr', hrRoutes);
 
+// ✅ App Config Routes (for dynamic settings like useDiscountPrice)
+import appconfigRoutes from './routes/appconfig.routes.js';
+app.use('/api/app-config', appconfigRoutes);
+
 
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));
@@ -194,17 +199,25 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await mongoose.connect(process.env.MONGO, {
-      serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+      serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 50, // Increase pool size for high concurrency
+      minPoolSize: 10, // Maintain minimum connections
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
     console.log('✅ Connected to MongoDB TEST');
     // await mongoose.connect(process.env.MONGO_PROD, {
     //   serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+    //   maxPoolSize: 50, // Increase pool size for high concurrency
+    //   minPoolSize: 10, // Maintain minimum connections
+    //   socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     // });
-    // console.log('warning : Connected to MongoDB PROD ✅');
-    
+    // console.log('✅ Connected to MongoDB PROD');
+
+
     setupStockCalibrationCron();
     // startAutoCancelScheduler();
     setupPaymentExpiryMonitor();
+    initTableSyncJob(2); // ✅ Run table sync every 2 minutes
     // Jalankan sekali untuk generate secret
     // console.log('Webhook Secret:', generateWebhookSecret());
 

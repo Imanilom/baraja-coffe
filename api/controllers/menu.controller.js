@@ -375,18 +375,9 @@ export const getMenuItemsBackOffice = async (req, res) => {
 
 export const getMenuItems = async (req, res) => {
   // const cacheKey = "menu_items_full_with_promos";
+  const { warehouseId } = req.query; // Optional: filter by specific warehouse
 
   try {
-    // cek cache
-    // try {
-    //   const cached = await redis.get(cacheKey);
-    //   if (cached) {
-    //     return res.status(200).json(JSON.parse(cached));
-    //   }
-    // } catch (cacheErr) {
-    //   console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
-    // }
-
     // 2) Ambil promo aktif
     const currentDate = new Date();
     const [activeAutoPromos, activePromos] = await Promise.all([
@@ -472,10 +463,9 @@ export const getMenuItems = async (req, res) => {
       }
     });
 
-    // 4) Ambil MenuItem (tanpa filter resep) tetapi SERAGAMKAN STRUKTUR seperti fungsi resep
-    const menuItems = await MenuItem.aggregate([
-      // { $match: { isActive: true } }, //boleh di uncoment jika workstation sudah menggunakan fitur auto active ketika mengisi manual stock.
-      // recipes untuk hasRecipe/recipeCount
+    // 4) Buat pipeline untuk aggregation
+    const aggregationPipeline = [
+      // Lookup untuk recipes
       {
         $lookup: {
           from: "recipes",
@@ -484,7 +474,8 @@ export const getMenuItems = async (req, res) => {
           as: "recipe"
         }
       },
-      // categories
+
+      // Lookup untuk categories
       {
         $lookup: {
           from: "categories",
@@ -501,7 +492,8 @@ export const getMenuItems = async (req, res) => {
           as: "subCategory"
         }
       },
-      // outlets
+
+      // Lookup untuk outlets
       {
         $lookup: {
           from: "outlets",
@@ -510,16 +502,69 @@ export const getMenuItems = async (req, res) => {
           as: "availableAt"
         }
       },
-      // stock (array)
+
+      // Lookup untuk stock - MODIFIKASI PENTING: filter warehouse
       {
         $lookup: {
           from: "menustocks",
-          localField: "_id",
-          foreignField: "menuItemId",
+          let: { menuItemId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$menuItemId", "$$menuItemId"] },
+                // Filter berdasarkan warehouse jika ada parameter warehouseId
+                ...(warehouseId && mongoose.Types.ObjectId.isValid(warehouseId)
+                  ? { warehouseId: new mongoose.Types.ObjectId(warehouseId) }
+                  : {}),
+                // Filter: hanya ambil yang memiliki stock (calculatedStock > 0 atau manualStock > 0)
+                $or: [
+                  { calculatedStock: { $gt: 0 } },
+                  { manualStock: { $gt: 0 } },
+                  {
+                    $and: [
+                      { manualStock: { $ne: null } },
+                      { manualStock: { $gt: 0 } }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              $lookup: {
+                from: "warehouses",
+                localField: "warehouseId",
+                foreignField: "_id",
+                as: "warehouse"
+              }
+            },
+            {
+              $unwind: {
+                path: "$warehouse",
+                preserveNullAndEmptyArrays: false
+              }
+            }
+          ],
           as: "stockInfo"
         }
       },
-      // ratings
+
+      // Filter: hanya menu yang memiliki stock di warehouse
+      {
+        $match: {
+          $or: [
+            { "stockInfo.calculatedStock": { $gt: 0 } },
+            { "stockInfo.manualStock": { $gt: 0 } },
+            {
+              $and: [
+                { "stockInfo.manualStock": { $ne: null } },
+                { "stockInfo.manualStock": { $gt: 0 } }
+              ]
+            }
+          ]
+        }
+      },
+
+      // Ratings
       {
         $lookup: {
           from: "menuratings",
@@ -530,7 +575,8 @@ export const getMenuItems = async (req, res) => {
           as: "ratings"
         }
       },
-      // toppings & addons tetap via id list (akan di-populate)
+
+      // Project
       {
         $project: {
           name: 1,
@@ -540,8 +586,8 @@ export const getMenuItems = async (req, res) => {
           discountedPrice: 1,
           description: 1,
           discount: 1,
-          toppings: 1,   // penting: simpan id list (akan di-populate)
-          addons: 1,     // penting: simpan id list (akan di-populate)
+          toppings: 1,
+          addons: 1,
           availableAt: 1,
           workstation: 1,
           isActive: 1,
@@ -551,17 +597,22 @@ export const getMenuItems = async (req, res) => {
           stockData: {
             $cond: {
               if: { $gt: [{ $size: "$stockInfo" }, 0] },
-              then: { $arrayElemAt: ["$stockInfo", 0] }, // ambil 1 elemen
-              else: {
-                calculatedStock: 0,
-                manualStock: null,   // biarkan null agar flag akurat
-                currentStock: 0,
-                effectiveStock: 0,
-                lastCalculatedAt: null,
-                lastAdjustedAt: null
-              }
+              then: { $arrayElemAt: ["$stockInfo", 0] },
+              else: null
             }
           },
+          warehouseInfo: {
+            $cond: {
+              if: { $gt: [{ $size: "$stockInfo" }, 0] },
+              then: {
+                warehouseId: { $arrayElemAt: ["$stockInfo.warehouse._id", 0] },
+                warehouseName: { $arrayElemAt: ["$stockInfo.warehouse.name", 0] },
+                warehouseLocation: { $arrayElemAt: ["$stockInfo.warehouse.location", 0] }
+              },
+              else: null
+            }
+          },
+          allStockInfo: "$stockInfo", // Simpan semua stock info untuk multiple warehouses
           averageRating: {
             $cond: {
               if: { $gt: [{ $size: "$ratings" }, 0] },
@@ -572,19 +623,24 @@ export const getMenuItems = async (req, res) => {
           reviewCount: { $size: "$ratings" }
         }
       },
-      { $sort: { name: 1 } }
-    ]);
 
-    // 5) Populate toppings & addons (options) agar identik dengan fungsi resep
+      { $sort: { name: 1 } }
+    ];
+
+    // 5) Jalankan aggregation
+    const menuItems = await MenuItem.aggregate(aggregationPipeline);
+
+    // 6) Populate toppings & addons
     const populatedMenuItems = await MenuItem.populate(menuItems, [
       { path: "addons", populate: { path: "options" } },
       { path: "toppings" }
     ]);
 
-    // 6) Formatting output—DISESUAIKAN dengan fungsi resep
+    // 7) Formatting output dengan warehouse info
     const formattedMenuItems = populatedMenuItems.map(item => {
-      const safeCalculatedStock = item.stockData?.calculatedStock ?? 0;
-      const safeManualStockRaw = (item.stockData?.manualStock ?? null);
+      const stockData = item.stockData;
+      const safeCalculatedStock = stockData?.calculatedStock ?? 0;
+      const safeManualStockRaw = stockData?.manualStock ?? null;
       const safeManualStock = (safeManualStockRaw === undefined) ? null : safeManualStockRaw;
 
       // prioritas manual > calculated
@@ -595,13 +651,21 @@ export const getMenuItems = async (req, res) => {
 
       const safeCurrentStock = effectiveStock;
 
-      const lastCalculatedAt = item.stockData?.lastCalculatedAt || null;
-      const lastAdjustedAt = item.stockData?.lastAdjustedAt || null;
+      const lastCalculatedAt = stockData?.lastCalculatedAt || null;
+      const lastAdjustedAt = stockData?.lastAdjustedAt || null;
 
       const stockSource =
         (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
           ? 'manual'
           : 'calculated';
+
+      // Hitung total stock dari semua warehouses
+      const totalStockAcrossWarehouses = item.allStockInfo?.reduce((total, stock) => {
+        const stockValue = stock.manualStock !== null && stock.manualStock !== undefined && stock.manualStock > 0
+          ? stock.manualStock
+          : stock.calculatedStock || 0;
+        return total + stockValue;
+      }, 0) || 0;
 
       // promos
       const productId = item._id.toString();
@@ -613,7 +677,6 @@ export const getMenuItems = async (req, res) => {
       const appliedPromos = [];
 
       if (autoPromos.length > 0) {
-        // sejajarkan dengan fungsi resep (tanpa savings)
         const best = autoPromos[0];
         const discountAmount = (item.price * best.discount) / 100;
         finalPrice = Math.max(0, item.price - discountAmount);
@@ -663,13 +726,33 @@ export const getMenuItems = async (req, res) => {
         reviewCount: item.reviewCount,
         stock: {
           calculatedStock: safeCalculatedStock,
-          manualStock: safeManualStock, // bisa null
+          manualStock: safeManualStock,
           effectiveStock: effectiveStock,
           currentStock: safeCurrentStock,
           isAvailable: effectiveStock > 0,
           stockSource: stockSource,
           lastCalculatedAt,
-          lastAdjustedAt
+          lastAdjustedAt,
+          // Informasi warehouse
+          warehouse: item.warehouseInfo ? {
+            id: item.warehouseInfo.warehouseId,
+            name: item.warehouseInfo.warehouseName,
+            location: item.warehouseInfo.warehouseLocation
+          } : null,
+          // Total stock dari semua warehouses
+          totalStockAcrossWarehouses: totalStockAcrossWarehouses,
+          // Detail stock per warehouse (jika ada multiple)
+          warehouseDetails: item.allStockInfo?.map(stock => ({
+            warehouseId: stock.warehouse?._id,
+            warehouseName: stock.warehouse?.name,
+            calculatedStock: stock.calculatedStock || 0,
+            manualStock: stock.manualStock,
+            effectiveStock: stock.manualStock !== null && stock.manualStock !== undefined && stock.manualStock > 0
+              ? stock.manualStock
+              : stock.calculatedStock || 0,
+            lastCalculatedAt: stock.lastCalculatedAt,
+            lastAdjustedAt: stock.lastAdjustedAt
+          })) || []
         },
         toppings: item.toppings ? item.toppings.map(t => ({
           id: t._id,
@@ -691,7 +774,6 @@ export const getMenuItems = async (req, res) => {
         isActive: item.isActive,
         hasRecipe: Array.isArray(item.recipe) && item.recipe.length > 0,
         recipeCount: Array.isArray(item.recipe) ? item.recipe.length : 0,
-        // perbaiki flag: true hanya jika manualStock > 0
         hasManualStock: (safeManualStock !== null && safeManualStock !== undefined && safeManualStock > 0),
         promotions: {
           hasPromo: appliedPromos.length > 0,
@@ -701,30 +783,29 @@ export const getMenuItems = async (req, res) => {
       };
     });
 
-    // 7) Meta diseragamkan
+    // 8) Response
     const responsePayload = {
       success: true,
       data: formattedMenuItems,
       meta: {
         total: formattedMenuItems.length,
-        hasRecipes: formattedMenuItems.some(i => i.hasRecipe), // tidak dipaksa true
+        hasRecipes: formattedMenuItems.some(i => i.hasRecipe),
         withStockInfo: true,
         withManualStock: formattedMenuItems.some(i => i.hasManualStock),
         withPromotions: formattedMenuItems.some(i => i.promotions.hasPromo),
         activeAutoPromos: activeAutoPromos.length,
         activeRegularPromos: activePromos.length,
+        filteredByWarehouse: !!warehouseId,
+        warehouseId: warehouseId || null,
         message: formattedMenuItems.length > 0
-          ? `Showing ${formattedMenuItems.length} menu items (unfiltered recipes) with promotions`
-          : "No menu items found"
+          ? warehouseId
+            ? `Showing ${formattedMenuItems.length} menu items with stock in warehouse ${warehouseId}`
+            : `Showing ${formattedMenuItems.length} menu items with available stock in warehouse(s)`
+          : warehouseId
+            ? `No menu items found with stock in warehouse ${warehouseId}`
+            : "No menu items found with available stock in any warehouse"
       }
     };
-
-    // Simpan ke cache
-    // try {
-    //   await redis.set(cacheKey, JSON.stringify(responsePayload), "EX", 300);
-    // } catch (cacheErr) {
-    //   console.warn("⚠️ Redis write error:", cacheErr.message);
-    // }
 
     return res.status(200).json(responsePayload);
   } catch (error) {
@@ -889,20 +970,38 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         }
       },
       {
+        // ✅ FIXED: Lookup untuk stock - PREFER records dengan warehouseId
+        // Ini menyamakan logic dengan getMenuItems (testing_go_router)
         $lookup: {
           from: "menustocks",
-          localField: "_id",
-          foreignField: "menuItemId",
+          let: { menuItemId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$menuItemId", "$$menuItemId"] }
+              }
+            },
+            // Sort: prioritaskan yang punya warehouseId
+            {
+              $addFields: {
+                hasWarehouseId: { $cond: [{ $ifNull: ["$warehouseId", false] }, 1, 0] }
+              }
+            },
+            { $sort: { hasWarehouseId: -1, lastAdjustedAt: -1 } },
+            // Ambil hanya 1 record (yang punya warehouseId jika ada)
+            { $limit: 1 }
+          ],
           as: "stockInfo"
         }
       },
       {
-        // FILTER BARU: Hanya yang memiliki manual stock
+        // FILTER: Hanya yang memiliki stock valid
         $match: {
-          "stockInfo.0": { $exists: true }, // Pastikan ada stockInfo
+          "stockInfo.0": { $exists: true },
           $or: [
-            { "stockInfo.manualStock": { $gt: 0 } }, // Manual stock lebih dari 0
-            { "stockInfo.manualStock": { $ne: null } } // Atau manual stock tidak null
+            { "stockInfo.manualStock": { $gt: 0 } },
+            { "stockInfo.manualStock": { $ne: null } },
+            { "stockInfo.calculatedStock": { $gt: 0 } }
           ]
         }
       },
@@ -1869,6 +1968,119 @@ export const filterMenuItems = async (req, res) => {
       success: false,
       message: 'Failed to filter menu items',
       error: error.message,
+    });
+  }
+};
+
+// ⚡ OPTIMIZED: Single-call endpoint untuk workstation
+// Mengembalikan SEMUA kategori + menu + stock dalam 1 request
+// Mengubah dari 20+ sequential calls menjadi 1 call
+export const getWorkstationMenuData = async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { workstation } = req.query;
+
+    if (!workstation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workstation is required (kitchen or bar)'
+      });
+    }
+
+    console.log(`⚡ [OPTIMIZED] Loading all data for workstation: ${workstation}`);
+
+    // 1. Fetch menu items dengan stock dalam 1 query
+    const menuItems = await MenuItem.find({
+      isActive: true,
+      workstation: workstation.toLowerCase()
+    })
+      .populate('category', 'name')
+      .sort({ name: 1 })
+      .lean();
+
+    // 2. Fetch stock data untuk semua menu items sekaligus
+    const menuItemIds = menuItems.map(item => item._id);
+    const stockData = await MenuStock.find({
+      menuItemId: { $in: menuItemIds }
+    }).lean();
+
+    // 3. Create stock lookup map
+    const stockMap = {};
+    stockData.forEach(stock => {
+      stockMap[stock.menuItemId.toString()] = stock;
+    });
+
+    // 4. Group menu items by category
+    const categoryMap = {};
+
+    menuItems.forEach(item => {
+      const categoryId = item.category?._id?.toString() || 'uncategorized';
+      const categoryName = item.category?.name || 'Uncategorized';
+
+      if (!categoryMap[categoryId]) {
+        categoryMap[categoryId] = {
+          id: categoryId,
+          name: categoryName,
+          itemCount: 0,
+          menus: []
+        };
+      }
+
+      // Get stock info
+      const stock = stockMap[item._id.toString()] || {};
+      const calculatedStock = stock.calculatedStock || 0;
+      const manualStock = stock.manualStock !== undefined ? stock.manualStock : null;
+      const effectiveStock = (manualStock !== null && manualStock > 0) ? manualStock : calculatedStock;
+
+      categoryMap[categoryId].menus.push({
+        menuItemId: item._id.toString(),
+        name: item.name,
+        imageUrl: item.imageURL,
+        price: item.price,
+        calculatedStock: calculatedStock,
+        manualStock: manualStock,
+        effectiveStock: effectiveStock,
+        isAvailable: effectiveStock > 0,
+        lastUpdated: stock.lastAdjustedAt || stock.lastCalculatedAt || null
+      });
+
+      categoryMap[categoryId].itemCount++;
+    });
+
+    // 5. Convert to array and sort by category name
+    const categories = Object.values(categoryMap);
+    categories.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Sort menus within each category
+    categories.forEach(cat => {
+      cat.menus.sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    const queryTime = Date.now() - startTime;
+    console.log(`✅ [OPTIMIZED] Loaded ${menuItems.length} menus in ${categories.length} categories (${queryTime}ms)`);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        workstation: workstation,
+        categories: categories,
+        totalMenus: menuItems.length,
+        totalCategories: categories.length
+      },
+      meta: {
+        queryTime: queryTime,
+        optimized: true,
+        singleCall: true
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in getWorkstationMenuData:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch workstation menu data',
+      error: error.message
     });
   }
 };

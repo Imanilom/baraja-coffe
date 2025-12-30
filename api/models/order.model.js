@@ -2,12 +2,16 @@ import mongoose from 'mongoose';
 
 // Helper function untuk mendapatkan waktu WIB sekarang
 const getWIBNow = () => {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  const now = new Date();
+  // Convert to WIB (UTC+7)
+  return new Date(now.getTime() + (7 * 60 * 60 * 1000));
 };
 
 // Helper function untuk convert Date ke WIB
 const toWIB = (date) => {
-  return new Date(date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  if (!date) return date;
+  const utcDate = new Date(date.toISOString());
+  return new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
 };
 
 // Schema untuk split payment
@@ -540,16 +544,23 @@ OrderSchema.virtual('openBillDuration').get(function () {
 // Method untuk format WIB
 OrderSchema.methods.formatToWIB = function (date) {
   if (!date) return null;
-  return date.toLocaleString('id-ID', {
+
+  // Pastikan date adalah Date object
+  const dateObj = new Date(date);
+
+  // Format dengan timezone Asia/Jakarta
+  return dateObj.toLocaleString('id-ID', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
+    hour12: false
   });
 };
+
 
 // Method untuk mendapatkan tanggal WIB (tanpa waktu)
 OrderSchema.methods.getWIBDate = function () {

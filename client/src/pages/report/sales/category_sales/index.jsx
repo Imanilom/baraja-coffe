@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link, useSearchParams } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
+import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
-import Paginated from "../../../../components/paginated";
 import SalesCategorySkeleton from "./skeleton";
+import { exportCategorySalesExcel } from "../../../../utils/exportCategorySalesExcel";
 
 const CategorySales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+
+    // Add this missing state variable
+    const [groupedArray, setGroupedArray] = useState([]);
 
     const customStyles = {
         control: (provided, state) => ({
@@ -53,14 +56,19 @@ const CategorySales = () => {
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [grandTotal, setGrandTotal] = useState({ quantity: 0, subtotal: 0 });
 
-    const ITEMS_PER_PAGE = 50;
-    const dropdownRef = useRef(null);
+    // Helper function to format date for API
+    const formatDateForAPI = (date) => {
+        return new Date(date).toISOString().split('T')[0];
+    };
 
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
+    // Get outlet name for export
+    const outletName = useMemo(() => {
+        if (!selectedOutlet) return "Semua Outlet";
+        const outlet = outlets.find(o => o._id === selectedOutlet);
+        return outlet ? outlet.name : "Semua Outlet";
+    }, [selectedOutlet, outlets]);
 
     // Initialize from URL params or set default to today
     useEffect(() => {
@@ -68,7 +76,6 @@ const CategorySales = () => {
         const endDateParam = searchParams.get('endDate');
         const outletParam = searchParams.get('outletId');
         const searchParam = searchParams.get('search');
-        const pageParam = searchParams.get('page');
 
         if (startDateParam && endDateParam) {
             setDateRange({
@@ -90,14 +97,10 @@ const CategorySales = () => {
         if (searchParam) {
             setSearchTerm(searchParam);
         }
-
-        if (pageParam) {
-            setCurrentPage(parseInt(pageParam, 10));
-        }
     }, [searchParams]);
 
     // Update URL when filters change
-    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch, newPage) => {
+    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
@@ -115,261 +118,106 @@ const CategorySales = () => {
             params.set('search', newSearch);
         }
 
-        if (newPage && newPage > 1) {
-            params.set('page', newPage.toString());
-        }
-
         setSearchParams(params);
     }, [setSearchParams]);
 
-    // Fetch products and outlets data
+    // Fetch outlets data
+    useEffect(() => {
+        const fetchOutlets = async () => {
+            try {
+                const response = await axios.get('/api/outlet');
+                const outletsData = Array.isArray(response.data)
+                    ? response.data
+                    : Array.isArray(response.data?.data)
+                        ? response.data.data
+                        : [];
+                setOutlets(outletsData);
+            } catch (err) {
+                console.error("Error fetching outlets:", err);
+                setOutlets([]);
+            }
+        };
+
+        fetchOutlets();
+    }, []);
+
+    // Fetch category sales data - AMBIL SEMUA DATA
     useEffect(() => {
         const fetchData = async () => {
+            if (!dateRange?.startDate || !dateRange?.endDate) {
+                return;
+            }
+
             setLoading(true);
             try {
-                // Fetch products data
-                const productsResponse = await axios.get('/api/orders');
+                const params = new URLSearchParams();
 
-                // Ensure productsResponse.data is an array
-                const productsData = Array.isArray(productsResponse.data) ?
-                    productsResponse.data :
-                    (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                        productsResponse.data.data : [];
+                if (selectedOutlet) {
+                    params.append('outlet', selectedOutlet);
+                }
 
-                const completedData = productsData.filter(item => item.status === "Completed");
+                if (dateRange?.startDate && dateRange?.endDate) {
+                    params.append('startDate', formatDateForAPI(dateRange.startDate));
+                    params.append('endDate', formatDateForAPI(dateRange.endDate));
+                }
 
-                setProducts(completedData);
+                if (searchTerm) {
+                    params.append('category', searchTerm);
+                }
 
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
+                // ✅ Fetch SEMUA data kategori (backend sudah ambil semua orders)
+                const response = await axios.get(`/api/report/sales-report/transaction-category?${params.toString()}`);
 
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
+                // ✅ Data sudah di-group dari SEMUA orders
+                const categoryData = Array.isArray(response.data?.data)
+                    ? response.data.data
+                    : [];
 
-                setOutlets(outletsData);
+                // ✅ Use setGroupedArray here
+                setGroupedArray(categoryData);
+
+                // ✅ Set grand total dari backend
+                if (response.data?.grandTotal) {
+                    setGrandTotal(response.data.grandTotal);
+                }
 
                 setError(null);
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setProducts([]);
-                setFilteredData([]);
-                setOutlets([]);
+                console.error("Error fetching category sales:", err);
+                setError("Failed to load category sales data.");
+                // ✅ Use setGroupedArray here too
+                setGroupedArray([]);
+                setGrandTotal({ quantity: 0, subtotal: 0 });
             } finally {
                 setLoading(false);
             }
         };
 
         fetchData();
-    }, []);
+    }, [dateRange, selectedOutlet, searchTerm]);
 
     // Handler functions
     const handleDateRangeChange = (newValue) => {
         setDateRange(newValue);
-        setCurrentPage(1);
-        updateURLParams(newValue, selectedOutlet, searchTerm, 1);
+        updateURLParams(newValue, selectedOutlet, searchTerm);
     };
 
     const handleOutletChange = (selected) => {
         const newOutlet = selected?.value || "";
         setSelectedOutlet(newOutlet);
-        setCurrentPage(1);
-        updateURLParams(dateRange, newOutlet, searchTerm, 1);
+        updateURLParams(dateRange, newOutlet, searchTerm);
     };
 
     const handleSearchChange = (e) => {
         const newSearch = e.target.value;
         setSearchTerm(newSearch);
-        setCurrentPage(1);
-        updateURLParams(dateRange, selectedOutlet, newSearch, 1);
-    };
-
-    const handlePageChange = (newPage) => {
-        setCurrentPage(newPage);
-        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        updateURLParams(dateRange, selectedOutlet, newSearch);
     };
 
     const options = useMemo(() => [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ], [outlets]);
-
-    // Apply filter function - FIXED LOGIC
-    const applyFilter = useCallback(() => {
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by outlet FIRST
-        if (selectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    // Fixed: Check if outlet array exists and has items
-                    if (!product?.cashier?.outlet || product.cashier.outlet.length === 0) {
-                        return false;
-                    }
-
-                    // Fixed: Compare by ID, not name
-                    const outletId = product.cashier.outlet[0]?.outletId?._id || product.cashier.outlet[0]?.outletId;
-                    return outletId === selectedOutlet;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (dateRange?.startDate && dateRange?.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(dateRange.startDate);
-                    const endDate = new Date(dateRange.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate.getTime()) || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-                        return false;
-                    }
-
-                    return productDate >= startDate && productDate <= endDate;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by search term (category) - FIXED: Apply after other filters
-        if (searchTerm) {
-            filtered = filtered.flatMap(product => {
-                try {
-                    const searchTermLower = searchTerm.toLowerCase();
-
-                    // Process all items in the order, not just the first one
-                    return (product?.items || []).flatMap(item => {
-                        const menuItem = item?.menuItem;
-                        if (!menuItem) return [];
-
-                        // Handle category as string or object
-                        let categoryName = '';
-                        if (typeof menuItem.category === 'string') {
-                            categoryName = menuItem.category;
-                        } else if (menuItem.category?.name) {
-                            categoryName = menuItem.category.name;
-                        } else {
-                            categoryName = 'Uncategorized';
-                        }
-
-                        // Check if category matches search term
-                        const categoryLower = categoryName.toLowerCase();
-                        if (!categoryLower.includes(searchTermLower)) {
-                            return [];
-                        }
-
-                        // Return filtered product with single item
-                        return [{
-                            ...product,
-                            items: [{
-                                ...item,
-                                menuItem: {
-                                    ...menuItem,
-                                    category: categoryName
-                                }
-                            }]
-                        }];
-                    });
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return [];
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, searchTerm, selectedOutlet, dateRange]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Group data by category - FIXED LOGIC
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            // Process all items in the order
-            (product?.items || []).forEach(item => {
-                if (!item?.menuItem) return;
-
-                // Handle category as string or object
-                let categoryName = '';
-                if (typeof item.menuItem.category === 'string') {
-                    categoryName = item.menuItem.category;
-                } else if (item.menuItem.category?.name) {
-                    categoryName = item.menuItem.category.name;
-                } else {
-                    categoryName = 'Uncategorized';
-                }
-
-                const quantity = Number(item?.quantity) || 0;
-                const subtotal = Number(item?.subtotal) || 0;
-
-                if (!grouped[categoryName]) {
-                    grouped[categoryName] = {
-                        category: categoryName,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
-
-                grouped[categoryName].quantity += quantity;
-                grouped[categoryName].subtotal += subtotal;
-            });
-        });
-
-        // Sort by category name
-        return Object.values(grouped).sort((a, b) =>
-            a.category.localeCompare(b.category, 'id')
-        );
-    }, [filteredData]);
-
-    const paginatedData = useMemo(() => {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return groupedArray.slice(startIndex, endIndex);
-    }, [groupedArray, currentPage]);
-
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
-
-    // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
-            }
-        );
-    }, [groupedArray]);
 
     const formatCurrency = (amount) => {
         if (isNaN(amount) || !isFinite(amount)) return 'Rp 0';
@@ -381,94 +229,25 @@ const CategorySales = () => {
         }).format(amount);
     };
 
-    // Export current data to Excel
     const exportToExcel = async () => {
         setIsExporting(true);
 
-        try {
-            // Small delay to show loading state
-            await new Promise(resolve => setTimeout(resolve, 500));
+        // Get date range
+        const dateRangeText = dateRange?.startDate && dateRange?.endDate
+            ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
+            : new Date().toLocaleDateString('id-ID');
 
-            // Get outlet name
-            const outletName = selectedOutlet
-                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
-                : 'Semua Outlet';
-
-            // Get date range
-            const dateRangeText = dateRange?.startDate && dateRange?.endDate
-                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-                : new Date().toLocaleDateString('id-ID');
-
-            // Create export data
-            const exportData = [
-                { col1: 'Laporan Penjualan Per Kategori', col2: '', col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
-                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Kategori', col2: 'Terjual', col3: 'Penjualan Bersih', col4: 'Rata-rata' }
-            ];
-
-            // Add data rows from groupedArray
-            groupedArray.forEach(group => {
-                const average = group.quantity > 0 ? Math.round(group.subtotal / group.quantity) : 0;
-                exportData.push({
-                    col1: group.category || '-',
-                    col2: group.quantity,
-                    col3: group.subtotal,
-                    col4: average,
-                });
-            });
-
-            // Add Grand Total row
-            const grandAverage = grandTotal.quantity > 0
-                ? Math.round(grandTotal.subtotal / grandTotal.quantity)
-                : 0;
-
-            exportData.push({
-                col1: 'Grand Total',
-                col2: grandTotal.quantity,
-                col3: grandTotal.subtotal,
-                col4: grandAverage,
-            });
-
-            // Create worksheet
-            const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2', 'col3', 'col4'],
-                skipHeader: true
-            });
-
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 25 }, // Kategori
-                { wch: 12 }, // Terjual
-                { wch: 18 }, // Penjualan Bersih
-                { wch: 15 }, // Rata-rata
-            ];
-
-            // Merge cells for title
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title across 4 columns
-            ];
-
-            // Create workbook and add worksheet
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Kategori");
-
-            // Generate filename with date range
-            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const fileName = `Laporan_Penjualan_Per_Kategori_${outletName}_${startDate}_${endDate}.xlsx`;
-
-            // Export file
-            XLSX.writeFile(wb, fileName);
-
-        } catch (error) {
-            console.error("Error exporting to Excel:", error);
-            alert("Gagal mengekspor data. Silakan coba lagi.");
-        } finally {
-            setIsExporting(false);
-        }
+        exportCategorySalesExcel({
+            data: groupedArray,
+            grandTotal,
+            fileName: `Laporan_Penjualan_Kategori_${outletName}_${dateRangeText}.xlsx`,
+            headerInfo: [
+                ["Outlet", outletName],
+                ["Periode", dateRangeText]
+            ]
+        });
+        
+        setIsExporting(false);
     };
 
     // Show loading state
@@ -524,7 +303,7 @@ const CategorySales = () => {
             </div>
 
             {/* Filters */}
-            <div className="px-6">
+            <div className="px-6 pb-6">
                 <div className="flex justify-between py-3 gap-2">
                     <div className="flex flex-col col-span-3 w-2/5">
                         <div className="relative text-gray-500">
@@ -581,25 +360,31 @@ const CategorySales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
                             </tr>
                         </thead>
-                        {paginatedData.length > 0 ? (
+                        {groupedArray.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((group, index) => {
-                                    const average = group.quantity > 0
-                                        ? group.subtotal / group.quantity
-                                        : 0;
+                                {groupedArray.map((group, index) => {
+                                    // Hitung rata-rata dengan aman
+                                    const average = group.average !== undefined 
+                                        ? group.average 
+                                        : (group.quantity > 0 && group.subtotal > 0
+                                            ? group.subtotal / group.quantity
+                                            : 0);
 
                                     return (
-                                        <tr key={index} className="text-left text-sm hover:bg-gray-50">
-                                            <td className="px-4 py-3">
-                                                {group.category}
+                                        <tr 
+                                            key={`${group.category}-${index}`} 
+                                            className="text-left text-sm hover:bg-gray-50 transition-colors duration-150"
+                                        >
+                                            <td className="px-4 py-3 font-medium">
+                                                {group.category || 'Tanpa Kategori'}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {group.quantity.toLocaleString('id-ID')}
+                                            <td className="px-4 py-3 text-right tabular-nums">
+                                                {group.quantity?.toLocaleString('id-ID') || '0'}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {formatCurrency(group.subtotal)}
+                                            <td className="px-4 py-3 text-right tabular-nums">
+                                                {formatCurrency(group.subtotal || 0)}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
+                                            <td className="px-4 py-3 text-right tabular-nums">
                                                 {formatCurrency(average)}
                                             </td>
                                         </tr>
@@ -608,8 +393,20 @@ const CategorySales = () => {
                             </tbody>
                         ) : (
                             <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
+                                <tr>
+                                    <td colSpan={4} className="py-12 text-center w-full">
+                                        <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                                            <svg className="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                            </svg>
+                                            <p className="text-lg font-medium text-gray-500">
+                                                Tidak ada data ditemukan
+                                            </p>
+                                            <p className="text-sm text-gray-400 mt-1">
+                                                Data akan muncul di sini setelah ditambahkan
+                                            </p>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         )}
@@ -628,19 +425,16 @@ const CategorySales = () => {
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(grandTotal.quantity > 0 ? grandTotal.subtotal / grandTotal.quantity : 0)}
+                                        {formatCurrency(
+                                            grandTotal.average ||
+                                            (grandTotal.quantity > 0 ? grandTotal.subtotal / grandTotal.quantity : 0)
+                                        )}
                                     </p>
                                 </td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-
-                <Paginated
-                    currentPage={currentPage}
-                    setCurrentPage={handlePageChange}
-                    totalPages={totalPages}
-                />
             </div>
         </div>
     );

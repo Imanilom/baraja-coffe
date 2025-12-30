@@ -1,11 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
+import 'package:kasirbaraja/features/promos/promo_engine.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
+import 'package:kasirbaraja/providers/promotion_providers/auto_promo_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
@@ -15,15 +17,17 @@ import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:barajapos/models/menu_item_model.dart';
+//menu item model
+import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:collection/collection.dart';
 import 'package:uuid/uuid.dart';
 
 class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
-  OrderDetailNotifier() : super(null);
+  OrderDetailNotifier(this.ref) : super(null);
 
   final TaxAndServiceRepository _taxAndServiceRepository =
       TaxAndServiceRepository();
+  final Ref ref;
 
   bool _isCalculating = false;
 
@@ -240,6 +244,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
               return item;
             }).toList(),
       );
+      _recalculateAll();
     }
   }
 
@@ -381,9 +386,36 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       // 4. Total sebelum diskon = items + custom amounts
       final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
 
-      // 5. Hitung total setelah diskon
-      final discountAmount = state!.discounts?.totalDiscount ?? 0;
-      final totalAfterDiscount = totalBeforeDiscount - discountAmount;
+      // 4b) apply auto promos
+      final promos = await ref.read(autoPromoRepository).getLocalAutoPromos();
+      final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+
+      MenuItemModel? findMenuItemById(String id) {
+        return menuItems.firstWhere((item) => item.id == id);
+      }
+
+      final now =
+          DateTime.now(); // kalau kamu perlu WIB, pastikan device timezone WIB
+
+      final orderAfterPromo = PromoEngine.apply(
+        state!.copyWith(
+          items: updatedItems,
+          totalBeforeDiscount: totalBeforeDiscount,
+        ),
+        promos,
+        now,
+        findMenuItemById,
+      );
+
+      // ambil diskon auto
+      final autoDiscount = PromoEngine.sumAutoDiscount(
+        orderAfterPromo.appliedPromos,
+      );
+
+      // 5. Hitung total setelah diskon (manual + auto)
+      final manualDiscount = state!.discounts?.totalDiscount ?? 0;
+      final totalAfterDiscount =
+          totalBeforeDiscount - manualDiscount - autoDiscount;
 
       // 6. Hitung tax dan service
       int totalTax = 0;
@@ -416,8 +448,18 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
 
       // 8. Update state sekali saja
+      // state = state!.copyWith(
+      //   items: updatedItems,
+      //   totalBeforeDiscount: totalBeforeDiscount,
+      //   totalAfterDiscount: totalAfterDiscount,
+      //   totalTax: totalTax,
+      //   totalServiceFee: totalServiceFee,
+      //   grandTotal: grandTotal,
+      // );
       state = state!.copyWith(
-        items: updatedItems,
+        items:
+            orderAfterPromo.items, // penting: ini sudah termasuk free item baru
+        appliedPromos: orderAfterPromo.appliedPromos,
         totalBeforeDiscount: totalBeforeDiscount,
         totalAfterDiscount: totalAfterDiscount,
         totalTax: totalTax,
@@ -637,5 +679,5 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 // Provider untuk OrderDetailNotifier
 final orderDetailProvider =
     StateNotifierProvider<OrderDetailNotifier, OrderDetailModel?>((ref) {
-      return OrderDetailNotifier();
+      return OrderDetailNotifier(ref);
     });

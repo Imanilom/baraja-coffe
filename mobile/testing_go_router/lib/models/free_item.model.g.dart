@@ -8,7 +8,7 @@ part of 'free_item.model.dart';
 
 class FreeItemModelAdapter extends TypeAdapter<FreeItemModel> {
   @override
-  final typeId = 10;
+  final typeId = 34;
 
   @override
   FreeItemModel read(BinaryReader reader) {

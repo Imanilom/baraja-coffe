@@ -144,24 +144,24 @@ router.get('/payment-methods', (req, res) => {
         //     payment_method_name: 'E-Wallet',
         //     bank_code: 'gopay',
         // },
-        // {
-        //     name: 'BCA',
-        //     icon: 'bca.png',
-        //     color: '#1565C0', // Colors.blue[800]
-        //     payment_method: 'bank_transfer',
-        //     payment_method_name: 'Bank Transfer',
-        //     isBank: true,
-        //     bank_code: 'bca',
-        // },
-        // {
-        //     name: 'Mandiri',
-        //     icon: 'mandiri.png',
-        //     color: '#FFA000', // Colors.amber[700]
-        //     payment_method: 'bank_transfer',
-        //     payment_method_name: 'Bank Transfer',
-        //     isBank: true,
-        //     bank_code: 'mandiri',
-        // },
+        {
+            name: 'BCA',
+            icon: 'bca.png',
+            color: '#1565C0', // Colors.blue[800]
+            payment_method: 'bank_transfer',
+            payment_method_name: 'Bank Transfer',
+            isBank: true,
+            bank_code: 'bca',
+        },
+        {
+            name: 'Mandiri',
+            icon: 'mandiri.png',
+            color: '#FFA000', // Colors.amber[700]
+            payment_method: 'bank_transfer',
+            payment_method_name: 'Bank Transfer',
+            isBank: true,
+            bank_code: 'mandiri',
+        },
         {
             name: 'Bayar di kasir',
             icon: 'tunai.png',
@@ -171,10 +171,33 @@ router.get('/payment-methods', (req, res) => {
             bank_code: 'cash',
             isCash: true,
         },
+        // ✅ PT Sari Coffee Nusantara Bank Transfers (instant settlement like Cash)
+        // These are only shown in GRO checkout when "DP Sudah Dibayar" is checked
+        {
+            name: 'BCA (PT SCN)',
+            icon: 'bca.png',
+            color: '#1565C0',
+            payment_method: 'cash', // ✅ Uses Cash flow (no Midtrans)
+            payment_method_name: 'Bank Transfer PT',
+            isBank: true,
+            bank_code: 'bca_pt',
+            isPtBank: true, // ✅ Flag untuk identifikasi bank milik PT
+            groOnly: true,  // ✅ Hanya tampil di GRO mode
+        },
+        {
+            name: 'Mandiri (PT SCN)',
+            icon: 'mandiri.png',
+            color: '#FFA000',
+            payment_method: 'cash', // ✅ Uses Cash flow (no Midtrans)
+            payment_method_name: 'Bank Transfer PT',
+            isBank: true,
+            bank_code: 'mandiri_pt',
+            isPtBank: true, // ✅ Flag untuk identifikasi bank milik PT
+            groOnly: true,  // ✅ Hanya tampil di GRO mode
+        },
     ];
 
     res.json(paymentMethods);
 });
 
 export default router;
-

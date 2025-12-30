@@ -16,8 +16,9 @@ import {
   getMenuByRating,
   updateMenuActivated,
   getMenuItemsBackOffice,
+  getWorkstationMenuData,  // ⚡ OPTIMIZED: Single-call for workstation data
 } from '../controllers/menu.controller.js';
-import { 
+import {
   manualStockCalibration,
   calibrateSingleMenuStockForAllWarehouses,
   calibrateSingleMenuStockForWarehouse,
@@ -34,13 +35,14 @@ import { PrintLogger } from '../services/print-logger.service.js';
 const router = express.Router();
 
 // Middleware for admin and superadmin only
-const adminAccess = verifyToken(['admin', 'superadmin', 'marketing', 'operational']);
+const adminAccess = verifyToken(['admin', 'superadmin', 'marketing', 'akuntan', 'operational', 'super kasir']);
 
 // MenuItem Routes
 router.post('/menu-items', upload.single('images'), createMenuItem); // Create a new MenuItem
 router.get('/menu-items', getMenuItemsWithRecipes); // Get all MenuItems with Recipes
 router.get('/all-menu-items', getMenuItems); // Get all MenuItems
 router.get('/all-menu-items-backoffice', getMenuItemsBackOffice); // Get all MenuItems
+router.get('/workstation-data', getWorkstationMenuData); // ⚡ OPTIMIZED: Single-call for all categories + menus + stock
 router.get('/with-recipes/outlet/:outletId', getMenuItemsByOutletWithRecipes); // Get MenuItems by Outlet ID with Recipes
 router.get('/menu-items/category/:categoryId', getMenuItemsByCategory); // Get MenuItems by Category ID
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID
@@ -87,7 +89,7 @@ router.post('/calibrate/menu/:menuItemId', async (req, res) => {
   try {
     const { menuItemId } = req.params;
     const result = await calibrateSingleMenuStockForAllWarehouses(menuItemId);
-    
+
     res.json({
       success: true,
       data: result
@@ -106,7 +108,7 @@ router.post('/calibrate/menu/:menuItemId/warehouse/:warehouseId', async (req, re
   try {
     const { menuItemId, warehouseId } = req.params;
     const result = await calibrateSingleMenuStockForWarehouse(menuItemId, warehouseId);
-    
+
     res.json({
       success: true,
       data: result
@@ -125,7 +127,7 @@ router.post('/calibrate/workstation/:workstation', async (req, res) => {
   try {
     const { workstation } = req.params;
     const result = await calibrateMenuStocksByWorkstation(workstation);
-    
+
     res.json({
       success: true,
       data: result
@@ -144,7 +146,7 @@ router.get('/status/menu/:menuItemId', async (req, res) => {
   try {
     const { menuItemId } = req.params;
     const result = await getMenuCalibrationStatus(menuItemId);
-    
+
     res.json({
       success: true,
       data: result

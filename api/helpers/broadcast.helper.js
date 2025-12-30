@@ -163,36 +163,33 @@
 
 import { getAreaGroup } from '../utils/areaGrouping.js';
 import { io } from '../index.js';
+import { PrintLogger } from '../services/print-logger.service.js';
 
 // 🔥 NEW: Trigger immediate print tanpa menunggu apapun
 export const triggerImmediatePrint = async (orderInfo) => {
   try {
-    const { orderId, tableNumber, orderData, outletId, source, isAppOrder, isWebOrder } = orderInfo;
+    const { orderId, tableNumber, orderData, outletId, source, isAppOrder, isWebOrder, isOpenBill } = orderInfo;
 
     console.log(`\n🖨️ ========== PRINT TRIGGER ==========`);
     console.log(`📋 Order ID: ${orderId}`);
     console.log(`🪑 Table: ${tableNumber || 'N/A'}`);
     console.log(`📱 Source: ${isAppOrder ? 'App' : isWebOrder ? 'Web' : source || 'Cashier'}`);
-
-    if (!global.io) {
-      console.warn('❌ Socket IO not available for immediate print');
-      console.log(`====================================\n`);
-      return false;
+    if (isOpenBill) {
+      console.log(`📝 Open Bill: YES (Pesanan Tambahan)`);
     }
-
-    const areaCode = tableNumber?.charAt(0).toUpperCase();
 
     // Prepare minimal print data - TIDAK perlu data lengkap
     const printData = {
       orderId,
       tableNumber,
-      areaCode,
+      areaCode: tableNumber?.charAt(0).toUpperCase(),
       orderItems: orderData.items || [],
       source: isAppOrder ? 'App' : isWebOrder ? 'Web' : source || 'Cashier',
       orderType: orderData.orderType || 'dine-in',
       timestamp: new Date(),
       printTrigger: 'immediate',
-      paymentMethod: orderData.paymentMethod || 'Cash'
+      paymentMethod: orderData.paymentMethod || 'Cash',
+      isOpenBill: isOpenBill || false  // ✅ NEW: Pass isOpenBill to workstation
     };
 
     // Count items by workstation
@@ -200,6 +197,50 @@ export const triggerImmediatePrint = async (orderInfo) => {
     const barItems = printData.orderItems.filter(item =>
       item.workstation === 'bar' || item.category === 'beverage' || item.category === 'drink'
     );
+
+    // ✅ LOGGING: Log pending attempts on server side for traceability
+    const logPromises = [];
+
+    // Log Kitchen Items
+    kitchenItems.forEach(item => {
+      logPromises.push(PrintLogger.logPrintAttempt(
+        orderId,
+        item,
+        'kitchen',
+        { type: 'unknown', info: 'Server Broadcast' },
+        { is_auto_print: true }
+      ));
+    });
+
+    // Log Bar Items
+    barItems.forEach(item => {
+      const areaCode = printData.areaCode;
+      const barRoom = areaCode && areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
+      logPromises.push(PrintLogger.logPrintAttempt(
+        orderId,
+        item,
+        barRoom,
+        { type: 'unknown', info: 'Server Broadcast' },
+        { is_auto_print: true }
+      ));
+    });
+
+    // Wait for logs to be created (non-blocking for print emission if possible, but safely awaited here)
+    // OPTIMIZATION: Fire-and-forget (Non-blocking)
+    Promise.allSettled(logPromises).then((results) => {
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      console.log(`📝 [BACKGROUND] Logged ${successCount}/${logPromises.length} pending print attempts`);
+    }).catch(logErr => {
+      console.error('⚠️ [BACKGROUND] Failed to log print attempts:', logErr);
+    });
+
+    if (!global.io) {
+      console.warn('❌ Socket IO not available for immediate print');
+      console.log(`====================================\n`);
+      return false;
+    }
+
+    const areaCode = printData.areaCode;
 
     // 🔥 EMIT ke kitchen IMMEDIATELY untuk print
     if (kitchenItems.length > 0) {
@@ -282,9 +323,29 @@ export const triggerImmediatePrint = async (orderInfo) => {
 // controllers/order.controller.js - UPDATE
 
 export const broadcastCashOrderToKitchen = async (params) => {
-  const { orderId, tableNumber, orderData, outletId } = params;
+  const { orderId, tableNumber, orderData, outletId, cashierId } = params;
 
   try {
+    // 🔧 SMART ROUTING: Lookup cashier's device area
+    let sourceCashierArea = null;
+    if (cashierId) {
+      try {
+        const User = (await import('../models/user.model.js')).default;
+        const { Device } = await import('../models/Device.model.js');
+
+        const cashierUser = await User.findById(cashierId)
+          .populate('device_id')
+          .lean();
+
+        if (cashierUser?.device_id?.location) {
+          sourceCashierArea = cashierUser.device_id.location;
+          console.log(`📍 Cashier device area: ${sourceCashierArea}`);
+        }
+      } catch (lookupError) {
+        console.warn('⚠️ Could not lookup cashier device:', lookupError.message);
+      }
+    }
+
     // ✅ Use socketManagement for intelligent broadcast
     if (global.socketManagement && global.socketManagement.broadcastOrder) {
       await global.socketManagement.broadcastOrder({
@@ -296,23 +357,72 @@ export const broadcastCashOrderToKitchen = async (params) => {
         orderType: orderData.orderType || 'dine-in',
         name: orderData.name || orderData.customer_name || 'Guest',
         service: orderData.service || 'Dine-In',
-        paymentMethod: orderData.paymentDetails?.method || 'Cash'
+        paymentMethod: orderData.paymentDetails?.method || 'Cash',
+        // 🔧 NEW: Device-based routing parameters
+        sourceCashierArea: sourceCashierArea,
+        isReservation: orderData.orderType === 'reservation',
+        isGROOrder: orderData.source === 'Gro'
       });
 
-      console.log(`✅ Order ${orderId} broadcasted via socketManagement`);
+      console.log(`✅ Order ${orderId} broadcasted via socketManagement${sourceCashierArea ? ` (cashier area: ${sourceCashierArea})` : ''}`);
     } else {
-      // Legacy fallback
+      // 🔧 FIXED: Legacy fallback with SMART BAR ROUTING
       console.warn('⚠️ Using legacy broadcast for order:', orderId);
 
-      // Broadcast ke kitchen room (legacy)
-      io.to('kitchen_room').emit('kitchen_immediate_print', {
+      // Separate items by workstation type
+      const beverageItems = (orderData.orderItems || []).filter(item => {
+        const mainCat = (item.mainCategory || '').toLowerCase();
+        const ws = (item.workstation || item.station || '').toLowerCase();
+        // ✅ ADDED: Include custom amount items
+        return mainCat.includes('beverage') ||
+          mainCat.includes('minuman') ||
+          ws.includes('bar') ||
+          item.isCustomAmount === true ||
+          mainCat === 'custom';
+      });
+
+      const kitchenItems = (orderData.orderItems || []).filter(item => {
+        const mainCat = (item.mainCategory || '').toLowerCase();
+        const ws = (item.workstation || item.station || '').toLowerCase();
+        return !mainCat.includes('beverage') && !mainCat.includes('minuman') && !ws.includes('bar');
+      });
+
+      const printPayload = {
         orderId,
         tableNumber,
-        orderItems: orderData.orderItems || [],
+        orderType: orderData.orderType || 'dine-in',
+        source: orderData.source || 'Cashier',
         name: orderData.customer_name || orderData.name || 'Guest',
         service: orderData.service || 'Dine-In',
         timestamp: new Date()
-      });
+      };
+
+      // Broadcast to KITCHEN (all kitchen items go to kitchen)
+      if (kitchenItems.length > 0) {
+        io.to('kitchen_room').emit('kitchen_immediate_print', {
+          ...printPayload,
+          orderItems: kitchenItems
+        });
+        console.log(`   ✅ Kitchen broadcast: ${kitchenItems.length} items`);
+      }
+
+      // 🔧 SMART BAR ROUTING: Route to correct bar based on sourceCashierArea
+      if (beverageItems.length > 0) {
+        let targetBarRoom = 'bar_depan'; // Default
+
+        if (sourceCashierArea === 'belakang') {
+          targetBarRoom = 'bar_belakang';
+        } else if (sourceCashierArea === 'depan') {
+          targetBarRoom = 'bar_depan';
+        }
+        // If no sourceCashierArea, default to bar_depan
+
+        io.to(targetBarRoom).emit('beverage_immediate_print', {
+          ...printPayload,
+          orderItems: beverageItems
+        });
+        console.log(`   ✅ Bar broadcast to ${targetBarRoom}: ${beverageItems.length} items (cashier area: ${sourceCashierArea || 'default'})`);
+      }
     }
   } catch (error) {
     console.error('Error broadcasting cash order:', error);
