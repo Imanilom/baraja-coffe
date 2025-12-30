@@ -10,101 +10,64 @@ import mongoose from 'mongoose';
  * @param {number} maxRetries - Maximum number of retry attempts (default: 3)
  * @returns {Promise<any>} Result from the operation
  */
-export async function runWithTransactionRetry(operation, existingSession = null, maxRetries = 3) {
-  let lastError;
-  let sessionToCleanup = null;
+// utils/transactionRetry.js
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // Create a new session for each attempt to avoid transaction number desync
-    // Only reuse existing session on first attempt if provided
-    let session;
-    let shouldCloseSession = true;
-
-    try {
-      if (attempt === 1 && existingSession) {
-        session = existingSession;
-        shouldCloseSession = false; // Caller is responsible for closing
-      } else {
-        // Create fresh session with causalConsistency for better Atlas compatibility
-        session = await mongoose.startSession({
-          causalConsistency: true
-        });
-        sessionToCleanup = session;
-      }
-
-      // Safety check: ensure session is not in a transaction state
-      if (session.inTransaction()) {
-        console.warn('⚠️ Session already in transaction, aborting first...');
-        try {
-          await session.abortTransaction();
-        } catch (e) {
-          // Ignore abort errors - session might be in weird state
-        }
-      }
-
-      // Start transaction with proper options
-      session.startTransaction({
-        readConcern: { level: 'snapshot' },
-        writeConcern: { w: 'majority' },
-        readPreference: 'primary'
-      });
-
-      // Execute the operation, passing the session
-      const result = await operation(session);
-
-      // Commit the transaction
-      await session.commitTransaction();
-
-      // Success - clean up and return
-      if (shouldCloseSession && session) {
-        await session.endSession();
-      }
-
-      console.log(`✅ Transaction committed successfully on attempt ${attempt}`);
-      return result;
-
-    } catch (error) {
-      lastError = error;
-
-      // Try to abort the transaction if it's still in progress
-      try {
-        if (session && session.inTransaction()) {
-          await session.abortTransaction();
-          console.log(`⚠️ Transaction aborted on attempt ${attempt}: ${error.message}`);
-        }
-      } catch (abortError) {
-        console.warn(`Failed to abort transaction: ${abortError.message}`);
-      }
-
-      // Clean up session for retry attempts (not the one provided from outside)
-      if (shouldCloseSession && session) {
-        try {
-          await session.endSession();
-        } catch (endError) {
-          console.warn(`Failed to end session: ${endError.message}`);
-        }
-        sessionToCleanup = null;
-      }
-
-      // Check if we should retry
-      if (isTransientError(error) && attempt < maxRetries) {
-        const delay = calculateBackoffDelay(attempt);
-        console.log(`🔄 Retrying transaction, attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
-        console.log(`   Error: ${error.message}`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-
-      // If not retrying, log the final error
-      console.error(`❌ Transaction failed after ${attempt} attempt(s):`, {
-        message: error.message,
-        name: error.name,
-        code: error.code
-      });
-      break;
-    }
+export async function runWithTransactionRetry(operationFn, session, maxRetries = 3) {
+  if (!session) {
+    // No session provided, just run the operation
+    return await operationFn(null);
   }
 
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await session.startTransaction();
+      console.log(`🔄 Transaction attempt ${attempt}/${maxRetries}`);
+      
+      const result = await operationFn(session);
+      
+      await session.commitTransaction();
+      console.log(`✅ Transaction committed on attempt ${attempt}`);
+      
+      return result;
+    } catch (error) {
+      console.error(`⚠️ Transaction aborted on attempt ${attempt}:`, error.message);
+      
+      if (session.transaction.isActive) {
+        try {
+          await session.abortTransaction();
+        } catch (abortErr) {
+          console.warn('Failed to abort transaction:', abortErr.message);
+        }
+      }
+      
+      lastError = error;
+      
+      // Check if we should retry
+      if (attempt < maxRetries && 
+          (error.code === 251 || // NoSuchTransaction
+           error.message.includes('does not match any in-progress transactions'))) {
+        
+        // Exponential backoff
+        const waitTime = Math.min(100 * Math.pow(2, attempt - 1), 1000);
+        console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
+        // 🔥 CRITICAL: Start a fresh session if transaction number is mismatched
+        if (error.message.includes('does not match any in-progress transactions')) {
+          await session.endSession();
+          session = await mongoose.startSession();
+          console.log('🔄 Created fresh session for retry');
+        }
+        
+        continue;
+      }
+      
+      throw error;
+    }
+  }
+  
   throw lastError;
 }
 
