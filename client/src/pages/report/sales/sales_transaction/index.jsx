@@ -273,7 +273,7 @@ const SalesTransaction = () => {
         updateURLParams(dateRange, selectedOutlet, searchTerm, 1, newLimit);
     };
 
-    const applySearchFilter = useCallback((data, search) => {
+    const applyFilter = useCallback((data, search) => {
         if (!search) return data;
 
         const searchTermLower = search.toLowerCase();
@@ -323,8 +323,8 @@ const SalesTransaction = () => {
     }, []);
 
     const filteredData = useMemo(() => {
-        return applySearchFilter(products, searchTerm);
-    }, [products, searchTerm, applySearchFilter]);
+        return applyFilter(products, searchTerm);
+    }, [products, searchTerm, applyFilter]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -843,8 +843,8 @@ const SalesTransaction = () => {
                         onClick={handleDeleteMultiple}
                         disabled={isDeleting}
                         className={`px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-all ${isDeleting
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
                             }`}
                     >
                         {isDeleting ? (

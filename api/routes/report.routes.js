@@ -115,6 +115,9 @@ router.get('/daily-profit', DailyProfitController.getDailyProfit);
 // GET /api/daily-profit/range?startDate=2024-01-01&endDate=2024-01-31&outletId=...
 router.get('/daily-profit/range', DailyProfitController.getDailyProfitRange);
 
+// GET /api/hourly-profit/range?startDate=2024-01-01&endDate=2024-01-31&outletId=...
+router.get('/hourly-profit/range', DailyProfitController.getHourlySalesRange);
+
 // GET /api/daily-profit/today?outletId=...
 router.get('/daily-profit/today', DailyProfitController.getTodayProfit);
 
@@ -127,14 +130,19 @@ router.get('/orders', DailyProfitController.getOrdersWithPayments);
 
 router.get('/sales-report/payment-method-detail', DailyProfitController.getPaymentMethodDetailReport);
 
-// router.get('/sales-report/transaction-category', DailyProfitController.getCategorySalesReport);
+router.get('/sales-report/transaction-category', DailyProfitController.getCategorySalesReport);
 
-// router.get('/sales-report/transaction-type', DailyProfitController.getTypeSalesReport);
+router.get('/sales-report/transaction-type', DailyProfitController.getTypeSalesReport);
 
-// router.get('/sales-report/transaction-outlet', DailyProfitController.getSalesOutlet);
+router.get('/sales-report/transaction-outlet', DailyProfitController.getSalesOutlet);
+
+router.get('/sales-report/device', DailyProfitController.getDeviceSalesReport);
 
 // router.delete('/sales-report/bulk', DailyProfitController.deleteMultipleOrders);
 
-// router.delete('/sales-report/:id', DailyProfitController.deleteSingleOrder);
+router.delete('/sales-report/:id', DailyProfitController.deleteSingleOrder);
+
+router.get('/sales-report/transaction-customer', DailyProfitController.getCustomerSalesReport);
+
 
 export default router;

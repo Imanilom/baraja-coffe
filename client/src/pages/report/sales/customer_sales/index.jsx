@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
-import dayjs from 'dayjs';
-import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -10,10 +7,6 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import CustomerSalesSkeleton from "./skeleton";
-
-// Extend dayjs with plugins
-dayjs.extend(isSameOrAfter);
-dayjs.extend(isSameOrBefore);
 
 const CustomerSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -52,119 +45,185 @@ const CustomerSales = () => {
         }),
     };
 
-    const [products, setProducts] = useState([]);
+    const [customerData, setCustomerData] = useState([]);
+    const [allCustomerData, setAllCustomerData] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [error, setError] = useState(null);
 
     const [search, setSearch] = useState("");
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
-    const [filteredData, setFilteredData] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [isInitialized, setIsInitialized] = useState(false);
+    const [pagination, setPagination] = useState({
+        totalPages: 0,
+        totalItems: 0,
+        itemsPerPage: 10
+    });
+    const [summary, setSummary] = useState({
+        totalCustomers: 0,
+        totalTransactions: 0,
+        totalSales: 0,
+        averagePerCustomer: 0,
+        averagePerTransaction: 0,
+        topCustomers: {
+            byTransactionCount: null,
+            bySales: null
+        }
+    });
 
     const ITEMS_PER_PAGE = 10;
 
-    // Initialize filters from URL on component mount
+    // Initialize from URL params or set default to today
     useEffect(() => {
-        const page = parseInt(searchParams.get('page')) || 1;
-        const searchQuery = searchParams.get('search') || '';
-        const outlet = searchParams.get('outlet') || '';
-        const startDate = searchParams.get('startDate');
-        const endDate = searchParams.get('endDate');
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outlet');
+        const searchParam = searchParams.get('search');
+        const pageParam = searchParams.get('page');
 
-        setCurrentPage(page);
-        setSearch(searchQuery);
-        setSelectedOutlet(outlet);
-
-        if (startDate && endDate) {
+        if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: startDate,
-                endDate: endDate
+                startDate: new Date(startDateParam),
+                endDate: new Date(endDateParam),
             });
         } else {
-            const today = dayjs().format('YYYY-MM-DD');
+            const today = new Date();
             setDateRange({
                 startDate: today,
-                endDate: today
+                endDate: today,
             });
         }
 
-        setIsInitialized(true);
-    }, [searchParams]);
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+
+        if (searchParam) {
+            setSearch(searchParam);
+        }
+
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
+    }, []);
 
     // Update URL when filters change
     const updateURLParams = useCallback((newPage, newSearch, newOutlet, newDateRange) => {
         const params = new URLSearchParams();
 
-        if (newPage > 1) {
-            params.set('page', newPage.toString());
-        }
-
-        if (newSearch) {
-            params.set('search', newSearch);
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
+            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
         }
 
         if (newOutlet) {
             params.set('outlet', newOutlet);
         }
 
-        if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
-            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
-            params.set('startDate', startDate);
-            params.set('endDate', endDate);
+        if (newSearch) {
+            params.set('search', newSearch);
         }
 
-        setSearchParams(params, { replace: true });
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
+        }
+
+        setSearchParams(params);
     }, [setSearchParams]);
 
-    // Fetch products and outlets data
+    // Fetch outlets data
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
+        const fetchOutlets = async () => {
             try {
-                const [productsResponse, outletsResponse] = await Promise.all([
-                    axios.get('/api/orders'),
-                    axios.get('/api/outlet')
-                ]);
-
-                const productsData = Array.isArray(productsResponse.data)
-                    ? productsResponse.data
-                    : Array.isArray(productsResponse.data?.data)
-                        ? productsResponse.data.data
+                const response = await axios.get('/api/outlet');
+                const outletsData = Array.isArray(response.data)
+                    ? response.data
+                    : Array.isArray(response.data?.data)
+                        ? response.data.data
                         : [];
-
-                const completedData = productsData.filter(item => item.status === "Completed");
-                setProducts(completedData);
-
-                const outletsData = Array.isArray(outletsResponse.data)
-                    ? outletsResponse.data
-                    : Array.isArray(outletsResponse.data?.data)
-                        ? outletsResponse.data.data
-                        : [];
-
                 setOutlets(outletsData);
-                setError(null);
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                setProducts([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
+                console.error("Error fetching outlets:", err);
             }
         };
 
-        fetchData();
+        fetchOutlets();
     }, []);
 
-    const options = useMemo(() => [
-        { value: "", label: "Semua Outlet" },
-        ...outlets.map((o) => ({ value: o._id, label: o.name })),
-    ], [outlets]);
+    // Fetch customer sales data
+    const fetchCustomerSales = useCallback(async () => {
+        if (!dateRange?.startDate || !dateRange?.endDate) return;
+
+        setLoading(true);
+        try {
+            const params = {
+                startDate: new Date(dateRange.startDate).toISOString().split('T')[0],
+                endDate: new Date(dateRange.endDate).toISOString().split('T')[0],
+                page: currentPage,
+                limit: ITEMS_PER_PAGE
+            };
+
+            if (selectedOutlet) {
+                params.outletId = selectedOutlet;
+            }
+
+            if (search) {
+                params.search = search;
+            }
+
+            const response = await axios.get('/api/report/sales-report/transaction-customer', { params });
+
+            if (response.data.success) {
+                setCustomerData(response.data.data || []);
+                setAllCustomerData(response.data.allData || []); // Get all data from same response
+                setPagination(response.data.pagination || {
+                    totalPages: 0,
+                    totalItems: 0,
+                    itemsPerPage: ITEMS_PER_PAGE
+                });
+                setSummary(response.data.summary || {
+                    totalCustomers: 0,
+                    totalTransactions: 0,
+                    totalSales: 0,
+                    averagePerCustomer: 0,
+                    averagePerTransaction: 0,
+                    topCustomers: {
+                        byTransactionCount: null,
+                        bySales: null
+                    }
+                });
+                setError(null);
+            }
+        } catch (err) {
+            console.error("Error fetching customer sales:", err);
+            setError("Failed to load data. Please try again later.");
+            setCustomerData([]);
+            setAllCustomerData([]);
+            setPagination({ totalPages: 0, totalItems: 0, itemsPerPage: ITEMS_PER_PAGE });
+            setSummary({
+                totalCustomers: 0,
+                totalTransactions: 0,
+                totalSales: 0,
+                averagePerCustomer: 0,
+                averagePerTransaction: 0,
+                topCustomers: {
+                    byTransactionCount: null,
+                    bySales: null
+                }
+            });
+        } finally {
+            setLoading(false);
+        }
+    }, [dateRange, selectedOutlet, search, currentPage]);
+
+    // Auto-fetch when filters change
+    useEffect(() => {
+        fetchCustomerSales();
+    }, [fetchCustomerSales]);
 
     // Handler functions
     const handleDateRangeChange = (newValue) => {
@@ -193,131 +252,13 @@ const CustomerSales = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Apply filter function - FIXED LOGIC
-    const applyFilter = useCallback(() => {
-        let filtered = [...products];
-
-        // Filter by search term - PERBAIKAN: search di nama customer dan phone
-        if (search) {
-            filtered = filtered.filter(product => {
-                try {
-                    const customerName = (product?.user || '').toLowerCase();
-                    const customerPhone = (product?.user_id?.phone || '').toLowerCase();
-                    const searchTerm = search.toLowerCase();
-
-                    return customerName.includes(searchTerm) ||
-                        customerPhone.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet - PERBAIKAN: cek struktur data yang benar
-        if (selectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    const outletId = product?.outlet?._id ||
-                        product?.outlet?.id ||
-                        product?.cashier?.outlet?.[0]?.outletId?._id ||
-                        product?.cashier?.outlet?.[0]?.outletId?.id;
-
-                    return outletId === selectedOutlet;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range - PERBAIKAN: gunakan dayjs untuk konsistensi
-        if (dateRange?.startDate && dateRange?.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) return false;
-
-                    const productDate = dayjs(product.createdAt);
-                    const startDate = dayjs(dateRange.startDate).startOf('day');
-                    const endDate = dayjs(dateRange.endDate).endOf('day');
-
-                    return productDate.isSameOrAfter(startDate) &&
-                        productDate.isSameOrBefore(endDate);
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, search, selectedOutlet, dateRange]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        if (isInitialized) {
-            applyFilter();
-        }
-    }, [applyFilter, isInitialized]);
-
-    // Group data by customer - PERBAIKAN: gunakan grandTotal bukan subtotal
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            try {
-                const customer = product?.user_id || {};
-                const customerPhone = customer.phone || null;
-                const customerName = product?.user || 'Unknown';
-
-                // ✅ PERBAIKAN: gunakan grandTotal dari product
-                const grandTotal = Number(product?.grandTotal) || 0;
-
-                // Group by phone+name or just name if no phone
-                const groupKey = customerPhone
-                    ? `${customerPhone}|${customerName}`
-                    : `${customerName}`;
-
-                if (!grouped[groupKey]) {
-                    grouped[groupKey] = {
-                        customerName,
-                        customer,
-                        count: 0,
-                        grandTotalSum: 0,  // ← nama field berubah
-                        products: []
-                    };
-                }
-
-                grouped[groupKey].products.push(product);
-                grouped[groupKey].count++;
-                grouped[groupKey].grandTotalSum += grandTotal;  // ← akumulasi grandTotal
-            } catch (err) {
-                console.error("Error grouping product:", err);
-            }
-        });
-
-        // Convert to array and sort by total sales descending
-        return Object.values(grouped).sort((a, b) => b.grandTotalSum - a.grandTotalSum);
-    }, [filteredData]);
-
-    // Paginate data
-    const paginatedData = useMemo(() => {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return groupedArray.slice(startIndex, endIndex);
-    }, [groupedArray, currentPage]);
-
-    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
-
-    // Calculate grand totals - PERBAIKAN: gunakan grandTotalSum
-    const { totalTransaksi, totalPenjualan } = useMemo(() => {
-        return groupedArray.reduce((totals, group) => ({
-            totalTransaksi: totals.totalTransaksi + group.count,
-            totalPenjualan: totals.totalPenjualan + group.grandTotalSum  // ← dari grandTotalSum
-        }), { totalTransaksi: 0, totalPenjualan: 0 });
-    }, [groupedArray]);
+    const options = useMemo(() => [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((o) => ({ value: o._id, label: o.name })),
+    ], [outlets]);
 
     const formatCurrency = (amount) => {
+        if (isNaN(amount) || !isFinite(amount)) return 'Rp 0';
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR',
@@ -326,9 +267,9 @@ const CustomerSales = () => {
         }).format(amount);
     };
 
-    // Export to Excel - PERBAIKAN: gunakan grandTotal
+    // Export to Excel
     const exportToExcel = async () => {
-        if (groupedArray.length === 0) {
+        if (allCustomerData.length === 0) {
             alert("Tidak ada data untuk diekspor");
             return;
         }
@@ -338,62 +279,77 @@ const CustomerSales = () => {
         try {
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Get outlet name
             const outletName = selectedOutlet
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
-            // Get date range
-            const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
-            const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
-            const dateRangeText = `${startDate} - ${endDate}`;
+            const dateRangeText = dateRange?.startDate && dateRange?.endDate
+                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
+                : new Date().toLocaleDateString('id-ID');
 
             // Create export data
-            const exportData = [
+            const excelData = [
                 { col1: 'Laporan Penjualan Per Pelanggan', col2: '', col3: '', col4: '', col5: '', col6: '' },
                 { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' },
                 { col1: 'Outlet', col2: outletName, col3: '', col4: '', col5: '', col6: '' },
                 { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '', col5: '', col6: '' },
                 { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' },
-                { col1: 'Id Member', col2: 'Nama', col3: 'Tipe Pelanggan', col4: 'No Telepon', col5: 'Jumlah Transaksi', col6: 'Total' }
+                { col1: 'Nama Pelanggan', col2: 'Tipe Pelanggan', col3: 'No Telepon', col4: 'Jumlah Transaksi', col5: 'Total Penjualan', col6: 'Rata-rata per Transaksi' }
             ];
 
-            // Add data rows - menggunakan grandTotalSum
-            groupedArray.forEach(group => {
-                exportData.push({
-                    col1: group.customer._id || '-',
-                    col2: group.customerName || '-',
-                    col3: group.customer.consumerType || '-',
-                    col4: group.customer.phone || '-',
-                    col5: group.count,
-                    col6: group.grandTotalSum  // ← dari grandTotalSum
+            // Add data rows
+            allCustomerData.forEach(customer => {
+                excelData.push({
+                    col1: customer.customerName || 'Walk-in Customer',
+                    col2: customer.customerType || '-',
+                    col3: customer.customerPhone || '-',
+                    col4: customer.transactionCount || 0,
+                    col5: customer.totalSales || 0,
+                    col6: customer.averagePerTransaction || 0
                 });
             });
 
-            // Add Grand Total row
-            exportData.push({
+            // Add summary rows
+            excelData.push({ col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' });
+            excelData.push({
                 col1: 'Grand Total',
                 col2: '',
                 col3: '',
+                col4: summary.totalTransactions,
+                col5: summary.totalSales,
+                col6: summary.averagePerTransaction
+            });
+            excelData.push({
+                col1: 'Total Pelanggan',
+                col2: summary.totalCustomers,
+                col3: '',
                 col4: '',
-                col5: totalTransaksi,
-                col6: totalPenjualan  // ← dari totalPenjualan (yang sudah pakai grandTotalSum)
+                col5: '',
+                col6: ''
+            });
+            excelData.push({
+                col1: 'Rata-rata per Pelanggan',
+                col2: summary.averagePerCustomer,
+                col3: '',
+                col4: '',
+                col5: '',
+                col6: ''
             });
 
             // Create worksheet
-            const ws = XLSX.utils.json_to_sheet(exportData, {
+            const ws = XLSX.utils.json_to_sheet(excelData, {
                 header: ['col1', 'col2', 'col3', 'col4', 'col5', 'col6'],
                 skipHeader: true
             });
 
             // Set column widths
             ws['!cols'] = [
-                { wch: 25 }, // Id Member
-                { wch: 25 }, // Nama
-                { wch: 20 }, // Tipe Pelanggan
-                { wch: 18 }, // No Telepon
-                { wch: 20 }, // Jumlah Transaksi
-                { wch: 18 }  // Total
+                { wch: 30 },
+                { wch: 20 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 20 },
+                { wch: 25 }
             ];
 
             // Merge cells for title
@@ -401,15 +357,18 @@ const CustomerSales = () => {
                 { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }
             ];
 
-            // Create workbook
+            // Create workbook and add worksheet
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Pelanggan");
 
             // Generate filename
-            const fileName = `Laporan_Penjualan_Per_Pelanggan_${outletName.replace(/\s+/g, '_')}_${startDate.replace(/\//g, '-')}_${endDate.replace(/\//g, '-')}.xlsx`;
+            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const fileName = `Laporan_Penjualan_Per_Pelanggan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
 
             // Export file
             XLSX.writeFile(wb, fileName);
+
         } catch (error) {
             console.error("Error exporting to Excel:", error);
             alert("Gagal mengekspor data. Silakan coba lagi.");
@@ -418,18 +377,20 @@ const CustomerSales = () => {
         }
     };
 
-    if (loading) {
+    // Show loading state
+    if (loading && !dateRange) {
         return <CustomerSalesSkeleton />;
     }
 
-    if (error) {
+    // Show error state
+    if (error && !loading) {
         return (
             <div className="flex justify-center items-center h-screen">
                 <div className="text-red-500 text-center">
                     <p className="text-xl font-semibold mb-2">Error</p>
                     <p>{error}</p>
                     <button
-                        onClick={() => window.location.reload()}
+                        onClick={fetchCustomerSales}
                         className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
                     >
                         Refresh
@@ -452,7 +413,7 @@ const CustomerSales = () => {
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={isExporting || groupedArray.length === 0}
+                    disabled={isExporting || allCustomerData.length === 0}
                     className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isExporting ? (
@@ -470,6 +431,38 @@ const CustomerSales = () => {
 
             {/* Filters */}
             <div className="px-6">
+                {/* Top Customers Info */}
+                {(summary.topCustomers?.byTransactionCount || summary.topCustomers?.bySales) && (
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        {summary.topCustomers.byTransactionCount && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="text-xs text-blue-600 font-semibold mb-1">
+                                    🏆 Pelanggan Paling Sering Transaksi
+                                </div>
+                                <div className="text-sm font-bold text-blue-900">
+                                    {summary.topCustomers.byTransactionCount.customerName}
+                                </div>
+                                <div className="text-xs text-blue-700 mt-1">
+                                    {summary.topCustomers.byTransactionCount.transactionCount.toLocaleString('id-ID')} transaksi • {formatCurrency(summary.topCustomers.byTransactionCount.totalSales)}
+                                </div>
+                            </div>
+                        )}
+                        {summary.topCustomers.bySales && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div className="text-xs text-green-600 font-semibold mb-1">
+                                    💰 Pelanggan Pembelian Terbesar
+                                </div>
+                                <div className="text-sm font-bold text-green-900">
+                                    {summary.topCustomers.bySales.customerName}
+                                </div>
+                                <div className="text-xs text-green-700 mt-1">
+                                    {formatCurrency(summary.topCustomers.bySales.totalSales)} • {summary.topCustomers.bySales.transactionCount.toLocaleString('id-ID')} transaksi
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="flex justify-between py-3 gap-2">
                     <div className="flex flex-col col-span-3 w-2/5">
                         <div className="relative text-gray-500">
@@ -521,24 +514,40 @@ const CustomerSales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Telepon</th>
                                 <th className="px-4 py-3 font-normal text-right">Jumlah Transaksi</th>
                                 <th className="px-4 py-3 font-normal text-right">Total</th>
+                                <th className="px-4 py-3 font-normal text-right">Rata-rata</th>
                             </tr>
                         </thead>
-                        {paginatedData.length > 0 ? (
+                        {loading ? (
+                            <tbody>
+                                <tr>
+                                    <td colSpan={6} className="text-center py-8">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900 mx-auto"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        ) : customerData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((group, index) => (
+                                {customerData.map((customer, index) => (
                                     <tr key={index} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3">{group.customerName}</td>
-                                        <td className="px-4 py-3 text-right">{group.customer.consumerType || "-"}</td>
-                                        <td className="px-4 py-3 text-right">{group.customer.phone || "-"}</td>
-                                        <td className="px-4 py-3 text-right">{group.count}</td>
-                                        <td className="px-4 py-3 text-right">{formatCurrency(group.grandTotalSum)}</td>
+                                        <td className="px-4 py-3">{customer.customerName || 'Walk-in Customer'}</td>
+                                        <td className="px-4 py-3 text-right">{customer.customerType || '-'}</td>
+                                        <td className="px-4 py-3 text-right">{customer.customerPhone || '-'}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            {customer.transactionCount?.toLocaleString('id-ID') || 0}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {formatCurrency(customer.totalSales || 0)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {formatCurrency(customer.averagePerTransaction || 0)}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={5}>Tidak ada data ditemukan</td>
+                                    <td colSpan={6}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
@@ -548,12 +557,17 @@ const CustomerSales = () => {
                                 <td className="px-4 py-2" colSpan={3}>Grand Total</td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {totalTransaksi.toLocaleString()}
+                                        {summary.totalTransactions?.toLocaleString('id-ID') || 0}
                                     </p>
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(totalPenjualan)}
+                                        {formatCurrency(summary.totalSales || 0)}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(summary.averagePerTransaction || 0)}
                                     </p>
                                 </td>
                             </tr>
@@ -564,7 +578,7 @@ const CustomerSales = () => {
                 <Paginated
                     currentPage={currentPage}
                     setCurrentPage={handlePageChange}
-                    totalPages={totalPages}
+                    totalPages={pagination.totalPages}
                 />
             </div>
         </div>
