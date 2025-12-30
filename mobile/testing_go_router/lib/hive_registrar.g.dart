@@ -28,6 +28,7 @@ import 'package:kasirbaraja/models/payments/payment_action.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/va_number.model.dart';
+import 'package:kasirbaraja/models/promo_group.model.dart';
 import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/tax_service_detail.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
@@ -64,6 +65,8 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(PaymentModelAdapter());
     registerAdapter(PaymentTypeModelAdapter());
     registerAdapter(ProductConditionAdapter());
+    registerAdapter(PromoGroupLineAdapter());
+    registerAdapter(PromoGroupModelAdapter());
     registerAdapter(ScheduleAdapter());
     registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(TaxServiceDetailModelAdapter());
@@ -104,6 +107,8 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(PaymentModelAdapter());
     registerAdapter(PaymentTypeModelAdapter());
     registerAdapter(ProductConditionAdapter());
+    registerAdapter(PromoGroupLineAdapter());
+    registerAdapter(PromoGroupModelAdapter());
     registerAdapter(ScheduleAdapter());
     registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(TaxServiceDetailModelAdapter());

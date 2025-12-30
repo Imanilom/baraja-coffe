@@ -12,6 +12,7 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/outlet_info.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
+import 'package:kasirbaraja/models/promo_group.model.dart';
 import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
@@ -47,6 +48,8 @@ class HiveService {
     Hive.registerAdapter(ProductConditionAdapter());
     Hive.registerAdapter(FreeItemModelAdapter());
     Hive.registerAdapter(ScheduleAdapter());
+    Hive.registerAdapter(PromoGroupModelAdapter());
+    Hive.registerAdapter(PromoGroupLineAdapter());
 
     await _openBoxes();
   }
@@ -61,6 +64,7 @@ class HiveService {
     await Hive.openBox<DeviceModel>('devices');
     await Hive.openBox<OrderDetailModel>('offlineOrdersBox');
     await Hive.openBox<AutoPromoModel>('autoPromosBox');
+    await Hive.openBox<PromoGroupModel>('promoGroupsBox');
     // await Hive.openBox<DeviceModel>('loginDeviceBox');
   }
 
@@ -78,6 +82,8 @@ class HiveService {
       Hive.box<OrderDetailModel>('offlineOrdersBox');
   static Box<AutoPromoModel> get autoPromosBox =>
       Hive.box<AutoPromoModel>('autoPromosBox');
+  static Box<PromoGroupModel> get promoGroupsBox =>
+      Hive.box<PromoGroupModel>('promoGroupsBox');
 
   //login device box
   // static Box<DeviceModel> get loginDeviceBox =>
@@ -93,6 +99,7 @@ class HiveService {
     await deviceBox.clear();
     await offlineOrdersBox.clear();
     await autoPromosBox.clear();
+    await promoGroupsBox.clear();
     // await loginDeviceBox.clear();
   }
 
@@ -105,6 +112,7 @@ class HiveService {
     await deviceBox.close();
     await offlineOrdersBox.close();
     await autoPromosBox.close();
+    await promoGroupsBox.close();
     // await loginDeviceBox.close();
   }
 
@@ -115,7 +123,8 @@ class HiveService {
         paymentMethodBox.isNotEmpty ||
         eventBox.isNotEmpty ||
         deviceBox.isNotEmpty ||
-        autoPromosBox.isNotEmpty;
+        autoPromosBox.isNotEmpty ||
+        promoGroupsBox.isNotEmpty;
   }
 
   // Get data count for each type

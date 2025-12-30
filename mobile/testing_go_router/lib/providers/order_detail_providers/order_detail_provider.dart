@@ -6,6 +6,7 @@ import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
+import 'package:kasirbaraja/models/promo_group.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/promotion_providers/auto_promo_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
@@ -165,6 +166,60 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
     _recalculateAll();
     print('Item order berhasil ditambahkan.');
+  }
+
+  Future<void> applyPromoGroup(WidgetRef ref, PromoGroupModel group) async {
+    final notifier = ref.read(orderDetailProvider.notifier);
+    final order = ref.read(orderDetailProvider);
+
+    if (order == null) {
+      notifier.initializeOrder(orderType: OrderType.dineIn);
+    }
+
+    final menus = await ref.read(menuItemRepository).getLocalMenuItems();
+    MenuItemModel? findMenu(String id) =>
+        menus.firstWhereOrNull((m) => m.id == id);
+
+    final items = <OrderItemModel>[];
+
+    for (final line in group.lines) {
+      final menu = findMenu(line.menuItemId);
+      if (menu == null) continue;
+
+      // pakai default addon seperti kamu lakukan di _handleAddToOrder
+      final List<AddonModel> selectedAddons =
+          (menu.addons ?? [])
+              .map((addon) {
+                final defaultOptions =
+                    addon.options
+                        ?.where((option) => option.isDefault == true)
+                        .toList();
+                return AddonModel(
+                  id: addon.id,
+                  name: addon.name,
+                  type: addon.type,
+                  options: defaultOptions,
+                );
+              })
+              .where(
+                (addon) => addon.options != null && addon.options!.isNotEmpty,
+              )
+              .toList();
+
+      items.add(
+        OrderItemModel(
+          menuItem: menu,
+          selectedToppings: const [],
+          selectedAddons: selectedAddons,
+          quantity: line.qty,
+          subtotal: 0, // akan dihitung ulang oleh _recalculateAll()
+        ),
+      );
+    }
+
+    if (items.isNotEmpty) {
+      notifier.addItemsToOrder(items);
+    }
   }
 
   void addItemsToOrder(List<OrderItemModel> items) {

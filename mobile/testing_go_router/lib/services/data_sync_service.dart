@@ -126,7 +126,7 @@ class DataSyncService {
           currentTask: 'Downloading Auto Promos...',
         ),
       );
-      // await AutoPromoRepository().getAutoPromos();
+      await AutoPromoRepository().getAutoPromos();
 
       // Completed
       onProgress(
