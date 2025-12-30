@@ -970,20 +970,38 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         }
       },
       {
+        // ✅ FIXED: Lookup untuk stock - PREFER records dengan warehouseId
+        // Ini menyamakan logic dengan getMenuItems (testing_go_router)
         $lookup: {
           from: "menustocks",
-          localField: "_id",
-          foreignField: "menuItemId",
+          let: { menuItemId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$menuItemId", "$$menuItemId"] }
+              }
+            },
+            // Sort: prioritaskan yang punya warehouseId
+            {
+              $addFields: {
+                hasWarehouseId: { $cond: [{ $ifNull: ["$warehouseId", false] }, 1, 0] }
+              }
+            },
+            { $sort: { hasWarehouseId: -1, lastAdjustedAt: -1 } },
+            // Ambil hanya 1 record (yang punya warehouseId jika ada)
+            { $limit: 1 }
+          ],
           as: "stockInfo"
         }
       },
       {
-        // FILTER BARU: Hanya yang memiliki manual stock
+        // FILTER: Hanya yang memiliki stock valid
         $match: {
-          "stockInfo.0": { $exists: true }, // Pastikan ada stockInfo
+          "stockInfo.0": { $exists: true },
           $or: [
-            { "stockInfo.manualStock": { $gt: 0 } }, // Manual stock lebih dari 0
-            { "stockInfo.manualStock": { $ne: null } } // Atau manual stock tidak null
+            { "stockInfo.manualStock": { $gt: 0 } },
+            { "stockInfo.manualStock": { $ne: null } },
+            { "stockInfo.calculatedStock": { $gt: 0 } }
           ]
         }
       },

@@ -843,8 +843,8 @@ const SalesTransaction = () => {
                         onClick={handleDeleteMultiple}
                         disabled={isDeleting}
                         className={`px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-all ${isDeleting
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
                             }`}
                     >
                         {isDeleting ? (

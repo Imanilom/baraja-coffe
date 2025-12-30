@@ -36,7 +36,7 @@ const reservationSchema = new mongoose.Schema({
         ref: 'Table',
         required: true
     }],
-    table_type:{
+    table_type: {
         type: String,
         enum: ['long table', 'class', 'casual', 'theater'],
         default: 'long table'
@@ -147,8 +147,8 @@ const reservationSchema = new mongoose.Schema({
     },
     serving_type: {
         type: String,
-       enum: ['ala carte', 'buffet'], 
-       default: 'ala carte'
+        enum: ['ala carte', 'buffet'],
+        default: 'ala carte'
     },
     equipment: [{
         type: String,
@@ -200,6 +200,11 @@ reservationSchema.index({
 reservationSchema.index({
     'checked_out_by.employee_id': 1
 });
+
+// ✅ NEW: Compound indexes for GRO Dashboard - getReservations query
+reservationSchema.index({ reservation_date: 1, status: 1 }); // Main filter
+reservationSchema.index({ order_id: 1 }); // For payment lookup and distinct query
+reservationSchema.index({ reservation_date: 1, area_id: 1, status: 1 }); // With area filter
 
 // Pre-save middleware untuk update updatedAtWIB
 reservationSchema.pre('save', function (next) {

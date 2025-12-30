@@ -2784,6 +2784,7 @@ const processCashierOrderDirect = async ({
     tableNumber,
     source: 'Cashier',
     outletId,
+    cashierId,  // ✅ Added for device-based routing
     paymentDetails: validatedPaymentDetails,
     hasCustomAmountItems: finalCustomAmountItems.length > 0,
     isSplitPayment: orderResult.isSplitPayment
@@ -2797,15 +2798,9 @@ const processCashierOrderDirect = async ({
     orderResult
   );
 
-  await broadcastCashOrderToKitchen({
-    orderId,
-    tableNumber,
-    orderData: validated,
-    outletId,
-    cashierId,  // 🔧 NEW: Pass cashierId for device-based routing
-    hasCustomAmountItems: finalCustomAmountItems.length > 0,
-    isSplitPayment: Array.isArray(validatedPaymentDetails)
-  });
+  // ✅ FIXED: Removed duplicate broadcastCashOrderToKitchen call
+  // broadcastOrderCreation already handles kitchen/bar broadcast for Cash payments internally
+  // Having both calls was causing duplicate prints
 
   return {
     status: 'Completed',

@@ -1176,20 +1176,66 @@ export const getReservations = async (req, res) => {
       status,
       date,
       area_id,
-      search
+      search,
+      payment_status // ✅ NEW: Support filtering by payment status
     } = req.query;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // ✅ PERFORMANCE: Check cache first (30s TTL)
-    const cacheKey = getReservationsCacheKey({ date, status, area_id, search, page, limit });
+    const cacheKey = getReservationsCacheKey({ date, status, area_id, search, page, limit, payment_status }); // ✅ Updated cache key
     const cachedData = await getCache(cacheKey);
     if (cachedData) {
       return res.json(cachedData);
     }
 
+    // ========== PRE-FETCH FILTER IDs (Payment Status / Search) ==========
+    let paymentFilterOrderIds = null;
+
+    if (payment_status) {
+      const paymentQuery = {};
+
+      if (payment_status === 'settlement') {
+        paymentQuery.status = { $in: ['settlement', 'capture'] };
+      } else {
+        paymentQuery.status = payment_status; // 'pending', 'expire', etc.
+      }
+
+      // Cari order yang sudah lunas dari tabel Payment
+      const payments = await Payment.find(paymentQuery).select('order_id').lean();
+      paymentFilterOrderIds = new Set(payments.map(p => p.order_id));
+
+      // Jika filter aktif tapi tidak ada data, return kosong langsung untuk hemat resource
+      if (paymentFilterOrderIds.size === 0) {
+        return res.json({
+          success: true,
+          data: [],
+          pagination: {
+            current_page: parseInt(page),
+            total_pages: 0,
+            total_records: 0
+          }
+        });
+      }
+    }
+
     // ========== FILTER UNTUK RESERVATIONS ==========
     const reservationFilter = {};
+
+    // ✅ Apply Payment Status Filter to Reservations
+    if (paymentFilterOrderIds) {
+      // Kita perlu mencari Reservation yang punya order_id yang ada di set paymentFilterOrderIds
+      // Masalahnya: reservation.order_id adalah ObjectId (Ref: Order), sedangkan payment.order_id string custom "ORD-..."
+
+      // 1. Cari _id (ObjectId) dari Order yang punya order_id (String) tersebut
+      const orderObjectIds = await Order.find({
+        order_id: { $in: Array.from(paymentFilterOrderIds) }
+      }).select('_id').lean();
+
+      const allowedObjectIds = orderObjectIds.map(o => o._id);
+
+      reservationFilter.order_id = { $in: allowedObjectIds };
+    }
 
     if (status) {
       if (status === 'active') {
@@ -1286,6 +1332,52 @@ export const getReservations = async (req, res) => {
       orderType: { $in: ['Dine-In', 'Take Away', 'Pickup', 'Delivery', 'Event'] }
     };
 
+    // ✅ Apply Payment Status Filter to Dine-In Orders
+    if (paymentFilterOrderIds) {
+      // Di sini kita bisa langsung filter berdasarkan string order_id
+      orderFilter.order_id = { $in: Array.from(paymentFilterOrderIds) };
+    } else {
+      // ✅ NEW: Hide completed payments by default (Request: "paymentstatusnya pending")
+      // Unless: 
+      // 1. Searching (might want to find past orders)
+      // 2. Explicitly filtering by payment_status
+      if (!payment_status && !search) {
+        // 1. Determine Date Range for Payment Query
+        let paymentDateFilter = {};
+        if (date) {
+          const targetDate = new Date(date);
+          if (!isNaN(targetDate.getTime())) {
+            paymentDateFilter.createdAt = {
+              $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+              $lt: new Date(targetDate.setHours(23, 59, 59, 999))
+            };
+          }
+        } else {
+          const { startOfDay, endOfDay } = getTodayWIBRange();
+          paymentDateFilter.createdAt = {
+            $gte: startOfDay,
+            $lte: endOfDay
+          };
+        }
+
+        // 2. Find Order IDs that are explicitly SETTLED in Payment collection
+        const settledPayments = await Payment.find({
+          ...paymentDateFilter,
+          status: 'settlement'
+        }).select('order_id').lean();
+
+        const settledOrderIds = settledPayments.map(p => p.order_id);
+
+        // 3. Exclude these orders
+        if (settledOrderIds.length > 0) {
+          orderFilter.order_id = { $nin: settledOrderIds };
+        }
+
+        // 4. Secondary check: splitPaymentStatus
+        orderFilter.splitPaymentStatus = { $ne: 'completed' };
+      }
+    }
+
     if (status) {
       switch (status) {
         case 'pending':
@@ -1339,6 +1431,12 @@ export const getReservations = async (req, res) => {
 
     orderFilter._id = { $nin: reservedOrderIds };
 
+    // ✅ Apply Payment Status Filter to Dine-In Orders
+    if (paymentFilterOrderIds) {
+      // Di sini kita bisa langsung filter berdasarkan string order_id
+      orderFilter.order_id = { $in: Array.from(paymentFilterOrderIds) };
+    }
+
     // ✅ Query orders dengan custom amount items
     let dineInOrdersQuery = Order.find(orderFilter)
       .populate('cashierId', 'username')
@@ -1348,18 +1446,33 @@ export const getReservations = async (req, res) => {
 
     const dineInOrders = await dineInOrdersQuery.lean();
 
-    // Get table info manually if tableNumber exists
-    const ordersWithTableInfo = await Promise.all(dineInOrders.map(async (order) => {
+    // ✅ OPTIMIZATION: Fix N+1 Query & Remove Log Spam
+    // 1. Get unique table numbers
+    const uniqueTableNumbers = [...new Set(
+      dineInOrders
+        .filter(o => o.tableNumber)
+        .map(o => o.tableNumber.toUpperCase())
+    )];
+
+    // 2. Fetch all tables in one query
+    const tables = await Table.find({
+      table_number: { $in: uniqueTableNumbers }
+    })
+      .populate('area_id', 'area_name area_code capacity')
+      .lean();
+
+    // 3. Create lookup map
+    const tableMap = new Map();
+    tables.forEach(t => tableMap.set(t.table_number.toUpperCase(), t));
+
+    // 4. Map orders using lookup
+    const ordersWithTableInfo = dineInOrders.map((order) => {
       let tableInfo = null;
       let areaInfo = null;
 
       if (order.tableNumber) {
-        // ✅ FIX: Convert to uppercase to match Table model storage
         const tableNumberUpper = order.tableNumber.toUpperCase();
-
-        const table = await Table.findOne({ table_number: tableNumberUpper })
-          .populate('area_id', 'area_name area_code capacity')
-          .lean();
+        const table = tableMap.get(tableNumberUpper);
 
         if (table) {
           tableInfo = {
@@ -1368,13 +1481,8 @@ export const getReservations = async (req, res) => {
             seats: table.seats
           };
           areaInfo = table.area_id;
-
-          console.log(`✅ Table found for order ${order.order_id}: ${table.table_number}, Area: ${areaInfo?.area_name}`);
-        } else {
-          console.log(`⚠️ Table NOT found for tableNumber: ${tableNumberUpper} (original: ${order.tableNumber})`);
         }
-      } else {
-        console.log(`⚠️ Order ${order.order_id} has no tableNumber`);
+        // Logs removed as requested by user ("abaikan saja")
       }
 
       return {
@@ -1382,7 +1490,7 @@ export const getReservations = async (req, res) => {
         tableInfo,
         areaInfo
       };
-    }));
+    });
 
     // Apply area filter to orders
     let filteredOrders = ordersWithTableInfo;
@@ -1906,9 +2014,17 @@ export const getOrderDetailById = async (req, res) => {
       paymentType: payment?.paymentType || 'Full',
       isDownPayment: !!downPayment,  // true jika ada Down Payment
       downPaymentPaid: downPayment?.status === 'settlement',
-      method: payment
-        ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
-        : 'Unknown',
+      // method: payment
+      //   ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
+      //   : 'Unknown',
+      method: (
+        payment?.permata_va_number ??
+        payment?.va_numbers?.[0]?.bank ??
+        payment?.method_type ??
+        payment?.method ??
+        order?.payments?.[0]?.paymentMethod ??
+        'Unknown'
+      ).toUpperCase(),
       // ✅ FIX: Status = settlement jika Final Payment sudah dibayar
       status: isFinalPaymentSettled ? 'settlement' : paymentStatus,
       hasPendingFinalPayment: hasPendingFinalPayment,  // true only if pending

@@ -730,13 +730,283 @@ class DailyProfitController {
   * Get order report - DUKUNG SPLIT PAYMENT
   */
 
+  // async getOrdersWithPayments(req, res) {
+  //   try {
+  //     const page = parseInt(req.query.page) || 1;
+  //     const limit = parseInt(req.query.limit) || 20;
+  //     const mode = req.query.mode || 'paginated';
+
+  //     // PERBAIKAN: Tambah search parameter
+  //     const searchTerm = req.query.search || '';
+
+  //     const filters = {};
+
+  //     if (req.query.status) filters.status = req.query.status;
+  //     if (req.query.orderType) filters.orderType = req.query.orderType;
+  //     if (req.query.outlet) filters.outlet = req.query.outlet;
+
+  //     // Date range filter
+  //     if (req.query.startDate || req.query.endDate) {
+  //       filters.createdAt = {};
+
+  //       if (req.query.startDate) {
+  //         const startDateStr = req.query.startDate;
+  //         const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
+  //         filters.createdAt.$gte = startDate;
+  //       }
+
+  //       if (req.query.endDate) {
+  //         const endDateStr = req.query.endDate;
+  //         const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
+  //         filters.createdAt.$lte = endDate;
+  //       }
+  //     }
+
+  //     // PERBAIKAN: Tambah search filter ke MongoDB query
+  //     if (searchTerm) {
+  //       filters.$or = [
+  //         { order_id: { $regex: searchTerm, $options: 'i' } },
+  //         { user: { $regex: searchTerm, $options: 'i' } },
+  //         { 'items.menuItemData.name': { $regex: searchTerm, $options: 'i' } },
+  //       ];
+  //     }
+
+  //     const buildQuery = () => {
+  //       return Order.find(filters)
+  //         .populate('items.menuItem')
+  //         .populate({
+  //           path: 'items.menuItem',
+  //           populate: {
+  //             path: 'category',
+  //             model: 'Category',
+  //             select: 'name'
+  //           }
+  //         })
+  //         .populate('outlet')
+  //         .populate('user_id')
+  //         .populate({
+  //           path: 'cashierId',
+  //           populate: {
+  //             path: 'outlet.outletId',
+  //             model: 'Outlet',
+  //             select: 'name address',
+  //           },
+  //         })
+  //         .sort({ createdAt: -1 })
+  //         .lean();
+  //     };
+
+  //     let orders, totalOrders, paginationInfo = null;
+
+  //     switch (mode) {
+  //       case 'all':
+  //         // PERBAIKAN: Pastikan tidak ada limit MongoDB default
+  //         const allOrdersQuery = buildQuery();
+  //         // Set maxTimeMS untuk query besar
+  //         allOrdersQuery.maxTimeMS(60000);
+  //         orders = await allOrdersQuery.exec();
+  //         totalOrders = orders.length;
+  //         break;
+
+  //       case 'recent':
+  //         orders = await buildQuery().limit(10);
+  //         totalOrders = await Order.countDocuments(filters);
+  //         paginationInfo = {
+  //           mode: 'recent',
+  //           showing: orders.length,
+  //           total: totalOrders
+  //         };
+  //         break;
+
+  //       case 'count':
+  //         totalOrders = await Order.countDocuments(filters);
+  //         return res.status(200).json({
+  //           success: true,
+  //           count: totalOrders
+  //         });
+
+  //       case 'ids':
+  //         const orderIds = await Order.find(filters)
+  //           .select('order_id createdAt status')
+  //           .sort({ createdAt: -1 })
+  //           .lean();
+  //         return res.status(200).json({
+  //           success: true,
+  //           data: orderIds
+  //         });
+
+  //       case 'paginated':
+  //       default:
+  //         const skip = (page - 1) * limit;
+  //         totalOrders = await Order.countDocuments(filters);
+  //         const totalPages = Math.ceil(totalOrders / limit);
+
+  //         orders = await buildQuery().skip(skip).limit(limit);
+
+  //         paginationInfo = {
+  //           currentPage: page,
+  //           totalPages: totalPages,
+  //           totalOrders: totalOrders,
+  //           limit: limit,
+  //           hasNextPage: page < totalPages,
+  //           hasPrevPage: page > 1
+  //         };
+  //         break;
+  //     }
+
+  //     // Fetch payments
+  //     const orderIds = orders.map(order => order.order_id);
+  //     const allPayments = await Payment.find({
+  //       order_id: { $in: orderIds }
+  //     }).lean();
+
+  //     const paymentMap = {};
+  //     allPayments.forEach(payment => {
+  //       if (!paymentMap[payment.order_id]) {
+  //         paymentMap[payment.order_id] = [];
+  //       }
+  //       paymentMap[payment.order_id].push(payment);
+  //     });
+
+  //     // PERBAIKAN: Pastikan semua items memiliki menuItemData
+  //     const ordersWithPayments = orders.map(order => {
+  //       if (order.items && Array.isArray(order.items)) {
+  //         // order.items = order.items.map(item => {
+  //         //   // Prioritas: menuItemData > menuItem > default
+  //         //   if (!item.menuItemData || !item.menuItemData.name) {
+  //         //     if (item.menuItem) {
+  //         //       item.menuItemData = {
+  //         //         name: item.menuItem.name || 'Unknown Item',
+  //         //         price: item.menuItem.price || 0,
+  //         //         category:
+  //         //           typeof item.menuItem.category === 'object'
+  //         //             ? item.menuItem.category.name
+  //         //             : 'Uncategorized',
+  //         //         sku: item.menuItem.sku || '',
+  //         //         isActive: item.menuItem.isActive !== false,
+  //         //         selectedAddons: item.addons || [],
+  //         //         selectedToppings: item.toppings || []
+  //         //       };
+  //         //     } else {
+  //         //       // Fallback untuk item yang tidak memiliki menuItem reference
+  //         //       item.menuItemData = {
+  //         //         name: 'Unknown Item',
+  //         //         price: item.subtotal / (item.quantity || 1) || 0,
+  //         //         category: 'Unknown',
+  //         //         sku: 'N/A',
+  //         //         isActive: false,
+  //         //         selectedAddons: item.addons || [],
+  //         //         selectedToppings: item.toppings || []
+  //         //       };
+  //         //     }
+  //         //   } else if (!item.menuItemData.selectedAddons) {
+  //         //     // Pastikan addons dan toppings selalu ada
+  //         //     item.menuItemData.selectedAddons = item.addons || [];
+  //         //     item.menuItemData.selectedToppings = item.toppings || [];
+  //         //   }
+  //         //   return item;
+  //         // });
+  //         order.items = order.items.map(item => {
+  //           // Pastikan menuItemData ada
+  //           if (!item.menuItemData) {
+  //             item.menuItemData = {};
+  //           }
+
+  //           // Sinkronisasi dari menuItem (populate)
+  //           if (item.menuItem) {
+  //             item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
+  //             item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
+
+  //             // 🔥 FIX UTAMA: ambil CATEGORY NAME, BUKAN ID
+  //             if (item.menuItem.category && typeof item.menuItem.category === 'object') {
+  //               item.menuItemData.category = item.menuItem.category.name;
+  //             } else {
+  //               item.menuItemData.category = item.menuItemData.category || 'Uncategorized';
+  //             }
+
+  //             item.menuItemData.sku = item.menuItem.sku || '';
+  //             item.menuItemData.isActive = item.menuItem.isActive !== false;
+  //           }
+
+  //           // Pastikan addons & toppings selalu ada
+  //           item.menuItemData.selectedAddons = item.addons || [];
+  //           item.menuItemData.selectedToppings = item.toppings || [];
+
+  //           return item;
+  //         });
+
+  //       }
+
+  //       const relatedPayments = paymentMap[order.order_id] || [];
+  //       let paymentDetails = null;
+  //       let actualPaymentMethod = order.paymentMethod || 'N/A';
+
+  //       if (order.orderType !== "Reservation") {
+  //         paymentDetails = relatedPayments.find(p =>
+  //           p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
+  //         );
+  //       } else {
+  //         paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+  //           relatedPayments.find(p => p.status === 'partial') ||
+  //           relatedPayments.find(p => p.status === 'settlement') ||
+  //           relatedPayments.find(p =>
+  //             p.paymentType === 'Final Payment' &&
+  //             p.relatedPaymentId &&
+  //             (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
+  //           );
+  //       }
+
+  //       if (paymentDetails) {
+  //         actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
+  //       }
+
+  //       return {
+  //         ...order,
+  //         paymentDetails: paymentDetails || null,
+  //         actualPaymentMethod
+  //       };
+  //     });
+
+  //     const response = {
+  //       success: true,
+  //       data: ordersWithPayments,
+  //       // PERBAIKAN: Tambah metadata untuk debugging
+  //       metadata: {
+  //         mode: mode,
+  //         filters: {
+  //           status: req.query.status || 'all',
+  //           outlet: req.query.outlet || 'all',
+  //           dateRange: req.query.startDate && req.query.endDate
+  //             ? `${req.query.startDate} to ${req.query.endDate}`
+  //             : 'all',
+  //           search: searchTerm || 'none'
+  //         },
+  //         resultCount: ordersWithPayments.length
+  //       }
+  //     };
+
+  //     if (paginationInfo) {
+  //       response.pagination = paginationInfo;
+  //     }
+
+  //     res.status(200).json(response);
+
+  //   } catch (error) {
+  //     console.error('Get orders with payments error:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to fetch orders with payments',
+  //       error: error.message
+  //     });
+  //   }
+  // }
+
   async getOrdersWithPayments(req, res) {
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 20;
       const mode = req.query.mode || 'paginated';
 
-      // PERBAIKAN: Tambah search parameter
       const searchTerm = req.query.search || '';
 
       const filters = {};
@@ -762,7 +1032,7 @@ class DailyProfitController {
         }
       }
 
-      // PERBAIKAN: Tambah search filter ke MongoDB query
+      // Search filter
       if (searchTerm) {
         filters.$or = [
           { order_id: { $regex: searchTerm, $options: 'i' } },
@@ -783,9 +1053,22 @@ class DailyProfitController {
             }
           })
           .populate('outlet')
-          .populate('user_id')
+          .populate({
+            path: 'user_id',
+            select: 'name email phone role outlet username'
+          })
           .populate({
             path: 'cashierId',
+            select: 'name email phone role outlet username',
+            populate: {
+              path: 'outlet.outletId',
+              model: 'Outlet',
+              select: 'name address',
+            },
+          })
+          .populate({
+            path: 'groId',
+            select: 'name email phone role outlet username',
             populate: {
               path: 'outlet.outletId',
               model: 'Outlet',
@@ -800,9 +1083,7 @@ class DailyProfitController {
 
       switch (mode) {
         case 'all':
-          // PERBAIKAN: Pastikan tidak ada limit MongoDB default
           const allOrdersQuery = buildQuery();
-          // Set maxTimeMS untuk query besar
           allOrdersQuery.maxTimeMS(60000);
           orders = await allOrdersQuery.exec();
           totalOrders = orders.length;
@@ -868,56 +1149,21 @@ class DailyProfitController {
         paymentMap[payment.order_id].push(payment);
       });
 
-      // PERBAIKAN: Pastikan semua items memiliki menuItemData
+      // Process orders with payments
       const ordersWithPayments = orders.map(order => {
+        // Ensure menuItemData is properly populated
         if (order.items && Array.isArray(order.items)) {
-          // order.items = order.items.map(item => {
-          //   // Prioritas: menuItemData > menuItem > default
-          //   if (!item.menuItemData || !item.menuItemData.name) {
-          //     if (item.menuItem) {
-          //       item.menuItemData = {
-          //         name: item.menuItem.name || 'Unknown Item',
-          //         price: item.menuItem.price || 0,
-          //         category:
-          //           typeof item.menuItem.category === 'object'
-          //             ? item.menuItem.category.name
-          //             : 'Uncategorized',
-          //         sku: item.menuItem.sku || '',
-          //         isActive: item.menuItem.isActive !== false,
-          //         selectedAddons: item.addons || [],
-          //         selectedToppings: item.toppings || []
-          //       };
-          //     } else {
-          //       // Fallback untuk item yang tidak memiliki menuItem reference
-          //       item.menuItemData = {
-          //         name: 'Unknown Item',
-          //         price: item.subtotal / (item.quantity || 1) || 0,
-          //         category: 'Unknown',
-          //         sku: 'N/A',
-          //         isActive: false,
-          //         selectedAddons: item.addons || [],
-          //         selectedToppings: item.toppings || []
-          //       };
-          //     }
-          //   } else if (!item.menuItemData.selectedAddons) {
-          //     // Pastikan addons dan toppings selalu ada
-          //     item.menuItemData.selectedAddons = item.addons || [];
-          //     item.menuItemData.selectedToppings = item.toppings || [];
-          //   }
-          //   return item;
-          // });
           order.items = order.items.map(item => {
-            // Pastikan menuItemData ada
             if (!item.menuItemData) {
               item.menuItemData = {};
             }
 
-            // Sinkronisasi dari menuItem (populate)
+            // Sync from populated menuItem
             if (item.menuItem) {
               item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
               item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
 
-              // 🔥 FIX UTAMA: ambil CATEGORY NAME, BUKAN ID
+              // Get category name, not ID
               if (item.menuItem.category && typeof item.menuItem.category === 'object') {
                 item.menuItemData.category = item.menuItem.category.name;
               } else {
@@ -928,15 +1174,15 @@ class DailyProfitController {
               item.menuItemData.isActive = item.menuItem.isActive !== false;
             }
 
-            // Pastikan addons & toppings selalu ada
+            // Ensure addons & toppings always exist
             item.menuItemData.selectedAddons = item.addons || [];
             item.menuItemData.selectedToppings = item.toppings || [];
 
             return item;
           });
-
         }
 
+        // Get related payments
         const relatedPayments = paymentMap[order.order_id] || [];
         let paymentDetails = null;
         let actualPaymentMethod = order.paymentMethod || 'N/A';
@@ -962,6 +1208,10 @@ class DailyProfitController {
 
         return {
           ...order,
+          // Eksplisit include field staff (meskipun null)
+          user_id: order.user_id || null,
+          cashierId: order.cashierId || null,
+          groId: order.groId || null,
           paymentDetails: paymentDetails || null,
           actualPaymentMethod
         };
@@ -970,7 +1220,6 @@ class DailyProfitController {
       const response = {
         success: true,
         data: ordersWithPayments,
-        // PERBAIKAN: Tambah metadata untuk debugging
         metadata: {
           mode: mode,
           filters: {
@@ -2686,6 +2935,573 @@ class DailyProfitController {
       });
     }
   } // ← HAPUS SEMICOLON (;) DISINI
+
+  async getDeviceSalesReport(req, res) {
+    try {
+      const { startDate, endDate, outletId } = req.query;
+
+      // Build match stage
+      const matchStage = {
+        status: 'Completed'
+      };
+
+      if (outletId) {
+        matchStage.outlet = mongoose.Types.ObjectId(outletId);
+      }
+
+      if (startDate && endDate) {
+        const start = new Date(startDate + 'T00:00:00.000+07:00');
+        const end = new Date(endDate + 'T23:59:59.999+07:00');
+        matchStage.createdAt = { $gte: start, $lte: end };
+      }
+
+      const pipeline = [
+        // Match completed orders
+        { $match: matchStage },
+
+        // Lookup cashier details
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'cashierId',
+            foreignField: '_id',
+            as: 'cashierDetails'
+          }
+        },
+
+        // Lookup GRO details
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'groId',
+            foreignField: '_id',
+            as: 'groDetails'
+          }
+        },
+
+        // Lookup outlet details
+        {
+          $lookup: {
+            from: 'outlets',
+            localField: 'outlet',
+            foreignField: '_id',
+            as: 'outletDetails'
+          }
+        },
+
+        // Unwind arrays (keep nulls)
+        { $unwind: { path: '$cashierDetails', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$groDetails', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$outletDetails', preserveNullAndEmptyArrays: true } },
+
+        // Lookup cashier's outlet
+        {
+          $lookup: {
+            from: 'outlets',
+            localField: 'cashierDetails.outlet.outletId',
+            foreignField: '_id',
+            as: 'cashierOutletDetails'
+          }
+        },
+
+        // Lookup GRO's outlet
+        {
+          $lookup: {
+            from: 'outlets',
+            localField: 'groDetails.outlet.outletId',
+            foreignField: '_id',
+            as: 'groOutletDetails'
+          }
+        },
+
+        // Create documents - PRIORITIZE GRO over Cashier
+        {
+          $facet: {
+            // GRO Sales - Process first to take priority
+            groSales: [
+              { $match: { groId: { $exists: true, $ne: null } } },
+              {
+                $group: {
+                  _id: '$groId',
+                  deviceName: { $first: { $ifNull: ['$groDetails.name', { $ifNull: ['$groDetails.username', 'Unknown GRO'] }] } },
+                  deviceType: { $first: 'GRO' },
+                  outlet: { $first: { $arrayElemAt: ['$groOutletDetails.name', 0] } },
+                  source: { $first: 'Gro' },
+                  transactionCount: { $sum: 1 },
+                  totalSales: { $sum: '$grandTotal' },
+                  orders: {
+                    $push: {
+                      orderId: '$order_id',
+                      grandTotal: '$grandTotal',
+                      createdAt: '$createdAt'
+                    }
+                  }
+                }
+              },
+              {
+                $project: {
+                  deviceId: { $concat: ['gro_', { $toString: '$_id' }] },
+                  deviceName: 1,
+                  deviceType: 1,
+                  outlet: { $ifNull: ['$outlet', ''] },
+                  source: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  },
+                  orders: 1
+                }
+              }
+            ],
+
+            // Cashier Sales - Only if NO groId
+            cashierSales: [
+              {
+                $match: {
+                  $and: [
+                    { cashierId: { $exists: true, $ne: null } },
+                    { $or: [{ groId: { $exists: false } }, { groId: null }] }
+                  ]
+                }
+              },
+              {
+                $group: {
+                  _id: '$cashierId',
+                  deviceName: { $first: { $ifNull: ['$cashierDetails.name', { $ifNull: ['$cashierDetails.username', 'Unknown Cashier'] }] } },
+                  deviceType: { $first: { $ifNull: ['$cashierDetails.cashierType', 'Cashier'] } },
+                  outlet: { $first: { $arrayElemAt: ['$cashierOutletDetails.name', 0] } },
+                  source: { $first: 'Cashier' },
+                  transactionCount: { $sum: 1 },
+                  totalSales: { $sum: '$grandTotal' },
+                  orders: {
+                    $push: {
+                      orderId: '$order_id',
+                      grandTotal: '$grandTotal',
+                      createdAt: '$createdAt'
+                    }
+                  }
+                }
+              },
+              {
+                $project: {
+                  deviceId: { $concat: ['cashier_', { $toString: '$_id' }] },
+                  deviceName: 1,
+                  deviceType: 1,
+                  outlet: { $ifNull: ['$outlet', ''] },
+                  source: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  },
+                  orders: 1
+                }
+              }
+            ],
+
+            // Unknown Sales - No groId AND no cashierId
+            unknownSales: [
+              {
+                $match: {
+                  $and: [
+                    { $or: [{ cashierId: { $exists: false } }, { cashierId: null }] },
+                    { $or: [{ groId: { $exists: false } }, { groId: null }] }
+                  ]
+                }
+              },
+              {
+                $group: {
+                  _id: 'unknown',
+                  deviceName: { $first: 'Unknown Device' },
+                  deviceType: { $first: 'Unknown' },
+                  outlet: { $first: '$outletDetails.name' },
+                  source: { $first: { $ifNull: ['$source', 'Unknown'] } },
+                  transactionCount: { $sum: 1 },
+                  totalSales: { $sum: '$grandTotal' },
+                  orders: {
+                    $push: {
+                      orderId: '$order_id',
+                      grandTotal: '$grandTotal',
+                      createdAt: '$createdAt'
+                    }
+                  }
+                }
+              },
+              {
+                $project: {
+                  deviceId: 'unknown',
+                  deviceName: 1,
+                  deviceType: 1,
+                  outlet: { $ifNull: ['$outlet', ''] },
+                  source: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  },
+                  orders: 1
+                }
+              }
+            ]
+          }
+        },
+
+        // Combine all sales data
+        {
+          $project: {
+            allSales: {
+              $concatArrays: ['$groSales', '$cashierSales', '$unknownSales']
+            }
+          }
+        },
+
+        // Unwind to sort
+        { $unwind: '$allSales' },
+
+        // Sort by deviceType then deviceName
+        {
+          $sort: {
+            'allSales.deviceType': 1,
+            'allSales.deviceName': 1
+          }
+        },
+
+        // Group back to calculate summary
+        {
+          $group: {
+            _id: null,
+            deviceSales: { $push: '$allSales' },
+            totalDevices: { $sum: 1 },
+            totalTransactions: { $sum: '$allSales.transactionCount' },
+            totalSales: { $sum: '$allSales.totalSales' }
+          }
+        },
+
+        // Final projection
+        {
+          $project: {
+            _id: 0,
+            deviceSales: 1,
+            summary: {
+              totalDevices: '$totalDevices',
+              totalTransactions: '$totalTransactions',
+              totalSales: '$totalSales',
+              averagePerTransaction: {
+                $cond: [
+                  { $gt: ['$totalTransactions', 0] },
+                  { $divide: ['$totalSales', '$totalTransactions'] },
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ];
+
+      const result = await Order.aggregate(pipeline);
+
+      // Handle empty result
+      const response = result.length > 0 ? result[0] : {
+        deviceSales: [],
+        summary: {
+          totalDevices: 0,
+          totalTransactions: 0,
+          totalSales: 0,
+          averagePerTransaction: 0
+        }
+      };
+
+      res.status(200).json({
+        success: true,
+        data: response.deviceSales,
+        summary: response.summary,
+        filters: {
+          startDate: startDate || null,
+          endDate: endDate || null,
+          outletId: outletId || null
+        }
+      });
+
+    } catch (error) {
+      console.error('Get device sales report error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch device sales report',
+        error: error.message
+      });
+    }
+  }
+
+  async getCustomerSalesReport(req, res) {
+    try {
+      const { startDate, endDate, outletId, search, page = 1, limit = 10 } = req.query;
+
+      // Build match stage
+      const matchStage = {
+        status: 'Completed'
+      };
+
+      // Filter by outlet
+      if (outletId) {
+        matchStage.outlet = mongoose.Types.ObjectId(outletId);
+      }
+
+      // Filter by date range
+      if (startDate && endDate) {
+        const start = new Date(startDate + 'T00:00:00.000+07:00');
+        const end = new Date(endDate + 'T23:59:59.999+07:00');
+        matchStage.createdAt = { $gte: start, $lte: end };
+      }
+
+      const pipeline = [
+        // Match completed orders with filters
+        { $match: matchStage },
+
+        // Lookup customer details (optional, hanya untuk ambil phone dan type)
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'user_id',
+            foreignField: '_id',
+            as: 'customerDetails'
+          }
+        },
+
+        // Unwind customer details (preserve null)
+        { $unwind: { path: '$customerDetails', preserveNullAndEmptyArrays: true } },
+
+        // Add computed field for customer name
+        {
+          $addFields: {
+            customerName: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$user', null] },
+                    { $ne: ['$user', ''] }
+                  ]
+                },
+                '$user',
+                'Walk-in Customer'
+              ]
+            }
+          }
+        },
+
+        // Group by customer name from 'user' field
+        {
+          $group: {
+            _id: '$customerName',
+            customerId: { $first: { $ifNull: ['$user_id', null] } },
+            customerName: { $first: '$customerName' },
+            customerPhone: { $first: { $ifNull: ['$customerDetails.phone', null] } },
+            customerType: { $first: { $ifNull: ['$customerDetails.consumerType', '-'] } },
+            transactionCount: { $sum: 1 },
+            totalSales: { $sum: '$grandTotal' },
+            firstTransaction: { $min: '$createdAt' },
+            lastTransaction: { $max: '$createdAt' }
+          }
+        },
+
+        // Add search filter if provided
+        ...(search ? [{
+          $match: {
+            $or: [
+              { customerName: { $regex: search, $options: 'i' } },
+              { customerPhone: { $regex: search, $options: 'i' } }
+            ]
+          }
+        }] : []),
+
+        // Sort by total sales descending
+        { $sort: { totalSales: -1 } },
+
+        // Facet for pagination, summary, and top customers
+        {
+          $facet: {
+            metadata: [
+              { $count: 'total' },
+              {
+                $addFields: {
+                  page: parseInt(page),
+                  limit: parseInt(limit),
+                  totalPages: { $ceil: { $divide: ['$total', parseInt(limit)] } }
+                }
+              }
+            ],
+            data: [
+              { $skip: (parseInt(page) - 1) * parseInt(limit) },
+              { $limit: parseInt(limit) },
+              {
+                $project: {
+                  _id: 0,
+                  customerId: 1,
+                  customerName: 1,
+                  customerPhone: 1,
+                  customerType: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  },
+                  firstTransaction: 1,
+                  lastTransaction: 1
+                }
+              }
+            ],
+            allData: [
+              {
+                $project: {
+                  _id: 0,
+                  customerId: 1,
+                  customerName: 1,
+                  customerPhone: 1,
+                  customerType: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  }
+                }
+              }
+            ],
+            summary: [
+              {
+                $group: {
+                  _id: null,
+                  totalCustomers: { $sum: 1 },
+                  totalTransactions: { $sum: '$transactionCount' },
+                  totalSales: { $sum: '$totalSales' }
+                }
+              },
+              {
+                $project: {
+                  _id: 0,
+                  totalCustomers: 1,
+                  totalTransactions: 1,
+                  totalSales: 1,
+                  averagePerCustomer: {
+                    $cond: [
+                      { $gt: ['$totalCustomers', 0] },
+                      { $divide: ['$totalSales', '$totalCustomers'] },
+                      0
+                    ]
+                  },
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$totalTransactions', 0] },
+                      { $divide: ['$totalSales', '$totalTransactions'] },
+                      0
+                    ]
+                  }
+                }
+              }
+            ],
+            topCustomerByTransaction: [
+              { $sort: { transactionCount: -1 } },
+              { $limit: 1 },
+              {
+                $project: {
+                  _id: 0,
+                  customerName: 1,
+                  transactionCount: 1,
+                  totalSales: 1
+                }
+              }
+            ],
+            topCustomerBySales: [
+              { $sort: { totalSales: -1 } },
+              { $limit: 1 },
+              {
+                $project: {
+                  _id: 0,
+                  customerName: 1,
+                  transactionCount: 1,
+                  totalSales: 1
+                }
+              }
+            ]
+          }
+        }
+      ];
+
+      const result = await Order.aggregate(pipeline);
+
+      // Extract results
+      const metadata = result[0].metadata[0] || {
+        total: 0,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: 0
+      };
+      const data = result[0].data || [];
+      const allData = result[0].allData || [];
+      const summary = result[0].summary[0] || {
+        totalCustomers: 0,
+        totalTransactions: 0,
+        totalSales: 0,
+        averagePerCustomer: 0,
+        averagePerTransaction: 0
+      };
+      const topCustomerByTransaction = result[0].topCustomerByTransaction[0] || null;
+      const topCustomerBySales = result[0].topCustomerBySales[0] || null;
+
+      res.status(200).json({
+        success: true,
+        data,
+        allData, // Include all data for export
+        summary: {
+          ...summary,
+          topCustomers: {
+            byTransactionCount: topCustomerByTransaction,
+            bySales: topCustomerBySales
+          }
+        },
+        pagination: {
+          currentPage: metadata.page,
+          totalPages: metadata.totalPages,
+          totalItems: metadata.total,
+          itemsPerPage: metadata.limit
+        },
+        filters: {
+          startDate: startDate || null,
+          endDate: endDate || null,
+          outletId: outletId || null,
+          search: search || null
+        }
+      });
+
+    } catch (error) {
+      console.error('Get customer sales report error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch customer sales report',
+        error: error.message
+      });
+    }
+  }
+
 }
 
 // EKSPOR YANG BENAR - Pastikan ini ada di akhir file

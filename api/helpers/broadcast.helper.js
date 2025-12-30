@@ -168,12 +168,15 @@ import { PrintLogger } from '../services/print-logger.service.js';
 // 🔥 NEW: Trigger immediate print tanpa menunggu apapun
 export const triggerImmediatePrint = async (orderInfo) => {
   try {
-    const { orderId, tableNumber, orderData, outletId, source, isAppOrder, isWebOrder } = orderInfo;
+    const { orderId, tableNumber, orderData, outletId, source, isAppOrder, isWebOrder, isOpenBill } = orderInfo;
 
     console.log(`\n🖨️ ========== PRINT TRIGGER ==========`);
     console.log(`📋 Order ID: ${orderId}`);
     console.log(`🪑 Table: ${tableNumber || 'N/A'}`);
     console.log(`📱 Source: ${isAppOrder ? 'App' : isWebOrder ? 'Web' : source || 'Cashier'}`);
+    if (isOpenBill) {
+      console.log(`📝 Open Bill: YES (Pesanan Tambahan)`);
+    }
 
     // Prepare minimal print data - TIDAK perlu data lengkap
     const printData = {
@@ -185,7 +188,8 @@ export const triggerImmediatePrint = async (orderInfo) => {
       orderType: orderData.orderType || 'dine-in',
       timestamp: new Date(),
       printTrigger: 'immediate',
-      paymentMethod: orderData.paymentMethod || 'Cash'
+      paymentMethod: orderData.paymentMethod || 'Cash',
+      isOpenBill: isOpenBill || false  // ✅ NEW: Pass isOpenBill to workstation
     };
 
     // Count items by workstation

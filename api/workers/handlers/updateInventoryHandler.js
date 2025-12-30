@@ -106,11 +106,38 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
           }
         });
 
-        // Buat mapping untuk menu stocks
+        // ✅ FIXED: Buat mapping untuk menu stocks - PREFER records dengan warehouseId
+        // Workstation hanya menampilkan records dengan warehouseId, jadi kita harus update yang sama
         const menuStockMap = new Map();
+        const menuStockWithWarehouseMap = new Map();  // Records WITH warehouseId
+        const menuStockLegacyMap = new Map();         // Records WITHOUT warehouseId (fallback)
+
         menuStocks.forEach(stock => {
           if (stock && stock.menuItemId) {
-            menuStockMap.set(stock.menuItemId.toString(), stock);
+            const menuItemIdStr = stock.menuItemId.toString();
+
+            if (stock.warehouseId) {
+              // Prefer record dengan warehouseId
+              if (!menuStockWithWarehouseMap.has(menuItemIdStr)) {
+                menuStockWithWarehouseMap.set(menuItemIdStr, stock);
+              }
+            } else {
+              // Fallback: record tanpa warehouseId (legacy)
+              if (!menuStockLegacyMap.has(menuItemIdStr)) {
+                menuStockLegacyMap.set(menuItemIdStr, stock);
+              }
+            }
+          }
+        });
+
+        // Combine: prefer warehouseId records, fallback to legacy
+        menuStockWithWarehouseMap.forEach((stock, menuItemIdStr) => {
+          menuStockMap.set(menuItemIdStr, stock);
+        });
+        menuStockLegacyMap.forEach((stock, menuItemIdStr) => {
+          if (!menuStockMap.has(menuItemIdStr)) {
+            menuStockMap.set(menuItemIdStr, stock);
+            console.log(`⚠️ [FALLBACK] Menu ${menuItemIdStr} using legacy record (no warehouseId)`);
           }
         });
 
@@ -355,9 +382,19 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               }
             }
 
+            // ✅ FIXED: Include warehouseId in filter to update the same record workstation uses
+            // If existingStock has warehouseId, use it; otherwise fallback to menuItemId only (legacy)
+            const stockFilter = { menuItemId: menuItemObjectId };
+            if (existingStock?.warehouseId) {
+              stockFilter.warehouseId = existingStock.warehouseId;
+              console.log(`   🔗 Using warehouseId filter: ${existingStock.warehouseId}`);
+            } else {
+              console.log(`   ⚠️ No warehouseId found, using menuItemId-only filter (legacy)`);
+            }
+
             bulkMenuStockOps.push({
               updateOne: {
-                filter: { menuItemId: menuItemObjectId },
+                filter: stockFilter,
                 update: {
                   ...updateFields,
                   ...(Object.keys(setOnInsertFields).length > 0 && { $setOnInsert: setOnInsertFields })

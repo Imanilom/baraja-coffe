@@ -136,8 +136,13 @@ router.get('/sales-report/transaction-type', DailyProfitController.getTypeSalesR
 
 router.get('/sales-report/transaction-outlet', DailyProfitController.getSalesOutlet);
 
-router.delete('/sales-report/bulk', DailyProfitController.deleteMultipleOrders);
+router.get('/sales-report/device', DailyProfitController.getDeviceSalesReport);
+
+// router.delete('/sales-report/bulk', DailyProfitController.deleteMultipleOrders);
 
 router.delete('/sales-report/:id', DailyProfitController.deleteSingleOrder);
+
+router.get('/sales-report/transaction-customer', DailyProfitController.getCustomerSalesReport);
+
 
 export default router;

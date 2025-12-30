@@ -158,7 +158,7 @@ export const signin = async (req, res, next) => {
         .populate("role")
         .populate({
           path: "outlet.outletId",
-          select: ["name", "admin"],
+          select: ["name", "admin", "address", "city", "contactNumber", "openTime", "closeTime"],  // ✅ Include all outlet info
           populate: { path: "admin", select: "name" },
         });
 

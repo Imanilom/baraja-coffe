@@ -11,6 +11,9 @@ import { exportCategorySalesExcel } from "../../../../utils/exportCategorySalesE
 const CategorySales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
+    // Add this missing state variable
+    const [groupedArray, setGroupedArray] = useState([]);
+
     const customStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -45,7 +48,7 @@ const CategorySales = () => {
         }),
     };
 
-    const [groupedArray, setGroupedArray] = useState([]);
+    const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [isExporting, setIsExporting] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -59,6 +62,13 @@ const CategorySales = () => {
     const formatDateForAPI = (date) => {
         return new Date(date).toISOString().split('T')[0];
     };
+
+    // Get outlet name for export
+    const outletName = useMemo(() => {
+        if (!selectedOutlet) return "Semua Outlet";
+        const outlet = outlets.find(o => o._id === selectedOutlet);
+        return outlet ? outlet.name : "Semua Outlet";
+    }, [selectedOutlet, outlets]);
 
     // Initialize from URL params or set default to today
     useEffect(() => {
@@ -163,6 +173,7 @@ const CategorySales = () => {
                     ? response.data.data
                     : [];
 
+                // ✅ Use setGroupedArray here
                 setGroupedArray(categoryData);
 
                 // ✅ Set grand total dari backend
@@ -174,6 +185,7 @@ const CategorySales = () => {
             } catch (err) {
                 console.error("Error fetching category sales:", err);
                 setError("Failed to load category sales data.");
+                // ✅ Use setGroupedArray here too
                 setGroupedArray([]);
                 setGrandTotal({ quantity: 0, subtotal: 0 });
             } finally {
@@ -218,10 +230,7 @@ const CategorySales = () => {
     };
 
     const exportToExcel = async () => {
-        // Get outlet name
-        const outletName = selectedOutlet
-            ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
-            : 'Semua Outlet';
+        setIsExporting(true);
 
         // Get date range
         const dateRangeText = dateRange?.startDate && dateRange?.endDate
@@ -237,8 +246,9 @@ const CategorySales = () => {
                 ["Periode", dateRangeText]
             ]
         });
+        
+        setIsExporting(false);
     };
-
 
     // Show loading state
     if (loading) {
@@ -353,22 +363,28 @@ const CategorySales = () => {
                         {groupedArray.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {groupedArray.map((group, index) => {
-                                    const average = group.average || (group.quantity > 0
-                                        ? group.subtotal / group.quantity
-                                        : 0);
+                                    // Hitung rata-rata dengan aman
+                                    const average = group.average !== undefined 
+                                        ? group.average 
+                                        : (group.quantity > 0 && group.subtotal > 0
+                                            ? group.subtotal / group.quantity
+                                            : 0);
 
                                     return (
-                                        <tr key={index} className="text-left text-sm hover:bg-gray-50">
-                                            <td className="px-4 py-3">
-                                                {group.category}
+                                        <tr 
+                                            key={`${group.category}-${index}`} 
+                                            className="text-left text-sm hover:bg-gray-50 transition-colors duration-150"
+                                        >
+                                            <td className="px-4 py-3 font-medium">
+                                                {group.category || 'Tanpa Kategori'}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {group.quantity.toLocaleString('id-ID')}
+                                            <td className="px-4 py-3 text-right tabular-nums">
+                                                {group.quantity?.toLocaleString('id-ID') || '0'}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {formatCurrency(group.subtotal)}
+                                            <td className="px-4 py-3 text-right tabular-nums">
+                                                {formatCurrency(group.subtotal || 0)}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
+                                            <td className="px-4 py-3 text-right tabular-nums">
                                                 {formatCurrency(average)}
                                             </td>
                                         </tr>
@@ -377,8 +393,20 @@ const CategorySales = () => {
                             </tbody>
                         ) : (
                             <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
+                                <tr>
+                                    <td colSpan={4} className="py-12 text-center w-full">
+                                        <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                                            <svg className="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                            </svg>
+                                            <p className="text-lg font-medium text-gray-500">
+                                                Tidak ada data ditemukan
+                                            </p>
+                                            <p className="text-sm text-gray-400 mt-1">
+                                                Data akan muncul di sini setelah ditambahkan
+                                            </p>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         )}
