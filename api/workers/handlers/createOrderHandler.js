@@ -15,7 +15,8 @@ export async function createOrderHandler({
   isReservation,
   requiresDelivery,
   recipientData,
-  paymentDetails
+  paymentDetails,
+  selectedPromoBundles = [] // ✅ NEW: Accept selected bundles
 }) {
   let session = null;
 
@@ -31,7 +32,7 @@ export async function createOrderHandler({
   const shouldUseTransaction = useTransaction || cashierNeedsTransaction;
 
   try {
-    console.log(`📝 createOrderHandler: source=${source}, useTransaction=${shouldUseTransaction}, hasLoyalty=${orderData.loyaltyPointsToRedeem > 0}`);
+    console.log(`📝 createOrderHandler: source=${source}, useTransaction=${shouldUseTransaction}, hasLoyalty=${orderData.loyaltyPointsToRedeem > 0}, selectedBundles=${selectedPromoBundles?.length || 0}`);
 
     if (shouldUseTransaction) {
       session = await mongoose.startSession();
@@ -48,6 +49,7 @@ export async function createOrderHandler({
       requiresDelivery,
       recipientData,
       paymentDetails,
+      selectedPromoBundles, // ✅ PASS TO PROCESSOR
       useTransaction: shouldUseTransaction
     });
 
@@ -70,6 +72,7 @@ export async function createOrderHandler({
       totalCustomAmount: verifiedOrder.totalCustomAmount,
       isSplitPayment: verifiedOrder.isSplitPayment,
       splitPaymentStatus: verifiedOrder.splitPaymentStatus,
+      selectedBundlesCount: verifiedOrder.selectedPromoBundles?.length || 0,
       paymentsTotal: verifiedOrder.payments.reduce((sum, p) => sum + p.amount, 0)
     });
 
@@ -147,6 +150,7 @@ export async function createOrderHandler({
       loyalty: orderResult.loyalty,
       hasCustomAmountItems: orderResult.customAmountItems && orderResult.customAmountItems.length > 0,
       isSplitPayment: orderResult.isSplitPayment,
+      selectedPromoBundles: orderResult.selectedPromoBundles, // ✅ RETURN SELECTED BUNDLES
       orderStatus: verifiedOrder.status,
       orderId: verifiedOrder._id
     };
@@ -159,6 +163,7 @@ export async function createOrderHandler({
       source,
       orderType: orderData?.orderType,
       hasCustomAmountItems: orderData?.customAmountItems?.length > 0,
+      selectedBundlesCount: selectedPromoBundles?.length || 0,
       outletId: orderData?.outletId,
       tableNumber: orderData?.tableNumber,
       isSplitPayment: orderData?.isSplitPayment
@@ -208,6 +213,7 @@ async function createOrderWithSimpleTransaction({
   requiresDelivery,
   recipientData,
   paymentDetails,
+  selectedPromoBundles = [], // ✅ NEW
   useTransaction
 }) {
   console.log('Order Handler - Starting Order Creation:', {
@@ -216,6 +222,7 @@ async function createOrderWithSimpleTransaction({
     requiresDelivery,
     hasRecipientData: !!recipientData,
     source,
+    selectedBundlesCount: selectedPromoBundles.length,
     hasCustomAmountItems: orderData.customAmountItems && orderData.customAmountItems.length > 0,
     customAmountItemsCount: orderData.customAmountItems ? orderData.customAmountItems.length : 0,
     menuItemsCount: orderData.items ? orderData.items.length : 0,
@@ -257,7 +264,7 @@ async function createOrderWithSimpleTransaction({
       ...cleanOrderData
     } = orderData;
 
-    // Process order items
+    // Process order items dengan selected bundles
     const processed = await processOrderItems({
       items,
       outlet: outletId,
@@ -267,7 +274,8 @@ async function createOrderWithSimpleTransaction({
       source,
       customerId,
       loyaltyPointsToRedeem,
-      customAmountItems
+      customAmountItems,
+      selectedPromoBundles // ✅ PASS SELECTED BUNDLES
     }, useTransaction ? session : null);
 
     if (!processed) {
@@ -283,6 +291,22 @@ async function createOrderWithSimpleTransaction({
       loyalty,
       taxesAndFees
     } = processed;
+
+    // ✅ FORMAT SELECTED BUNDLES UNTUK DISIMPAN
+    const formattedSelectedBundles = promotions.selectedPromoBundles?.map(bundle => ({
+      promoId: bundle.promoId,
+      promoName: bundle.promoName,
+      bundleSets: bundle.bundleSets,
+      appliedDiscount: bundle.appliedDiscount,
+      affectedItems: bundle.affectedItems.map(item => ({
+        menuItem: item.menuItem,
+        menuItemName: item.menuItemName,
+        quantityInBundle: item.quantityInBundle,
+        discountShare: item.discountShare,
+        originalSubtotal: item.originalSubtotal,
+        discountedSubtotal: item.discountedSubtotal
+      }))
+    })) || [];
 
     const formattedAppliedPromos = (promotions.appliedPromos || []).map(promo => ({
       promoId: promo.promoId,
@@ -307,13 +331,14 @@ async function createOrderWithSimpleTransaction({
       }))
     }));
 
-    console.log('📊 Formatted Applied Promos:', {
-      count: formattedAppliedPromos.length,
-      promos: formattedAppliedPromos.map(p => ({
-        name: p.promoName,
-        discount: p.discount,
-        affectedItemsCount: p.affectedItems.length
-      }))
+    console.log('📊 Formatted Promos & Bundles:', {
+      selectedBundlesCount: formattedSelectedBundles.length,
+      selectedBundles: formattedSelectedBundles.map(b => ({
+        name: b.promoName,
+        sets: b.bundleSets,
+        discount: b.appliedDiscount
+      })),
+      appliedPromosCount: formattedAppliedPromos.length
     });
 
     // Determine initial status based on source and payment method
@@ -449,6 +474,8 @@ async function createOrderWithSimpleTransaction({
       cashierId: cashierId || null,
       items: orderItems,
       customAmountItems: processedCustomAmountItems,
+      // ✅ SIMPAN SELECTED BUNDLES
+      selectedPromoBundles: formattedSelectedBundles,
       status: initialStatus,
       payments: payments,
       paymentMethod: paymentMethodData,
@@ -468,6 +495,7 @@ async function createOrderWithSimpleTransaction({
       isSplitPayment: isSplitPayment,
       splitPaymentStatus: calculateSplitPaymentStatus(payments, totals.grandTotal),
       discounts: {
+        selectedBundleDiscount: discounts.selectedBundleDiscount || 0, // ✅ BARU
         autoPromoDiscount: discounts.autoPromoDiscount || 0,
         manualDiscount: discounts.manualDiscount || 0,
         voucherDiscount: discounts.voucherDiscount || 0,
@@ -565,6 +593,7 @@ async function createOrderWithSimpleTransaction({
       source: baseOrderData.source,
       status: baseOrderData.status,
       totalMenuItems: baseOrderData.items.length,
+      selectedBundlesCount: baseOrderData.selectedPromoBundles?.length || 0,
       hasCustomAmountItems: baseOrderData.customAmountItems.length > 0,
       customAmountItemsCount: baseOrderData.customAmountItems.length,
       totalCustomAmount: baseOrderData.totalCustomAmount,
@@ -621,6 +650,12 @@ async function createOrderWithSimpleTransaction({
     if (newOrder.customAmountItems && newOrder.customAmountItems.length > 0) {
       console.log(`💵 Custom Amounts: ${newOrder.customAmountItems.length} items`);
     }
+    if (newOrder.selectedPromoBundles && newOrder.selectedPromoBundles.length > 0) {
+      console.log(`🎁 Selected Bundles: ${newOrder.selectedPromoBundles.length} bundles`);
+      newOrder.selectedPromoBundles.forEach(bundle => {
+        console.log(`   • ${bundle.promoName}: ${bundle.bundleSets} set(s) - Discount: Rp ${bundle.appliedDiscount.toLocaleString('id-ID')}`);
+      });
+    }
     console.log(`💰 Total: Rp ${newOrder.grandTotal.toLocaleString('id-ID')}`);
     console.log(`📱 Source: ${newOrder.source}`);
     console.log(`🔖 Status: ${newOrder.status}`);
@@ -639,6 +674,7 @@ async function createOrderWithSimpleTransaction({
       orderType: newOrder.orderType,
       status: newOrder.status,
       totalMenuItems: newOrder.items.length,
+      selectedBundlesCount: newOrder.selectedPromoBundles?.length || 0,
       hasCustomAmountItems: newOrder.customAmountItems.length > 0,
       customAmountItemsCount: newOrder.customAmountItems.length,
       totalCustomAmount: newOrder.totalCustomAmount,
@@ -666,6 +702,7 @@ async function createOrderWithSimpleTransaction({
       customAmountItems: processedCustomAmountItems,
       totals: totals,
       loyalty: loyalty,
+      selectedPromoBundles: formattedSelectedBundles, // ✅ RETURN SELECTED BUNDLES
       isSplitPayment: isSplitPayment,
       orderData: baseOrderData
     };

@@ -5,9 +5,11 @@ import { checkAutoPromos, checkManualPromo, checkVoucher } from '../helpers/prom
 import { TaxAndService } from '../models/TaxAndService.model.js';
 import { calculateLoyaltyPoints, redeemLoyaltyPoints } from '../helpers/loyalty.helper.js';
 import mongoose from 'mongoose';
+import AutoPromo from '../models/AutoPromo.model.js';
 
 /**
  * Processes order items including pricing calculations and promotions
+ * NOW SUPPORTS: Multiple selected promo bundles from user
  */
 export async function processOrderItems({
   items,
@@ -18,7 +20,8 @@ export async function processOrderItems({
   source,
   customerId,
   loyaltyPointsToRedeem,
-  customAmountItems
+  customAmountItems,
+  selectedPromoBundles = []  // ✅ NEW: User-selected bundles
 }, session) {
 
   if ((!items || !Array.isArray(items) || items.length === 0) &&
@@ -99,7 +102,7 @@ export async function processOrderItems({
       description: item.description || 'Penyesuaian jumlah pembayaran',
       dineType: item.dineType || 'Dine-In',
       appliedAt: new Date(),
-      isAutoCalculated: false // ⚠️ TANDAI BAHWA INI MANUAL, BUKAN AUTO
+      isAutoCalculated: false
     }));
 
     totalCustomAmount = customAmountItemsData.reduce((total, item) => total + item.amount, 0);
@@ -153,36 +156,138 @@ export async function processOrderItems({
     customAmountTotal: totalCustomAmount,
     combinedTotalBeforeDiscount,
     loyaltyDiscount,
-    totalAfterLoyaltyDiscount
+    totalAfterLoyaltyDiscount,
+    selectedPromoBundlesCount: selectedPromoBundles.length
   });
 
-  // PROSES SEMUA DISKON SEBELUM TAX
+  // ✅ PROSES SELECTED PROMO BUNDLES JIKA ADA (PRIORITAS TINGGI)
+  let selectedBundleResult = {
+    totalDiscount: 0,
+    appliedBundles: [],
+    usedItems: [] // Track items yang sudah digunakan untuk bundling
+  };
+
+  if (selectedPromoBundles && selectedPromoBundles.length > 0) {
+    selectedBundleResult = await processSelectedPromoBundles(
+      selectedPromoBundles,
+      orderItems,
+      outlet,
+      session
+    );
+    
+    console.log('✅ SELECTED BUNDLES PROCESSED:', {
+      totalDiscount: selectedBundleResult.totalDiscount,
+      appliedBundlesCount: selectedBundleResult.appliedBundles.length,
+      usedItemsCount: selectedBundleResult.usedItems.length,
+      appliedBundles: selectedBundleResult.appliedBundles.map(b => ({
+        promoName: b.promoName,
+        bundleSets: b.bundleSets,
+        discount: b.appliedDiscount
+      }))
+    });
+  }
+
+  // HITUNG ITEMS YANG MASIH BISA DIKENAI AUTO PROMO
+  // (Items yang belum terpakai di selected bundles)
+  let availableItemsForAutoPromo = [];
+  if (selectedBundleResult.usedItems.length > 0) {
+    // Filter out items that are already used in selected bundles
+    const usedItemIds = new Set(selectedBundleResult.usedItems.map(item => 
+      item.menuItem.toString()
+    ));
+    
+    availableItemsForAutoPromo = orderItems.map(item => {
+      const isUsed = usedItemIds.has(item.menuItem.toString());
+      if (isUsed) {
+        // Cari berapa quantity yang sudah terpakai
+        const usedBundle = selectedBundleResult.usedItems.find(used => 
+          used.menuItem.toString() === item.menuItem.toString()
+        );
+        
+        if (usedBundle && usedBundle.quantityUsed) {
+          const remainingQuantity = Math.max(0, item.quantity - usedBundle.quantityUsed);
+          return {
+            ...item,
+            quantity: remainingQuantity,
+            subtotal: item.price * remainingQuantity
+          };
+        }
+      }
+      return item;
+    }).filter(item => item.quantity > 0);
+    
+    console.log('📊 Items available for auto promo after selected bundles:', {
+      originalItemsCount: orderItems.length,
+      usedItemsCount: selectedBundleResult.usedItems.length,
+      availableItemsCount: availableItemsForAutoPromo.length
+    });
+  } else {
+    availableItemsForAutoPromo = [...orderItems];
+  }
+
+  // PROSES AUTO PROMO HANYA UNTUK ITEMS YANG BELUM TERPAKAI
+  const autoPromoResult = await checkAutoPromos(
+    availableItemsForAutoPromo, 
+    outlet, 
+    orderType
+  );
+
+  console.log('🎯 AUTO PROMO AFTER SELECTED BUNDLES:', {
+    totalDiscount: autoPromoResult.totalDiscount,
+    appliedPromosCount: autoPromoResult.appliedPromos.length,
+    itemsUsed: availableItemsForAutoPromo.length
+  });
+
+  // MANUAL PROMO & VOUCHER (MASIH TERAPAK KE TOTAL SETELAH DISKON LAIN)
   const promotionResults = await processAllDiscountsBeforeTax({
-    orderItems,
+    orderItems: availableItemsForAutoPromo,
     outlet,
     orderType,
     voucherCode,
     customerType,
-    totalBeforeDiscount: totalAfterLoyaltyDiscount,
+    totalBeforeDiscount: totalAfterLoyaltyDiscount - selectedBundleResult.totalDiscount,
     source,
-    customAmountItems: customAmountItemsData
+    customAmountItems: customAmountItemsData,
+    selectedBundleDiscount: selectedBundleResult.totalDiscount
+  });
+
+  // TOTAL SEMUA DISKON
+  const totalAllDiscounts = 
+    selectedBundleResult.totalDiscount + 
+    autoPromoResult.totalDiscount + 
+    loyaltyDiscount + 
+    promotionResults.autoPromoDiscount + 
+    promotionResults.manualDiscount + 
+    promotionResults.voucherDiscount;
+
+  const totalAfterAllDiscounts = Math.max(0, combinedTotalBeforeDiscount - totalAllDiscounts);
+
+  console.log('🎯 DISCOUNT BREAKDOWN:', {
+    selectedBundleDiscount: selectedBundleResult.totalDiscount,
+    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    manualDiscount: promotionResults.manualDiscount,
+    voucherDiscount: promotionResults.voucherDiscount,
+    loyaltyDiscount,
+    totalAllDiscounts,
+    combinedTotalBeforeDiscount,
+    totalAfterAllDiscounts
   });
 
   // PERBAIKAN: Hitung proporsi diskon untuk custom amount
   let customAmountDiscount = 0;
-  let menuItemsDiscount = promotionResults.totalAllDiscounts;
+  let menuItemsDiscount = totalAllDiscounts - loyaltyDiscount; // Exclude loyalty
 
-  if (totalCustomAmount > 0 && promotionResults.totalAllDiscounts > 0) {
+  if (totalCustomAmount > 0 && menuItemsDiscount > 0) {
     const totalEligibleAmount = totalBeforeDiscount + totalCustomAmount;
     const customAmountRatio = totalCustomAmount / totalEligibleAmount;
-    customAmountDiscount = promotionResults.totalAllDiscounts * customAmountRatio;
-    menuItemsDiscount = promotionResults.totalAllDiscounts - customAmountDiscount;
+    customAmountDiscount = menuItemsDiscount * customAmountRatio;
+    menuItemsDiscount = menuItemsDiscount - customAmountDiscount;
   }
 
-  // PERBAIKAN: Loyalty points dihitung berdasarkan total setelah semua diskon
+  // LOYALTY POINTS EARNED (setelah semua diskon)
   if (isEligibleForLoyalty) {
     try {
-      const eligibleAmountForLoyalty = promotionResults.totalAfterAllDiscounts;
+      const eligibleAmountForLoyalty = totalAfterAllDiscounts;
       const pointsResult = await calculateLoyaltyPoints(
         eligibleAmountForLoyalty,
         customerId,
@@ -197,16 +302,16 @@ export async function processOrderItems({
     }
   }
 
-  // APPLY TAX SETELAH SEMUA DISKON - dengan pengecualian untuk kategori Bazar
+  // APPLY TAX SETELAH SEMUA DISKON
   const taxResult = await calculateTaxesAndServices(
     outlet,
-    promotionResults.totalAfterAllDiscounts,
+    totalAfterAllDiscounts,
     orderItems,
     customAmountItemsData
   );
 
-  // FINAL GRAND TOTAL dengan tax
-  const grandTotal = promotionResults.totalAfterAllDiscounts + taxResult.totalTax + taxResult.totalServiceFee;
+  // FINAL GRAND TOTAL
+  const grandTotal = totalAfterAllDiscounts + taxResult.totalTax + taxResult.totalServiceFee;
 
   console.log('🎯 ORDER PROCESSING FINAL SUMMARY:', {
     // Sebelum diskon
@@ -214,27 +319,27 @@ export async function processOrderItems({
     customAmountTotal: totalCustomAmount,
     combinedTotalBeforeDiscount,
 
-    // Diskon
-    loyaltyDiscount,
-    autoPromoDiscount: promotionResults.autoPromoDiscount,
+    // Diskon breakdown
+    selectedBundleDiscount: selectedBundleResult.totalDiscount,
+    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
-    totalAllDiscounts: promotionResults.totalAllDiscounts,
+    loyaltyDiscount,
+    totalAllDiscounts,
 
     // Setelah diskon
-    totalAfterAllDiscounts: promotionResults.totalAfterAllDiscounts,
+    totalAfterAllDiscounts,
 
-    // Pajak (setelah semua diskon)
+    // Pajak
     totalTax: taxResult.totalTax,
     totalServiceFee: taxResult.totalServiceFee,
 
     // Final
     grandTotal,
 
-    // Breakdown
+    // Info
     taxCalculationMethod: 'ALL_DISCOUNTS_BEFORE_TAX',
-    note: 'Semua diskon (auto promo, manual promo, voucher) diterapkan sebelum tax',
-    bazarItemsExcludedFromTax: taxResult.bazarItemsExcluded,
+    selectedBundlesCount: selectedBundleResult.appliedBundles.length,
     hasCustomAmountItems: customAmountItemsData.length > 0
   });
 
@@ -243,24 +348,26 @@ export async function processOrderItems({
     customAmountItems: customAmountItemsData,
     totals: {
       beforeDiscount: combinedTotalBeforeDiscount,
-      afterDiscount: promotionResults.totalAfterAllDiscounts,
+      afterDiscount: totalAfterAllDiscounts,
       totalCustomAmount: totalCustomAmount,
       totalTax: taxResult.totalTax,
       totalServiceFee: taxResult.totalServiceFee,
       grandTotal
     },
     discounts: {
-      autoPromoDiscount: promotionResults.autoPromoDiscount,
+      selectedBundleDiscount: selectedBundleResult.totalDiscount,
+      autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
       manualDiscount: promotionResults.manualDiscount,
       voucherDiscount: promotionResults.voucherDiscount,
       loyaltyDiscount: loyaltyDiscount,
       customAmountDiscount: customAmountDiscount,
-      total: promotionResults.totalAllDiscounts + loyaltyDiscount
+      total: totalAllDiscounts
     },
     promotions: {
-      appliedPromos: promotionResults.appliedPromos,
+      appliedPromos: [...promotionResults.appliedPromos, ...autoPromoResult.appliedPromos],
       appliedManualPromo: promotionResults.appliedPromo,
-      appliedVoucher: promotionResults.voucher
+      appliedVoucher: promotionResults.voucher,
+      selectedPromoBundles: selectedBundleResult.appliedBundles // ✅ NEW
     },
     loyalty: isEligibleForLoyalty ? {
       pointsUsed: loyaltyPointsUsed,
@@ -282,9 +389,254 @@ export async function processOrderItems({
 }
 
 /**
- * PROSES SEMUA DISKON SEBELUM TAX
+ * ✅ NEW: Process selected promo bundles from user
  */
-export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderType, voucherCode, customerType, totalBeforeDiscount, source, customAmountItems }) {
+async function processSelectedPromoBundles(selectedPromoBundles, orderItems, outlet, session) {
+  let totalDiscount = 0;
+  const appliedBundles = [];
+  const usedItems = []; // Track items used in bundles
+
+  console.log('🔍 PROCESSING SELECTED PROMO BUNDLES:', {
+    count: selectedPromoBundles.length,
+    bundles: selectedPromoBundles.map(b => ({
+      promoId: b.promoId,
+      bundleSets: b.bundleSets
+    }))
+  });
+
+  for (const bundleSelection of selectedPromoBundles) {
+    try {
+      // Cari promo dari database
+      const promo = await AutoPromo.findById(bundleSelection.promoId)
+        .populate('conditions.bundleProducts.product')
+        .session(session);
+
+      if (!promo) {
+        console.warn(`❌ Promo ${bundleSelection.promoId} not found`);
+        continue;
+      }
+
+      if (promo.promoType !== 'bundling') {
+        console.warn(`❌ Promo ${promo.name} is not bundling type`);
+        continue;
+      }
+
+      console.log(`🎯 Processing bundle: ${promo.name}, sets: ${bundleSelection.bundleSets}`);
+
+      // Validasi apakah items di cart memenuhi syarat bundling
+      const bundleResult = await applySelectedBundling(
+        promo,
+        orderItems,
+        bundleSelection.bundleSets,
+        usedItems
+      );
+
+      if (bundleResult.applied) {
+        totalDiscount += bundleResult.discount;
+        
+        // Record used items untuk mencegah double counting
+        bundleResult.usedItems.forEach(usedItem => {
+          const existingIndex = usedItems.findIndex(item => 
+            item.menuItem.toString() === usedItem.menuItem.toString()
+          );
+          
+          if (existingIndex >= 0) {
+            usedItems[existingIndex].quantityUsed += usedItem.quantityUsed;
+          } else {
+            usedItems.push(usedItem);
+          }
+        });
+
+        appliedBundles.push({
+          promoId: promo._id,
+          promoName: promo.name,
+          bundleSets: bundleSelection.bundleSets,
+          appliedDiscount: bundleResult.discount,
+          affectedItems: bundleResult.affectedItems
+        });
+
+        console.log(`✅ Bundle applied: ${promo.name}`, {
+          sets: bundleSelection.bundleSets,
+          discount: bundleResult.discount,
+          usedItems: bundleResult.usedItems.map(item => ({
+            itemId: item.menuItem,
+            quantityUsed: item.quantityUsed
+          }))
+        });
+      } else {
+        console.warn(`❌ Bundle ${promo.name} not applied:`, bundleResult.reason);
+      }
+    } catch (error) {
+      console.error(`❌ Error processing bundle ${bundleSelection.promoId}:`, error);
+    }
+  }
+
+  return {
+    totalDiscount,
+    appliedBundles,
+    usedItems
+  };
+}
+
+/**
+ * ✅ NEW: Apply selected bundling with quantity validation
+ */
+async function applySelectedBundling(promo, orderItems, bundleSets, alreadyUsedItems = []) {
+  const bundleProducts = promo.conditions?.bundleProducts || [];
+  
+  if (!bundleProducts || bundleProducts.length === 0) {
+    return { applied: false, discount: 0, reason: 'No bundle products defined' };
+  }
+
+  // Hitung available quantity per item setelah dikurangi yang sudah digunakan di bundle lain
+  const itemAvailability = new Map();
+  
+  for (const orderItem of orderItems) {
+    const itemId = orderItem.menuItem.toString();
+    let availableQuantity = orderItem.quantity;
+    
+    // Kurangi quantity yang sudah digunakan di bundles sebelumnya
+    const usedInOtherBundles = alreadyUsedItems.find(used => 
+      used.menuItem.toString() === itemId
+    );
+    
+    if (usedInOtherBundles) {
+      availableQuantity -= usedInOtherBundles.quantityUsed;
+    }
+    
+    itemAvailability.set(itemId, {
+      orderItem,
+      availableQuantity,
+      usedInOtherBundles: usedInOtherBundles?.quantityUsed || 0
+    });
+  }
+
+  console.log('📦 Item availability for bundling:', {
+    promo: promo.name,
+    bundleSets,
+    itemAvailability: Array.from(itemAvailability.entries()).map(([itemId, data]) => ({
+      itemId,
+      itemName: data.orderItem.menuItemName,
+      totalQuantity: data.orderItem.quantity,
+      usedInOtherBundles: data.usedInOtherBundles,
+      available: data.availableQuantity
+    }))
+  });
+
+  // Hitung maksimal bundle sets yang bisa dibuat
+  let maxPossibleSets = Infinity;
+  
+  for (const bundleProduct of bundleProducts) {
+    const productId = bundleProduct.product._id.toString();
+    const requiredQuantity = bundleProduct.quantity * bundleSets;
+    
+    const itemData = itemAvailability.get(productId);
+    
+    if (!itemData) {
+      console.log('❌ Missing product:', bundleProduct.product.name);
+      return { 
+        applied: false, 
+        discount: 0, 
+        reason: `Missing product: ${bundleProduct.product.name}` 
+      };
+    }
+    
+    if (itemData.availableQuantity < requiredQuantity) {
+      console.log('❌ Insufficient quantity:', {
+        product: bundleProduct.product.name,
+        required: requiredQuantity,
+        available: itemData.availableQuantity,
+        usedInOtherBundles: itemData.usedInOtherBundles
+      });
+      return { 
+        applied: false, 
+        discount: 0, 
+        reason: `Insufficient quantity for ${bundleProduct.product.name}` 
+      };
+    }
+    
+    const setsForThisProduct = Math.floor(itemData.availableQuantity / bundleProduct.quantity);
+    maxPossibleSets = Math.min(maxPossibleSets, setsForThisProduct);
+  }
+
+  const actualSets = Math.min(maxPossibleSets, bundleSets);
+  
+  if (actualSets === 0) {
+    return { applied: false, discount: 0, reason: 'No complete sets available' };
+  }
+
+  // Hitung total discount
+  const originalBundlePrice = bundleProducts.reduce((total, bundleProduct) => {
+    return total + (bundleProduct.product.price * bundleProduct.quantity * actualSets);
+  }, 0);
+  
+  const discountedBundlePrice = promo.bundlePrice * actualSets;
+  const discount = originalBundlePrice - discountedBundlePrice;
+
+  // Track used items dan hitung discount share per item
+  const usedItems = [];
+  const affectedItems = [];
+
+  for (const bundleProduct of bundleProducts) {
+    const productId = bundleProduct.product._id.toString();
+    const itemData = itemAvailability.get(productId);
+    const quantityUsed = bundleProduct.quantity * actualSets;
+    
+    usedItems.push({
+      menuItem: bundleProduct.product._id,
+      menuItemName: bundleProduct.product.name,
+      quantityUsed: quantityUsed
+    });
+
+    // Hitung discount share untuk item ini
+    const itemOriginalTotal = bundleProduct.product.price * quantityUsed;
+    const itemDiscountShare = (itemOriginalTotal / originalBundlePrice) * discount;
+    
+    affectedItems.push({
+      menuItem: bundleProduct.product._id,
+      menuItemName: bundleProduct.product.name,
+      quantityInBundle: quantityUsed,
+      discountShare: itemDiscountShare,
+      originalSubtotal: itemOriginalTotal,
+      discountedSubtotal: itemOriginalTotal - itemDiscountShare
+    });
+  }
+
+  console.log('✅ Selected bundling applied:', {
+    promo: promo.name,
+    requestedSets: bundleSets,
+    actualSets,
+    originalPrice: originalBundlePrice,
+    bundlePrice: discountedBundlePrice,
+    discount,
+    usedItems: usedItems.map(item => ({
+      name: item.menuItemName,
+      quantityUsed: item.quantityUsed
+    }))
+  });
+
+  return {
+    applied: true,
+    discount,
+    affectedItems,
+    usedItems
+  };
+}
+
+/**
+ * PROSES SEMUA DISKON SEBELUM TAX (Updated)
+ */
+export async function processAllDiscountsBeforeTax({ 
+  orderItems, 
+  outlet, 
+  orderType, 
+  voucherCode, 
+  customerType, 
+  totalBeforeDiscount, 
+  source, 
+  customAmountItems,
+  selectedBundleDiscount = 0 
+}) {
   const canUsePromo = source === 'app' || source === 'cashier' || source === 'Cashier';
 
   console.log('🎯 ALL DISCOUNTS BEFORE TAX STRATEGY:', {
@@ -292,10 +644,11 @@ export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderTy
     canUsePromo,
     hasVoucher: !!voucherCode,
     totalBeforeDiscount,
+    selectedBundleDiscount,
     hasCustomAmountItems: customAmountItems && customAmountItems.length > 0
   });
 
-  // 1. APPLY AUTO PROMO
+  // 1. APPLY AUTO PROMO (hanya untuk items yang belum terpakai di selected bundles)
   const autoPromoResult = await checkAutoPromos(orderItems, outlet, orderType);
   const autoPromoDiscount = autoPromoResult.totalDiscount;
 
@@ -306,7 +659,9 @@ export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderTy
   const manualDiscount = manualPromoResult.discount;
 
   // 3. APPLY VOUCHER (setelah auto & manual promo)
-  const subtotalAfterAutoManual = Math.max(0, totalBeforeDiscount - autoPromoDiscount - manualDiscount);
+  const subtotalAfterAutoManual = Math.max(0, 
+    totalBeforeDiscount - autoPromoDiscount - manualDiscount
+  );
 
   const voucherResult = canUsePromo ?
     await checkVoucher(voucherCode, subtotalAfterAutoManual, outlet) :
@@ -314,11 +669,12 @@ export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderTy
   const voucherDiscount = voucherResult.voucher ? voucherResult.discount : 0;
 
   // 4. TOTAL SEMUA DISKON
-  const totalAllDiscounts = autoPromoDiscount + manualDiscount + voucherDiscount;
+  const totalAllDiscounts = selectedBundleDiscount + autoPromoDiscount + manualDiscount + voucherDiscount;
   const totalAfterAllDiscounts = Math.max(0, totalBeforeDiscount - totalAllDiscounts);
 
   console.log('📊 ALL DISCOUNTS APPLICATION:', {
     totalBeforeDiscount,
+    selectedBundleDiscount,
     autoPromoDiscount,
     manualDiscount,
     voucherDiscount,
@@ -326,9 +682,10 @@ export async function processAllDiscountsBeforeTax({ orderItems, outlet, orderTy
     totalAfterAllDiscounts,
     calculationSteps: [
       `1. Harga awal: ${totalBeforeDiscount}`,
-      `2. Setelah auto promo: ${totalBeforeDiscount - autoPromoDiscount}`,
-      `3. Setelah manual promo: ${totalBeforeDiscount - autoPromoDiscount - manualDiscount}`,
-      `4. Setelah voucher: ${totalAfterAllDiscounts}`
+      `2. Setelah selected bundles: ${totalBeforeDiscount - selectedBundleDiscount}`,
+      `3. Setelah auto promo: ${totalBeforeDiscount - selectedBundleDiscount - autoPromoDiscount}`,
+      `4. Setelah manual promo: ${totalBeforeDiscount - selectedBundleDiscount - autoPromoDiscount - manualDiscount}`,
+      `5. Setelah voucher: ${totalAfterAllDiscounts}`
     ]
   });
 
@@ -529,30 +886,4 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
     totalServiceFee,
     bazarItemsExcluded
   };
-}
-
-/**
- * ⚠️ PERBAIKAN: Utility function untuk calculate custom amount automatically - HANYA JIKA DIPERLUKAN
- */
-export function calculateCustomAmount(paidAmount, orderTotal, existingCustomAmountItems = []) {
-  // Jika sudah ada custom amount items manual, jangan hitung otomatis
-  if (existingCustomAmountItems && existingCustomAmountItems.length > 0) {
-    console.log('Manual custom amount items detected, skipping auto calculation');
-    return existingCustomAmountItems;
-  }
-
-  const difference = paidAmount - orderTotal;
-
-  // Hanya buat custom amount jika ada kelebihan pembayaran yang signifikan
-  if (difference > 100) {
-    return [{
-      amount: difference,
-      name: 'Penyesuaian Pembayaran',
-      description: `Kelebihan pembayaran sebesar Rp ${difference.toLocaleString('id-ID')}`,
-      dineType: 'Dine-In',
-      isAutoCalculated: true
-    }];
-  }
-
-  return [];
 }

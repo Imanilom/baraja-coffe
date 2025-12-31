@@ -26,8 +26,6 @@ const SplitPaymentSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
-
-  // ✅ TAMBAHKAN FIELD INI
   va_numbers: [{
     bank: String,
     va_number: String
@@ -37,7 +35,6 @@ const SplitPaymentSchema = new mongoose.Schema({
     method: String,
     url: String
   }],
-
   paymentDetails: {
     // Untuk cash
     cashTendered: { type: Number, default: 0 },
@@ -164,6 +161,26 @@ const OrderItemSchema = new mongoose.Schema({
   // Hapus payment_id dari OrderItem karena sekarang payment di level order
 });
 
+// Schema untuk selected promo bundles
+const SelectedPromoBundleSchema = new mongoose.Schema({
+  promoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AutoPromo',
+    required: true
+  },
+  promoName: { type: String, required: true },
+  bundleSets: { type: Number, required: true, min: 1 },
+  appliedDiscount: { type: Number, default: 0 },
+  affectedItems: [{
+    menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: String,
+    quantityInBundle: Number,
+    discountShare: Number,
+    originalSubtotal: Number,
+    discountedSubtotal: Number
+  }]
+});
+
 // Model Order
 const OrderSchema = new mongoose.Schema({
   order_id: { type: String, required: true, unique: true },
@@ -189,6 +206,9 @@ const OrderSchema = new mongoose.Schema({
     originalAmount: { type: Number },
     discountApplied: { type: Number, default: 0 }
   }],
+
+  // ✅ BARU: Field untuk selected promo bundles dari user
+  selectedPromoBundles: [SelectedPromoBundleSchema],
 
   status: {
     type: String,
@@ -230,7 +250,8 @@ const OrderSchema = new mongoose.Schema({
   discounts: {
     autoPromoDiscount: { type: Number, default: 0 },
     manualDiscount: { type: Number, default: 0 },
-    voucherDiscount: { type: Number, default: 0 }
+    voucherDiscount: { type: Number, default: 0 },
+    selectedBundleDiscount: { type: Number, default: 0 } // ✅ BARU: Total discount dari selected bundles
   },
   appliedPromos: [{
     promoId: {
@@ -433,6 +454,14 @@ OrderSchema.virtual('updatedAtWIBFormatted').get(function () {
   return this.updatedAt ? this.formatToWIB(this.updatedAt) : null;
 });
 
+// Virtual untuk total selected bundle discount
+OrderSchema.virtual('selectedBundleDiscount').get(function () {
+  if (!this.selectedPromoBundles || !Array.isArray(this.selectedPromoBundles)) {
+    return 0;
+  }
+  return this.selectedPromoBundles.reduce((total, bundle) => total + (bundle.appliedDiscount || 0), 0);
+});
+
 // Virtual untuk total paid amount dari semua payments
 OrderSchema.virtual('totalPaid').get(function () {
   if (!this.payments || !Array.isArray(this.payments)) {
@@ -481,7 +510,6 @@ OrderSchema.methods.formatToWIB = function (date) {
   });
 };
 
-
 // Method untuk mendapatkan tanggal WIB (tanpa waktu)
 OrderSchema.methods.getWIBDate = function () {
   const date = this.createdAt || new Date();
@@ -492,7 +520,6 @@ OrderSchema.methods.getWIBDate = function () {
     day: '2-digit'
   });
 };
-
 
 // MIDDLEWARE UTAMA: Backup data menu item secara otomatis dan update payment status
 OrderSchema.pre('save', async function (next) {
@@ -587,6 +614,14 @@ OrderSchema.pre('save', async function (next) {
       }
     }
 
+    // Update total selected bundle discount
+    if (this.selectedPromoBundles && Array.isArray(this.selectedPromoBundles)) {
+      const totalBundleDiscount = this.selectedPromoBundles.reduce((total, bundle) => {
+        return total + (bundle.appliedDiscount || 0);
+      }, 0);
+      this.discounts.selectedBundleDiscount = totalBundleDiscount;
+    }
+
     next();
   } catch (error) {
     console.error('Error in order pre-save middleware:', error);
@@ -625,7 +660,6 @@ OrderSchema.pre('save', function (next) {
   next();
 });
 
-
 // Indeks untuk performa
 OrderSchema.index({ status: 1, createdAt: -1 });
 OrderSchema.index({ isOpenBill: 1, originalReservationId: 1 });
@@ -635,6 +669,7 @@ OrderSchema.index({ stockRolledBack: 1, status: 1 });
 OrderSchema.index({ tableReleased: 1, orderType: 1 });
 OrderSchema.index({ 'payments.status': 1 }); // Index untuk query payment status
 OrderSchema.index({ splitPaymentStatus: 1 }); // Index untuk query split payment
+OrderSchema.index({ 'selectedPromoBundles.promoId': 1 }); // Index untuk query selected bundles
 
 // ✅ NEW: Compound indexes for GRO Dashboard performance
 // Query: Order.find({ outlet, status: $in, orderType: $in, tableNumber: $exists, createdAt: $gte/$lt })
