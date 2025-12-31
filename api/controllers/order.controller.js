@@ -2695,7 +2695,7 @@ const processCashierOrderDirect = async ({
   customerId,
   loyaltyPointsToRedeem,
   orderType,
-  promoBundles = []  // ✅ NEW: Accept selected bundles
+  promoBundles = []
 }) => {
   // Cek outlet
   const outlet = await Outlet.findById(outletId);
@@ -2720,7 +2720,7 @@ const processCashierOrderDirect = async ({
     }));
   }
 
-  // ✅ FORMAT SELECTED BUNDLES UNTUK PROCESSOR
+  // FORMAT SELECTED BUNDLES UNTUK PROCESSOR
   const selectedPromoBundles = promoBundles.map(bundle => ({
     promoId: bundle.promoId,
     bundleName: bundle.bundleName,
@@ -2743,6 +2743,7 @@ const processCashierOrderDirect = async ({
     'Cashier'
   );
   console.log("coba cek payment details setelah validate:", validatedPaymentDetails);
+  
   // Prepare validation data
   const validationData = {
     ...req.body,
@@ -2800,13 +2801,13 @@ const processCashierOrderDirect = async ({
     requiresDelivery: false,
     recipientData: null,
     paymentDetails: validatedPaymentDetails,
-    selectedPromoBundles  // ✅ PASS TO ORDER HANDLER
+    selectedPromoBundles
   });
 
   console.log('✅ Cashier order created:', {
     orderId,
     orderNumber: orderResult.orderNumber,
-    grandTotal: orderResult.grandTotal,
+    grandTotal: orderResult.grandTotal, // Sudah termasuk pajak
     isSplitPayment: orderResult.isSplitPayment,
     selectedBundlesCount: orderResult.selectedPromoBundles?.length || 0,
     selectedBundleDiscount: orderResult.totals?.discounts?.selectedBundleDiscount || 0
@@ -2817,18 +2818,55 @@ const processCashierOrderDirect = async ({
     tableNumber,
     source: 'Cashier',
     outletId,
-    cashierId,  // ✅ Added for device-based routing
+    cashierId,
     paymentDetails: validatedPaymentDetails,
     hasCustomAmountItems: finalCustomAmountItems.length > 0,
     isSplitPayment: orderResult.isSplitPayment,
-    selectedPromoBundles: selectedPromoBundles  // ✅ INCLUDE IN BROADCAST
+    selectedPromoBundles: selectedPromoBundles
   });
 
-  // Process payment
-  console.log("validated payment data:", validatedPaymentDetails);
+  // 🔥 PERBAIKAN: Update paymentDetails dengan grandTotalAfterTax
+  const grandTotalAfterTax = orderResult.grandTotal;
+  
+  // Validasi dan sesuaikan payment details agar amountnya sesuai dengan grandTotal
+  let adjustedPaymentDetails = validatedPaymentDetails;
+  
+  if (Array.isArray(validatedPaymentDetails)) {
+    // Untuk split payment
+    const totalPaymentAmount = validatedPaymentDetails.reduce((sum, p) => sum + (p.amount || 0), 0);
+    console.log('💰 Split payment validation:', {
+      totalPaymentAmount,
+      grandTotalAfterTax,
+      difference: totalPaymentAmount - grandTotalAfterTax
+    });
+    
+    if (Math.abs(totalPaymentAmount - grandTotalAfterTax) > 1) { // Tolerance 1 untuk rounding
+      console.log(`⚠️ Adjusting split payment amounts from ${totalPaymentAmount} to ${grandTotalAfterTax}`);
+      adjustedPaymentDetails = adjustSplitPaymentAmounts(validatedPaymentDetails, grandTotalAfterTax);
+    }
+  } else if (validatedPaymentDetails) {
+    // Untuk single payment
+    console.log('💰 Single payment validation:', {
+      originalAmount: validatedPaymentDetails.amount,
+      grandTotalAfterTax,
+      difference: (validatedPaymentDetails.amount || 0) - grandTotalAfterTax
+    });
+    
+    if (Math.abs((validatedPaymentDetails.amount || 0) - grandTotalAfterTax) > 1) {
+      console.log(`⚠️ Adjusting payment amount from ${validatedPaymentDetails.amount} to ${grandTotalAfterTax}`);
+      adjustedPaymentDetails = {
+        ...validatedPaymentDetails,
+        amount: grandTotalAfterTax
+      };
+    }
+  }
+
+  console.log("💰 Updated payment details after tax adjustment:", adjustedPaymentDetails);
+
+  // Process payment dengan amount yang sudah termasuk pajak
   const paymentResult = await processCashierPayment(
     orderId,
-    validatedPaymentDetails,
+    adjustedPaymentDetails,
     orderResult
   );
 
@@ -2838,15 +2876,15 @@ const processCashierOrderDirect = async ({
     hasCustomAmountItems: finalCustomAmountItems.length > 0,
     customAmountItems: finalCustomAmountItems,
     orderNumber: orderResult.orderNumber,
-    grandTotal: orderResult.grandTotal,
+    grandTotal: grandTotalAfterTax, // Sudah termasuk pajak
     isSplitPayment: orderResult.isSplitPayment,
-    selectedPromoBundles: orderResult.selectedPromoBundles, // ✅ RETURN SELECTED BUNDLES
-    message: Array.isArray(validatedPaymentDetails)
-      ? `Cashier order processed with ${validatedPaymentDetails.length} split payments`
+    selectedPromoBundles: orderResult.selectedPromoBundles,
+    message: Array.isArray(adjustedPaymentDetails)
+      ? `Cashier order processed with ${adjustedPaymentDetails.length} split payments`
       : 'Cashier order processed and paid',
     paymentData: paymentResult.data,
     paymentStatus: paymentResult.data.payment_status,
-    paymentCount: Array.isArray(validatedPaymentDetails) ? validatedPaymentDetails.length : 1,
+    paymentCount: Array.isArray(adjustedPaymentDetails) ? adjustedPaymentDetails.length : 1,
     ...(orderResult.loyalty?.isApplied && {
       loyalty: {
         pointsEarned: orderResult.loyalty.pointsEarned,
@@ -2856,6 +2894,67 @@ const processCashierOrderDirect = async ({
     })
   };
 };
+
+// 🔥 Helper function untuk adjust split payment
+function adjustSplitPaymentAmounts(paymentDetails, grandTotal) {
+  const totalOriginal = paymentDetails.reduce((sum, p) => sum + (p.amount || 0), 0);
+  
+  if (totalOriginal === 0) {
+    throw new Error('Total original payment cannot be zero');
+  }
+  
+  if (Math.abs(totalOriginal - grandTotal) < 1) {
+    // Already correct within tolerance
+    return paymentDetails;
+  }
+
+  console.log('🔄 Adjusting split payments:', {
+    totalOriginal,
+    grandTotal,
+    ratio: grandTotal / totalOriginal
+  });
+
+  // Hitung ratio adjustment
+  const ratio = grandTotal / totalOriginal;
+  
+  const adjustedPayments = paymentDetails.map((payment, index) => {
+    const adjustedAmount = Math.round(payment.amount * ratio);
+    
+    console.log(`   Payment ${index + 1}: ${payment.amount} -> ${adjustedAmount}`);
+    
+    return {
+      ...payment,
+      amount: adjustedAmount,
+      tenderedAmount: payment.tenderedAmount ? Math.round(payment.tenderedAmount * ratio) : adjustedAmount,
+      changeAmount: payment.changeAmount ? Math.round(payment.changeAmount * ratio) : 0
+    };
+  });
+
+  // Verifikasi total setelah adjustment
+  const totalAdjusted = adjustedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const difference = Math.abs(totalAdjusted - grandTotal);
+  
+  console.log('✅ Split payment adjustment complete:', {
+    totalAdjusted,
+    grandTotal,
+    difference,
+    adjustedPayments: adjustedPayments.map(p => ({
+      method: p.method,
+      amount: p.amount,
+      tenderedAmount: p.tenderedAmount,
+      changeAmount: p.changeAmount
+    }))
+  });
+
+  // Jika ada perbedaan kecil karena rounding, adjust payment terakhir
+  if (difference > 0 && adjustedPayments.length > 0) {
+    const lastIndex = adjustedPayments.length - 1;
+    adjustedPayments[lastIndex].amount += (grandTotal - totalAdjusted);
+    console.log(`🔄 Adjusted last payment to fix rounding: ${adjustedPayments[lastIndex].amount}`);
+  }
+
+  return adjustedPayments;
+}
 
 // ========== HELPER: WEB/APP ORDER (DENGAN LOCK) ==========
 const processWebAppOrder = async ({
@@ -2875,7 +2974,7 @@ const processWebAppOrder = async ({
   recipient_data,
   user,
   contact,
-  promoBundles = []  // ✅ NEW: Accept selected bundles
+  promoBundles = []
 }) => {
   // Cek outlet
   const outlet = await Outlet.findById(outletId);
@@ -2911,7 +3010,7 @@ const processWebAppOrder = async ({
     }));
   }
 
-  // ✅ FORMAT SELECTED BUNDLES
+  // FORMAT SELECTED BUNDLES
   const selectedPromoBundles = promoBundles.map(bundle => ({
     promoId: bundle.promoId,
     bundleName: bundle.bundleName,
@@ -2968,16 +3067,19 @@ const processWebAppOrder = async ({
     });
   }
 
+  // Create order dengan selected bundles
+  console.log('🔄 Creating Web/App order directly with selected bundles...');
+
   const orderResult = await createOrderHandler({
     orderId,
     orderData: validated,
-    source,
+    source: source,
     isOpenBill: validated.isOpenBill,
     isReservation: orderType === 'reservation',
     requiresDelivery: source === 'App' && delivery_option === 'delivery',
     recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null,
     paymentDetails: validatedPaymentDetails,
-    selectedPromoBundles  // ✅ PASS TO ORDER HANDLER
+    selectedPromoBundles
   });
 
   await broadcastOrderCreation(orderId, {
@@ -2988,18 +3090,28 @@ const processWebAppOrder = async ({
     paymentDetails: validatedPaymentDetails,
     hasCustomAmountItems: finalCustomAmountItems.length > 0,
     isSplitPayment: orderResult.isSplitPayment,
-    selectedPromoBundles: selectedPromoBundles  // ✅ INCLUDE IN BROADCAST
+    selectedPromoBundles: selectedPromoBundles
   });
+
+  // 🔥 PERBAIKAN: Ambil grandTotal dari orderResult (sudah termasuk pajak)
+  const grandTotalAfterTax = orderResult.grandTotal;
 
   const baseResponse = {
     orderId,
     hasCustomAmountItems: finalCustomAmountItems.length > 0,
     customAmountItems: finalCustomAmountItems,
     orderNumber: orderResult.orderNumber,
-    grandTotal: orderResult.grandTotal,
+    grandTotal: grandTotalAfterTax, // Sudah termasuk pajak
     isSplitPayment: orderResult.isSplitPayment,
-    selectedPromoBundles: orderResult.selectedPromoBundles  // ✅ RETURN SELECTED BUNDLES
+    selectedPromoBundles: orderResult.selectedPromoBundles
   };
+
+  console.log('💰 Payment amount should be (including tax):', {
+    grandTotalAfterTax,
+    originalPaymentAmount: validatedPaymentDetails?.amount || 0,
+    difference: grandTotalAfterTax - (validatedPaymentDetails?.amount || 0),
+    source
+  });
 
   // Handle App orders
   if (source === 'App') {
@@ -3028,7 +3140,7 @@ const processWebAppOrder = async ({
         isAppOrder: true,
         deliveryOption: delivery_option,
         hasCustomAmountItems: finalCustomAmountItems.length > 0,
-        selectedPromoBundles: selectedPromoBundles  // ✅ INCLUDE IN BROADCAST
+        selectedPromoBundles: selectedPromoBundles
       });
 
       return {
@@ -3045,9 +3157,8 @@ const processWebAppOrder = async ({
         }
       };
     } else {
-      let paymentAmount = Array.isArray(validatedPaymentDetails)
-        ? validatedPaymentDetails.reduce((sum, p) => sum + (p.amount || 0), 0)
-        : validatedPaymentDetails?.amount || 0;
+      // 🔥 PERBAIKAN: Gunakan grandTotalAfterTax untuk payment amount
+      const paymentAmount = grandTotalAfterTax;
 
       const midtransRes = await createMidtransCoreTransaction(
         orderId,
@@ -3075,6 +3186,7 @@ const processWebAppOrder = async ({
   if (source === 'Web') {
     const newOrder = await Order.findOne({ order_id: orderId });
 
+    // 🔥 PERBAIKAN: Gunakan grandTotalAfterTax untuk semua amount di Payment
     const paymentData = {
       order_id: orderId,
       payment_code: generatePaymentCode(),
@@ -3082,9 +3194,9 @@ const processWebAppOrder = async ({
       method: validatedPaymentDetails?.method || 'Cash',
       status: 'pending',
       paymentType: 'Full',
-      amount: validatedPaymentDetails?.amount || newOrder.grandTotal,
-      totalAmount: newOrder.grandTotal,
-      remainingAmount: newOrder.grandTotal,
+      amount: grandTotalAfterTax, // Sudah termasuk pajak
+      totalAmount: grandTotalAfterTax, // Sudah termasuk pajak
+      remainingAmount: grandTotalAfterTax, // Sudah termasuk pajak
     };
 
     const payment = await Payment.create(paymentData);
@@ -3099,7 +3211,7 @@ const processWebAppOrder = async ({
         outletId,
         isWebOrder: true,
         hasCustomAmountItems: finalCustomAmountItems.length > 0,
-        selectedPromoBundles: selectedPromoBundles  // ✅ INCLUDE IN BROADCAST
+        selectedPromoBundles: selectedPromoBundles
       });
 
       return {
@@ -3119,7 +3231,8 @@ const processWebAppOrder = async ({
         phone: contact?.phone || '081234567890'
       };
 
-      const paymentAmount = validatedPaymentDetails?.amount || 0;
+      // 🔥 PERBAIKAN: Gunakan grandTotalAfterTax untuk payment amount
+      const paymentAmount = grandTotalAfterTax;
 
       const midtransRes = await createMidtransSnapTransaction(
         orderId,
@@ -3132,6 +3245,9 @@ const processWebAppOrder = async ({
         transaction_id: midtransRes.transaction_id || payment.transaction_id,
         midtransRedirectUrl: midtransRes.redirect_url,
         status: 'pending',
+        amount: paymentAmount, // Update amount di Payment
+        totalAmount: paymentAmount, // Update totalAmount di Payment
+        remainingAmount: paymentAmount, // Update remainingAmount di Payment
         updatedAt: new Date()
       });
 
