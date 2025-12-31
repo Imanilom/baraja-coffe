@@ -24,9 +24,7 @@ class OrderService {
     // debugPrint('request body create order: $requestBody');
 
     try {
-      debugPrint(
-        'start create order...request body: ${createOrderRequest(orderDetail)}',
-      );
+      debugPrint('request body: ${createOrderRequest(orderDetail)}');
 
       // return {'orderId': '', 'orderNumber': '', 'paymentStatus': 'settlement'};
 
@@ -442,6 +440,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'outletId': user.outletId,
     'outlet': user.outletId,
+    'selectedPromoIds': order.selectedPromoIds,
     'appliedPromos': order.appliedPromos,
     'discounts': order.discounts,
     'totalPrice': order.grandTotal,

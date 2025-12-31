@@ -10,7 +10,9 @@ import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
+import 'package:kasirbaraja/providers/promotion_providers/auto_promo_provider.dart';
 import 'package:kasirbaraja/providers/tax_and_service_provider.dart';
+import 'package:kasirbaraja/repositories/auto_promo_repository.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/repositories/payment_method_repository.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
@@ -636,6 +638,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         MenuItemRepository().getMenuItem(),
         TaxAndServiceRepository().getTaxAndServices(),
         PaymentMethodRepository().getPaymentMethods(),
+        AutoPromoRepository().getAutoPromos(),
+        AutoPromoRepository().getLocalPromoGroups(),
       ]);
 
       // (Opsional) refresh/invalidasi provider agar UI ambil data terbaru
@@ -643,6 +647,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       ref.invalidate(paymentTypesProvider);
       ref.invalidate(taxProvider);
       ref.invalidate(reservationMenuItemProvider);
+      ref.invalidate(autopromoProvider);
+      ref.invalidate(promoGroupsProvider);
 
       // Tutup snackbar loading
       loading.close();

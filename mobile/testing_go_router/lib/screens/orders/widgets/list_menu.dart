@@ -269,10 +269,16 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
-                      onTap:
-                          () =>
-                              ref.read(categoryProvider.notifier).state =
-                                  category,
+                      onTap: () {
+                        ref.read(categoryProvider.notifier).state = category;
+
+                        if (category == 'promo') {
+                          // paksa refetch realtime
+                          print('asd');
+                          ref.invalidate(autopromoProvider);
+                          ref.invalidate(promoGroupsProvider);
+                        }
+                      },
                     );
                   }).toList(),
             ),

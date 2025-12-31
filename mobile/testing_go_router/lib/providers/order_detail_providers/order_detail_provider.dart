@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
 import 'package:kasirbaraja/features/promos/promo_engine.dart';
+import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
@@ -169,58 +170,107 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   Future<void> applyPromoGroup(WidgetRef ref, PromoGroupModel group) async {
-    final notifier = ref.read(orderDetailProvider.notifier);
-    final order = ref.read(orderDetailProvider);
-
-    if (order == null) {
-      notifier.initializeOrder(orderType: OrderType.dineIn);
+    // pastikan order ada
+    if (state == null) {
+      initializeOrder(orderType: OrderType.dineIn);
     }
+    if (state == null) return;
 
+    final current = state!;
+
+    // ambil menu
     final menus = await ref.read(menuItemRepository).getLocalMenuItems();
     MenuItemModel? findMenu(String id) =>
         menus.firstWhereOrNull((m) => m.id == id);
 
-    final items = <OrderItemModel>[];
+    // build items dari promo group
+    final itemsToAdd = <OrderItemModel>[];
 
     for (final line in group.lines) {
       final menu = findMenu(line.menuItemId);
       if (menu == null) continue;
 
-      // pakai default addon seperti kamu lakukan di _handleAddToOrder
-      final List<AddonModel> selectedAddons =
+      final selectedAddons =
           (menu.addons ?? [])
               .map((addon) {
                 final defaultOptions =
-                    addon.options
-                        ?.where((option) => option.isDefault == true)
+                    (addon.options ?? [])
+                        .where((o) => o.isDefault == true)
                         .toList();
+
                 return AddonModel(
                   id: addon.id,
                   name: addon.name,
                   type: addon.type,
-                  options: defaultOptions,
+                  options: defaultOptions.isEmpty ? null : defaultOptions,
                 );
               })
-              .where(
-                (addon) => addon.options != null && addon.options!.isNotEmpty,
-              )
+              .where((a) => (a.options ?? []).isNotEmpty)
               .toList();
 
-      items.add(
+      itemsToAdd.add(
         OrderItemModel(
           menuItem: menu,
           selectedToppings: const [],
           selectedAddons: selectedAddons,
           quantity: line.qty,
-          subtotal: 0, // akan dihitung ulang oleh _recalculateAll()
+          subtotal: 0,
         ),
       );
     }
 
-    if (items.isNotEmpty) {
-      notifier.addItemsToOrder(items);
-    }
+    // merge items ke cart TANPA memanggil _recalculateAll()
+    final mergedItems = _mergeItems(current.items, itemsToAdd);
+
+    // update selectedPromoIds TANPA memanggil _recalculateAll()
+    final selectedIds = {...current.selectedPromoIds};
+    selectedIds.add(group.promoId);
+
+    // commit state sekali
+    state = current.copyWith(
+      items: mergedItems,
+      selectedPromoIds: selectedIds.toList(),
+    );
+
+    debugPrint(
+      'after applyPromoGroup selectedPromoIds: ${state!.selectedPromoIds}',
+    );
+
+    // baru hitung sekali
+    await _recalculateAll();
   }
+
+  // helper merge mirip addItemsToOrder tapi "silent"
+  List<OrderItemModel> _mergeItems(
+    List<OrderItemModel> base,
+    List<OrderItemModel> add,
+  ) {
+    final updated = [...base];
+
+    for (final orderItem in add) {
+      final idx = updated.findSimilarItemIndex(orderItem);
+      if (idx != -1) {
+        updated[idx] = updated[idx].copyWith(
+          quantity: updated[idx].quantity + orderItem.quantity,
+        );
+      } else {
+        updated.add(orderItem);
+      }
+    }
+
+    return updated;
+  }
+
+  // void selectAutoPromo(String promoId) {
+  //   if (state == null) return;
+
+  //   final cur = state!.selectedPromoIds;
+  //   if (cur.contains(promoId)) return; // supaya tidak dobel
+
+  //   state = state!.copyWith(selectedPromoIds: [...cur, promoId]);
+
+  //   _recalculateAll(); // optional, tapi biasanya kamu mau langsung update harga
+  // }
 
   void addItemsToOrder(List<OrderItemModel> items) {
     print('Menambahkan beberapa item ke order...${items.length}');
@@ -388,14 +438,19 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   // TODO: boleh dihapus jika fungsi sama bisa
   // Kirim data orderDetail atau openbill ke backend
   Future<bool> submitOrder(WidgetRef ref) async {
-    final cashier = await HiveService.getCashier();
-
-    state = state!.copyWith(cashier: cashier);
-    // print('statedtdt: $state');
     if (state == null) return false;
 
+    final cashier = await HiveService.getCashier();
+    state = state!.copyWith(cashier: cashier);
+
+    // pastikan total/promo terbaru sudah dihitung
+    await _recalculateAll();
+
+    // ambil snapshot yang akan dikirim
+    final payload = state!;
+
     try {
-      final order = await OrderService().createOrder(state!);
+      final order = await OrderService().createOrder(payload);
       // print('Order submitted: $order');
 
       final orderDetails = ref.read(orderDetailProvider.notifier);
@@ -416,88 +471,108 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   Future<void> _recalculateAll() async {
     if (state == null || _isCalculating) return;
-
     _isCalculating = true;
 
     try {
-      // 1. Update subtotal setiap item
+      final current = state!;
+      final now = DateTime.now();
+
+      // 1) Update subtotal setiap item (berdasarkan addons/toppings dll)
       final updatedItems =
-          state!.items
+          current.items
               .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
               .toList();
 
-      // 2. Hitung total dari order items
+      // 2) Total items
       final totalFromItems = updatedItems.fold<int>(
         0,
         (sum, item) => sum + item.subtotal,
       );
 
-      // 3. Hitung total dari custom amounts
-      final totalFromCustomAmounts = (state!.customAmountItems ?? []).fold<int>(
-        0,
-        (sum, item) => sum + (item.amount ?? 0),
-      );
+      // 3) Total custom amounts
+      final totalFromCustomAmounts = (current.customAmountItems ?? [])
+          .fold<int>(0, (sum, item) => sum + (item.amount ?? 0));
 
-      // 4. Total sebelum diskon = items + custom amounts
+      // 4) Total sebelum diskon
       final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
 
-      // 4b) apply auto promos
-      final promos = await ref.read(autoPromoRepository).getLocalAutoPromos();
-      final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+      // =========================
+      // APPLY AUTO PROMOS (selected only)
+      // =========================
 
-      MenuItemModel? findMenuItemById(String id) {
-        return menuItems.firstWhereOrNull((item) => item.id == id);
+      final allPromos =
+          await ref.read(autoPromoRepository).getLocalAutoPromos();
+      final selectedIds = current.selectedPromoIds;
+
+      // urutkan promo sesuai urutan selectedIds (bukan sort priority)
+      final promosById = {for (final p in allPromos) p.id: p};
+
+      final selectedPromos = <AutoPromoModel>[];
+      for (final id in selectedIds) {
+        final p = promosById[id];
+        if (p != null) selectedPromos.add(p);
       }
 
-      final now = DateTime.now();
+      // menu items untuk lookup buy_x_get_y free item
+      final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+      MenuItemModel? findMenuItemById(String id) =>
+          menuItems.firstWhereOrNull((m) => m.id == id);
 
+      debugPrint('allPromos count: ${allPromos.length}');
+      debugPrint('selectedIds: $selectedIds');
+
+      final promos =
+          allPromos.where((p) => selectedIds.contains(p.id)).toList();
+
+      debugPrint('filtered promos count: ${promos.length}');
+      debugPrint(
+        'filtered promos types: ${promos.map((p) => p.promoType).toList()}',
+      );
+      debugPrint(
+        'filtered promos names: ${promos.map((p) => p.name).toList()}',
+      );
+
+      // apply promos -> hasilnya: appliedPromos + (opsional) virtual free item via appliedPromos.freeItems
       final orderAfterPromo = PromoEngine.apply(
-        state!.copyWith(
+        current.copyWith(
           items: updatedItems,
           totalBeforeDiscount: totalBeforeDiscount,
         ),
-        promos,
+        selectedPromos,
         now,
         findMenuItemById,
+        allowStackingOnTotal: false,
       );
 
-      debugPrint('orderAfterPromo: ${orderAfterPromo.appliedPromos}');
-
-      // ambil diskon auto
-      final autoDiscount = (orderAfterPromo.appliedPromos ?? []).fold<int>(
-        0,
-        (sum, p) => sum + (p.discount ?? 0),
+      // 5) hitung auto discount dari appliedPromos (nominal yang ditampilkan UI)
+      final autoDiscount = PromoEngine.sumAutoDiscount(
+        orderAfterPromo.appliedPromos,
       );
 
-      // ✅ bikin summary diskon jadi 1 sumber kebenaran
-      final existingDiscounts = state!.discounts ?? DiscountModel();
+      // 6) update DiscountModel supaya UI keranjang tinggal baca satu tempat
+      final existingDiscounts = current.discounts ?? DiscountModel();
 
-      // manual & voucher ambil dari field masing-masing, bukan totalDiscount
-      final manualDiscount = existingDiscounts.manualDiscount;
-      final voucherDiscount = existingDiscounts.voucherDiscount;
-
-      // simpan auto promo discount ke DiscountModel
       final newDiscounts = existingDiscounts.copyWith(
         autoPromoDiscount: autoDiscount,
       );
 
       // total diskon gabungan
-      final totalDiscount =
-          newDiscounts.totalDiscount + manualDiscount + voucherDiscount;
+      final totalDiscount = newDiscounts.totalDiscount;
 
-      // 5. Hitung total setelah diskon (auto + manual + voucher)
-      final totalAfterDiscount = totalBeforeDiscount - totalDiscount;
+      // 7) total setelah diskon
+      final totalAfterDiscount = (totalBeforeDiscount - totalDiscount).clamp(
+        0,
+        1 << 31,
+      );
 
-      // 6. Hitung tax dan service
+      // 8) tax & service (skip bazar)
       int totalTax = 0;
       int totalServiceFee = 0;
 
-      // 🔹 Cek dulu: apakah order ini full kategori BAZAR?
-      // bazar check pakai items yang sudah final (karena buy_x_get_y nambah item)
-      final isBazaarOrder = _isBazaarOrder(orderAfterPromo.items);
-
+      final isBazaarOrder = _isBazaarOrder(
+        updatedItems,
+      ); // atau pakai orderAfterPromo.items kalau kamu tetap menambah item
       if (totalAfterDiscount > 0 && !isBazaarOrder) {
-        // 💰 Mode normal → tetap hitung tax & service
         try {
           final result = await _taxAndServiceRepository.calculateOrderTotals(
             totalAfterDiscount,
@@ -505,23 +580,17 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
           totalTax = result.taxAmount;
           totalServiceFee = result.serviceAmount;
         } catch (e) {
-          print('Error calculating tax and service: $e');
-        }
-      } else {
-        // 🧾 Mode BAZAR → tanpa tax & service
-        totalTax = 0;
-        totalServiceFee = 0;
-        if (isBazaarOrder) {
-          print('Order ini kategori BAZAR → TANPA tax & service');
+          debugPrint('Error calculating tax & service: $e');
         }
       }
 
-      // 7. Hitung grand total
+      // 9) grand total
       final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
 
-      // 8. Update state sekali saja
-      state = state!.copyWith(
-        items: orderAfterPromo.items,
+      // 10) commit state sekali
+      state = current.copyWith(
+        items:
+            updatedItems, // tetap items asli. buy_x_get_y tidak nambah item 0 di sini
         appliedPromos: orderAfterPromo.appliedPromos,
         discounts: newDiscounts,
         totalBeforeDiscount: totalBeforeDiscount,
@@ -531,17 +600,22 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         grandTotal: grandTotal,
       );
 
-      print('Calculation completed:');
-      print('- Total from items: $totalFromItems');
-      print('- Total from custom amounts: $totalFromCustomAmounts');
-      print('- Before discount: $totalBeforeDiscount');
-      print('- After discount: $totalAfterDiscount');
-      print('- Is bazaar order: $isBazaarOrder');
-      print('- Tax: $totalTax');
-      print('- Service: $totalServiceFee');
-      print('- Grand total: $grandTotal');
+      debugPrint('Calculation completed:');
+      debugPrint('- Selected promo ids: $selectedIds');
+      debugPrint(
+        '- Applied promos: ${(orderAfterPromo.appliedPromos ?? []).map((p) => '${p.promoType}:${p.promoId} disc=${p.discount} count=${p.appliedCount ?? 0}').toList()}',
+      );
+      debugPrint('- Before discount: $totalBeforeDiscount');
+      debugPrint('- Auto discount: $autoDiscount');
+      debugPrint('- Manual discount: ${newDiscounts.manualDiscount}');
+      debugPrint('- Voucher discount: ${newDiscounts.voucherDiscount}');
+      debugPrint('- Total discount: $totalDiscount');
+      debugPrint('- After discount: $totalAfterDiscount');
+      debugPrint('- Tax: $totalTax');
+      debugPrint('- Service: $totalServiceFee');
+      debugPrint('- Grand total: $grandTotal');
     } catch (e) {
-      print('Error in recalculation: $e');
+      debugPrint('Error in recalculation: $e');
     } finally {
       _isCalculating = false;
     }

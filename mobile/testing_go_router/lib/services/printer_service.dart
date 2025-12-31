@@ -1337,7 +1337,7 @@ class PrinterService {
         ),
       ]),
     );
-    if (orderDetail.discounts != null ||
+    if (orderDetail.discounts != null &&
         orderDetail.discounts?.totalDiscount != 0) {
       bytes.addAll(
         generator.row([

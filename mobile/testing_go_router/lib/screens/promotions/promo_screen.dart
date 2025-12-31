@@ -24,6 +24,10 @@ class PromoScreen extends ConsumerWidget {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(promoGroupsProvider),
+          ),
           promoList.when(
             data:
                 (promos) => Padding(

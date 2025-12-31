@@ -10,7 +10,7 @@ class AutoPromoRepository {
 
   Future<List<AutoPromoModel>> getAutoPromos() async {
     final box = HiveService.autoPromosBox;
-    final promoBox = HiveService.promoGroupsBox;
+    // final promoBox = HiveService.promoGroupsBox;
 
     try {
       final response = await _autoPromoService.fetchAutoPromos();
@@ -23,11 +23,11 @@ class AutoPromoRepository {
       await box.clear();
       await box.putAll({for (final m in autoPromos) m.id: m});
 
-      final promoGroups = buildPromoGroups(autoPromos);
+      // final promoGroups = buildPromoGroups(autoPromos);
 
-      await promoBox.clear();
-      await promoBox.putAll({for (final m in promoGroups) m.promoId: m});
-      debugPrint('Promo Groups: ${promoGroups.length}');
+      // await promoBox.clear();
+      // await promoBox.putAll({for (final m in promoGroups) m.promoId: m});
+      // debugPrint('Promo Groups: ${promoGroups.length}');
 
       return autoPromos;
     } catch (e) {
