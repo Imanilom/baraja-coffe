@@ -11,6 +11,7 @@ class AutoPromoService {
         '/api/promotion/autopromos',
         options: Options(headers: {'ngrok-skip-browser-warning': true}),
       );
+      print('response auto promos: ${response.data}');
       return response.data;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);

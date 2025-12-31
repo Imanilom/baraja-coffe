@@ -1342,7 +1342,9 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: 'Promo Diskon',
+            text:
+                orderDetail.appliedPromos?.map((x) => x.promoName).join(', ') ??
+                '',
             width: 6,
             styles: const PosStyles(align: PosAlign.left),
           ),
