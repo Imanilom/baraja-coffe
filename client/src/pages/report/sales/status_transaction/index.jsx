@@ -3,10 +3,10 @@ import axios from "axios";
 import dayjs from "dayjs";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
-import ExportFilter from "../export";
 import { useReactToPrint } from "react-to-print";
 import TypeTransactionTable from "./table";
 import TypeTransactionTableSkeleton from "./skeleton";
+import { exportTypeTransactionExcel } from '../../../../utils/exportTypeTransactionExcel';
 
 const TypeTransaction = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -56,7 +56,7 @@ const TypeTransaction = () => {
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false); // State for export loading
 
     const ITEMS_PER_PAGE = 20;
 
@@ -146,15 +146,13 @@ const TypeTransaction = () => {
         setSearchParams(params);
     };
 
-    // Fetch products with payment details - PERBAIKAN: kirim parameter filter ke backend
+    // Fetch products with payment details
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            // Build query params
             const params = new URLSearchParams();
-            params.append('mode', 'all'); // Get all data without pagination from backend
+            params.append('mode', 'all');
 
-            // Add filters
             if (dateRange?.startDate && dateRange?.endDate) {
                 params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
                 params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
@@ -162,14 +160,6 @@ const TypeTransaction = () => {
 
             if (selectedOutlet) {
                 params.append('outlet', selectedOutlet);
-            }
-
-            // PERBAIKAN: Kirim status sebagai comma-separated string atau multiple params
-            if (selectedStatus && Array.isArray(selectedStatus) && selectedStatus.length > 0) {
-                // Backend expects individual status, not comma-separated
-                // But based on backend code, it expects single status
-                // So we'll filter on frontend instead
-                // params.append('status', selectedStatus[0]);
             }
 
             if (searchTerm) {
@@ -216,7 +206,6 @@ const TypeTransaction = () => {
         fetchOutlets();
     }, []);
 
-    // Fetch products when filters change
     useEffect(() => {
         if (dateRange) {
             fetchProducts();
@@ -275,11 +264,10 @@ const TypeTransaction = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Apply filter function - FRONTEND FILTERING untuk status
+    // Apply filter function
     const filteredData = useMemo(() => {
         let filtered = Array.isArray(products) ? [...products] : [];
 
-        // Filter by status - dilakukan di frontend karena backend belum support multiple status
         if (selectedStatus && Array.isArray(selectedStatus) && selectedStatus.length > 0) {
             filtered = filtered.filter(product => {
                 return selectedStatus.includes(product.status);
@@ -331,6 +319,104 @@ const TypeTransaction = () => {
         return totals;
     }, [filteredData]);
 
+    // Export to Excel function - Direct export without modal
+    const handleExportExcel = async () => {
+        if (!filteredData || filteredData.length === 0) {
+            alert("Tidak ada data untuk diekspor");
+            return;
+        }
+
+        setIsExporting(true);
+
+        try {
+            // Get outlet name
+            const outletName = selectedOutlet
+                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
+                : 'Semua Outlet';
+
+            // Get date range text
+            const dateRangeText = dateRange?.startDate && dateRange?.endDate
+                ? `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`
+                : dayjs().format('DD/MM/YYYY');
+
+            // Get status text
+            const statusText = selectedStatus && selectedStatus.length > 0
+                ? selectedStatus.join(', ')
+                : 'Semua Status';
+
+            // Calculate summary statistics
+            const statusBreakdown = {};
+            filteredData.forEach(item => {
+                const status = item.status || 'Unknown';
+                statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
+            });
+
+            // Calculate top outlet
+            const outletCounts = {};
+            filteredData.forEach(item => {
+                const outletName = item.outlet?.name || 'Unknown';
+                outletCounts[outletName] = (outletCounts[outletName] || 0) + 1;
+            });
+            const topOutlet = Object.entries(outletCounts).reduce((max, [name, count]) =>
+                count > (max.count || 0) ? { name, count } : max, {});
+
+            // Calculate top payment method
+            const paymentCounts = {};
+            filteredData.forEach(item => {
+                const method = item.payments?.[0]?.payment_method || 'Unknown';
+                paymentCounts[method] = (paymentCounts[method] || 0) + 1;
+            });
+            const topPaymentMethod = Object.entries(paymentCounts).reduce((max, [method, count]) =>
+                count > (max.count || 0) ? { method, count } : max, {});
+
+            // Calculate top order type
+            const orderTypeCounts = {};
+            filteredData.forEach(item => {
+                const type = item.orderType || 'Unknown';
+                orderTypeCounts[type] = (orderTypeCounts[type] || 0) + 1;
+            });
+            const topOrderType = Object.entries(orderTypeCounts).reduce((max, [type, count]) =>
+                count > (max.count || 0) ? { type, count } : max, {});
+
+            const summary = {
+                totalTransactions: filteredData.length,
+                totalRevenue: grandTotalFinal,
+                averageTransaction: filteredData.length > 0
+                    ? Math.round(grandTotalFinal / filteredData.length)
+                    : 0,
+                statusBreakdown,
+                topOutlet: topOutlet.name ? topOutlet : null,
+                topPaymentMethod: topPaymentMethod.method ? topPaymentMethod : null,
+                topOrderType: topOrderType.type ? topOrderType : null
+            };
+
+            // Generate filename
+            const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+            const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
+            const fileName = `Laporan_Status_Penjualan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
+
+            // Call export helper
+            await exportTypeTransactionExcel({
+                data: filteredData,
+                grandTotal: grandTotalFinal,
+                summary,
+                fileName,
+                headerInfo: [
+                    ["Outlet", outletName],
+                    ["Tanggal", dateRangeText],
+                    ["Status", statusText],
+                    ["Pencarian", searchTerm || "-"]
+                ]
+            });
+
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            alert("Gagal mengekspor data. Silakan coba lagi.");
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -359,14 +445,23 @@ const TypeTransaction = () => {
                     <span>Status Penjualan</span>
                 </h1>
 
-                <ExportFilter
-                    isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                />
+                {/* Direct Export Button - No Modal */}
                 <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm">
-                    <FaDownload />Ekspor
+                    onClick={handleExportExcel}
+                    disabled={isExporting || !filteredData || filteredData.length === 0}
+                    className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            Mengekspor...
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload />
+                            Ekspor Excel
+                        </>
+                    )}
                 </button>
             </div>
 

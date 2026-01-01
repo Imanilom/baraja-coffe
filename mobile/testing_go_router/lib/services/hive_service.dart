@@ -1,8 +1,10 @@
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/event.model.dart';
+import 'package:kasirbaraja/models/free_item.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/menu_stock.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -38,6 +40,13 @@ class HiveService {
     Hive.registerAdapter(DeviceModelAdapter());
     Hive.registerAdapter(MenuStockModelAdapter());
     Hive.registerAdapter(AutoPromoModelAdapter());
+    Hive.registerAdapter(ConditionsAdapter());
+    Hive.registerAdapter(ActiveHoursAdapter());
+    Hive.registerAdapter(OutletAdapter());
+    Hive.registerAdapter(BundleProductAdapter());
+    Hive.registerAdapter(ProductConditionAdapter());
+    Hive.registerAdapter(FreeItemModelAdapter());
+    Hive.registerAdapter(ScheduleAdapter());
 
     await _openBoxes();
   }

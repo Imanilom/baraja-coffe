@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/screens/orders/edit_order/edit_order_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_success_screen.dart';
+import 'package:kasirbaraja/screens/promotions/promo_screen.dart';
 import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
 import 'package:kasirbaraja/screens/reservation/reservation_menu_screen.dart';
 import 'package:kasirbaraja/screens/settings/setting_screen.dart';
@@ -438,6 +439,34 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           );
         },
+      ),
+
+      GoRoute(
+        path: '/promotions',
+        name: 'promotions',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              arguments: state.extra,
+              child: const PromoScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                const begin = Offset(1.0, 0.0);
+                const end = Offset.zero;
+                const curve = Curves.ease;
+                final tween = Tween(
+                  begin: begin,
+                  end: end,
+                ).chain(CurveTween(curve: curve));
+                return SlideTransition(
+                  position: animation.drive(tween),
+                  child: child,
+                );
+              },
+            ),
       ),
     ],
     redirect: (context, state) {

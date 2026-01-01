@@ -6,7 +6,7 @@ part 'free_item.model.freezed.dart';
 part 'free_item.model.g.dart';
 
 @freezed
-@HiveType(typeId: 10)
+@HiveType(typeId: 34)
 abstract class FreeItemModel with _$FreeItemModel {
   factory FreeItemModel({
     // Sesuaikan fields sesuai dengan struktur freeItemModels yang sebenarnya

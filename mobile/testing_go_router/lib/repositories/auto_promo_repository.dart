@@ -27,4 +27,22 @@ class AutoPromoRepository {
       rethrow;
     }
   }
+
+  //get local autopromo
+  Future<List<AutoPromoModel>> getLocalAutoPromos() async {
+    final box = HiveService.autoPromosBox;
+    final localData = box.values.toList();
+
+    return localData;
+  }
+
+  Future<void> deleteAutoPromo(String id) async {
+    final box = HiveService.autoPromosBox;
+    await box.delete(id);
+  }
+
+  Future<void> clearAllAutoPromos() async {
+    final box = HiveService.autoPromosBox;
+    await box.clear();
+  }
 }

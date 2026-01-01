@@ -252,261 +252,312 @@ class DailyProfitController {
         }
       }
 
-      // PERBAIKAN: Parse tanggal sebagai local time (bukan UTC)
-      // Kemudian konversi ke UTC dengan offset -7 jam
-      const startLocal = new Date(startDate);
-      startLocal.setHours(0, 0, 0, 0);
+      // Filter by date range
+      if (req.query.startDate || req.query.endDate) {
+        matchStage.createdAt = {};
 
-      const endLocal = new Date(endDate);
-      endLocal.setHours(23, 59, 59, 999);
-
-      // Kurangi 7 jam karena createdAtWIB disimpan dalam format WIB tapi MongoDB query dalam UTC
-      const startUTC = new Date(startLocal.getTime() - (7 * 60 * 60 * 1000));
-      const endUTC = new Date(endLocal.getTime() - (7 * 60 * 60 * 1000));
-
-      console.log('Date Filter Debug:', {
-        input: { startDate, endDate },
-        localTime: {
-          start: startLocal.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
-          end: endLocal.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })
-        },
-        utcTime: {
-          start: startUTC.toISOString(),
-          end: endUTC.toISOString()
+        if (req.query.startDate) {
+          const startDateStr = req.query.startDate;
+          const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
+          matchStage.createdAt.$gte = startDate;
         }
-      });
 
-      const filter = {
-        createdAtWIB: { $gte: startUTC, $lte: endUTC },
-        status: { $in: ['Completed'] }
+        if (req.query.endDate) {
+          const endDateStr = req.query.endDate;
+          const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
+          matchStage.createdAt.$lte = endDate;
+        }
+      }
+
+      console.log('Match Stage:', JSON.stringify(matchStage, null, 2));
+
+      // ✅ Pipeline untuk items regular + customAmountItems dengan addon separation
+      const pipeline = [
+        // Stage 1: Filter orders
+        {
+          $match: matchStage
+        },
+
+        // Stage 2: Project untuk combine items + customAmountItems
+        {
+          $project: {
+            outlet: 1,
+            createdAt: 1,
+            allItems: {
+              $concatArrays: [
+                // Regular items - tandai dengan type: 'regular'
+                {
+                  $map: {
+                    input: { $ifNull: ['$items', []] },
+                    as: 'item',
+                    in: {
+                      type: 'regular',
+                      menuItem: '$$item.menuItem',
+                      menuItemData: '$$item.menuItemData',
+                      quantity: '$$item.quantity',
+                      subtotal: '$$item.subtotal',
+                      addons: '$$item.addons'
+                    }
+                  }
+                },
+                // Custom amount items - tandai dengan type: 'custom'
+                {
+                  $map: {
+                    input: { $ifNull: ['$customAmountItems', []] },
+                    as: 'custom',
+                    in: {
+                      type: 'custom',
+                      quantity: 1,
+                      subtotal: '$$custom.amount',
+                      name: '$$custom.name',
+                      addons: []
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+
+        // Stage 3: Unwind allItems
+        {
+          $unwind: {
+            path: '$allItems',
+            preserveNullAndEmptyArrays: false
+          }
+        },
+
+        // Stage 4: Lookup menuItem (hanya untuk regular items)
+        {
+          $lookup: {
+            from: 'menuitems',
+            let: { itemType: '$allItems.type', menuItemId: '$allItems.menuItem' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$$itemType', 'regular'] },
+                      { $eq: ['$_id', '$$menuItemId'] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: 'menuItemInfo'
+          }
+        },
+
+        // Stage 5: Unwind menuItemInfo
+        {
+          $unwind: {
+            path: '$menuItemInfo',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+
+        // Stage 6: Add computed fields dengan addon variant
+        {
+          $addFields: {
+            // Base product name
+            baseProductName: {
+              $cond: [
+                { $eq: ['$allItems.type', 'custom'] },
+                { $ifNull: ['$allItems.name', 'Custom Item'] },
+                {
+                  $cond: [
+                    { $ne: ['$menuItemInfo.name', null] },
+                    '$menuItemInfo.name',
+                    {
+                      $cond: [
+                        { $ne: ['$allItems.menuItemData.name', null] },
+                        '$allItems.menuItemData.name',
+                        'Unknown Product'
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            // Extract addon variant (Hot/Iced/etc)
+            addonVariant: {
+              $cond: [
+                {
+                  $and: [
+                    { $isArray: '$allItems.addons' },
+                    { $gt: [{ $size: { $ifNull: ['$allItems.addons', []] } }, 0] }
+                  ]
+                },
+                {
+                  $reduce: {
+                    input: { $ifNull: ['$allItems.addons', []] },
+                    initialValue: '',
+                    in: {
+                      $concat: [
+                        '$$value',
+                        {
+                          $cond: [
+                            { $eq: ['$$value', ''] },
+                            '',
+                            ' - '
+                          ]
+                        },
+                        {
+                          $reduce: {
+                            input: { $ifNull: ['$$this.options', []] },
+                            initialValue: '',
+                            in: {
+                              $concat: [
+                                '$$value',
+                                {
+                                  $cond: [
+                                    { $eq: ['$$value', ''] },
+                                    '',
+                                    ', '
+                                  ]
+                                },
+                                { $ifNull: ['$$this.label', ''] }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                ''
+              ]
+            },
+            itemQuantity: { $ifNull: ['$allItems.quantity', 0] },
+            itemSubtotal: { $ifNull: ['$allItems.subtotal', 0] }
+          }
+        },
+
+        // Stage 7: Create full product name with variant
+        {
+          $addFields: {
+            computedProductName: {
+              $cond: [
+                { $eq: ['$addonVariant', ''] },
+                '$baseProductName',
+                { $concat: ['$baseProductName', ' (', '$addonVariant', ')'] }
+              ]
+            }
+          }
+        }
+      ];
+
+      // Add product search filter if exists
+      if (productSearch) {
+        pipeline.push({
+          $match: {
+            computedProductName: { $regex: productSearch, $options: 'i' }
+          }
+        });
+      }
+
+      // Add grouping and calculation stages
+      pipeline.push(
+        // Group by product name WITH variant
+        {
+          $group: {
+            _id: '$computedProductName',
+            quantity: { $sum: '$itemQuantity' },
+            subtotal: { $sum: '$itemSubtotal' }
+          }
+        },
+
+        // Project final structure
+        {
+          $project: {
+            _id: 0,
+            productName: '$_id',
+            quantity: 1,
+            subtotal: 1,
+            average: {
+              $cond: {
+                if: { $gt: ['$quantity', 0] },
+                then: { $divide: ['$subtotal', '$quantity'] },
+                else: 0
+              }
+            }
+          }
+        },
+
+        // Sort by product name
+        {
+          $sort: { productName: 1 }
+        }
+      );
+
+      console.log('Executing aggregation pipeline...');
+
+      // Execute pipeline
+      const productData = await Order.aggregate(pipeline)
+        .allowDiskUse(true)
+        .exec();
+
+      // ✅ Grand Total - items.subtotal + customAmountItems.amount
+      const grandTotalPipeline = [
+        { $match: matchStage },
+        {
+          $project: {
+            allItems: {
+              $concatArrays: [
+                {
+                  $map: {
+                    input: { $ifNull: ['$items', []] },
+                    as: 'item',
+                    in: {
+                      quantity: '$$item.quantity',
+                      subtotal: '$$item.subtotal'
+                    }
+                  }
+                },
+                {
+                  $map: {
+                    input: { $ifNull: ['$customAmountItems', []] },
+                    as: 'custom',
+                    in: {
+                      quantity: 1,
+                      subtotal: '$$custom.amount'
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        { $unwind: '$allItems' },
+        {
+          $group: {
+            _id: null,
+            totalQuantity: { $sum: { $ifNull: ['$allItems.quantity', 0] } },
+            totalSubtotal: { $sum: { $ifNull: ['$allItems.subtotal', 0] } },
+            totalItems: { $sum: 1 }
+          }
+        }
+      ];
+
+      const grandTotalResult = await Order.aggregate(grandTotalPipeline);
+
+      // Count unique orders
+      const orderCountResult = await Order.countDocuments(matchStage);
+
+      const grandTotal = grandTotalResult.length > 0 ? {
+        quantity: grandTotalResult[0].totalQuantity || 0,
+        subtotal: grandTotalResult[0].totalSubtotal || 0,
+        average: grandTotalResult[0].totalQuantity > 0
+          ? grandTotalResult[0].totalSubtotal / grandTotalResult[0].totalQuantity
+          : 0
+      } : {
+        quantity: 0,
+        subtotal: 0,
+        average: 0
       };
 
-      if (outletId && outletId !== 'all') {
-        filter.outlet = outletId;
-      }
-
-      console.log('MongoDB Filter:', JSON.stringify(filter, null, 2));
-
-      const orders = await Order.find(filter)
-        .populate('items.menuItem.category')
-        .lean();
-
-      console.log(`Total orders found: ${orders.length}`);
-
-      // Debug: tampilkan beberapa sample order dates
-      if (orders.length > 0) {
-        console.log('Sample order dates:');
-        orders.slice(0, 3).forEach(order => {
-          console.log({
-            orderId: order._id,
-            createdAtWIB: order.createdAtWIB,
-            createdAtWIBFormatted: new Date(order.createdAtWIB).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })
-          });
-        });
-      }
-
-      // Filter hanya orders dengan pembayaran yang berhasil
-      const paidOrders = orders.filter(order => {
-        const completedPayments = order.payments?.filter(p =>
-          p.status === 'completed' || p.status === 'pending'
-        ) || [];
-        const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-        return totalPaid > 0;
-      });
-
-      console.log(`Paid orders: ${paidOrders.length}`);
-
-      // Manual populate category dari menuItemData
-      const categoryIds = new Set();
-
-      paidOrders.forEach(order => {
-        order.items?.forEach(item => {
-          const categoryId = item.menuItemData?.category;
-          if (categoryId) {
-            categoryIds.add(categoryId.toString());
-          }
-        });
-      });
-
-      // Fetch semua categories sekaligus
-      const categories = await Category.find({
-        _id: { $in: Array.from(categoryIds) }
-      }).lean();
-
-      // Buat map untuk lookup cepat
-      const categoryMap = new Map();
-      categories.forEach(cat => {
-        categoryMap.set(cat._id.toString(), cat.name);
-      });
-
-      // Proses product summary dengan addons separation
-      const productMap = new Map();
-
-      paidOrders.forEach(order => {
-        order.items?.forEach(item => {
-          const menuItem = item.menuItem;
-          const menuItemData = item.menuItemData;
-
-          // Skip kalau tidak ada data sama sekali
-          if (!menuItem && !menuItemData) return;
-
-          // Prioritas ambil dari menuItemData dulu, baru menuItem
-          const productId = menuItem?._id?.toString() || menuItemData?._id?.toString() || 'unknown';
-          const productName = menuItemData?.name || menuItem?.name || 'Unknown Product';
-
-          // Untuk category: cek menuItemData dulu (pakai categoryMap), baru menuItem
-          let categoryName = null;
-
-          // 1. Cek menuItemData.category (ObjectId)
-          if (menuItemData?.category) {
-            const catId = menuItemData.category.toString();
-            if (categoryMap.has(catId)) {
-              categoryName = categoryMap.get(catId);
-            }
-          }
-
-          // 2. Fallback ke menuItem.category (sudah di-populate)
-          if (!categoryName && menuItem?.category) {
-            if (typeof menuItem.category === 'object' && menuItem.category.name) {
-              categoryName = menuItem.category.name;
-            } else if (typeof menuItem.category === 'string' && menuItem.category !== '') {
-              categoryName = menuItem.category;
-            }
-          }
-
-          // Kalau masih null, skip item ini
-          if (!categoryName) return;
-
-          // Hitung diskon per item (proporsional dari total diskon order)
-          const itemSubtotal = item.subtotal || 0;
-          const orderTotal = order.totalBeforeDiscount || order.total || 0;
-          const totalDiscount = (order.discounts?.autoPromoDiscount || 0) +
-            (order.discounts?.manualDiscount || 0) +
-            (order.discounts?.voucherDiscount || 0);
-
-          const itemDiscount = orderTotal > 0
-            ? (itemSubtotal / orderTotal) * totalDiscount
-            : 0;
-
-          const itemTotal = itemSubtotal - itemDiscount;
-
-          // Kumpulkan addons info dan buat unique key
-          const addonsInfo = [];
-          let addonsKey = '';
-
-          if (item.addons && item.addons.length > 0) {
-            item.addons.forEach(addon => {
-              if (addon.options && addon.options.length > 0) {
-                addon.options.forEach(option => {
-                  if (option.label) {
-                    addonsInfo.push({
-                      label: option.label,
-                      price: option.price || 0
-                    });
-                    addonsKey += `|${option.label}:${option.price}`;
-                  }
-                });
-              }
-            });
-          }
-
-          // Buat unique key: kombinasi product ID + addons
-          const uniqueKey = `${productId}${addonsKey}`;
-
-          // Buat display name dengan variant
-          let displayName = productName;
-          if (addonsInfo.length > 0) {
-            const variantLabels = addonsInfo.map(a => a.label).join(', ');
-            displayName = `${displayName} (${variantLabels})`;
-          }
-
-          // Agregasi data produk dengan unique key
-          if (productMap.has(uniqueKey)) {
-            const existing = productMap.get(uniqueKey);
-            existing.totalQuantity += item.quantity;
-            existing.totalRevenue += itemTotal;
-            existing.grossSales += itemSubtotal;
-            existing.totalDiscount += itemDiscount;
-          } else {
-            productMap.set(uniqueKey, {
-              productId: productId,
-              productName: displayName,
-              baseProductName: productName,
-              category: categoryName,
-              totalQuantity: item.quantity,
-              totalRevenue: itemTotal,
-              grossSales: itemSubtotal,
-              totalDiscount: itemDiscount,
-              addons: addonsInfo.length > 0 ? addonsInfo : null,
-              isActive: menuItem?.isActive !== undefined ? menuItem.isActive : (menuItemData?.isActive !== false),
-              isDeleted: menuItem?.isDeleted || menuItemData?.isDeleted || false
-            });
-          }
-        });
-
-        // Proses custom amount items
-        if (order.customAmountItems && order.customAmountItems.length > 0) {
-          order.customAmountItems.forEach(customItem => {
-            const customId = `custom_${customItem._id}`;
-            const customAmount = customItem.amount || 0;
-            const customDiscount = customItem.discountApplied || 0;
-            const customTotal = customAmount - customDiscount;
-
-            if (productMap.has(customId)) {
-              const existing = productMap.get(customId);
-              existing.totalQuantity += 1;
-              existing.totalRevenue += customTotal;
-              existing.grossSales += customAmount;
-              existing.totalDiscount += customDiscount;
-            } else {
-              productMap.set(customId, {
-                productId: customId,
-                productName: customItem.name || 'Custom Amount',
-                baseProductName: customItem.name || 'Custom Amount',
-                category: 'Custom',
-                totalQuantity: 1,
-                totalRevenue: customTotal,
-                grossSales: customAmount,
-                totalDiscount: customDiscount,
-                addons: null,
-                isActive: true,
-                isDeleted: false
-              });
-            }
-          });
-        }
-      });
-
-      console.log(`Total unique products: ${productMap.size}`);
-
-      // Convert map to array dan format angka
-      const productSummary = Array.from(productMap.values()).map(product => ({
-        productId: product.productId,
-        productName: product.productName,
-        baseProductName: product.baseProductName,
-        category: product.category,
-        totalQuantity: product.totalQuantity,
-        totalRevenue: Math.round(product.totalRevenue),
-        grossSales: Math.round(product.grossSales),
-        totalDiscount: Math.round(product.totalDiscount),
-        addons: product.addons,
-        isActive: product.isActive,
-        isDeleted: product.isDeleted
-      }));
-
-      // Filter berdasarkan includeDeleted parameter
-      const filteredProducts = includeDeleted === 'true'
-        ? productSummary
-        : productSummary.filter(product => !product.isDeleted);
-
-      // Sort by name ascending
-      const sortedProducts = filteredProducts.sort((a, b) => {
-        return a.productName.localeCompare(b.productName, 'id-ID', { sensitivity: 'base' });
-      });
-
-      console.log(`Final products count: ${sortedProducts.length}`);
-
-      res.json({
+      // Response
+      const response = {
         success: true,
         data: productData,
         grandTotal: grandTotal,
@@ -522,7 +573,7 @@ class DailyProfitController {
           totalProducts: productData.length,
           processedAt: new Date().toISOString()
         }
-      });
+      };
 
       res.status(200).json(response);
 
@@ -542,98 +593,6 @@ class DailyProfitController {
   /**
    * Get daily profit for a date range - DUKUNG SPLIT PAYMENT
    */
-  // async getDailyProfitRange(req, res) {
-  //   try {
-  //     const { startDate, endDate, outletId } = req.query;
-
-  //     if (!startDate || !endDate) {
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
-  //       });
-  //     }
-
-  //     const start = new Date(startDate);
-  //     const end = new Date(endDate);
-  //     end.setHours(23, 59, 59, 999);
-
-  //     // Build query filter
-  //     const filter = {
-  //       createdAtWIB: {
-  //         $gte: start,
-  //         $lte: end
-  //       },
-  //       // status: { $in: ['Completed', 'OnProcess'] }
-  //       status: { $in: ['Completed'] }
-  //     };
-
-  //     if (outletId && outletId !== 'all') {
-  //       filter.outlet = outletId;
-  //     }
-
-  //     // Gunakan data denormalized tanpa populate
-  //     const orders = await Order.find(filter).lean();
-
-  //     // Group by date
-  //     const dailyProfits = {};
-
-  //     orders.forEach(order => {
-  //       // MODIFIKASI: Hitung total payment dari array payments
-  //       const completedPayments = order.payments?.filter(p =>
-  //         p.status === 'completed' || p.status === 'pending'
-  //       ) || [];
-
-  //       const totalPaid = completedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-
-  //       if (totalPaid > 0) {
-  //         const orderDate = order.createdAtWIB.toISOString().split('T')[0];
-  //         const orderRevenue = order.grandTotal || 0;
-  //         const orderDiscounts = (order.discounts?.autoPromoDiscount || 0) +
-  //           (order.discounts?.manualDiscount || 0) +
-  //           (order.discounts?.voucherDiscount || 0);
-  //         const orderNetProfit = orderRevenue - orderDiscounts;
-
-  //         if (!dailyProfits[orderDate]) {
-  //           dailyProfits[orderDate] = {
-  //             date: orderDate,
-  //             totalRevenue: 0,
-  //             totalNetProfit: 0,
-  //             totalOrders: 0,
-  //             totalItemsSold: 0,
-  //             totalPaidAmount: 0
-  //           };
-  //         }
-
-  //         dailyProfits[orderDate].totalRevenue += orderRevenue;
-  //         dailyProfits[orderDate].totalNetProfit += orderNetProfit;
-  //         dailyProfits[orderDate].totalOrders += 1;
-  //         dailyProfits[orderDate].totalPaidAmount += totalPaid;
-
-  //         // Count items - ini akan bekerja bahkan jika menuItems dihapus
-  //         const itemsCount = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-  //         dailyProfits[orderDate].totalItemsSold += itemsCount;
-  //       }
-  //     });
-
-  //     // Convert to array and sort by date
-  //     const result = Object.values(dailyProfits).sort((a, b) =>
-  //       new Date(a.date) - new Date(b.date)
-  //     );
-
-  //     res.json({
-  //       success: true,
-  //       data: result
-  //     });
-
-  //   } catch (error) {
-  //     console.error('Error in getDailyProfitRange:', error);
-  //     res.status(500).json({
-  //       success: false,
-  //       message: 'Internal server error',
-  //       error: error.message
-  //     });
-  //   }
-  // }
 
   async getDailyProfitRange(req, res) {
     try {
@@ -713,19 +672,29 @@ class DailyProfitController {
 
       res.status(200).json({
         success: true,
-        data: result
+        data: dailySales,
+        metadata: {
+          totalDays: dailySales.length,
+          grandTotalItems,
+          grandTotalPenjualan,
+          filters: {
+            outlet: req.query.outlet || 'all',
+            dateRange: req.query.startDate && req.query.endDate
+              ? `${req.query.startDate} to ${req.query.endDate}`
+              : 'all'
+          }
+        }
       });
 
     } catch (error) {
-      console.error('Error in getDailyProfitRange:', error);
+      console.error('Get daily sales aggregated error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Failed to fetch daily sales',
         error: error.message
       });
     }
   }
-
   /**
    * Get today's profit summary - DUKUNG SPLIT PAYMENT
    */
@@ -761,13 +730,283 @@ class DailyProfitController {
   * Get order report - DUKUNG SPLIT PAYMENT
   */
 
+  // async getOrdersWithPayments(req, res) {
+  //   try {
+  //     const page = parseInt(req.query.page) || 1;
+  //     const limit = parseInt(req.query.limit) || 20;
+  //     const mode = req.query.mode || 'paginated';
+
+  //     // PERBAIKAN: Tambah search parameter
+  //     const searchTerm = req.query.search || '';
+
+  //     const filters = {};
+
+  //     if (req.query.status) filters.status = req.query.status;
+  //     if (req.query.orderType) filters.orderType = req.query.orderType;
+  //     if (req.query.outlet) filters.outlet = req.query.outlet;
+
+  //     // Date range filter
+  //     if (req.query.startDate || req.query.endDate) {
+  //       filters.createdAt = {};
+
+  //       if (req.query.startDate) {
+  //         const startDateStr = req.query.startDate;
+  //         const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
+  //         filters.createdAt.$gte = startDate;
+  //       }
+
+  //       if (req.query.endDate) {
+  //         const endDateStr = req.query.endDate;
+  //         const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
+  //         filters.createdAt.$lte = endDate;
+  //       }
+  //     }
+
+  //     // PERBAIKAN: Tambah search filter ke MongoDB query
+  //     if (searchTerm) {
+  //       filters.$or = [
+  //         { order_id: { $regex: searchTerm, $options: 'i' } },
+  //         { user: { $regex: searchTerm, $options: 'i' } },
+  //         { 'items.menuItemData.name': { $regex: searchTerm, $options: 'i' } },
+  //       ];
+  //     }
+
+  //     const buildQuery = () => {
+  //       return Order.find(filters)
+  //         .populate('items.menuItem')
+  //         .populate({
+  //           path: 'items.menuItem',
+  //           populate: {
+  //             path: 'category',
+  //             model: 'Category',
+  //             select: 'name'
+  //           }
+  //         })
+  //         .populate('outlet')
+  //         .populate('user_id')
+  //         .populate({
+  //           path: 'cashierId',
+  //           populate: {
+  //             path: 'outlet.outletId',
+  //             model: 'Outlet',
+  //             select: 'name address',
+  //           },
+  //         })
+  //         .sort({ createdAt: -1 })
+  //         .lean();
+  //     };
+
+  //     let orders, totalOrders, paginationInfo = null;
+
+  //     switch (mode) {
+  //       case 'all':
+  //         // PERBAIKAN: Pastikan tidak ada limit MongoDB default
+  //         const allOrdersQuery = buildQuery();
+  //         // Set maxTimeMS untuk query besar
+  //         allOrdersQuery.maxTimeMS(60000);
+  //         orders = await allOrdersQuery.exec();
+  //         totalOrders = orders.length;
+  //         break;
+
+  //       case 'recent':
+  //         orders = await buildQuery().limit(10);
+  //         totalOrders = await Order.countDocuments(filters);
+  //         paginationInfo = {
+  //           mode: 'recent',
+  //           showing: orders.length,
+  //           total: totalOrders
+  //         };
+  //         break;
+
+  //       case 'count':
+  //         totalOrders = await Order.countDocuments(filters);
+  //         return res.status(200).json({
+  //           success: true,
+  //           count: totalOrders
+  //         });
+
+  //       case 'ids':
+  //         const orderIds = await Order.find(filters)
+  //           .select('order_id createdAt status')
+  //           .sort({ createdAt: -1 })
+  //           .lean();
+  //         return res.status(200).json({
+  //           success: true,
+  //           data: orderIds
+  //         });
+
+  //       case 'paginated':
+  //       default:
+  //         const skip = (page - 1) * limit;
+  //         totalOrders = await Order.countDocuments(filters);
+  //         const totalPages = Math.ceil(totalOrders / limit);
+
+  //         orders = await buildQuery().skip(skip).limit(limit);
+
+  //         paginationInfo = {
+  //           currentPage: page,
+  //           totalPages: totalPages,
+  //           totalOrders: totalOrders,
+  //           limit: limit,
+  //           hasNextPage: page < totalPages,
+  //           hasPrevPage: page > 1
+  //         };
+  //         break;
+  //     }
+
+  //     // Fetch payments
+  //     const orderIds = orders.map(order => order.order_id);
+  //     const allPayments = await Payment.find({
+  //       order_id: { $in: orderIds }
+  //     }).lean();
+
+  //     const paymentMap = {};
+  //     allPayments.forEach(payment => {
+  //       if (!paymentMap[payment.order_id]) {
+  //         paymentMap[payment.order_id] = [];
+  //       }
+  //       paymentMap[payment.order_id].push(payment);
+  //     });
+
+  //     // PERBAIKAN: Pastikan semua items memiliki menuItemData
+  //     const ordersWithPayments = orders.map(order => {
+  //       if (order.items && Array.isArray(order.items)) {
+  //         // order.items = order.items.map(item => {
+  //         //   // Prioritas: menuItemData > menuItem > default
+  //         //   if (!item.menuItemData || !item.menuItemData.name) {
+  //         //     if (item.menuItem) {
+  //         //       item.menuItemData = {
+  //         //         name: item.menuItem.name || 'Unknown Item',
+  //         //         price: item.menuItem.price || 0,
+  //         //         category:
+  //         //           typeof item.menuItem.category === 'object'
+  //         //             ? item.menuItem.category.name
+  //         //             : 'Uncategorized',
+  //         //         sku: item.menuItem.sku || '',
+  //         //         isActive: item.menuItem.isActive !== false,
+  //         //         selectedAddons: item.addons || [],
+  //         //         selectedToppings: item.toppings || []
+  //         //       };
+  //         //     } else {
+  //         //       // Fallback untuk item yang tidak memiliki menuItem reference
+  //         //       item.menuItemData = {
+  //         //         name: 'Unknown Item',
+  //         //         price: item.subtotal / (item.quantity || 1) || 0,
+  //         //         category: 'Unknown',
+  //         //         sku: 'N/A',
+  //         //         isActive: false,
+  //         //         selectedAddons: item.addons || [],
+  //         //         selectedToppings: item.toppings || []
+  //         //       };
+  //         //     }
+  //         //   } else if (!item.menuItemData.selectedAddons) {
+  //         //     // Pastikan addons dan toppings selalu ada
+  //         //     item.menuItemData.selectedAddons = item.addons || [];
+  //         //     item.menuItemData.selectedToppings = item.toppings || [];
+  //         //   }
+  //         //   return item;
+  //         // });
+  //         order.items = order.items.map(item => {
+  //           // Pastikan menuItemData ada
+  //           if (!item.menuItemData) {
+  //             item.menuItemData = {};
+  //           }
+
+  //           // Sinkronisasi dari menuItem (populate)
+  //           if (item.menuItem) {
+  //             item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
+  //             item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
+
+  //             // 🔥 FIX UTAMA: ambil CATEGORY NAME, BUKAN ID
+  //             if (item.menuItem.category && typeof item.menuItem.category === 'object') {
+  //               item.menuItemData.category = item.menuItem.category.name;
+  //             } else {
+  //               item.menuItemData.category = item.menuItemData.category || 'Uncategorized';
+  //             }
+
+  //             item.menuItemData.sku = item.menuItem.sku || '';
+  //             item.menuItemData.isActive = item.menuItem.isActive !== false;
+  //           }
+
+  //           // Pastikan addons & toppings selalu ada
+  //           item.menuItemData.selectedAddons = item.addons || [];
+  //           item.menuItemData.selectedToppings = item.toppings || [];
+
+  //           return item;
+  //         });
+
+  //       }
+
+  //       const relatedPayments = paymentMap[order.order_id] || [];
+  //       let paymentDetails = null;
+  //       let actualPaymentMethod = order.paymentMethod || 'N/A';
+
+  //       if (order.orderType !== "Reservation") {
+  //         paymentDetails = relatedPayments.find(p =>
+  //           p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
+  //         );
+  //       } else {
+  //         paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+  //           relatedPayments.find(p => p.status === 'partial') ||
+  //           relatedPayments.find(p => p.status === 'settlement') ||
+  //           relatedPayments.find(p =>
+  //             p.paymentType === 'Final Payment' &&
+  //             p.relatedPaymentId &&
+  //             (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
+  //           );
+  //       }
+
+  //       if (paymentDetails) {
+  //         actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
+  //       }
+
+  //       return {
+  //         ...order,
+  //         paymentDetails: paymentDetails || null,
+  //         actualPaymentMethod
+  //       };
+  //     });
+
+  //     const response = {
+  //       success: true,
+  //       data: ordersWithPayments,
+  //       // PERBAIKAN: Tambah metadata untuk debugging
+  //       metadata: {
+  //         mode: mode,
+  //         filters: {
+  //           status: req.query.status || 'all',
+  //           outlet: req.query.outlet || 'all',
+  //           dateRange: req.query.startDate && req.query.endDate
+  //             ? `${req.query.startDate} to ${req.query.endDate}`
+  //             : 'all',
+  //           search: searchTerm || 'none'
+  //         },
+  //         resultCount: ordersWithPayments.length
+  //       }
+  //     };
+
+  //     if (paginationInfo) {
+  //       response.pagination = paginationInfo;
+  //     }
+
+  //     res.status(200).json(response);
+
+  //   } catch (error) {
+  //     console.error('Get orders with payments error:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to fetch orders with payments',
+  //       error: error.message
+  //     });
+  //   }
+  // }
+
   async getOrdersWithPayments(req, res) {
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 20;
       const mode = req.query.mode || 'paginated';
 
-      // PERBAIKAN: Tambah search parameter
       const searchTerm = req.query.search || '';
 
       const filters = {};
@@ -793,7 +1032,7 @@ class DailyProfitController {
         }
       }
 
-      // PERBAIKAN: Tambah search filter ke MongoDB query
+      // Search filter
       if (searchTerm) {
         filters.$or = [
           { order_id: { $regex: searchTerm, $options: 'i' } },
@@ -814,9 +1053,22 @@ class DailyProfitController {
             }
           })
           .populate('outlet')
-          .populate('user_id')
+          .populate({
+            path: 'user_id',
+            select: 'name email phone role outlet username'
+          })
           .populate({
             path: 'cashierId',
+            select: 'name email phone role outlet username',
+            populate: {
+              path: 'outlet.outletId',
+              model: 'Outlet',
+              select: 'name address',
+            },
+          })
+          .populate({
+            path: 'groId',
+            select: 'name email phone role outlet username',
             populate: {
               path: 'outlet.outletId',
               model: 'Outlet',
@@ -831,9 +1083,7 @@ class DailyProfitController {
 
       switch (mode) {
         case 'all':
-          // PERBAIKAN: Pastikan tidak ada limit MongoDB default
           const allOrdersQuery = buildQuery();
-          // Set maxTimeMS untuk query besar
           allOrdersQuery.maxTimeMS(60000);
           orders = await allOrdersQuery.exec();
           totalOrders = orders.length;
@@ -899,56 +1149,21 @@ class DailyProfitController {
         paymentMap[payment.order_id].push(payment);
       });
 
-      // PERBAIKAN: Pastikan semua items memiliki menuItemData
+      // Process orders with payments
       const ordersWithPayments = orders.map(order => {
+        // Ensure menuItemData is properly populated
         if (order.items && Array.isArray(order.items)) {
-          // order.items = order.items.map(item => {
-          //   // Prioritas: menuItemData > menuItem > default
-          //   if (!item.menuItemData || !item.menuItemData.name) {
-          //     if (item.menuItem) {
-          //       item.menuItemData = {
-          //         name: item.menuItem.name || 'Unknown Item',
-          //         price: item.menuItem.price || 0,
-          //         category:
-          //           typeof item.menuItem.category === 'object'
-          //             ? item.menuItem.category.name
-          //             : 'Uncategorized',
-          //         sku: item.menuItem.sku || '',
-          //         isActive: item.menuItem.isActive !== false,
-          //         selectedAddons: item.addons || [],
-          //         selectedToppings: item.toppings || []
-          //       };
-          //     } else {
-          //       // Fallback untuk item yang tidak memiliki menuItem reference
-          //       item.menuItemData = {
-          //         name: 'Unknown Item',
-          //         price: item.subtotal / (item.quantity || 1) || 0,
-          //         category: 'Unknown',
-          //         sku: 'N/A',
-          //         isActive: false,
-          //         selectedAddons: item.addons || [],
-          //         selectedToppings: item.toppings || []
-          //       };
-          //     }
-          //   } else if (!item.menuItemData.selectedAddons) {
-          //     // Pastikan addons dan toppings selalu ada
-          //     item.menuItemData.selectedAddons = item.addons || [];
-          //     item.menuItemData.selectedToppings = item.toppings || [];
-          //   }
-          //   return item;
-          // });
           order.items = order.items.map(item => {
-            // Pastikan menuItemData ada
             if (!item.menuItemData) {
               item.menuItemData = {};
             }
 
-            // Sinkronisasi dari menuItem (populate)
+            // Sync from populated menuItem
             if (item.menuItem) {
               item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
               item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
 
-              // 🔥 FIX UTAMA: ambil CATEGORY NAME, BUKAN ID
+              // Get category name, not ID
               if (item.menuItem.category && typeof item.menuItem.category === 'object') {
                 item.menuItemData.category = item.menuItem.category.name;
               } else {
@@ -959,15 +1174,15 @@ class DailyProfitController {
               item.menuItemData.isActive = item.menuItem.isActive !== false;
             }
 
-            // Pastikan addons & toppings selalu ada
+            // Ensure addons & toppings always exist
             item.menuItemData.selectedAddons = item.addons || [];
             item.menuItemData.selectedToppings = item.toppings || [];
 
             return item;
           });
-
         }
 
+        // Get related payments
         const relatedPayments = paymentMap[order.order_id] || [];
         let paymentDetails = null;
         let actualPaymentMethod = order.paymentMethod || 'N/A';
@@ -993,6 +1208,10 @@ class DailyProfitController {
 
         return {
           ...order,
+          // Eksplisit include field staff (meskipun null)
+          user_id: order.user_id || null,
+          cashierId: order.cashierId || null,
+          groId: order.groId || null,
           paymentDetails: paymentDetails || null,
           actualPaymentMethod
         };
@@ -1001,7 +1220,6 @@ class DailyProfitController {
       const response = {
         success: true,
         data: ordersWithPayments,
-        // PERBAIKAN: Tambah metadata untuk debugging
         metadata: {
           mode: mode,
           filters: {
@@ -1729,6 +1947,1561 @@ class DailyProfitController {
       });
     }
   };
+
+  async getCategorySalesReport(req, res) {
+    try {
+      const categorySearch = req.query.category || '';
+
+      // Build match stage untuk filter
+      const matchStage = {
+        status: 'Completed'
+      };
+
+      // Filter by outlet
+      if (req.query.outlet) {
+        try {
+          const mongoose = require('mongoose');
+          matchStage.outlet = mongoose.Types.ObjectId(req.query.outlet);
+        } catch (err) {
+          matchStage.outlet = req.query.outlet;
+        }
+      }
+
+      // Filter by date range
+      if (req.query.startDate || req.query.endDate) {
+        matchStage.createdAt = {};
+
+        if (req.query.startDate) {
+          const startDateStr = req.query.startDate;
+          const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
+          matchStage.createdAt.$gte = startDate;
+        }
+
+        if (req.query.endDate) {
+          const endDateStr = req.query.endDate;
+          const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
+          matchStage.createdAt.$lte = endDate;
+        }
+      }
+
+      console.log('Match Stage:', JSON.stringify(matchStage, null, 2));
+
+      // ✅ Pipeline untuk items regular + customAmountItems
+      const pipeline = [
+        // Stage 1: Filter orders
+        {
+          $match: matchStage
+        },
+
+        // Stage 2: Project untuk combine items + customAmountItems
+        {
+          $project: {
+            outlet: 1,
+            createdAt: 1,
+            allItems: {
+              $concatArrays: [
+                // Regular items - tandai dengan type: 'regular'
+                {
+                  $map: {
+                    input: { $ifNull: ['$items', []] },
+                    as: 'item',
+                    in: {
+                      type: 'regular',
+                      menuItem: '$$item.menuItem',
+                      menuItemData: '$$item.menuItemData',
+                      quantity: '$$item.quantity',
+                      subtotal: '$$item.subtotal'
+                    }
+                  }
+                },
+                // Custom amount items - tandai dengan type: 'custom'
+                {
+                  $map: {
+                    input: { $ifNull: ['$customAmountItems', []] },
+                    as: 'custom',
+                    in: {
+                      type: 'custom',
+                      quantity: 1,
+                      subtotal: '$$custom.amount',
+                      name: '$$custom.name'
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+
+        // Stage 3: Unwind allItems
+        {
+          $unwind: {
+            path: '$allItems',
+            preserveNullAndEmptyArrays: false
+          }
+        },
+
+        // Stage 4: Lookup menuItem (hanya untuk regular items)
+        {
+          $lookup: {
+            from: 'menuitems',
+            let: { itemType: '$allItems.type', menuItemId: '$allItems.menuItem' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$$itemType', 'regular'] },
+                      { $eq: ['$_id', '$$menuItemId'] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: 'menuItemInfo'
+          }
+        },
+
+        // Stage 5: Unwind menuItemInfo
+        {
+          $unwind: {
+            path: '$menuItemInfo',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+
+        // Stage 6: Lookup category (hanya untuk regular items)
+        {
+          $lookup: {
+            from: 'categories',
+            localField: 'menuItemInfo.category',
+            foreignField: '_id',
+            as: 'categoryInfo'
+          }
+        },
+
+        // Stage 7: Add computed fields
+        {
+          $addFields: {
+            computedCategory: {
+              $cond: [
+                // Jika type = custom, langsung "Custom"
+                { $eq: ['$allItems.type', 'custom'] },
+                'Custom',
+                // Jika type = regular, cari kategori dari lookup
+                {
+                  $cond: [
+                    { $gt: [{ $size: { $ifNull: ['$categoryInfo', []] } }, 0] },
+                    { $arrayElemAt: ['$categoryInfo.name', 0] },
+                    {
+                      $cond: [
+                        { $eq: [{ $type: '$menuItemInfo.category' }, 'string'] },
+                        '$menuItemInfo.category',
+                        {
+                          $cond: [
+                            { $ne: ['$allItems.menuItemData.category', null] },
+                            '$allItems.menuItemData.category',
+                            'Uncategorized'
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            itemQuantity: { $ifNull: ['$allItems.quantity', 0] },
+            itemSubtotal: { $ifNull: ['$allItems.subtotal', 0] }
+          }
+        }
+      ];
+
+      // Add category search filter if exists
+      if (categorySearch) {
+        pipeline.push({
+          $match: {
+            computedCategory: { $regex: categorySearch, $options: 'i' }
+          }
+        });
+      }
+
+      // Add grouping and calculation stages
+      pipeline.push(
+        // Group by category
+        {
+          $group: {
+            _id: '$computedCategory',
+            quantity: { $sum: '$itemQuantity' },
+            subtotal: { $sum: '$itemSubtotal' }
+          }
+        },
+
+        // Project final structure
+        {
+          $project: {
+            _id: 0,
+            category: '$_id',
+            quantity: 1,
+            subtotal: 1,
+            average: {
+              $cond: {
+                if: { $gt: ['$quantity', 0] },
+                then: { $divide: ['$subtotal', '$quantity'] },
+                else: 0
+              }
+            }
+          }
+        },
+
+        // Sort by category
+        {
+          $sort: { category: 1 }
+        }
+      );
+
+      console.log('Executing aggregation pipeline...');
+
+      // Execute pipeline
+      const categoryData = await Order.aggregate(pipeline)
+        .allowDiskUse(true)
+        .exec();
+
+      console.log('Category data fetched:', categoryData.length, 'categories');
+      console.log('Category data detail:', JSON.stringify(categoryData, null, 2));
+
+      // ✅ Grand Total - items.subtotal + customAmountItems.amount
+      const grandTotalPipeline = [
+        { $match: matchStage },
+        {
+          $project: {
+            allItems: {
+              $concatArrays: [
+                {
+                  $map: {
+                    input: { $ifNull: ['$items', []] },
+                    as: 'item',
+                    in: {
+                      quantity: '$$item.quantity',
+                      subtotal: '$$item.subtotal'
+                    }
+                  }
+                },
+                {
+                  $map: {
+                    input: { $ifNull: ['$customAmountItems', []] },
+                    as: 'custom',
+                    in: {
+                      quantity: 1,
+                      subtotal: '$$custom.amount'
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        { $unwind: '$allItems' },
+        {
+          $group: {
+            _id: null,
+            totalQuantity: { $sum: { $ifNull: ['$allItems.quantity', 0] } },
+            totalSubtotal: { $sum: { $ifNull: ['$allItems.subtotal', 0] } },
+            totalItems: { $sum: 1 }
+          }
+        }
+      ];
+
+      const grandTotalResult = await Order.aggregate(grandTotalPipeline);
+
+      console.log('Grand total result:', JSON.stringify(grandTotalResult, null, 2));
+
+      // ✅ DEBUGGING: Cek total dengan field lain
+      const debugPipeline = [
+        { $match: matchStage },
+        {
+          $group: {
+            _id: null,
+            totalBeforeDiscount: { $sum: '$totalBeforeDiscount' },
+            totalAfterDiscount: { $sum: '$totalAfterDiscount' },
+            totalTax: { $sum: '$totalTax' },
+            grandTotal: { $sum: '$grandTotal' },
+            itemsSubtotal: { $sum: { $sum: '$items.subtotal' } },
+            customAmountTotal: {
+              $sum: {
+                $sum: {
+                  $map: {
+                    input: { $ifNull: ['$customAmountItems', []] },
+                    as: 'custom',
+                    in: '$$custom.amount'
+                  }
+                }
+              }
+            }
+          }
+        }
+      ];
+
+      const debugResult = await Order.aggregate(debugPipeline);
+      console.log('🔍 DEBUG - Comparison:', JSON.stringify(debugResult, null, 2));
+
+      // Count unique orders
+      const orderCountResult = await Order.countDocuments(matchStage);
+
+      const grandTotal = grandTotalResult.length > 0 ? {
+        quantity: grandTotalResult[0].totalQuantity || 0,
+        subtotal: grandTotalResult[0].totalSubtotal || 0,
+        average: grandTotalResult[0].totalQuantity > 0
+          ? grandTotalResult[0].totalSubtotal / grandTotalResult[0].totalQuantity
+          : 0
+      } : {
+        quantity: 0,
+        subtotal: 0,
+        average: 0
+      };
+
+      // Response
+      const response = {
+        success: true,
+        data: categoryData,
+        grandTotal: grandTotal,
+        debug: debugResult.length > 0 ? debugResult[0] : null,
+        metadata: {
+          filters: {
+            outlet: req.query.outlet || 'all',
+            dateRange: req.query.startDate && req.query.endDate
+              ? `${req.query.startDate} to ${req.query.endDate}`
+              : 'all',
+            category: categorySearch || 'all'
+          },
+          totalOrders: orderCountResult,
+          totalCategories: categoryData.length,
+          processedAt: new Date().toISOString()
+        }
+      };
+
+      res.status(200).json(response);
+
+    } catch (error) {
+      console.error('Get category sales report error:', error);
+      console.error('Error stack:', error.stack);
+
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch category sales report',
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  }
+
+  async getTypeSalesReport(req, res) {
+    try {
+      const {
+        startDate,
+        endDate,
+        outletId,
+        search,
+        page = 1,
+        limit = 50
+      } = req.query;
+
+      // Validasi dan set default date range menggunakan native Date
+      let dateFilter = {};
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        // Validasi tanggal
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: 'Format tanggal tidak valid'
+          });
+        }
+
+        dateFilter = {
+          createdAt: {
+            $gte: start,
+            $lte: end
+          }
+        };
+      } else {
+        // Default: hari ini (WIB timezone)
+        const today = new Date();
+
+        // Set start of day
+        const startOfDay = new Date(today);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        // Set end of day
+        const endOfDay = new Date(today);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        dateFilter = {
+          createdAt: {
+            $gte: startOfDay,
+            $lte: endOfDay
+          }
+        };
+      }
+
+      // Build match stage
+      const matchStage = {
+        status: 'Completed',
+        ...dateFilter
+      };
+
+      // Filter by outlet if provided
+      if (outletId) {
+        matchStage['cashier.outlet.0.outletId'] = outletId;
+      }
+
+      // Filter by search term (orderType) if provided
+      if (search) {
+        matchStage.orderType = {
+          $regex: search,
+          $options: 'i'
+        };
+      }
+
+      // Aggregation pipeline untuk grouping
+      const aggregationPipeline = [
+        // Stage 1: Match documents
+        {
+          $match: matchStage
+        },
+        // Stage 2: Group by orderType
+        {
+          $group: {
+            _id: '$orderType',
+            orderType: { $first: '$orderType' },
+            penjualanTotal: { $sum: '$grandTotal' },
+            count: { $sum: 1 }
+          }
+        },
+        // Stage 3: Sort by orderType
+        {
+          $sort: { orderType: 1 }
+        },
+        // Stage 4: Project final shape
+        {
+          $project: {
+            _id: 0,
+            orderType: 1,
+            penjualanTotal: 1,
+            count: 1
+          }
+        }
+      ];
+
+      // Execute aggregation
+      const groupedData = await Order.aggregate(aggregationPipeline);
+
+      // Calculate grand totals
+      const grandTotal = groupedData.reduce((acc, curr) => {
+        acc.penjualanTotal += curr.penjualanTotal || 0;
+        acc.count += curr.count || 0;
+        return acc;
+      }, {
+        penjualanTotal: 0,
+        count: 0
+      });
+
+      // Pagination
+      const totalItems = groupedData.length;
+      const totalPages = Math.ceil(totalItems / limit);
+      const currentPage = parseInt(page);
+      const startIndex = (currentPage - 1) * limit;
+      const endIndex = startIndex + parseInt(limit);
+      const paginatedData = groupedData.slice(startIndex, endIndex);
+
+      // Response
+      res.status(200).json({
+        success: true,
+        data: {
+          items: paginatedData,
+          grandTotal,
+          pagination: {
+            currentPage,
+            totalPages,
+            totalItems,
+            itemsPerPage: parseInt(limit),
+            hasNextPage: currentPage < totalPages,
+            hasPrevPage: currentPage > 1
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in getTypeSalesReport:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Terjadi kesalahan saat mengambil data',
+        error: error.message
+      });
+    }
+  }
+
+  async getSalesOutlet(req, res) {
+    try {
+      const {
+        startDate,
+        endDate,
+        outletId,
+        page = 1,
+        limit = 50
+      } = req.query;
+
+      // Validasi dan set default date range menggunakan native Date
+      let dateFilter = {};
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        // Validasi tanggal
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: 'Format tanggal tidak valid'
+          });
+        }
+
+        dateFilter = {
+          createdAt: {
+            $gte: start,
+            $lte: end
+          }
+        };
+      } else {
+        // Default: hari ini
+        const today = new Date();
+
+        // Set start of day
+        const startOfDay = new Date(today);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        // Set end of day
+        const endOfDay = new Date(today);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        dateFilter = {
+          createdAt: {
+            $gte: startOfDay,
+            $lte: endOfDay
+          }
+        };
+      }
+
+      // Build match stage
+      const matchStage = {
+        status: 'Completed',
+        ...dateFilter
+      };
+
+      // Filter by outlet if provided
+      if (outletId) {
+        matchStage.$or = [
+          { 'outlet': outletId },
+          { 'cashier.outlet.0.outletId': outletId }
+        ];
+      }
+
+      // Aggregation pipeline untuk grouping dan kalkulasi
+      const aggregationPipeline = [
+        // Stage 1: Match documents
+        {
+          $match: matchStage
+        },
+        // Stage 2: Lookup untuk populate outlet info
+        {
+          $lookup: {
+            from: 'outlets', // nama collection outlets
+            localField: 'outlet',
+            foreignField: '_id',
+            as: 'outletInfo'
+          }
+        },
+        // Stage 3: Unwind outlet info
+        {
+          $unwind: {
+            path: '$outletInfo',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        // Stage 4: Group by outlet
+        {
+          $group: {
+            _id: {
+              outletId: { $ifNull: ['$outletInfo._id', '$cashier.outlet.0.outletId._id'] },
+              outletName: { $ifNull: ['$outletInfo.name', '$cashier.outlet.0.outletId.name'] }
+            },
+            count: { $sum: 1 },
+            subtotalTotal: {
+              $sum: {
+                $ifNull: ['$grandTotal', '$totalPrice']
+              }
+            }
+          }
+        },
+        // Stage 5: Project untuk format output
+        {
+          $project: {
+            _id: 0,
+            outletId: '$_id.outletId',
+            outletName: { $ifNull: ['$_id.outletName', 'Unknown'] },
+            count: 1,
+            subtotalTotal: 1,
+            averagePerTransaction: {
+              $cond: {
+                if: { $gt: ['$count', 0] },
+                then: { $divide: ['$subtotalTotal', '$count'] },
+                else: 0
+              }
+            }
+          }
+        },
+        // Stage 6: Sort berdasarkan total penjualan (descending)
+        { $sort: { subtotalTotal: -1 } }
+      ];
+
+      // Execute aggregation
+      const allResults = await Order.aggregate(aggregationPipeline);
+
+      // Calculate grand totals
+      const grandTotal = allResults.reduce((acc, curr) => {
+        acc.totalOutlets += 1;
+        acc.totalTransactions += curr.count || 0;
+        acc.totalSales += curr.subtotalTotal || 0;
+        return acc;
+      }, {
+        totalOutlets: 0,
+        totalTransactions: 0,
+        totalSales: 0
+      });
+
+      grandTotal.averagePerTransaction = grandTotal.totalTransactions > 0
+        ? grandTotal.totalSales / grandTotal.totalTransactions
+        : 0;
+
+      // Pagination
+      const totalItems = allResults.length;
+      const totalPages = Math.ceil(totalItems / limit);
+      const currentPage = parseInt(page);
+      const startIndex = (currentPage - 1) * limit;
+      const endIndex = startIndex + parseInt(limit);
+      const paginatedData = allResults.slice(startIndex, endIndex);
+
+      // Response
+      res.status(200).json({
+        success: true,
+        data: {
+          items: paginatedData,
+          allData: allResults, // Untuk export
+          grandTotal,
+          pagination: {
+            currentPage,
+            totalPages,
+            totalItems,
+            itemsPerPage: parseInt(limit),
+            hasNextPage: currentPage < totalPages,
+            hasPrevPage: currentPage > 1
+          },
+          filters: {
+            startDate: startDate || null,
+            endDate: endDate || null,
+            outletId: outletId || null
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in getSalesOutlet:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Terjadi kesalahan saat mengambil data penjualan',
+        error: error.message
+      });
+    }
+  };
+
+  /**
+     * Delete Multiple Orders
+     * @route   DELETE /api/report/sales-report/bulk
+     * @access  Private (Admin/Superadmin)
+     * @body    { orderIds: [id1, id2, id3, ...] }
+     */
+  async deleteMultipleOrders(req, res) {
+    try {
+      const { orderIds } = req.body;
+
+      console.log('📥 Delete request received:', { orderIds, count: orderIds?.length });
+
+      // ====================================
+      // 1. VALIDASI INPUT
+      // ====================================
+      if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'orderIds harus berupa array dan tidak boleh kosong'
+        });
+      }
+
+      // Validasi maksimal item untuk keamanan
+      if (orderIds.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Maksimal 100 transaksi dapat dihapus sekaligus'
+        });
+      }
+
+      // Validasi format ObjectId
+      const invalidIds = orderIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      if (invalidIds.length > 0) {
+        console.log('❌ Invalid IDs detected:', invalidIds);
+        return res.status(400).json({
+          success: false,
+          message: 'Beberapa ID tidak valid',
+          invalidIds
+        });
+      }
+
+      // ====================================
+      // 2. CEK ORDERS YANG AKAN DIHAPUS
+      // ====================================
+      const ordersToDelete = await Order.find({
+        _id: { $in: orderIds }
+      });
+
+      console.log('🔍 Found orders:', ordersToDelete.length);
+
+      if (ordersToDelete.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Tidak ada transaksi yang ditemukan'
+        });
+      }
+
+      // ====================================
+      // 3. CEK PROTECTED ORDERS (OPTIONAL)
+      // ====================================
+      // Order dengan status tertentu tidak boleh dihapus
+      const protectedOrders = ordersToDelete.filter(order =>
+        order.status === 'Processing' || order.status === 'Pending'
+      );
+
+      if (protectedOrders.length > 0) {
+        console.log('⚠️ Protected orders detected:', protectedOrders.length);
+        return res.status(400).json({
+          success: false,
+          message: `${protectedOrders.length} transaksi tidak dapat dihapus karena masih dalam proses`,
+          protectedOrderIds: protectedOrders.map(o => o._id)
+        });
+      }
+
+      // ====================================
+      // 4. HARD DELETE (PERMANENT)
+      // ====================================
+      const deleteResult = await Order.deleteMany({
+        _id: { $in: orderIds }
+      });
+
+      console.log('✅ Delete result:', deleteResult);
+
+      // ====================================
+      // 5. RESPONSE
+      // ====================================
+      return res.status(200).json({
+        success: true,
+        message: `Berhasil menghapus ${deleteResult.deletedCount} transaksi`,
+        data: {
+          deletedCount: deleteResult.deletedCount,
+          requestedCount: orderIds.length,
+          notFoundCount: orderIds.length - ordersToDelete.length
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error deleting multiple orders:', error);
+      console.error('Error stack:', error.stack);
+
+      return res.status(500).json({
+        success: false,
+        message: 'Terjadi kesalahan saat menghapus transaksi',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  } // ← HAPUS SEMICOLON (;) DISINI
+
+  /**
+   * Delete Single Order
+   * @route   DELETE /api/report/sales-report/:id
+   * @access  Private (Admin/Superadmin)
+   */
+  async deleteSingleOrder(req, res) {
+    try {
+      const { id } = req.params;
+
+      console.log('📥 Single delete request for ID:', id);
+
+      // ====================================
+      // 1. VALIDASI OBJECTID
+      // ====================================
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID transaksi tidak valid'
+        });
+      }
+
+      // ====================================
+      // 2. CEK APAKAH ORDER EXISTS
+      // ====================================
+      const order = await Order.findById(id);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Transaksi tidak ditemukan'
+        });
+      }
+
+      // ====================================
+      // 3. VALIDASI STATUS
+      // ====================================
+      if (order.status === 'Processing' || order.status === 'Pending') {
+        return res.status(400).json({
+          success: false,
+          message: 'Transaksi tidak dapat dihapus karena masih dalam proses'
+        });
+      }
+
+      // ====================================
+      // 4. HARD DELETE
+      // ====================================
+      await Order.findByIdAndDelete(id);
+
+      console.log('✅ Order deleted:', id);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Berhasil menghapus transaksi',
+        data: { orderId: id }
+      });
+
+    } catch (error) {
+      console.error('❌ Error deleting order:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Terjadi kesalahan saat menghapus transaksi',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  } // ← HAPUS SEMICOLON (;) DISINI
+
+  // ============================================
+  // ALTERNATIVE: SOFT DELETE VERSION
+  // ============================================
+
+  /**
+   * Soft Delete Multiple Orders
+   * @route   DELETE /api/report/sales-report/bulk/soft
+   * @access  Private (Admin/Superadmin)
+   */
+  async softDeleteMultipleOrders(req, res) {
+    try {
+      const { orderIds } = req.body;
+
+      if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'orderIds harus berupa array dan tidak boleh kosong'
+        });
+      }
+
+      if (orderIds.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Maksimal 100 transaksi dapat dihapus sekaligus'
+        });
+      }
+
+      const invalidIds = orderIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      if (invalidIds.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Beberapa ID tidak valid',
+          invalidIds
+        });
+      }
+
+      const ordersToDelete = await Order.find({
+        _id: { $in: orderIds }
+      });
+
+      if (ordersToDelete.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Tidak ada transaksi yang ditemukan'
+        });
+      }
+
+      const protectedOrders = ordersToDelete.filter(order =>
+        order.status === 'Processing' || order.status === 'Pending'
+      );
+
+      if (protectedOrders.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `${protectedOrders.length} transaksi tidak dapat dihapus karena masih dalam proses`,
+          protectedOrderIds: protectedOrders.map(o => o._id)
+        });
+      }
+
+      // Soft delete dengan menambahkan field deletedAt
+      const deleteResult = await Order.updateMany(
+        { _id: { $in: orderIds } },
+        {
+          $set: {
+            deletedAt: new Date(),
+            deletedBy: req.user?.id || null
+          }
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: `Berhasil menghapus ${deleteResult.modifiedCount} transaksi`,
+        data: {
+          deletedCount: deleteResult.modifiedCount,
+          requestedCount: orderIds.length,
+          notFoundCount: orderIds.length - ordersToDelete.length
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error soft deleting multiple orders:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Terjadi kesalahan saat menghapus transaksi',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  } // ← HAPUS SEMICOLON (;) DISINI
+
+  /**
+   * Restore Multiple Orders (untuk soft delete)
+   * @route   POST /api/report/sales-report/restore
+   * @access  Private (Admin/Superadmin)
+   */
+  async restoreMultipleOrders(req, res) {
+    try {
+      const { orderIds } = req.body;
+
+      if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'orderIds harus berupa array dan tidak boleh kosong'
+        });
+      }
+
+      const restoreResult = await Order.updateMany(
+        { _id: { $in: orderIds }, deletedAt: { $ne: null } },
+        {
+          $set: {
+            deletedAt: null,
+            deletedBy: null
+          }
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: `Berhasil restore ${restoreResult.modifiedCount} transaksi`,
+        data: {
+          restoredCount: restoreResult.modifiedCount
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error restoring orders:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Terjadi kesalahan saat restore transaksi',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  } // ← HAPUS SEMICOLON (;) DISINI
+
+  async getDeviceSalesReport(req, res) {
+    try {
+      const { startDate, endDate, outletId } = req.query;
+
+      // Build match stage
+      const matchStage = {
+        status: 'Completed'
+      };
+
+      if (outletId) {
+        matchStage.outlet = mongoose.Types.ObjectId(outletId);
+      }
+
+      if (startDate && endDate) {
+        const start = new Date(startDate + 'T00:00:00.000+07:00');
+        const end = new Date(endDate + 'T23:59:59.999+07:00');
+        matchStage.createdAt = { $gte: start, $lte: end };
+      }
+
+      const pipeline = [
+        // Match completed orders
+        { $match: matchStage },
+
+        // Lookup cashier details
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'cashierId',
+            foreignField: '_id',
+            as: 'cashierDetails'
+          }
+        },
+
+        // Lookup GRO details
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'groId',
+            foreignField: '_id',
+            as: 'groDetails'
+          }
+        },
+
+        // Lookup outlet details
+        {
+          $lookup: {
+            from: 'outlets',
+            localField: 'outlet',
+            foreignField: '_id',
+            as: 'outletDetails'
+          }
+        },
+
+        // Unwind arrays (keep nulls)
+        { $unwind: { path: '$cashierDetails', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$groDetails', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$outletDetails', preserveNullAndEmptyArrays: true } },
+
+        // Lookup cashier's outlet
+        {
+          $lookup: {
+            from: 'outlets',
+            localField: 'cashierDetails.outlet.outletId',
+            foreignField: '_id',
+            as: 'cashierOutletDetails'
+          }
+        },
+
+        // Lookup GRO's outlet
+        {
+          $lookup: {
+            from: 'outlets',
+            localField: 'groDetails.outlet.outletId',
+            foreignField: '_id',
+            as: 'groOutletDetails'
+          }
+        },
+
+        // Create documents - PRIORITIZE GRO over Cashier
+        {
+          $facet: {
+            // GRO Sales - Process first to take priority
+            groSales: [
+              { $match: { groId: { $exists: true, $ne: null } } },
+              {
+                $group: {
+                  _id: '$groId',
+                  deviceName: { $first: { $ifNull: ['$groDetails.name', { $ifNull: ['$groDetails.username', 'Unknown GRO'] }] } },
+                  deviceType: { $first: 'GRO' },
+                  outlet: { $first: { $arrayElemAt: ['$groOutletDetails.name', 0] } },
+                  source: { $first: 'Gro' },
+                  transactionCount: { $sum: 1 },
+                  totalSales: { $sum: '$grandTotal' },
+                  orders: {
+                    $push: {
+                      orderId: '$order_id',
+                      grandTotal: '$grandTotal',
+                      createdAt: '$createdAt'
+                    }
+                  }
+                }
+              },
+              {
+                $project: {
+                  deviceId: { $concat: ['gro_', { $toString: '$_id' }] },
+                  deviceName: 1,
+                  deviceType: 1,
+                  outlet: { $ifNull: ['$outlet', ''] },
+                  source: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  },
+                  orders: 1
+                }
+              }
+            ],
+
+            // Cashier Sales - Only if NO groId
+            cashierSales: [
+              {
+                $match: {
+                  $and: [
+                    { cashierId: { $exists: true, $ne: null } },
+                    { $or: [{ groId: { $exists: false } }, { groId: null }] }
+                  ]
+                }
+              },
+              {
+                $group: {
+                  _id: '$cashierId',
+                  deviceName: { $first: { $ifNull: ['$cashierDetails.name', { $ifNull: ['$cashierDetails.username', 'Unknown Cashier'] }] } },
+                  deviceType: { $first: { $ifNull: ['$cashierDetails.cashierType', 'Cashier'] } },
+                  outlet: { $first: { $arrayElemAt: ['$cashierOutletDetails.name', 0] } },
+                  source: { $first: 'Cashier' },
+                  transactionCount: { $sum: 1 },
+                  totalSales: { $sum: '$grandTotal' },
+                  orders: {
+                    $push: {
+                      orderId: '$order_id',
+                      grandTotal: '$grandTotal',
+                      createdAt: '$createdAt'
+                    }
+                  }
+                }
+              },
+              {
+                $project: {
+                  deviceId: { $concat: ['cashier_', { $toString: '$_id' }] },
+                  deviceName: 1,
+                  deviceType: 1,
+                  outlet: { $ifNull: ['$outlet', ''] },
+                  source: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  },
+                  orders: 1
+                }
+              }
+            ],
+
+            // Unknown Sales - No groId AND no cashierId
+            unknownSales: [
+              {
+                $match: {
+                  $and: [
+                    { $or: [{ cashierId: { $exists: false } }, { cashierId: null }] },
+                    { $or: [{ groId: { $exists: false } }, { groId: null }] }
+                  ]
+                }
+              },
+              {
+                $group: {
+                  _id: 'unknown',
+                  deviceName: { $first: 'Unknown Device' },
+                  deviceType: { $first: 'Unknown' },
+                  outlet: { $first: '$outletDetails.name' },
+                  source: { $first: { $ifNull: ['$source', 'Unknown'] } },
+                  transactionCount: { $sum: 1 },
+                  totalSales: { $sum: '$grandTotal' },
+                  orders: {
+                    $push: {
+                      orderId: '$order_id',
+                      grandTotal: '$grandTotal',
+                      createdAt: '$createdAt'
+                    }
+                  }
+                }
+              },
+              {
+                $project: {
+                  deviceId: 'unknown',
+                  deviceName: 1,
+                  deviceType: 1,
+                  outlet: { $ifNull: ['$outlet', ''] },
+                  source: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  },
+                  orders: 1
+                }
+              }
+            ]
+          }
+        },
+
+        // Combine all sales data
+        {
+          $project: {
+            allSales: {
+              $concatArrays: ['$groSales', '$cashierSales', '$unknownSales']
+            }
+          }
+        },
+
+        // Unwind to sort
+        { $unwind: '$allSales' },
+
+        // Sort by deviceType then deviceName
+        {
+          $sort: {
+            'allSales.deviceType': 1,
+            'allSales.deviceName': 1
+          }
+        },
+
+        // Group back to calculate summary
+        {
+          $group: {
+            _id: null,
+            deviceSales: { $push: '$allSales' },
+            totalDevices: { $sum: 1 },
+            totalTransactions: { $sum: '$allSales.transactionCount' },
+            totalSales: { $sum: '$allSales.totalSales' }
+          }
+        },
+
+        // Final projection
+        {
+          $project: {
+            _id: 0,
+            deviceSales: 1,
+            summary: {
+              totalDevices: '$totalDevices',
+              totalTransactions: '$totalTransactions',
+              totalSales: '$totalSales',
+              averagePerTransaction: {
+                $cond: [
+                  { $gt: ['$totalTransactions', 0] },
+                  { $divide: ['$totalSales', '$totalTransactions'] },
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ];
+
+      const result = await Order.aggregate(pipeline);
+
+      // Handle empty result
+      const response = result.length > 0 ? result[0] : {
+        deviceSales: [],
+        summary: {
+          totalDevices: 0,
+          totalTransactions: 0,
+          totalSales: 0,
+          averagePerTransaction: 0
+        }
+      };
+
+      res.status(200).json({
+        success: true,
+        data: response.deviceSales,
+        summary: response.summary,
+        filters: {
+          startDate: startDate || null,
+          endDate: endDate || null,
+          outletId: outletId || null
+        }
+      });
+
+    } catch (error) {
+      console.error('Get device sales report error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch device sales report',
+        error: error.message
+      });
+    }
+  }
+
+  async getCustomerSalesReport(req, res) {
+    try {
+      const { startDate, endDate, outletId, search, page = 1, limit = 10 } = req.query;
+
+      // Build match stage
+      const matchStage = {
+        status: 'Completed'
+      };
+
+      // Filter by outlet
+      if (outletId) {
+        matchStage.outlet = mongoose.Types.ObjectId(outletId);
+      }
+
+      // Filter by date range
+      if (startDate && endDate) {
+        const start = new Date(startDate + 'T00:00:00.000+07:00');
+        const end = new Date(endDate + 'T23:59:59.999+07:00');
+        matchStage.createdAt = { $gte: start, $lte: end };
+      }
+
+      const pipeline = [
+        // Match completed orders with filters
+        { $match: matchStage },
+
+        // Lookup customer details (optional, hanya untuk ambil phone dan type)
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'user_id',
+            foreignField: '_id',
+            as: 'customerDetails'
+          }
+        },
+
+        // Unwind customer details (preserve null)
+        { $unwind: { path: '$customerDetails', preserveNullAndEmptyArrays: true } },
+
+        // Add computed field for customer name
+        {
+          $addFields: {
+            customerName: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$user', null] },
+                    { $ne: ['$user', ''] }
+                  ]
+                },
+                '$user',
+                'Walk-in Customer'
+              ]
+            }
+          }
+        },
+
+        // Group by customer name from 'user' field
+        {
+          $group: {
+            _id: '$customerName',
+            customerId: { $first: { $ifNull: ['$user_id', null] } },
+            customerName: { $first: '$customerName' },
+            customerPhone: { $first: { $ifNull: ['$customerDetails.phone', null] } },
+            customerType: { $first: { $ifNull: ['$customerDetails.consumerType', '-'] } },
+            transactionCount: { $sum: 1 },
+            totalSales: { $sum: '$grandTotal' },
+            firstTransaction: { $min: '$createdAt' },
+            lastTransaction: { $max: '$createdAt' }
+          }
+        },
+
+        // Add search filter if provided
+        ...(search ? [{
+          $match: {
+            $or: [
+              { customerName: { $regex: search, $options: 'i' } },
+              { customerPhone: { $regex: search, $options: 'i' } }
+            ]
+          }
+        }] : []),
+
+        // Sort by total sales descending
+        { $sort: { totalSales: -1 } },
+
+        // Facet for pagination, summary, and top customers
+        {
+          $facet: {
+            metadata: [
+              { $count: 'total' },
+              {
+                $addFields: {
+                  page: parseInt(page),
+                  limit: parseInt(limit),
+                  totalPages: { $ceil: { $divide: ['$total', parseInt(limit)] } }
+                }
+              }
+            ],
+            data: [
+              { $skip: (parseInt(page) - 1) * parseInt(limit) },
+              { $limit: parseInt(limit) },
+              {
+                $project: {
+                  _id: 0,
+                  customerId: 1,
+                  customerName: 1,
+                  customerPhone: 1,
+                  customerType: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  },
+                  firstTransaction: 1,
+                  lastTransaction: 1
+                }
+              }
+            ],
+            allData: [
+              {
+                $project: {
+                  _id: 0,
+                  customerId: 1,
+                  customerName: 1,
+                  customerPhone: 1,
+                  customerType: 1,
+                  transactionCount: 1,
+                  totalSales: 1,
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$transactionCount', 0] },
+                      { $divide: ['$totalSales', '$transactionCount'] },
+                      0
+                    ]
+                  }
+                }
+              }
+            ],
+            summary: [
+              {
+                $group: {
+                  _id: null,
+                  totalCustomers: { $sum: 1 },
+                  totalTransactions: { $sum: '$transactionCount' },
+                  totalSales: { $sum: '$totalSales' }
+                }
+              },
+              {
+                $project: {
+                  _id: 0,
+                  totalCustomers: 1,
+                  totalTransactions: 1,
+                  totalSales: 1,
+                  averagePerCustomer: {
+                    $cond: [
+                      { $gt: ['$totalCustomers', 0] },
+                      { $divide: ['$totalSales', '$totalCustomers'] },
+                      0
+                    ]
+                  },
+                  averagePerTransaction: {
+                    $cond: [
+                      { $gt: ['$totalTransactions', 0] },
+                      { $divide: ['$totalSales', '$totalTransactions'] },
+                      0
+                    ]
+                  }
+                }
+              }
+            ],
+            topCustomerByTransaction: [
+              { $sort: { transactionCount: -1 } },
+              { $limit: 1 },
+              {
+                $project: {
+                  _id: 0,
+                  customerName: 1,
+                  transactionCount: 1,
+                  totalSales: 1
+                }
+              }
+            ],
+            topCustomerBySales: [
+              { $sort: { totalSales: -1 } },
+              { $limit: 1 },
+              {
+                $project: {
+                  _id: 0,
+                  customerName: 1,
+                  transactionCount: 1,
+                  totalSales: 1
+                }
+              }
+            ]
+          }
+        }
+      ];
+
+      const result = await Order.aggregate(pipeline);
+
+      // Extract results
+      const metadata = result[0].metadata[0] || {
+        total: 0,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: 0
+      };
+      const data = result[0].data || [];
+      const allData = result[0].allData || [];
+      const summary = result[0].summary[0] || {
+        totalCustomers: 0,
+        totalTransactions: 0,
+        totalSales: 0,
+        averagePerCustomer: 0,
+        averagePerTransaction: 0
+      };
+      const topCustomerByTransaction = result[0].topCustomerByTransaction[0] || null;
+      const topCustomerBySales = result[0].topCustomerBySales[0] || null;
+
+      res.status(200).json({
+        success: true,
+        data,
+        allData, // Include all data for export
+        summary: {
+          ...summary,
+          topCustomers: {
+            byTransactionCount: topCustomerByTransaction,
+            bySales: topCustomerBySales
+          }
+        },
+        pagination: {
+          currentPage: metadata.page,
+          totalPages: metadata.totalPages,
+          totalItems: metadata.total,
+          itemsPerPage: metadata.limit
+        },
+        filters: {
+          startDate: startDate || null,
+          endDate: endDate || null,
+          outletId: outletId || null,
+          search: search || null
+        }
+      });
+
+    } catch (error) {
+      console.error('Get customer sales report error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch customer sales report',
+        error: error.message
+      });
+    }
+  }
+
 }
 
 // EKSPOR YANG BENAR - Pastikan ini ada di akhir file

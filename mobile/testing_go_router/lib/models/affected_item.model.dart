@@ -6,7 +6,7 @@ part 'affected_item.model.freezed.dart';
 part 'affected_item.model.g.dart';
 
 @freezed
-@HiveType(typeId: 10) // Pastikan typeId unik dan belum digunakan
+@HiveType(typeId: 10)
 abstract class AffectedItemModel with _$AffectedItemModel {
   factory AffectedItemModel({
     @HiveField(0) required String menuItem,

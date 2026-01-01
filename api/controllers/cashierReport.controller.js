@@ -419,14 +419,20 @@ export const getSalesSummary = async (req, res) => {
         // Build filter
         const filter = { status: 'Completed' };
 
-        // Date filter
+        // Date filter dengan timezone +07:00 (WIB)
         if (startDate || endDate) {
             filter.createdAt = {};
+
             if (startDate) {
-                filter.createdAt.$gte = moment(startDate).startOf('day').toDate();
+                const startDateStr = startDate;
+                const start = new Date(startDateStr + 'T00:00:00.000+07:00');
+                filter.createdAt.$gte = start;
             }
+
             if (endDate) {
-                filter.createdAt.$lte = moment(endDate).endOf('day').toDate();
+                const endDateStr = endDate;
+                const end = new Date(endDateStr + 'T23:59:59.999+07:00');
+                filter.createdAt.$lte = end;
             }
         }
 

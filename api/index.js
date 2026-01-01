@@ -211,7 +211,8 @@ const startServer = async () => {
       minPoolSize: 10, // Maintain minimum connections
       socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
-    console.log('warning : Connected to MongoDB PROD ✅');
+    console.log('✅ Connected to MongoDB PROD');
+
 
     setupStockCalibrationCron();
     // startAutoCancelScheduler();

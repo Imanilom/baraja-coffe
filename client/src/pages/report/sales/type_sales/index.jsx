@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import TypeSalesSkeleton from "./skeleton";
 import Paginated from "../../../../components/paginated";
+import { exportTypeSalesExcel } from '../../../../utils/exportTypeSalesExcel';
 
 const TypeSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -225,91 +226,30 @@ const TypeSales = () => {
 
     // Export to Excel - Using data from API
     const exportToExcel = async () => {
-        if (groupedData.length === 0) {
-            alert("Tidak ada data untuk diekspor");
-            return;
-        }
+        const outletName = selectedOutlet
+            ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
+            : 'Semua Outlet';
 
-        setIsExporting(true);
+        const dateRangeText = dateRange?.startDate && dateRange?.endDate
+            ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
+            : new Date().toLocaleDateString('id-ID');
 
-        try {
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Get outlet name
-            const outletName = selectedOutlet
-                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
-                : 'Semua Outlet';
-
-            // Get date range
-            const dateRangeText = dateRange?.startDate && dateRange?.endDate
-                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-                : new Date().toLocaleDateString('id-ID');
-
-            // Create export data
-            const exportData = [
-                { col1: 'Laporan Tipe Penjualan', col2: '', col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
-                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Tipe Penjualan', col2: 'Jumlah Transaksi', col3: 'Total Transaksi', col4: 'Total Fee' }
-            ];
-
-            // Add data rows
-            groupedData.forEach(item => {
-                exportData.push({
-                    col1: item.orderType,
-                    col2: item.count,
-                    col3: item.penjualanTotal,
-                    col4: 0
-                });
-            });
-
-            // Add Grand Total row
-            exportData.push({
-                col1: 'Grand Total',
-                col2: grandTotal.count,
-                col3: grandTotal.penjualanTotal,
-                col4: 0
-            });
-
-            // Create worksheet
-            const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2', 'col3', 'col4'],
-                skipHeader: true
-            });
-
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 25 },
-                { wch: 20 },
-                { wch: 20 },
-                { wch: 15 }
-            ];
-
-            // Merge cells for title
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
-            ];
-
-            // Create workbook and add worksheet
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Tipe Penjualan");
-
-            // Generate filename
-            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const fileName = `Laporan_Tipe_Penjualan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
-
-            // Export file
-            XLSX.writeFile(wb, fileName);
-
-        } catch (error) {
-            console.error("Error exporting to Excel:", error);
-            alert("Gagal mengekspor data. Silakan coba lagi.");
-        } finally {
-            setIsExporting(false);
-        }
+        await exportTypeSalesExcel({
+            data: groupedData,
+            grandTotal: grandTotal,
+            summary: {
+                totalTransactions: grandTotal.count,
+                totalRevenue: grandTotal.penjualanTotal,
+                averageTransaction: grandTotal.count > 0
+                    ? Math.round(grandTotal.penjualanTotal / grandTotal.count)
+                    : 0
+            },
+            fileName: `Laporan_Tipe_Penjualan_${outletName.replace(/\s+/g, '_')}_${dateRangeText}.xlsx`,
+            headerInfo: [
+                ["Outlet", outletName],
+                ["Tanggal", dateRangeText]
+            ]
+        });
     };
 
     // Show loading state
