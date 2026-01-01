@@ -144,9 +144,14 @@ impl MenuRepository {
             let doc = cursor.deserialize_current()?;
             let total: f64 = doc.get_f64("total").unwrap_or(0.0);
             
+            let mut update_data = doc! { "availableStock": total };
+            if total > 0.0 {
+                update_data.insert("isActive", true);
+            }
+
             self.menu_collection.update_one(
                 doc! { "_id": menu_item_id },
-                doc! { "$set": { "availableStock": total } },
+                doc! { "$set": update_data },
                 None,
             ).await?;
         }
