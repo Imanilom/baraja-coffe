@@ -39,6 +39,252 @@ const extractBankInfo = (payment) => {
 };
 
 class DailyProfitController {
+
+  async getSalesSummary(req, res) {
+    try {
+      const { startDate, endDate, cashierId, outletId, paymentMethod, orderType } = req.query;
+
+      // Build filter
+      const filter = { status: 'Completed' };
+
+      // Date filter dengan timezone +07:00 (WIB)
+      if (startDate || endDate) {
+        filter.createdAt = {};
+
+        if (startDate) {
+          const startDateStr = startDate;
+          const start = new Date(startDateStr + 'T00:00:00.000+07:00');
+          filter.createdAt.$gte = start;
+        }
+
+        if (endDate) {
+          const endDateStr = endDate;
+          const end = new Date(endDateStr + 'T23:59:59.999+07:00');
+          filter.createdAt.$lte = end;
+        }
+      }
+
+      // Convert ObjectId fields properly
+      if (cashierId) {
+        const cashierObjectId = toObjectId(cashierId);
+        if (cashierObjectId) {
+          filter.cashierId = cashierObjectId;
+        }
+      }
+
+      if (outletId) {
+        const outletObjectId = toObjectId(outletId);
+        if (outletObjectId) {
+          filter.outlet = outletObjectId;
+        }
+      }
+
+      if (orderType) filter.orderType = { $in: orderType.split(',') };
+
+      // Summary stats dengan lookup ke Payment
+      const summaryPipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: 'payments',
+            localField: 'order_id',
+            foreignField: 'order_id',
+            as: 'payments'
+          }
+        },
+        {
+          $addFields: {
+            // Ambil method_type dari payment yang settled/paid
+            actualPaymentMethod: {
+              $arrayElemAt: [
+                {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: '$payments',
+                        as: 'payment',
+                        cond: { $in: ['$$payment.status', ['settlement', 'paid', 'partial']] }
+                      }
+                    },
+                    as: 'p',
+                    in: '$$p.method_type'
+                  }
+                },
+                0
+              ]
+            }
+          }
+        },
+        // Filter berdasarkan method_type jika ada
+        ...(paymentMethod ? [{ $match: { actualPaymentMethod: { $in: paymentMethod.split(',') } } }] : []),
+        {
+          $group: {
+            _id: null,
+            totalSales: { $sum: '$grandTotal' },
+            totalTransactions: { $sum: 1 },
+            totalTax: { $sum: '$totalTax' },
+            totalServiceFee: { $sum: '$totalServiceFee' },
+            // ✅ FIXED: Hitung berdasarkan quantity items + customAmountItems (count as 1 each)
+            totalItems: {
+              $sum: {
+                $add: [
+                  // Sum quantity dari regular items
+                  {
+                    $reduce: {
+                      input: { $ifNull: ['$items', []] },
+                      initialValue: 0,
+                      in: { $add: ['$$value', { $ifNull: ['$$this.quantity', 0] }] }
+                    }
+                  },
+                  // Count customAmountItems (setiap item = 1)
+                  { $size: { $ifNull: ['$customAmountItems', []] } }
+                ]
+              }
+            },
+            avgOrderValue: { $avg: '$grandTotal' },
+            totalDiscount: {
+              $sum: {
+                $add: [
+                  '$discounts.autoPromoDiscount',
+                  '$discounts.manualDiscount',
+                  '$discounts.voucherDiscount'
+                ]
+              }
+            }
+          }
+        }
+      ];
+
+      // Payment method breakdown dengan detail payment type (menggunakan method_type)
+      const paymentBreakdownPipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: 'payments',
+            localField: 'order_id',
+            foreignField: 'order_id',
+            as: 'payments'
+          }
+        },
+        { $unwind: '$payments' },
+        {
+          $match: {
+            'payments.status': { $in: ['settlement', 'paid', 'partial'] },
+            'payments.isAdjustment': { $ne: true }, // Exclude adjustment payments
+            ...(paymentMethod && { 'payments.method_type': { $in: paymentMethod.split(',') } })
+          }
+        },
+        {
+          $group: {
+            _id: {
+              method_type: '$payments.method_type',
+              paymentType: '$payments.paymentType'
+            },
+            total: { $sum: '$payments.amount' },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $group: {
+            _id: '$_id.method_type',
+            total: { $sum: '$total' },
+            count: { $sum: '$count' },
+            breakdown: {
+              $push: {
+                paymentType: '$_id.paymentType',
+                amount: '$total',
+                count: '$count'
+              }
+            }
+          }
+        }
+      ];
+
+      // Order type breakdown
+      const orderTypeBreakdownPipeline = [
+        { $match: filter },
+        ...(paymentMethod ? [{
+          $lookup: {
+            from: 'payments',
+            localField: 'order_id',
+            foreignField: 'order_id',
+            as: 'payments'
+          }
+        }, {
+          $match: {
+            'payments.method_type': { $in: paymentMethod.split(',') },
+            'payments.status': { $in: ['settlement', 'paid', 'partial'] }
+          }
+        }] : []),
+        {
+          $group: {
+            _id: '$orderType',
+            count: { $sum: 1 },
+            total: { $sum: '$grandTotal' }
+          }
+        }
+      ];
+
+      const [summaryResult, paymentBreakdown, orderTypeBreakdown] = await Promise.all([
+        Order.aggregate(summaryPipeline),
+        Order.aggregate(paymentBreakdownPipeline),
+        Order.aggregate(orderTypeBreakdownPipeline)
+      ]);
+
+      const summary = summaryResult[0] || {
+        totalSales: 0,
+        totalTransactions: 0,
+        totalTax: 0,
+        totalServiceFee: 0,
+        totalItems: 0,
+        avgOrderValue: 0,
+        totalDiscount: 0
+      };
+
+      // Calculate percentages for payment methods
+      const totalSalesForPayment = paymentBreakdown.reduce((sum, item) => sum + item.total, 0);
+      const paymentMethodData = paymentBreakdown.map(item => ({
+        method: item._id,
+        amount: item.total,
+        count: item.count,
+        percentage: totalSalesForPayment > 0 ? ((item.total / totalSalesForPayment) * 100).toFixed(1) : '0.0',
+        breakdown: item.breakdown
+      }));
+
+      // Calculate percentages for order types
+      const totalOrdersForType = orderTypeBreakdown.reduce((sum, item) => sum + item.count, 0);
+      const orderTypeData = orderTypeBreakdown.map(item => ({
+        type: item._id,
+        count: item.count,
+        total: item.total,
+        percentage: totalOrdersForType > 0 ? ((item.count / totalOrdersForType) * 100).toFixed(1) : '0.0'
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          summary: {
+            totalSales: summary.totalSales,
+            totalTransactions: summary.totalTransactions,
+            avgOrderValue: Math.round(summary.avgOrderValue),
+            totalTax: summary.totalTax,
+            totalServiceFee: summary.totalServiceFee,
+            totalDiscount: summary.totalDiscount,
+            totalItems: summary.totalItems // ✅ Sekarang berdasarkan quantity
+          },
+          paymentMethodBreakdown: paymentMethodData,
+          orderTypeBreakdown: orderTypeData
+        }
+      });
+    } catch (error) {
+      console.error('Error in getSalesSummary:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message
+      });
+    }
+  };
   /**
    * Get daily profit summary for a specific date - DUKUNG SPLIT PAYMENT
    */

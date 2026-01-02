@@ -154,7 +154,7 @@ const Summary = () => {
                 params.outletId = selectedOutlet;
             }
 
-            const response = await axios.get('/api/report/sales/summary', { params });
+            const response = await axios.get('/api/report/sales-report/summary', { params });
 
             if (response.data.success) {
                 const { summary, paymentMethodBreakdown, orderTypeBreakdown } = response.data.data;

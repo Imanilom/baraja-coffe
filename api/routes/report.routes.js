@@ -145,6 +145,7 @@ router.delete('/sales-report/:id', DailyProfitController.deleteSingleOrder);
 
 router.get('/sales-report/transaction-customer', DailyProfitController.getCustomerSalesReport);
 
+router.get('/sales-report/summary', DailyProfitController.getSalesSummary);
 
 // @route   GET /api/dashboard/data
 // @desc    Get complete dashboard data (summary, products, charts)

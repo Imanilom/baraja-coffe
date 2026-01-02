@@ -248,7 +248,7 @@ const OutletSales = () => {
         }
     };
 
-    if (loading && !dateRange) {
+    if (loading) {
         return <SalesOutletSkeleton />;
     }
 
@@ -341,15 +341,7 @@ const OutletSales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
                             </tr>
                         </thead>
-                        {loading ? (
-                            <tbody>
-                                <tr>
-                                    <td colSpan={4} className="text-center py-8">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900 mx-auto"></div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        ) : salesData.length > 0 ? (
+                        {salesData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {salesData.map((group, index) => (
                                     <tr key={index} className="hover:bg-gray-50">
