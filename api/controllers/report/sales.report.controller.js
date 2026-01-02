@@ -1001,6 +1001,259 @@ class DailyProfitController {
   //   }
   // }
 
+  // async getOrdersWithPayments(req, res) {
+  //   try {
+  //     const page = parseInt(req.query.page) || 1;
+  //     const limit = parseInt(req.query.limit) || 20;
+  //     const mode = req.query.mode || 'paginated';
+
+  //     const searchTerm = req.query.search || '';
+
+  //     const filters = {};
+
+  //     if (req.query.status) filters.status = req.query.status;
+  //     if (req.query.orderType) filters.orderType = req.query.orderType;
+  //     if (req.query.outlet) filters.outlet = req.query.outlet;
+
+  //     // Date range filter
+  //     if (req.query.startDate || req.query.endDate) {
+  //       filters.createdAt = {};
+
+  //       if (req.query.startDate) {
+  //         const startDateStr = req.query.startDate;
+  //         const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
+  //         filters.createdAt.$gte = startDate;
+  //       }
+
+  //       if (req.query.endDate) {
+  //         const endDateStr = req.query.endDate;
+  //         const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
+  //         filters.createdAt.$lte = endDate;
+  //       }
+  //     }
+
+  //     // Search filter
+  //     if (searchTerm) {
+  //       filters.$or = [
+  //         { order_id: { $regex: searchTerm, $options: 'i' } },
+  //         { user: { $regex: searchTerm, $options: 'i' } },
+  //         { 'items.menuItemData.name': { $regex: searchTerm, $options: 'i' } },
+  //       ];
+  //     }
+
+  //     const buildQuery = () => {
+  //       return Order.find(filters)
+  //         .populate('items.menuItem')
+  //         .populate({
+  //           path: 'items.menuItem',
+  //           populate: {
+  //             path: 'category',
+  //             model: 'Category',
+  //             select: 'name'
+  //           }
+  //         })
+  //         .populate('outlet')
+  //         .populate({
+  //           path: 'user_id',
+  //           select: 'name email phone role outlet username'
+  //         })
+  //         .populate({
+  //           path: 'cashierId',
+  //           select: 'name email phone role outlet username',
+  //           populate: {
+  //             path: 'outlet.outletId',
+  //             model: 'Outlet',
+  //             select: 'name address',
+  //           },
+  //         })
+  //         .populate({
+  //           path: 'groId',
+  //           select: 'name email phone role outlet username',
+  //           populate: {
+  //             path: 'outlet.outletId',
+  //             model: 'Outlet',
+  //             select: 'name address',
+  //           },
+  //         })
+  //         .sort({ createdAt: -1 })
+  //         .lean();
+  //     };
+
+  //     let orders, totalOrders, paginationInfo = null;
+
+  //     switch (mode) {
+  //       case 'all':
+  //         const allOrdersQuery = buildQuery();
+  //         allOrdersQuery.maxTimeMS(60000);
+  //         orders = await allOrdersQuery.exec();
+  //         totalOrders = orders.length;
+  //         break;
+
+  //       case 'recent':
+  //         orders = await buildQuery().limit(10);
+  //         totalOrders = await Order.countDocuments(filters);
+  //         paginationInfo = {
+  //           mode: 'recent',
+  //           showing: orders.length,
+  //           total: totalOrders
+  //         };
+  //         break;
+
+  //       case 'count':
+  //         totalOrders = await Order.countDocuments(filters);
+  //         return res.status(200).json({
+  //           success: true,
+  //           count: totalOrders
+  //         });
+
+  //       case 'ids':
+  //         const orderIds = await Order.find(filters)
+  //           .select('order_id createdAt status')
+  //           .sort({ createdAt: -1 })
+  //           .lean();
+  //         return res.status(200).json({
+  //           success: true,
+  //           data: orderIds
+  //         });
+
+  //       case 'paginated':
+  //       default:
+  //         const skip = (page - 1) * limit;
+  //         totalOrders = await Order.countDocuments(filters);
+  //         const totalPages = Math.ceil(totalOrders / limit);
+
+  //         orders = await buildQuery().skip(skip).limit(limit);
+
+  //         paginationInfo = {
+  //           currentPage: page,
+  //           totalPages: totalPages,
+  //           totalOrders: totalOrders,
+  //           limit: limit,
+  //           hasNextPage: page < totalPages,
+  //           hasPrevPage: page > 1
+  //         };
+  //         break;
+  //     }
+
+  //     // Fetch payments
+  //     const orderIds = orders.map(order => order.order_id);
+  //     const allPayments = await Payment.find({
+  //       order_id: { $in: orderIds }
+  //     }).lean();
+
+  //     const paymentMap = {};
+  //     allPayments.forEach(payment => {
+  //       if (!paymentMap[payment.order_id]) {
+  //         paymentMap[payment.order_id] = [];
+  //       }
+  //       paymentMap[payment.order_id].push(payment);
+  //     });
+
+  //     // Process orders with payments
+  //     const ordersWithPayments = orders.map(order => {
+  //       // Ensure menuItemData is properly populated
+  //       if (order.items && Array.isArray(order.items)) {
+  //         order.items = order.items.map(item => {
+  //           if (!item.menuItemData) {
+  //             item.menuItemData = {};
+  //           }
+
+  //           // Sync from populated menuItem
+  //           if (item.menuItem) {
+  //             item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
+  //             item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
+
+  //             // Get category name, not ID
+  //             if (item.menuItem.category && typeof item.menuItem.category === 'object') {
+  //               item.menuItemData.category = item.menuItem.category.name;
+  //             } else {
+  //               item.menuItemData.category = item.menuItemData.category || 'Uncategorized';
+  //             }
+
+  //             item.menuItemData.sku = item.menuItem.sku || '';
+  //             item.menuItemData.isActive = item.menuItem.isActive !== false;
+  //           }
+
+  //           // Ensure addons & toppings always exist
+  //           item.menuItemData.selectedAddons = item.addons || [];
+  //           item.menuItemData.selectedToppings = item.toppings || [];
+
+  //           return item;
+  //         });
+  //       }
+
+  //       // Get related payments
+  //       const relatedPayments = paymentMap[order.order_id] || [];
+  //       let paymentDetails = null;
+  //       let actualPaymentMethod = order.paymentMethod || 'N/A';
+
+  //       if (order.orderType !== "Reservation") {
+  //         paymentDetails = relatedPayments.find(p =>
+  //           p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
+  //         );
+  //       } else {
+  //         paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+  //           relatedPayments.find(p => p.status === 'partial') ||
+  //           relatedPayments.find(p => p.status === 'settlement') ||
+  //           relatedPayments.find(p =>
+  //             p.paymentType === 'Final Payment' &&
+  //             p.relatedPaymentId &&
+  //             (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
+  //           );
+  //       }
+
+  //       if (paymentDetails) {
+  //         actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
+  //       }
+
+  //       return {
+  //         ...order,
+  //         // Eksplisit include field staff (meskipun null)
+  //         user_id: order.user_id || null,
+  //         cashierId: order.cashierId || null,
+  //         groId: order.groId || null,
+  //         paymentDetails: paymentDetails || null,
+  //         actualPaymentMethod
+  //       };
+  //     });
+
+  //     const response = {
+  //       success: true,
+  //       data: ordersWithPayments,
+  //       metadata: {
+  //         mode: mode,
+  //         filters: {
+  //           status: req.query.status || 'all',
+  //           outlet: req.query.outlet || 'all',
+  //           dateRange: req.query.startDate && req.query.endDate
+  //             ? `${req.query.startDate} to ${req.query.endDate}`
+  //             : 'all',
+  //           search: searchTerm || 'none'
+  //         },
+  //         resultCount: ordersWithPayments.length
+  //       }
+  //     };
+
+  //     if (paginationInfo) {
+  //       response.pagination = paginationInfo;
+  //     }
+
+  //     res.status(200).json(response);
+
+  //   } catch (error) {
+  //     console.error('Get orders with payments error:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to fetch orders with payments',
+  //       error: error.message
+  //     });
+  //   }
+  // }
+
+  // Optimized getOrdersWithPayments untuk export berat
+
+  // SAFER VERSION - Optimized getOrdersWithPayments dengan error handling
+
   async getOrdersWithPayments(req, res) {
     try {
       const page = parseInt(req.query.page) || 1;
@@ -1083,10 +1336,21 @@ class DailyProfitController {
 
       switch (mode) {
         case 'all':
+          console.log('🔄 Fetching ALL orders for export...');
           const allOrdersQuery = buildQuery();
-          allOrdersQuery.maxTimeMS(60000);
-          orders = await allOrdersQuery.exec();
-          totalOrders = orders.length;
+          allOrdersQuery.maxTimeMS(180000); // 3 minutes timeout
+
+          try {
+            orders = await allOrdersQuery.exec();
+            totalOrders = orders.length;
+            console.log(`✅ Fetched ${totalOrders} orders successfully`);
+          } catch (queryError) {
+            console.error('❌ Error in ALL mode query:', queryError);
+            // Fallback: try without maxTimeMS
+            orders = await buildQuery().exec();
+            totalOrders = orders.length;
+            console.log(`✅ Fallback successful: ${totalOrders} orders`);
+          }
           break;
 
         case 'recent':
@@ -1136,11 +1400,22 @@ class DailyProfitController {
       }
 
       // Fetch payments
+      console.log(`🔄 Fetching payments for ${orders.length} orders...`);
       const orderIds = orders.map(order => order.order_id);
-      const allPayments = await Payment.find({
-        order_id: { $in: orderIds }
-      }).lean();
 
+      let allPayments = [];
+      try {
+        allPayments = await Payment.find({
+          order_id: { $in: orderIds }
+        }).lean();
+        console.log(`✅ Fetched ${allPayments.length} payments`);
+      } catch (paymentError) {
+        console.error('❌ Error fetching payments:', paymentError);
+        // Continue without payments
+        allPayments = [];
+      }
+
+      // Build payment map
       const paymentMap = {};
       allPayments.forEach(payment => {
         if (!paymentMap[payment.order_id]) {
@@ -1150,6 +1425,7 @@ class DailyProfitController {
       });
 
       // Process orders with payments
+      console.log(`🔄 Processing ${orders.length} orders...`);
       const ordersWithPayments = orders.map(order => {
         // Ensure menuItemData is properly populated
         if (order.items && Array.isArray(order.items)) {
@@ -1206,9 +1482,14 @@ class DailyProfitController {
           actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
         }
 
+        // FIX: Gunakan afterDiscount untuk grand total yang benar
+        const grandTotal = order.afterDiscount !== undefined && order.afterDiscount !== null
+          ? order.afterDiscount
+          : order.total;
+
         return {
           ...order,
-          // Eksplisit include field staff (meskipun null)
+          grandTotal, // Tambahkan field grandTotal yang sudah termasuk diskon
           user_id: order.user_id || null,
           cashierId: order.cashierId || null,
           groId: order.groId || null,
@@ -1216,6 +1497,8 @@ class DailyProfitController {
           actualPaymentMethod
         };
       });
+
+      console.log(`✅ Successfully processed all orders`);
 
       const response = {
         success: true,
@@ -1241,11 +1524,14 @@ class DailyProfitController {
       res.status(200).json(response);
 
     } catch (error) {
-      console.error('Get orders with payments error:', error);
+      console.error('❌ Get orders with payments error:', error);
+      console.error('❌ Error stack:', error.stack);
+
       res.status(500).json({
         success: false,
         message: 'Failed to fetch orders with payments',
-        error: error.message
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }

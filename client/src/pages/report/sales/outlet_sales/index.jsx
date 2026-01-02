@@ -6,9 +6,16 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import Paginated from "../../../../components/paginated";
 import SalesOutletSkeleton from "./skeleton";
 import { exportOutletSalesExcel } from '../../../../utils/exportOutletSalesExcel';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const OutletSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -37,7 +44,7 @@ const OutletSales = () => {
 
     const [outlets, setOutlets] = useState([]);
     const [salesData, setSalesData] = useState([]);
-    const [allSalesData, setAllSalesData] = useState([]); // Untuk export
+    const [allSalesData, setAllSalesData] = useState([]);
     const [grandTotals, setGrandTotals] = useState({
         totalOutlets: 0,
         totalTransactions: 0,
@@ -56,6 +63,17 @@ const OutletSales = () => {
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [isExporting, setIsExporting] = useState(false);
+
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
 
     // Initialize from URL params
     useEffect(() => {
@@ -66,20 +84,23 @@ const OutletSales = () => {
 
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: startDateParam,
-                endDate: endDateParam,
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            const today = dayjs().format('YYYY-MM-DD');
-            setDateRange({
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
+            const newDateRange = {
                 startDate: today,
                 endDate: today
-            });
+            };
+            setDateRange(newDateRange);
+
+            updateURLParams(newDateRange, outletParam || "", parseInt(pageParam, 10) || 1);
         }
 
         if (outletParam) setSelectedOutlet(outletParam);
         if (pageParam) setCurrentPage(parseInt(pageParam, 10));
-    }, [searchParams]);
+    }, []);
 
     // Fetch outlets (hanya sekali)
     useEffect(() => {
@@ -106,8 +127,8 @@ const OutletSales = () => {
         setLoading(true);
         try {
             const params = {
-                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
-                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD'),
+                startDate: formatDateForAPI(dateRange.startDate),
+                endDate: formatDateForAPI(dateRange.endDate),
                 page: currentPage,
                 limit: 50
             };
@@ -120,7 +141,7 @@ const OutletSales = () => {
 
             if (response.data.success) {
                 setSalesData(response.data.data.items);
-                setAllSalesData(response.data.data.allData); // Simpan semua data untuk export
+                setAllSalesData(response.data.data.allData);
                 setGrandTotals(response.data.data.grandTotal);
                 setPagination(response.data.data.pagination);
             }
@@ -145,8 +166,10 @@ const OutletSales = () => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            params.set('startDate', dayjs(newDateRange.startDate).format('YYYY-MM-DD'));
-            params.set('endDate', dayjs(newDateRange.endDate).format('YYYY-MM-DD'));
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
         }
 
         if (newOutlet) params.set('outletId', newOutlet);
@@ -189,34 +212,43 @@ const OutletSales = () => {
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ], [outlets]);
 
-    // Export to Excel - menggunakan allSalesData yang sudah ada
+    // Export to Excel
     const exportToExcel = async () => {
         if (allSalesData.length === 0) {
             alert('Tidak ada data untuk di-export');
             return;
         }
 
-        const outletName = selectedOutlet
-            ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
-            : 'Semua Outlet';
+        setIsExporting(true);
 
-        const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
-        const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
-        const periodText = `${dayjs(dateRange.startDate).format('DD MMMM YYYY')} - ${dayjs(dateRange.endDate).format('DD MMMM YYYY')}`;
+        try {
+            const outletName = selectedOutlet
+                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
+                : 'Semua Outlet';
 
-        await exportOutletSalesExcel({
-            data: allSalesData,
-            grandTotals,
-            fileName: `Laporan_Penjualan_Per_Outlet_${startDate}_${endDate}.xlsx`,
-            headerInfo: [
-                ['Periode', periodText],
-                ['Outlet', outletName],
-                ['Tanggal Export', dayjs().format('DD MMMM YYYY HH:mm')]
-            ]
-        });
+            const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+            const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
+            const periodText = `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`;
+
+            await exportOutletSalesExcel({
+                data: allSalesData,
+                grandTotals,
+                fileName: `Laporan_Penjualan_Per_Outlet_${startDate}_${endDate}.xlsx`,
+                headerInfo: [
+                    ['Periode', periodText],
+                    ['Outlet', outletName],
+                    ['Tanggal Export', dayjs().format('DD/MM/YYYY HH:mm:ss')]
+                ]
+            });
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            alert("Gagal mengekspor data. Silakan coba lagi.");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
-    if (loading) {
+    if (loading && !dateRange) {
         return <SalesOutletSkeleton />;
     }
 
@@ -250,10 +282,19 @@ const OutletSales = () => {
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={allSalesData.length === 0}
+                    disabled={isExporting || allSalesData.length === 0}
                     className="flex gap-2 items-center bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    <FaDownload /> Ekspor Excel
+                    {isExporting ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            Mengekspor...
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload /> Ekspor Excel
+                        </>
+                    )}
                 </button>
             </div>
 
@@ -300,7 +341,15 @@ const OutletSales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
                             </tr>
                         </thead>
-                        {salesData.length > 0 ? (
+                        {loading ? (
+                            <tbody>
+                                <tr>
+                                    <td colSpan={4} className="text-center py-8">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900 mx-auto"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        ) : salesData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {salesData.map((group, index) => (
                                     <tr key={index} className="hover:bg-gray-50">

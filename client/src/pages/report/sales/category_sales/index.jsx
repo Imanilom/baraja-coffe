@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -8,10 +11,14 @@ import Select from "react-select";
 import SalesCategorySkeleton from "./skeleton";
 import { exportCategorySalesExcel } from "../../../../utils/exportCategorySalesExcel";
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
+
 const CategorySales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Add this missing state variable
     const [groupedArray, setGroupedArray] = useState([]);
 
     const customStyles = {
@@ -58,9 +65,14 @@ const CategorySales = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [grandTotal, setGrandTotal] = useState({ quantity: 0, subtotal: 0 });
 
-    // Helper function to format date for API
     const formatDateForAPI = (date) => {
-        return new Date(date).toISOString().split('T')[0];
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
     };
 
     // Get outlet name for export
@@ -79,15 +91,18 @@ const CategorySales = () => {
 
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: new Date(startDateParam),
-                endDate: new Date(endDateParam),
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            const today = new Date();
-            setDateRange({
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
+            const newDateRange = {
                 startDate: today,
-                endDate: today,
-            });
+                endDate: today
+            };
+            setDateRange(newDateRange);
+
+            updateURLParams(newDateRange, outletParam || "", searchParam || "");
         }
 
         if (outletParam) {
@@ -97,15 +112,15 @@ const CategorySales = () => {
         if (searchParam) {
             setSearchTerm(searchParam);
         }
-    }, [searchParams]);
+    }, []);
 
     // Update URL when filters change
     const updateURLParams = useCallback((newDateRange, newOutlet, newSearch) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -141,7 +156,7 @@ const CategorySales = () => {
         fetchOutlets();
     }, []);
 
-    // Fetch category sales data - AMBIL SEMUA DATA
+    // Fetch category sales data
     useEffect(() => {
         const fetchData = async () => {
             if (!dateRange?.startDate || !dateRange?.endDate) {
@@ -165,18 +180,14 @@ const CategorySales = () => {
                     params.append('category', searchTerm);
                 }
 
-                // ✅ Fetch SEMUA data kategori (backend sudah ambil semua orders)
                 const response = await axios.get(`/api/report/sales-report/transaction-category?${params.toString()}`);
 
-                // ✅ Data sudah di-group dari SEMUA orders
                 const categoryData = Array.isArray(response.data?.data)
                     ? response.data.data
                     : [];
 
-                // ✅ Use setGroupedArray here
                 setGroupedArray(categoryData);
 
-                // ✅ Set grand total dari backend
                 if (response.data?.grandTotal) {
                     setGrandTotal(response.data.grandTotal);
                 }
@@ -185,7 +196,6 @@ const CategorySales = () => {
             } catch (err) {
                 console.error("Error fetching category sales:", err);
                 setError("Failed to load category sales data.");
-                // ✅ Use setGroupedArray here too
                 setGroupedArray([]);
                 setGrandTotal({ quantity: 0, subtotal: 0 });
             } finally {
@@ -232,26 +242,29 @@ const CategorySales = () => {
     const exportToExcel = async () => {
         setIsExporting(true);
 
-        // Get date range
         const dateRangeText = dateRange?.startDate && dateRange?.endDate
-            ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-            : new Date().toLocaleDateString('id-ID');
+            ? `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`
+            : dayjs().format('DD/MM/YYYY');
+
+        const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+        const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
 
         exportCategorySalesExcel({
             data: groupedArray,
             grandTotal,
-            fileName: `Laporan_Penjualan_Kategori_${outletName}_${dateRangeText}.xlsx`,
+            fileName: `Laporan_Penjualan_Kategori_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
             headerInfo: [
                 ["Outlet", outletName],
-                ["Periode", dateRangeText]
+                ["Periode", dateRangeText],
+                ["Tanggal Export", dayjs().format('DD/MM/YYYY HH:mm:ss')]
             ]
         });
-        
+
         setIsExporting(false);
     };
 
     // Show loading state
-    if (loading) {
+    if (loading && !dateRange) {
         return <SalesCategorySkeleton />;
     }
 
@@ -360,19 +373,26 @@ const CategorySales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
                             </tr>
                         </thead>
-                        {groupedArray.length > 0 ? (
+                        {loading ? (
+                            <tbody>
+                                <tr>
+                                    <td colSpan={4} className="text-center py-8">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900 mx-auto"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        ) : groupedArray.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {groupedArray.map((group, index) => {
-                                    // Hitung rata-rata dengan aman
-                                    const average = group.average !== undefined 
-                                        ? group.average 
+                                    const average = group.average !== undefined
+                                        ? group.average
                                         : (group.quantity > 0 && group.subtotal > 0
                                             ? group.subtotal / group.quantity
                                             : 0);
 
                                     return (
-                                        <tr 
-                                            key={`${group.category}-${index}`} 
+                                        <tr
+                                            key={`${group.category}-${index}`}
                                             className="text-left text-sm hover:bg-gray-50 transition-colors duration-150"
                                         >
                                             <td className="px-4 py-3 font-medium">

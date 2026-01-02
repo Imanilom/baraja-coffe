@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -8,6 +11,11 @@ import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import CustomerSalesSkeleton from "./skeleton";
 import { exportCustomerSalesExcel } from '../../../../utils/exportCustomerSalesExcel';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const CustomerSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -76,6 +84,16 @@ const CustomerSales = () => {
 
     const ITEMS_PER_PAGE = 10;
 
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
+
     // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
@@ -86,15 +104,18 @@ const CustomerSales = () => {
 
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: new Date(startDateParam),
-                endDate: new Date(endDateParam),
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            const today = new Date();
-            setDateRange({
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
+            const newDateRange = {
                 startDate: today,
-                endDate: today,
-            });
+                endDate: today
+            };
+            setDateRange(newDateRange);
+
+            updateURLParams(1, searchParam || "", outletParam || "", newDateRange);
         }
 
         if (outletParam) {
@@ -115,8 +136,8 @@ const CustomerSales = () => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -162,8 +183,8 @@ const CustomerSales = () => {
         setLoading(true);
         try {
             const params = {
-                startDate: new Date(dateRange.startDate).toISOString().split('T')[0],
-                endDate: new Date(dateRange.endDate).toISOString().split('T')[0],
+                startDate: formatDateForAPI(dateRange.startDate),
+                endDate: formatDateForAPI(dateRange.endDate),
                 page: currentPage,
                 limit: ITEMS_PER_PAGE
             };
@@ -180,7 +201,7 @@ const CustomerSales = () => {
 
             if (response.data.success) {
                 setCustomerData(response.data.data || []);
-                setAllCustomerData(response.data.allData || []); // Get all data from same response
+                setAllCustomerData(response.data.allData || []);
                 setPagination(response.data.pagination || {
                     totalPages: 0,
                     totalItems: 0,
@@ -285,11 +306,11 @@ const CustomerSales = () => {
                 : 'Semua Outlet';
 
             const dateRangeText = dateRange?.startDate && dateRange?.endDate
-                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-                : new Date().toLocaleDateString('id-ID');
+                ? `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`
+                : dayjs().format('DD/MM/YYYY');
 
-            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+            const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
 
             await exportCustomerSalesExcel({
                 data: allCustomerData,
@@ -298,7 +319,7 @@ const CustomerSales = () => {
                 headerInfo: [
                     ['Outlet', outletName],
                     ['Tanggal', dateRangeText],
-                    ['Tanggal Export', new Date().toLocaleString('id-ID')]
+                    ['Tanggal Export', dayjs().format('DD/MM/YYYY HH:mm:ss')]
                 ]
             });
 

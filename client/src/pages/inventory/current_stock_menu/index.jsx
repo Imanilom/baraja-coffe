@@ -149,7 +149,7 @@ const CurrentStockManagement = () => {
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     <span>Inventori</span>
                     <FaChevronRight />
-                    <span>Stok Masuk</span>
+                    <span>Stok</span>
                 </h1>
                 <div className="flex w-full sm:w-auto px-4 py-2">
                     <ExportInventory

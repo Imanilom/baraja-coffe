@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -8,6 +11,11 @@ import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import DeviceSalesSkeleton from "./skeleton";
 import { exportDeviceSalesExcel } from '../../../../utils/exportDeviceSalesExcel';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const DeviceSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -63,6 +71,16 @@ const DeviceSales = () => {
 
     const ITEMS_PER_PAGE = 50;
 
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
+
     // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
@@ -72,15 +90,18 @@ const DeviceSales = () => {
 
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: new Date(startDateParam),
-                endDate: new Date(endDateParam),
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            const today = new Date();
-            setDateRange({
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
+            const newDateRange = {
                 startDate: today,
-                endDate: today,
-            });
+                endDate: today
+            };
+            setDateRange(newDateRange);
+
+            updateURLParams(newDateRange, outletParam || "", parseInt(pageParam, 10) || 1);
         }
 
         if (outletParam) {
@@ -97,8 +118,8 @@ const DeviceSales = () => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -140,8 +161,8 @@ const DeviceSales = () => {
         setLoading(true);
         try {
             const params = {
-                startDate: new Date(dateRange.startDate).toISOString().split('T')[0],
-                endDate: new Date(dateRange.endDate).toISOString().split('T')[0],
+                startDate: formatDateForAPI(dateRange.startDate),
+                endDate: formatDateForAPI(dateRange.endDate),
             };
 
             if (selectedOutlet) {

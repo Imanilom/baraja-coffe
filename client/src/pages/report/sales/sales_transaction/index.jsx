@@ -486,6 +486,8 @@ const SalesTransaction = () => {
         }
     };
 
+    // SIMPLIFIED & STABLE Export Handler
+
     const handleExport = async () => {
         setIsExporting(true);
 
@@ -494,6 +496,60 @@ const SalesTransaction = () => {
                 await fetchOutlets();
             }
 
+            // 1. GET TOTAL COUNT FIRST
+            console.log('🔄 Step 1: Getting total count...');
+            const countParams = new URLSearchParams();
+            countParams.append('mode', 'count');
+            countParams.append('status', 'Completed');
+
+            if (selectedOutlet) {
+                countParams.append('outlet', selectedOutlet);
+            }
+
+            if (dateRange?.startDate && dateRange?.endDate) {
+                countParams.append('startDate', formatDateForAPI(dateRange.startDate));
+                countParams.append('endDate', formatDateForAPI(dateRange.endDate));
+            }
+
+            if (searchTerm) {
+                countParams.append('search', searchTerm);
+            }
+
+            let totalCount = 0;
+            try {
+                const countResponse = await axios.get(`/api/report/orders?${countParams.toString()}`);
+                totalCount = countResponse.data.count || 0;
+                console.log(`✅ Total count: ${totalCount}`);
+            } catch (countError) {
+                console.error('❌ Error getting count:', countError);
+                alert('Gagal mendapatkan jumlah data. Silakan coba lagi.');
+                setIsExporting(false);
+                return;
+            }
+
+            // 2. VALIDATE DATA SIZE
+            if (totalCount === 0) {
+                alert('Tidak ada data untuk di-export.');
+                setIsExporting(false);
+                return;
+            }
+
+            // Warning untuk data besar
+            if (totalCount > 5000) {
+                const proceed = window.confirm(
+                    `⚠️ Peringatan: Anda akan mengekspor ${totalCount.toLocaleString()} transaksi.\n\n` +
+                    `Data ini cukup besar dan mungkin memakan waktu 2-5 menit.\n\n` +
+                    `Tips: Untuk export lebih cepat, gunakan filter tanggal/outlet yang lebih spesifik.\n\n` +
+                    `Apakah Anda ingin melanjutkan?`
+                );
+                if (!proceed) {
+                    setIsExporting(false);
+                    return;
+                }
+            }
+
+            // 3. FETCH ALL DATA
+            console.log('🔄 Step 2: Fetching all data...');
             const params = new URLSearchParams();
             params.append('mode', 'all');
             params.append('status', 'Completed');
@@ -511,19 +567,50 @@ const SalesTransaction = () => {
                 params.append('search', searchTerm);
             }
 
-            const response = await axios.get(`/api/report/orders?${params.toString()}`, {
-                timeout: 120000
-            });
+            let allData = [];
+            try {
+                const response = await axios.get(`/api/report/orders?${params.toString()}`, {
+                    timeout: 180000 // 3 minutes
+                });
+                allData = Array.isArray(response.data?.data) ? response.data.data : [];
+                console.log(`✅ Fetched ${allData.length} orders`);
+            } catch (fetchError) {
+                console.error('❌ Error fetching data:', fetchError);
 
-            const allData = Array.isArray(response.data?.data) ? response.data.data : [];
+                let errorMsg = 'Gagal mengambil data.\n\n';
+                if (fetchError.code === 'ECONNABORTED') {
+                    errorMsg += 'Timeout: Proses memakan waktu terlalu lama.\n\n' +
+                        'Solusi:\n' +
+                        '• Kurangi range tanggal (misal: per bulan)\n' +
+                        '• Pilih outlet spesifik\n' +
+                        '• Export di waktu server tidak sibuk';
+                } else if (fetchError.response?.status === 500) {
+                    errorMsg += 'Server Error: ' + (fetchError.response?.data?.error || 'Unknown error');
+                } else {
+                    errorMsg += fetchError.message;
+                }
 
-            const expectedCount = searchTerm ? filteredData.length : totalOrders;
-            if (allData.length < expectedCount * 0.9) {
-                console.warn(`⚠️ WARNING: Expected ~${expectedCount} orders but got ${allData.length}`);
+                alert(errorMsg);
+                setIsExporting(false);
+                return;
+            }
+
+            // 4. VALIDATE FETCHED DATA
+            if (allData.length === 0) {
+                alert('Tidak ada data yang berhasil di-fetch.');
+                setIsExporting(false);
+                return;
+            }
+
+            // Validate vs expected count
+            if (allData.length < totalCount * 0.8) {
+                console.warn(`⚠️ WARNING: Expected ${totalCount} but got ${allData.length}`);
                 const proceed = window.confirm(
-                    `Peringatan: Hanya ${allData.length} dari ~${expectedCount} transaksi yang berhasil di-fetch.\n\n` +
-                    `Kemungkinan ada masalah pada backend API atau koneksi.\n\n` +
-                    `Apakah Anda tetap ingin melanjutkan export dengan data yang ada?`
+                    `⚠️ Data tidak lengkap!\n\n` +
+                    `Diharapkan: ${totalCount} transaksi\n` +
+                    `Didapat: ${allData.length} transaksi\n\n` +
+                    `Kemungkinan ada masalah koneksi atau server.\n\n` +
+                    `Apakah tetap ingin melanjutkan export dengan data yang ada?`
                 );
                 if (!proceed) {
                     setIsExporting(false);
@@ -531,35 +618,38 @@ const SalesTransaction = () => {
                 }
             }
 
+            // Filter valid orders
             const validOrders = allData.filter(order => {
-                if (!order.items || !Array.isArray(order.items) || order.items.length === 0) {
-                    console.warn('⚠️ Order without items:', order.order_id);
-                    return false;
-                }
-                return true;
+                return order.items && Array.isArray(order.items) && order.items.length > 0;
             });
 
-            const exportData = validOrders;
-
-            if (exportData.length === 0) {
-                alert('Tidak ada data untuk di-export. Pastikan filter yang dipilih menghasilkan data.');
+            if (validOrders.length === 0) {
+                alert('Tidak ada transaksi valid untuk di-export.');
                 setIsExporting(false);
                 return;
             }
 
+            console.log(`✅ Valid orders: ${validOrders.length}`);
+
+            // 5. PROCESS DATA
+            console.log('🔄 Step 3: Processing data...');
             const formatDateTimeExport = (isoString) => {
                 return dayjs(isoString).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY HH:mm:ss');
             };
 
-            let totalRowsGenerated = 0;
-            const formattedExportData = exportData.flatMap((order) => {
-                try {
-                    if (!order.items || !Array.isArray(order.items)) {
-                        console.warn('⚠️ Invalid order structure:', order.order_id);
-                        return [];
-                    }
+            // Build outlet lookup map
+            const outletMap = {};
+            outlets.forEach(outlet => {
+                outletMap[outlet._id] = outlet;
+            });
 
-                    const outletObj = outlets.find(o => o._id === (order.outlet?._id || order.outlet));
+            const formattedExportData = [];
+
+            // Process each order
+            validOrders.forEach((order, orderIndex) => {
+                try {
+                    const outletId = order.outlet?._id || order.outlet;
+                    const outletObj = outletMap[outletId];
                     const outletName = outletObj?.name || 'Unknown Outlet';
                     const outletCode = outletObj?._id || '-';
 
@@ -568,6 +658,7 @@ const SalesTransaction = () => {
                     const paymentCode = order.paymentDetails?.payment_code || '-';
                     const transactionId = order.paymentDetails?.transaction_id || '-';
 
+                    // Calculate totals
                     const itemsSubtotal = order.items.reduce((acc, item) => {
                         return acc + (Number(item.subtotal) || 0);
                     }, 0);
@@ -577,7 +668,6 @@ const SalesTransaction = () => {
                     }, 0);
 
                     const filteredItemsSubtotal = itemsSubtotal + customAmountSubtotal;
-
                     const proportionalTax = order.totalTax || 0;
                     const proportionalServiceCharge = order.totalServiceFee || 0;
                     const filteredGrandTotal = filteredItemsSubtotal + proportionalTax + proportionalServiceCharge;
@@ -586,7 +676,8 @@ const SalesTransaction = () => {
                         (order.discounts?.manualDiscount || 0) +
                         (order.discounts?.voucherDiscount || 0);
 
-                    const itemRows = order.items.map((item, index) => {
+                    // Process items
+                    order.items.forEach((item, index) => {
                         const itemName = item.menuItemData?.name || item.menuItem?.name || 'Produk tidak diketahui';
                         const itemSKU = item.menuItemData?.sku || item.menuItem?.sku || '-';
                         const itemPrice = item.menuItemData?.price || item.menuItem?.price || 0;
@@ -604,21 +695,11 @@ const SalesTransaction = () => {
                             itemCategory = item.menuItem.mainCategory;
                         }
 
+                        // Build addons
                         const addonLabels = [];
-                        if (Array.isArray(item?.addons)) {
-                            item.addons.forEach(addon => {
-                                if (Array.isArray(addon?.options)) {
-                                    addon.options.forEach(option => {
-                                        if (option?.label) {
-                                            addonLabels.push(option.label);
-                                        }
-                                    });
-                                }
-                            });
-                        }
-
-                        if (Array.isArray(item?.menuItemData?.selectedAddons)) {
-                            item.menuItemData.selectedAddons.forEach(addon => {
+                        const processAddons = (addons) => {
+                            if (!Array.isArray(addons)) return;
+                            addons.forEach(addon => {
                                 if (Array.isArray(addon?.options)) {
                                     addon.options.forEach(option => {
                                         if (option?.label && !addonLabels.includes(option.label)) {
@@ -627,14 +708,16 @@ const SalesTransaction = () => {
                                     });
                                 }
                             });
-                        }
+                        };
 
-                        let fullProductName = itemName;
-                        if (addonLabels.length > 0) {
-                            fullProductName = `${itemName} ( ${addonLabels.join(', ')} )`;
-                        }
+                        processAddons(item?.addons);
+                        processAddons(item?.menuItemData?.selectedAddons);
 
-                        return {
+                        const fullProductName = addonLabels.length > 0
+                            ? `${itemName} ( ${addonLabels.join(', ')} )`
+                            : itemName;
+
+                        formattedExportData.push({
                             "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
                             "ID Struk": order.order_id || '-',
                             "Status Order": order.status || '-',
@@ -665,13 +748,14 @@ const SalesTransaction = () => {
                             "Transaction ID": index === 0 ? transactionId : '',
                             "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
                             "Kode Voucher": order.appliedVoucher?.code || '-'
-                        };
+                        });
                     });
 
-                    const customAmountRows = (order.customAmountItems || []).map((customItem, index) => {
+                    // Process custom amount items
+                    (order.customAmountItems || []).forEach((customItem, index) => {
                         const isFirstRow = index === 0 && order.items.length === 0;
 
-                        return {
+                        formattedExportData.push({
                             "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
                             "ID Struk": order.order_id || '-',
                             "Status Order": order.status || '-',
@@ -702,23 +786,29 @@ const SalesTransaction = () => {
                             "Transaction ID": isFirstRow ? transactionId : '',
                             "Pembayaran": isFirstRow ? Math.round(filteredGrandTotal) : '',
                             "Kode Voucher": order.appliedVoucher?.code || '-'
-                        };
+                        });
                     });
 
-                    totalRowsGenerated += itemRows.length + customAmountRows.length;
-                    return [...itemRows, ...customAmountRows];
+                    // Progress log every 100 orders
+                    if ((orderIndex + 1) % 100 === 0) {
+                        console.log(`Processing: ${orderIndex + 1}/${validOrders.length}`);
+                    }
+
                 } catch (err) {
-                    console.error('❌ Error processing order:', order.order_id, err);
-                    return [];
+                    console.error('Error processing order:', order.order_id, err);
                 }
             });
 
             if (formattedExportData.length === 0) {
-                alert('Tidak ada data untuk di-export setelah processing. Periksa struktur data order.');
+                alert('Tidak ada data untuk di-export setelah processing.');
                 setIsExporting(false);
                 return;
             }
 
+            console.log(`✅ Processed ${formattedExportData.length} rows`);
+
+            // 6. GENERATE EXCEL
+            console.log('🔄 Step 4: Generating Excel file...');
             const formatDate = (dateObj) => {
                 if (!dateObj) return "semua-tanggal";
                 return dayjs(dateObj).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY');
@@ -736,7 +826,7 @@ const SalesTransaction = () => {
                 ["Tanggal", `${startLabel} - ${endLabel}`],
                 ["Outlet", outletLabel],
                 ["Status Transaksi", "Completed"],
-                ["Total Transaksi", `${exportData.length} transaksi`],
+                ["Total Transaksi", `${validOrders.length} transaksi`],
                 ["Total Baris Data", `${formattedExportData.length} baris`],
             ];
 
@@ -744,21 +834,19 @@ const SalesTransaction = () => {
                 headerInfo.splice(2, 0, ["Filter Pencarian", searchTerm]);
             }
 
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            exportToExcel(formattedExportData, fileName, headerInfo);
-
-        } catch (error) {
-            console.error('❌ Error exporting:', error);
-            let errorMessage = 'Terjadi kesalahan saat mengekspor data: ' + error.message;
-
-            if (error.code === 'ECONNABORTED') {
-                errorMessage = 'Timeout: Waktu export terlalu lama. Coba kurangi range tanggal atau filter data.';
-            } else if (error.response?.status === 504) {
-                errorMessage = 'Gateway Timeout: Server membutuhkan waktu terlalu lama. Coba kurangi jumlah data.';
+            try {
+                await exportToExcel(formattedExportData, fileName, headerInfo);
+                console.log(`✅ Export completed successfully!`);
+                alert(`✅ Export berhasil!\n\n${validOrders.length} transaksi telah diekspor ke file:\n${fileName}`);
+            } catch (excelError) {
+                console.error('❌ Error generating Excel:', excelError);
+                alert('Gagal membuat file Excel.\n\n' + excelError.message);
             }
 
-            alert(errorMessage);
+        } catch (error) {
+            console.error('❌ Export error:', error);
+            alert('Terjadi kesalahan saat export.\n\n' + error.message);
+
         } finally {
             setIsExporting(false);
         }
