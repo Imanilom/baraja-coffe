@@ -670,11 +670,12 @@ const SalesTransaction = () => {
                     const filteredItemsSubtotal = itemsSubtotal + customAmountSubtotal;
                     const proportionalTax = order.totalTax || 0;
                     const proportionalServiceCharge = order.totalServiceFee || 0;
-                    const filteredGrandTotal = filteredItemsSubtotal + proportionalTax + proportionalServiceCharge;
-
                     const totalDiscount = (order.discounts?.autoPromoDiscount || 0) +
                         (order.discounts?.manualDiscount || 0) +
                         (order.discounts?.voucherDiscount || 0);
+
+                    const filteredGrandTotal = order.grandTotal;
+
 
                     // Process items
                     order.items.forEach((item, index) => {
