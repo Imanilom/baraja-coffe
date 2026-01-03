@@ -8,21 +8,19 @@ part 'auto_promo.model.g.dart';
 @freezed
 @HiveType(typeId: 11)
 abstract class AutoPromoModel with _$AutoPromoModel {
-  const factory AutoPromoModel({
+  factory AutoPromoModel({
     @HiveField(0) @JsonKey(name: '_id') required String id,
     @HiveField(1) required String name,
     @HiveField(2) required String promoType,
-    @HiveField(3) @Default(0) int? discount,
-    @HiveField(4) @Default(0) int? bundlePrice,
-    @HiveField(5) @Default(null) Conditions? conditions,
-    @HiveField(6) @Default(null) ActiveHours? activeHours,
-    @HiveField(7) required Outlet outlet,
-    @HiveField(8) required String createdBy,
-    @HiveField(9) required DateTime validFrom,
-    @HiveField(10) required DateTime validTo,
-    @HiveField(11) @Default(false) bool? isActive,
-    @HiveField(12) required DateTime createdAt,
-    @HiveField(13) required DateTime updatedAt,
+    @HiveField(3) @Default(0) int discount,
+    @HiveField(4) int? bundlePrice,
+    @HiveField(5) required PromoConditionsModel conditions,
+    @HiveField(6) required ActiveHoursModel activeHours,
+    @HiveField(7) required String validFrom,
+    @HiveField(8) required String validTo,
+    @HiveField(9) @Default(false) bool isActive,
+    @HiveField(10) String? consumerType,
+    @HiveField(11) OutletModel? outlet,
   }) = _AutoPromoModel;
 
   factory AutoPromoModel.fromJson(Map<String, dynamic> json) =>
@@ -31,78 +29,79 @@ abstract class AutoPromoModel with _$AutoPromoModel {
 
 @freezed
 @HiveType(typeId: 12)
-abstract class Conditions with _$Conditions {
-  const factory Conditions({
-    @HiveField(0) @Default([]) List<BundleProduct>? bundleProducts,
-    @HiveField(1) @Default([]) List<ProductCondition>? products,
-    @HiveField(2) @Default(0) int? minQuantity,
-    @HiveField(3) @Default(0) int? minTotal,
-    @HiveField(4) ProductCondition? buyProduct,
-    @HiveField(5) ProductCondition? getProduct,
-  }) = _Conditions;
+abstract class PromoConditionsModel with _$PromoConditionsModel {
+  factory PromoConditionsModel({
+    @HiveField(0) @Default([]) List<PromoProductModel> products,
+    @HiveField(1) @Default([]) List<BundleProductModel> bundleProducts,
+    @HiveField(2) int? minQuantity, // untuk discount_on_quantity
+    @HiveField(3) int? minTotal, // untuk discount_on_total
+    @HiveField(4) PromoProductModel? buyProduct, // untuk buy_x_get_y
+    @HiveField(5) PromoProductModel? getProduct, // untuk buy_x_get_y
+  }) = _PromoConditionsModel;
 
-  factory Conditions.fromJson(Map<String, dynamic> json) =>
-      _$ConditionsFromJson(json);
+  factory PromoConditionsModel.fromJson(Map<String, dynamic> json) =>
+      _$PromoConditionsModelFromJson(json);
 }
 
 @freezed
 @HiveType(typeId: 27)
-abstract class BundleProduct with _$BundleProduct {
-  const factory BundleProduct({
-    @HiveField(0) required ProductCondition product,
-    @HiveField(1) @Default(1) int? quantity,
-    @HiveField(2) @JsonKey(name: '_id') String? id,
-  }) = _BundleProduct;
+abstract class BundleProductModel with _$BundleProductModel {
+  factory BundleProductModel({
+    @HiveField(0) @JsonKey(name: '_id') String? id,
+    @HiveField(1) required PromoProductModel product,
+    @HiveField(2) required int quantity,
+  }) = _BundleProductModel;
 
-  factory BundleProduct.fromJson(Map<String, dynamic> json) =>
-      _$BundleProductFromJson(json);
+  factory BundleProductModel.fromJson(Map<String, dynamic> json) =>
+      _$BundleProductModelFromJson(json);
 }
 
 @freezed
 @HiveType(typeId: 30)
-abstract class ProductCondition with _$ProductCondition {
-  const factory ProductCondition({
+abstract class PromoProductModel with _$PromoProductModel {
+  factory PromoProductModel({
     @HiveField(0) @JsonKey(name: '_id') required String id,
     @HiveField(1) required String name,
-  }) = _ProductCondition;
+  }) = _PromoProductModel;
 
-  factory ProductCondition.fromJson(Map<String, dynamic> json) =>
-      _$ProductConditionFromJson(json);
+  factory PromoProductModel.fromJson(Map<String, dynamic> json) =>
+      _$PromoProductModelFromJson(json);
 }
 
 @freezed
 @HiveType(typeId: 31)
-abstract class ActiveHours with _$ActiveHours {
-  const factory ActiveHours({
-    @HiveField(0) @Default(false) bool? isEnabled,
-    @HiveField(1) @Default([]) List<Schedule>? schedule,
-  }) = _ActiveHours;
+abstract class ActiveHoursModel with _$ActiveHoursModel {
+  factory ActiveHoursModel({
+    @HiveField(0) @Default(false) bool isEnabled,
+    @HiveField(1) @Default([]) List<ScheduleModel> schedule,
+  }) = _ActiveHoursModel;
 
-  factory ActiveHours.fromJson(Map<String, dynamic> json) =>
-      _$ActiveHoursFromJson(json);
+  factory ActiveHoursModel.fromJson(Map<String, dynamic> json) =>
+      _$ActiveHoursModelFromJson(json);
 }
 
 @freezed
 @HiveType(typeId: 32)
-abstract class Schedule with _$Schedule {
-  const factory Schedule({
-    @HiveField(0) required int dayOfWeek,
-    @HiveField(1) required String startTime,
-    @HiveField(2) required String endTime,
-    @HiveField(3) @JsonKey(name: '_id') String? id,
-  }) = _Schedule;
+abstract class ScheduleModel with _$ScheduleModel {
+  factory ScheduleModel({
+    @HiveField(0) @JsonKey(name: '_id') String? id,
+    @HiveField(1) required int dayOfWeek, // 0=Minggu, 6=Sabtu
+    @HiveField(2) required String startTime, // format "HH:mm"
+    @HiveField(3) required String endTime,
+  }) = _ScheduleModel;
 
-  factory Schedule.fromJson(Map<String, dynamic> json) =>
-      _$ScheduleFromJson(json);
+  factory ScheduleModel.fromJson(Map<String, dynamic> json) =>
+      _$ScheduleModelFromJson(json);
 }
 
 @freezed
 @HiveType(typeId: 33)
-abstract class Outlet with _$Outlet {
-  const factory Outlet({
+abstract class OutletModel with _$OutletModel {
+  factory OutletModel({
     @HiveField(0) @JsonKey(name: '_id') required String id,
     @HiveField(1) required String name,
-  }) = _Outlet;
+  }) = _OutletModel;
 
-  factory Outlet.fromJson(Map<String, dynamic> json) => _$OutletFromJson(json);
+  factory OutletModel.fromJson(Map<String, dynamic> json) =>
+      _$OutletModelFromJson(json);
 }

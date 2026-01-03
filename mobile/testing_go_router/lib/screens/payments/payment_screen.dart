@@ -487,7 +487,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     notifier.setPayments(_payments);
 
     try {
-      final result = await notifier.submitOrder(ref);
+      final result = await notifier.submitOrder();
       debugPrint('submitOrder took: ${sw.elapsedMilliseconds}ms');
 
       // idealnya submitOrder balikin sesuatu: success / response

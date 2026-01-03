@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AutoPromoModel {
 
-@HiveField(0)@JsonKey(name: '_id') String get id;@HiveField(1) String get name;@HiveField(2) String get promoType;@HiveField(3) int? get discount;@HiveField(4) int? get bundlePrice;@HiveField(5) Conditions? get conditions;@HiveField(6) ActiveHours? get activeHours;@HiveField(7) Outlet get outlet;@HiveField(8) String get createdBy;@HiveField(9) DateTime get validFrom;@HiveField(10) DateTime get validTo;@HiveField(11) bool? get isActive;@HiveField(12) DateTime get createdAt;@HiveField(13) DateTime get updatedAt;
+@HiveField(0)@JsonKey(name: '_id') String get id;@HiveField(1) String get name;@HiveField(2) String get promoType;@HiveField(3) int get discount;@HiveField(4) int? get bundlePrice;@HiveField(5) PromoConditionsModel get conditions;@HiveField(6) ActiveHoursModel get activeHours;@HiveField(7) String get validFrom;@HiveField(8) String get validTo;@HiveField(9) bool get isActive;@HiveField(10) String? get consumerType;@HiveField(11) OutletModel? get outlet;
 /// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $AutoPromoModelCopyWith<AutoPromoModel> get copyWith => _$AutoPromoModelCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AutoPromoModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.promoType, promoType) || other.promoType == promoType)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.bundlePrice, bundlePrice) || other.bundlePrice == bundlePrice)&&(identical(other.conditions, conditions) || other.conditions == conditions)&&(identical(other.activeHours, activeHours) || other.activeHours == activeHours)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.createdBy, createdBy) || other.createdBy == createdBy)&&(identical(other.validFrom, validFrom) || other.validFrom == validFrom)&&(identical(other.validTo, validTo) || other.validTo == validTo)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AutoPromoModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.promoType, promoType) || other.promoType == promoType)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.bundlePrice, bundlePrice) || other.bundlePrice == bundlePrice)&&(identical(other.conditions, conditions) || other.conditions == conditions)&&(identical(other.activeHours, activeHours) || other.activeHours == activeHours)&&(identical(other.validFrom, validFrom) || other.validFrom == validFrom)&&(identical(other.validTo, validTo) || other.validTo == validTo)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.consumerType, consumerType) || other.consumerType == consumerType)&&(identical(other.outlet, outlet) || other.outlet == outlet));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,promoType,discount,bundlePrice,conditions,activeHours,outlet,createdBy,validFrom,validTo,isActive,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,name,promoType,discount,bundlePrice,conditions,activeHours,validFrom,validTo,isActive,consumerType,outlet);
 
 @override
 String toString() {
-  return 'AutoPromoModel(id: $id, name: $name, promoType: $promoType, discount: $discount, bundlePrice: $bundlePrice, conditions: $conditions, activeHours: $activeHours, outlet: $outlet, createdBy: $createdBy, validFrom: $validFrom, validTo: $validTo, isActive: $isActive, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'AutoPromoModel(id: $id, name: $name, promoType: $promoType, discount: $discount, bundlePrice: $bundlePrice, conditions: $conditions, activeHours: $activeHours, validFrom: $validFrom, validTo: $validTo, isActive: $isActive, consumerType: $consumerType, outlet: $outlet)';
 }
 
 
@@ -48,11 +48,11 @@ abstract mixin class $AutoPromoModelCopyWith<$Res>  {
   factory $AutoPromoModelCopyWith(AutoPromoModel value, $Res Function(AutoPromoModel) _then) = _$AutoPromoModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name,@HiveField(2) String promoType,@HiveField(3) int? discount,@HiveField(4) int? bundlePrice,@HiveField(5) Conditions? conditions,@HiveField(6) ActiveHours? activeHours,@HiveField(7) Outlet outlet,@HiveField(8) String createdBy,@HiveField(9) DateTime validFrom,@HiveField(10) DateTime validTo,@HiveField(11) bool? isActive,@HiveField(12) DateTime createdAt,@HiveField(13) DateTime updatedAt
+@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name,@HiveField(2) String promoType,@HiveField(3) int discount,@HiveField(4) int? bundlePrice,@HiveField(5) PromoConditionsModel conditions,@HiveField(6) ActiveHoursModel activeHours,@HiveField(7) String validFrom,@HiveField(8) String validTo,@HiveField(9) bool isActive,@HiveField(10) String? consumerType,@HiveField(11) OutletModel? outlet
 });
 
 
-$ConditionsCopyWith<$Res>? get conditions;$ActiveHoursCopyWith<$Res>? get activeHours;$OutletCopyWith<$Res> get outlet;
+$PromoConditionsModelCopyWith<$Res> get conditions;$ActiveHoursModelCopyWith<$Res> get activeHours;$OutletModelCopyWith<$Res>? get outlet;
 
 }
 /// @nodoc
@@ -65,56 +65,51 @@ class _$AutoPromoModelCopyWithImpl<$Res>
 
 /// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? promoType = null,Object? discount = freezed,Object? bundlePrice = freezed,Object? conditions = freezed,Object? activeHours = freezed,Object? outlet = null,Object? createdBy = null,Object? validFrom = null,Object? validTo = null,Object? isActive = freezed,Object? createdAt = null,Object? updatedAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? promoType = null,Object? discount = null,Object? bundlePrice = freezed,Object? conditions = null,Object? activeHours = null,Object? validFrom = null,Object? validTo = null,Object? isActive = null,Object? consumerType = freezed,Object? outlet = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,promoType: null == promoType ? _self.promoType : promoType // ignore: cast_nullable_to_non_nullable
-as String,discount: freezed == discount ? _self.discount : discount // ignore: cast_nullable_to_non_nullable
-as int?,bundlePrice: freezed == bundlePrice ? _self.bundlePrice : bundlePrice // ignore: cast_nullable_to_non_nullable
-as int?,conditions: freezed == conditions ? _self.conditions : conditions // ignore: cast_nullable_to_non_nullable
-as Conditions?,activeHours: freezed == activeHours ? _self.activeHours : activeHours // ignore: cast_nullable_to_non_nullable
-as ActiveHours?,outlet: null == outlet ? _self.outlet : outlet // ignore: cast_nullable_to_non_nullable
-as Outlet,createdBy: null == createdBy ? _self.createdBy : createdBy // ignore: cast_nullable_to_non_nullable
-as String,validFrom: null == validFrom ? _self.validFrom : validFrom // ignore: cast_nullable_to_non_nullable
-as DateTime,validTo: null == validTo ? _self.validTo : validTo // ignore: cast_nullable_to_non_nullable
-as DateTime,isActive: freezed == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
-as bool?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as String,discount: null == discount ? _self.discount : discount // ignore: cast_nullable_to_non_nullable
+as int,bundlePrice: freezed == bundlePrice ? _self.bundlePrice : bundlePrice // ignore: cast_nullable_to_non_nullable
+as int?,conditions: null == conditions ? _self.conditions : conditions // ignore: cast_nullable_to_non_nullable
+as PromoConditionsModel,activeHours: null == activeHours ? _self.activeHours : activeHours // ignore: cast_nullable_to_non_nullable
+as ActiveHoursModel,validFrom: null == validFrom ? _self.validFrom : validFrom // ignore: cast_nullable_to_non_nullable
+as String,validTo: null == validTo ? _self.validTo : validTo // ignore: cast_nullable_to_non_nullable
+as String,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
+as bool,consumerType: freezed == consumerType ? _self.consumerType : consumerType // ignore: cast_nullable_to_non_nullable
+as String?,outlet: freezed == outlet ? _self.outlet : outlet // ignore: cast_nullable_to_non_nullable
+as OutletModel?,
   ));
 }
 /// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ConditionsCopyWith<$Res>? get conditions {
-    if (_self.conditions == null) {
-    return null;
-  }
-
-  return $ConditionsCopyWith<$Res>(_self.conditions!, (value) {
+$PromoConditionsModelCopyWith<$Res> get conditions {
+  
+  return $PromoConditionsModelCopyWith<$Res>(_self.conditions, (value) {
     return _then(_self.copyWith(conditions: value));
   });
 }/// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ActiveHoursCopyWith<$Res>? get activeHours {
-    if (_self.activeHours == null) {
-    return null;
-  }
-
-  return $ActiveHoursCopyWith<$Res>(_self.activeHours!, (value) {
+$ActiveHoursModelCopyWith<$Res> get activeHours {
+  
+  return $ActiveHoursModelCopyWith<$Res>(_self.activeHours, (value) {
     return _then(_self.copyWith(activeHours: value));
   });
 }/// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$OutletCopyWith<$Res> get outlet {
-  
-  return $OutletCopyWith<$Res>(_self.outlet, (value) {
+$OutletModelCopyWith<$Res>? get outlet {
+    if (_self.outlet == null) {
+    return null;
+  }
+
+  return $OutletModelCopyWith<$Res>(_self.outlet!, (value) {
     return _then(_self.copyWith(outlet: value));
   });
 }
@@ -199,10 +194,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  Conditions? conditions, @HiveField(6)  ActiveHours? activeHours, @HiveField(7)  Outlet outlet, @HiveField(8)  String createdBy, @HiveField(9)  DateTime validFrom, @HiveField(10)  DateTime validTo, @HiveField(11)  bool? isActive, @HiveField(12)  DateTime createdAt, @HiveField(13)  DateTime updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  String validFrom, @HiveField(8)  String validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AutoPromoModel() when $default != null:
-return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.outlet,_that.createdBy,_that.validFrom,_that.validTo,_that.isActive,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.validFrom,_that.validTo,_that.isActive,_that.consumerType,_that.outlet);case _:
   return orElse();
 
 }
@@ -220,10 +215,10 @@ return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundleP
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  Conditions? conditions, @HiveField(6)  ActiveHours? activeHours, @HiveField(7)  Outlet outlet, @HiveField(8)  String createdBy, @HiveField(9)  DateTime validFrom, @HiveField(10)  DateTime validTo, @HiveField(11)  bool? isActive, @HiveField(12)  DateTime createdAt, @HiveField(13)  DateTime updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  String validFrom, @HiveField(8)  String validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)  $default,) {final _that = this;
 switch (_that) {
 case _AutoPromoModel():
-return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.outlet,_that.createdBy,_that.validFrom,_that.validTo,_that.isActive,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.validFrom,_that.validTo,_that.isActive,_that.consumerType,_that.outlet);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -240,10 +235,10 @@ return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundleP
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  Conditions? conditions, @HiveField(6)  ActiveHours? activeHours, @HiveField(7)  Outlet outlet, @HiveField(8)  String createdBy, @HiveField(9)  DateTime validFrom, @HiveField(10)  DateTime validTo, @HiveField(11)  bool? isActive, @HiveField(12)  DateTime createdAt, @HiveField(13)  DateTime updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  String validFrom, @HiveField(8)  String validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)?  $default,) {final _that = this;
 switch (_that) {
 case _AutoPromoModel() when $default != null:
-return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.outlet,_that.createdBy,_that.validFrom,_that.validTo,_that.isActive,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.validFrom,_that.validTo,_that.isActive,_that.consumerType,_that.outlet);case _:
   return null;
 
 }
@@ -255,23 +250,21 @@ return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundleP
 @JsonSerializable()
 
 class _AutoPromoModel implements AutoPromoModel {
-  const _AutoPromoModel({@HiveField(0)@JsonKey(name: '_id') required this.id, @HiveField(1) required this.name, @HiveField(2) required this.promoType, @HiveField(3) this.discount = 0, @HiveField(4) this.bundlePrice = 0, @HiveField(5) this.conditions = null, @HiveField(6) this.activeHours = null, @HiveField(7) required this.outlet, @HiveField(8) required this.createdBy, @HiveField(9) required this.validFrom, @HiveField(10) required this.validTo, @HiveField(11) this.isActive = false, @HiveField(12) required this.createdAt, @HiveField(13) required this.updatedAt});
+   _AutoPromoModel({@HiveField(0)@JsonKey(name: '_id') required this.id, @HiveField(1) required this.name, @HiveField(2) required this.promoType, @HiveField(3) this.discount = 0, @HiveField(4) this.bundlePrice, @HiveField(5) required this.conditions, @HiveField(6) required this.activeHours, @HiveField(7) required this.validFrom, @HiveField(8) required this.validTo, @HiveField(9) this.isActive = false, @HiveField(10) this.consumerType, @HiveField(11) this.outlet});
   factory _AutoPromoModel.fromJson(Map<String, dynamic> json) => _$AutoPromoModelFromJson(json);
 
 @override@HiveField(0)@JsonKey(name: '_id') final  String id;
 @override@HiveField(1) final  String name;
 @override@HiveField(2) final  String promoType;
-@override@JsonKey()@HiveField(3) final  int? discount;
-@override@JsonKey()@HiveField(4) final  int? bundlePrice;
-@override@JsonKey()@HiveField(5) final  Conditions? conditions;
-@override@JsonKey()@HiveField(6) final  ActiveHours? activeHours;
-@override@HiveField(7) final  Outlet outlet;
-@override@HiveField(8) final  String createdBy;
-@override@HiveField(9) final  DateTime validFrom;
-@override@HiveField(10) final  DateTime validTo;
-@override@JsonKey()@HiveField(11) final  bool? isActive;
-@override@HiveField(12) final  DateTime createdAt;
-@override@HiveField(13) final  DateTime updatedAt;
+@override@JsonKey()@HiveField(3) final  int discount;
+@override@HiveField(4) final  int? bundlePrice;
+@override@HiveField(5) final  PromoConditionsModel conditions;
+@override@HiveField(6) final  ActiveHoursModel activeHours;
+@override@HiveField(7) final  String validFrom;
+@override@HiveField(8) final  String validTo;
+@override@JsonKey()@HiveField(9) final  bool isActive;
+@override@HiveField(10) final  String? consumerType;
+@override@HiveField(11) final  OutletModel? outlet;
 
 /// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
@@ -286,16 +279,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AutoPromoModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.promoType, promoType) || other.promoType == promoType)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.bundlePrice, bundlePrice) || other.bundlePrice == bundlePrice)&&(identical(other.conditions, conditions) || other.conditions == conditions)&&(identical(other.activeHours, activeHours) || other.activeHours == activeHours)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.createdBy, createdBy) || other.createdBy == createdBy)&&(identical(other.validFrom, validFrom) || other.validFrom == validFrom)&&(identical(other.validTo, validTo) || other.validTo == validTo)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AutoPromoModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.promoType, promoType) || other.promoType == promoType)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.bundlePrice, bundlePrice) || other.bundlePrice == bundlePrice)&&(identical(other.conditions, conditions) || other.conditions == conditions)&&(identical(other.activeHours, activeHours) || other.activeHours == activeHours)&&(identical(other.validFrom, validFrom) || other.validFrom == validFrom)&&(identical(other.validTo, validTo) || other.validTo == validTo)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.consumerType, consumerType) || other.consumerType == consumerType)&&(identical(other.outlet, outlet) || other.outlet == outlet));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,promoType,discount,bundlePrice,conditions,activeHours,outlet,createdBy,validFrom,validTo,isActive,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,name,promoType,discount,bundlePrice,conditions,activeHours,validFrom,validTo,isActive,consumerType,outlet);
 
 @override
 String toString() {
-  return 'AutoPromoModel(id: $id, name: $name, promoType: $promoType, discount: $discount, bundlePrice: $bundlePrice, conditions: $conditions, activeHours: $activeHours, outlet: $outlet, createdBy: $createdBy, validFrom: $validFrom, validTo: $validTo, isActive: $isActive, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'AutoPromoModel(id: $id, name: $name, promoType: $promoType, discount: $discount, bundlePrice: $bundlePrice, conditions: $conditions, activeHours: $activeHours, validFrom: $validFrom, validTo: $validTo, isActive: $isActive, consumerType: $consumerType, outlet: $outlet)';
 }
 
 
@@ -306,11 +299,11 @@ abstract mixin class _$AutoPromoModelCopyWith<$Res> implements $AutoPromoModelCo
   factory _$AutoPromoModelCopyWith(_AutoPromoModel value, $Res Function(_AutoPromoModel) _then) = __$AutoPromoModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name,@HiveField(2) String promoType,@HiveField(3) int? discount,@HiveField(4) int? bundlePrice,@HiveField(5) Conditions? conditions,@HiveField(6) ActiveHours? activeHours,@HiveField(7) Outlet outlet,@HiveField(8) String createdBy,@HiveField(9) DateTime validFrom,@HiveField(10) DateTime validTo,@HiveField(11) bool? isActive,@HiveField(12) DateTime createdAt,@HiveField(13) DateTime updatedAt
+@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name,@HiveField(2) String promoType,@HiveField(3) int discount,@HiveField(4) int? bundlePrice,@HiveField(5) PromoConditionsModel conditions,@HiveField(6) ActiveHoursModel activeHours,@HiveField(7) String validFrom,@HiveField(8) String validTo,@HiveField(9) bool isActive,@HiveField(10) String? consumerType,@HiveField(11) OutletModel? outlet
 });
 
 
-@override $ConditionsCopyWith<$Res>? get conditions;@override $ActiveHoursCopyWith<$Res>? get activeHours;@override $OutletCopyWith<$Res> get outlet;
+@override $PromoConditionsModelCopyWith<$Res> get conditions;@override $ActiveHoursModelCopyWith<$Res> get activeHours;@override $OutletModelCopyWith<$Res>? get outlet;
 
 }
 /// @nodoc
@@ -323,23 +316,21 @@ class __$AutoPromoModelCopyWithImpl<$Res>
 
 /// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? promoType = null,Object? discount = freezed,Object? bundlePrice = freezed,Object? conditions = freezed,Object? activeHours = freezed,Object? outlet = null,Object? createdBy = null,Object? validFrom = null,Object? validTo = null,Object? isActive = freezed,Object? createdAt = null,Object? updatedAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? promoType = null,Object? discount = null,Object? bundlePrice = freezed,Object? conditions = null,Object? activeHours = null,Object? validFrom = null,Object? validTo = null,Object? isActive = null,Object? consumerType = freezed,Object? outlet = freezed,}) {
   return _then(_AutoPromoModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,promoType: null == promoType ? _self.promoType : promoType // ignore: cast_nullable_to_non_nullable
-as String,discount: freezed == discount ? _self.discount : discount // ignore: cast_nullable_to_non_nullable
-as int?,bundlePrice: freezed == bundlePrice ? _self.bundlePrice : bundlePrice // ignore: cast_nullable_to_non_nullable
-as int?,conditions: freezed == conditions ? _self.conditions : conditions // ignore: cast_nullable_to_non_nullable
-as Conditions?,activeHours: freezed == activeHours ? _self.activeHours : activeHours // ignore: cast_nullable_to_non_nullable
-as ActiveHours?,outlet: null == outlet ? _self.outlet : outlet // ignore: cast_nullable_to_non_nullable
-as Outlet,createdBy: null == createdBy ? _self.createdBy : createdBy // ignore: cast_nullable_to_non_nullable
-as String,validFrom: null == validFrom ? _self.validFrom : validFrom // ignore: cast_nullable_to_non_nullable
-as DateTime,validTo: null == validTo ? _self.validTo : validTo // ignore: cast_nullable_to_non_nullable
-as DateTime,isActive: freezed == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
-as bool?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as String,discount: null == discount ? _self.discount : discount // ignore: cast_nullable_to_non_nullable
+as int,bundlePrice: freezed == bundlePrice ? _self.bundlePrice : bundlePrice // ignore: cast_nullable_to_non_nullable
+as int?,conditions: null == conditions ? _self.conditions : conditions // ignore: cast_nullable_to_non_nullable
+as PromoConditionsModel,activeHours: null == activeHours ? _self.activeHours : activeHours // ignore: cast_nullable_to_non_nullable
+as ActiveHoursModel,validFrom: null == validFrom ? _self.validFrom : validFrom // ignore: cast_nullable_to_non_nullable
+as String,validTo: null == validTo ? _self.validTo : validTo // ignore: cast_nullable_to_non_nullable
+as String,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
+as bool,consumerType: freezed == consumerType ? _self.consumerType : consumerType // ignore: cast_nullable_to_non_nullable
+as String?,outlet: freezed == outlet ? _self.outlet : outlet // ignore: cast_nullable_to_non_nullable
+as OutletModel?,
   ));
 }
 
@@ -347,33 +338,30 @@ as DateTime,
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ConditionsCopyWith<$Res>? get conditions {
-    if (_self.conditions == null) {
-    return null;
-  }
-
-  return $ConditionsCopyWith<$Res>(_self.conditions!, (value) {
+$PromoConditionsModelCopyWith<$Res> get conditions {
+  
+  return $PromoConditionsModelCopyWith<$Res>(_self.conditions, (value) {
     return _then(_self.copyWith(conditions: value));
   });
 }/// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ActiveHoursCopyWith<$Res>? get activeHours {
-    if (_self.activeHours == null) {
-    return null;
-  }
-
-  return $ActiveHoursCopyWith<$Res>(_self.activeHours!, (value) {
+$ActiveHoursModelCopyWith<$Res> get activeHours {
+  
+  return $ActiveHoursModelCopyWith<$Res>(_self.activeHours, (value) {
     return _then(_self.copyWith(activeHours: value));
   });
 }/// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$OutletCopyWith<$Res> get outlet {
-  
-  return $OutletCopyWith<$Res>(_self.outlet, (value) {
+$OutletModelCopyWith<$Res>? get outlet {
+    if (_self.outlet == null) {
+    return null;
+  }
+
+  return $OutletModelCopyWith<$Res>(_self.outlet!, (value) {
     return _then(_self.copyWith(outlet: value));
   });
 }
@@ -381,99 +369,102 @@ $OutletCopyWith<$Res> get outlet {
 
 
 /// @nodoc
-mixin _$Conditions {
+mixin _$PromoConditionsModel {
 
-@HiveField(0) List<BundleProduct>? get bundleProducts;@HiveField(1) List<ProductCondition>? get products;@HiveField(2) int? get minQuantity;@HiveField(3) int? get minTotal;@HiveField(4) ProductCondition? get buyProduct;@HiveField(5) ProductCondition? get getProduct;
-/// Create a copy of Conditions
+@HiveField(0) List<PromoProductModel> get products;@HiveField(1) List<BundleProductModel> get bundleProducts;@HiveField(2) int? get minQuantity;// untuk discount_on_quantity
+@HiveField(3) int? get minTotal;// untuk discount_on_total
+@HiveField(4) PromoProductModel? get buyProduct;// untuk buy_x_get_y
+@HiveField(5) PromoProductModel? get getProduct;
+/// Create a copy of PromoConditionsModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$ConditionsCopyWith<Conditions> get copyWith => _$ConditionsCopyWithImpl<Conditions>(this as Conditions, _$identity);
+$PromoConditionsModelCopyWith<PromoConditionsModel> get copyWith => _$PromoConditionsModelCopyWithImpl<PromoConditionsModel>(this as PromoConditionsModel, _$identity);
 
-  /// Serializes this Conditions to a JSON map.
+  /// Serializes this PromoConditionsModel to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Conditions&&const DeepCollectionEquality().equals(other.bundleProducts, bundleProducts)&&const DeepCollectionEquality().equals(other.products, products)&&(identical(other.minQuantity, minQuantity) || other.minQuantity == minQuantity)&&(identical(other.minTotal, minTotal) || other.minTotal == minTotal)&&(identical(other.buyProduct, buyProduct) || other.buyProduct == buyProduct)&&(identical(other.getProduct, getProduct) || other.getProduct == getProduct));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PromoConditionsModel&&const DeepCollectionEquality().equals(other.products, products)&&const DeepCollectionEquality().equals(other.bundleProducts, bundleProducts)&&(identical(other.minQuantity, minQuantity) || other.minQuantity == minQuantity)&&(identical(other.minTotal, minTotal) || other.minTotal == minTotal)&&(identical(other.buyProduct, buyProduct) || other.buyProduct == buyProduct)&&(identical(other.getProduct, getProduct) || other.getProduct == getProduct));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(bundleProducts),const DeepCollectionEquality().hash(products),minQuantity,minTotal,buyProduct,getProduct);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(products),const DeepCollectionEquality().hash(bundleProducts),minQuantity,minTotal,buyProduct,getProduct);
 
 @override
 String toString() {
-  return 'Conditions(bundleProducts: $bundleProducts, products: $products, minQuantity: $minQuantity, minTotal: $minTotal, buyProduct: $buyProduct, getProduct: $getProduct)';
+  return 'PromoConditionsModel(products: $products, bundleProducts: $bundleProducts, minQuantity: $minQuantity, minTotal: $minTotal, buyProduct: $buyProduct, getProduct: $getProduct)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $ConditionsCopyWith<$Res>  {
-  factory $ConditionsCopyWith(Conditions value, $Res Function(Conditions) _then) = _$ConditionsCopyWithImpl;
+abstract mixin class $PromoConditionsModelCopyWith<$Res>  {
+  factory $PromoConditionsModelCopyWith(PromoConditionsModel value, $Res Function(PromoConditionsModel) _then) = _$PromoConditionsModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) List<BundleProduct>? bundleProducts,@HiveField(1) List<ProductCondition>? products,@HiveField(2) int? minQuantity,@HiveField(3) int? minTotal,@HiveField(4) ProductCondition? buyProduct,@HiveField(5) ProductCondition? getProduct
+@HiveField(0) List<PromoProductModel> products,@HiveField(1) List<BundleProductModel> bundleProducts,@HiveField(2) int? minQuantity,@HiveField(3) int? minTotal,@HiveField(4) PromoProductModel? buyProduct,@HiveField(5) PromoProductModel? getProduct
 });
 
 
-$ProductConditionCopyWith<$Res>? get buyProduct;$ProductConditionCopyWith<$Res>? get getProduct;
+$PromoProductModelCopyWith<$Res>? get buyProduct;$PromoProductModelCopyWith<$Res>? get getProduct;
 
 }
 /// @nodoc
-class _$ConditionsCopyWithImpl<$Res>
-    implements $ConditionsCopyWith<$Res> {
-  _$ConditionsCopyWithImpl(this._self, this._then);
+class _$PromoConditionsModelCopyWithImpl<$Res>
+    implements $PromoConditionsModelCopyWith<$Res> {
+  _$PromoConditionsModelCopyWithImpl(this._self, this._then);
 
-  final Conditions _self;
-  final $Res Function(Conditions) _then;
+  final PromoConditionsModel _self;
+  final $Res Function(PromoConditionsModel) _then;
 
-/// Create a copy of Conditions
+/// Create a copy of PromoConditionsModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? bundleProducts = freezed,Object? products = freezed,Object? minQuantity = freezed,Object? minTotal = freezed,Object? buyProduct = freezed,Object? getProduct = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? products = null,Object? bundleProducts = null,Object? minQuantity = freezed,Object? minTotal = freezed,Object? buyProduct = freezed,Object? getProduct = freezed,}) {
   return _then(_self.copyWith(
-bundleProducts: freezed == bundleProducts ? _self.bundleProducts : bundleProducts // ignore: cast_nullable_to_non_nullable
-as List<BundleProduct>?,products: freezed == products ? _self.products : products // ignore: cast_nullable_to_non_nullable
-as List<ProductCondition>?,minQuantity: freezed == minQuantity ? _self.minQuantity : minQuantity // ignore: cast_nullable_to_non_nullable
+products: null == products ? _self.products : products // ignore: cast_nullable_to_non_nullable
+as List<PromoProductModel>,bundleProducts: null == bundleProducts ? _self.bundleProducts : bundleProducts // ignore: cast_nullable_to_non_nullable
+as List<BundleProductModel>,minQuantity: freezed == minQuantity ? _self.minQuantity : minQuantity // ignore: cast_nullable_to_non_nullable
 as int?,minTotal: freezed == minTotal ? _self.minTotal : minTotal // ignore: cast_nullable_to_non_nullable
 as int?,buyProduct: freezed == buyProduct ? _self.buyProduct : buyProduct // ignore: cast_nullable_to_non_nullable
-as ProductCondition?,getProduct: freezed == getProduct ? _self.getProduct : getProduct // ignore: cast_nullable_to_non_nullable
-as ProductCondition?,
+as PromoProductModel?,getProduct: freezed == getProduct ? _self.getProduct : getProduct // ignore: cast_nullable_to_non_nullable
+as PromoProductModel?,
   ));
 }
-/// Create a copy of Conditions
+/// Create a copy of PromoConditionsModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ProductConditionCopyWith<$Res>? get buyProduct {
+$PromoProductModelCopyWith<$Res>? get buyProduct {
     if (_self.buyProduct == null) {
     return null;
   }
 
-  return $ProductConditionCopyWith<$Res>(_self.buyProduct!, (value) {
+  return $PromoProductModelCopyWith<$Res>(_self.buyProduct!, (value) {
     return _then(_self.copyWith(buyProduct: value));
   });
-}/// Create a copy of Conditions
+}/// Create a copy of PromoConditionsModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ProductConditionCopyWith<$Res>? get getProduct {
+$PromoProductModelCopyWith<$Res>? get getProduct {
     if (_self.getProduct == null) {
     return null;
   }
 
-  return $ProductConditionCopyWith<$Res>(_self.getProduct!, (value) {
+  return $PromoProductModelCopyWith<$Res>(_self.getProduct!, (value) {
     return _then(_self.copyWith(getProduct: value));
   });
 }
 }
 
 
-/// Adds pattern-matching-related methods to [Conditions].
-extension ConditionsPatterns on Conditions {
+/// Adds pattern-matching-related methods to [PromoConditionsModel].
+extension PromoConditionsModelPatterns on PromoConditionsModel {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -486,10 +477,10 @@ extension ConditionsPatterns on Conditions {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _Conditions value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _PromoConditionsModel value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _Conditions() when $default != null:
+case _PromoConditionsModel() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -508,10 +499,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _Conditions value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _PromoConditionsModel value)  $default,){
 final _that = this;
 switch (_that) {
-case _Conditions():
+case _PromoConditionsModel():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -529,10 +520,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _Conditions value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _PromoConditionsModel value)?  $default,){
 final _that = this;
 switch (_that) {
-case _Conditions() when $default != null:
+case _PromoConditionsModel() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -550,10 +541,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  List<BundleProduct>? bundleProducts, @HiveField(1)  List<ProductCondition>? products, @HiveField(2)  int? minQuantity, @HiveField(3)  int? minTotal, @HiveField(4)  ProductCondition? buyProduct, @HiveField(5)  ProductCondition? getProduct)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  List<PromoProductModel> products, @HiveField(1)  List<BundleProductModel> bundleProducts, @HiveField(2)  int? minQuantity, @HiveField(3)  int? minTotal, @HiveField(4)  PromoProductModel? buyProduct, @HiveField(5)  PromoProductModel? getProduct)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _Conditions() when $default != null:
-return $default(_that.bundleProducts,_that.products,_that.minQuantity,_that.minTotal,_that.buyProduct,_that.getProduct);case _:
+case _PromoConditionsModel() when $default != null:
+return $default(_that.products,_that.bundleProducts,_that.minQuantity,_that.minTotal,_that.buyProduct,_that.getProduct);case _:
   return orElse();
 
 }
@@ -571,10 +562,10 @@ return $default(_that.bundleProducts,_that.products,_that.minQuantity,_that.minT
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  List<BundleProduct>? bundleProducts, @HiveField(1)  List<ProductCondition>? products, @HiveField(2)  int? minQuantity, @HiveField(3)  int? minTotal, @HiveField(4)  ProductCondition? buyProduct, @HiveField(5)  ProductCondition? getProduct)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  List<PromoProductModel> products, @HiveField(1)  List<BundleProductModel> bundleProducts, @HiveField(2)  int? minQuantity, @HiveField(3)  int? minTotal, @HiveField(4)  PromoProductModel? buyProduct, @HiveField(5)  PromoProductModel? getProduct)  $default,) {final _that = this;
 switch (_that) {
-case _Conditions():
-return $default(_that.bundleProducts,_that.products,_that.minQuantity,_that.minTotal,_that.buyProduct,_that.getProduct);case _:
+case _PromoConditionsModel():
+return $default(_that.products,_that.bundleProducts,_that.minQuantity,_that.minTotal,_that.buyProduct,_that.getProduct);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -591,10 +582,10 @@ return $default(_that.bundleProducts,_that.products,_that.minQuantity,_that.minT
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  List<BundleProduct>? bundleProducts, @HiveField(1)  List<ProductCondition>? products, @HiveField(2)  int? minQuantity, @HiveField(3)  int? minTotal, @HiveField(4)  ProductCondition? buyProduct, @HiveField(5)  ProductCondition? getProduct)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  List<PromoProductModel> products, @HiveField(1)  List<BundleProductModel> bundleProducts, @HiveField(2)  int? minQuantity, @HiveField(3)  int? minTotal, @HiveField(4)  PromoProductModel? buyProduct, @HiveField(5)  PromoProductModel? getProduct)?  $default,) {final _that = this;
 switch (_that) {
-case _Conditions() when $default != null:
-return $default(_that.bundleProducts,_that.products,_that.minQuantity,_that.minTotal,_that.buyProduct,_that.getProduct);case _:
+case _PromoConditionsModel() when $default != null:
+return $default(_that.products,_that.bundleProducts,_that.minQuantity,_that.minTotal,_that.buyProduct,_that.getProduct);case _:
   return null;
 
 }
@@ -605,117 +596,116 @@ return $default(_that.bundleProducts,_that.products,_that.minQuantity,_that.minT
 /// @nodoc
 @JsonSerializable()
 
-class _Conditions implements Conditions {
-  const _Conditions({@HiveField(0) final  List<BundleProduct>? bundleProducts = const [], @HiveField(1) final  List<ProductCondition>? products = const [], @HiveField(2) this.minQuantity = 0, @HiveField(3) this.minTotal = 0, @HiveField(4) this.buyProduct, @HiveField(5) this.getProduct}): _bundleProducts = bundleProducts,_products = products;
-  factory _Conditions.fromJson(Map<String, dynamic> json) => _$ConditionsFromJson(json);
+class _PromoConditionsModel implements PromoConditionsModel {
+   _PromoConditionsModel({@HiveField(0) final  List<PromoProductModel> products = const [], @HiveField(1) final  List<BundleProductModel> bundleProducts = const [], @HiveField(2) this.minQuantity, @HiveField(3) this.minTotal, @HiveField(4) this.buyProduct, @HiveField(5) this.getProduct}): _products = products,_bundleProducts = bundleProducts;
+  factory _PromoConditionsModel.fromJson(Map<String, dynamic> json) => _$PromoConditionsModelFromJson(json);
 
- final  List<BundleProduct>? _bundleProducts;
-@override@JsonKey()@HiveField(0) List<BundleProduct>? get bundleProducts {
-  final value = _bundleProducts;
-  if (value == null) return null;
-  if (_bundleProducts is EqualUnmodifiableListView) return _bundleProducts;
-  // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(value);
-}
-
- final  List<ProductCondition>? _products;
-@override@JsonKey()@HiveField(1) List<ProductCondition>? get products {
-  final value = _products;
-  if (value == null) return null;
+ final  List<PromoProductModel> _products;
+@override@JsonKey()@HiveField(0) List<PromoProductModel> get products {
   if (_products is EqualUnmodifiableListView) return _products;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(value);
+  return EqualUnmodifiableListView(_products);
 }
 
-@override@JsonKey()@HiveField(2) final  int? minQuantity;
-@override@JsonKey()@HiveField(3) final  int? minTotal;
-@override@HiveField(4) final  ProductCondition? buyProduct;
-@override@HiveField(5) final  ProductCondition? getProduct;
+ final  List<BundleProductModel> _bundleProducts;
+@override@JsonKey()@HiveField(1) List<BundleProductModel> get bundleProducts {
+  if (_bundleProducts is EqualUnmodifiableListView) return _bundleProducts;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_bundleProducts);
+}
 
-/// Create a copy of Conditions
+@override@HiveField(2) final  int? minQuantity;
+// untuk discount_on_quantity
+@override@HiveField(3) final  int? minTotal;
+// untuk discount_on_total
+@override@HiveField(4) final  PromoProductModel? buyProduct;
+// untuk buy_x_get_y
+@override@HiveField(5) final  PromoProductModel? getProduct;
+
+/// Create a copy of PromoConditionsModel
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$ConditionsCopyWith<_Conditions> get copyWith => __$ConditionsCopyWithImpl<_Conditions>(this, _$identity);
+_$PromoConditionsModelCopyWith<_PromoConditionsModel> get copyWith => __$PromoConditionsModelCopyWithImpl<_PromoConditionsModel>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$ConditionsToJson(this, );
+  return _$PromoConditionsModelToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Conditions&&const DeepCollectionEquality().equals(other._bundleProducts, _bundleProducts)&&const DeepCollectionEquality().equals(other._products, _products)&&(identical(other.minQuantity, minQuantity) || other.minQuantity == minQuantity)&&(identical(other.minTotal, minTotal) || other.minTotal == minTotal)&&(identical(other.buyProduct, buyProduct) || other.buyProduct == buyProduct)&&(identical(other.getProduct, getProduct) || other.getProduct == getProduct));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PromoConditionsModel&&const DeepCollectionEquality().equals(other._products, _products)&&const DeepCollectionEquality().equals(other._bundleProducts, _bundleProducts)&&(identical(other.minQuantity, minQuantity) || other.minQuantity == minQuantity)&&(identical(other.minTotal, minTotal) || other.minTotal == minTotal)&&(identical(other.buyProduct, buyProduct) || other.buyProduct == buyProduct)&&(identical(other.getProduct, getProduct) || other.getProduct == getProduct));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_bundleProducts),const DeepCollectionEquality().hash(_products),minQuantity,minTotal,buyProduct,getProduct);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_products),const DeepCollectionEquality().hash(_bundleProducts),minQuantity,minTotal,buyProduct,getProduct);
 
 @override
 String toString() {
-  return 'Conditions(bundleProducts: $bundleProducts, products: $products, minQuantity: $minQuantity, minTotal: $minTotal, buyProduct: $buyProduct, getProduct: $getProduct)';
+  return 'PromoConditionsModel(products: $products, bundleProducts: $bundleProducts, minQuantity: $minQuantity, minTotal: $minTotal, buyProduct: $buyProduct, getProduct: $getProduct)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$ConditionsCopyWith<$Res> implements $ConditionsCopyWith<$Res> {
-  factory _$ConditionsCopyWith(_Conditions value, $Res Function(_Conditions) _then) = __$ConditionsCopyWithImpl;
+abstract mixin class _$PromoConditionsModelCopyWith<$Res> implements $PromoConditionsModelCopyWith<$Res> {
+  factory _$PromoConditionsModelCopyWith(_PromoConditionsModel value, $Res Function(_PromoConditionsModel) _then) = __$PromoConditionsModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) List<BundleProduct>? bundleProducts,@HiveField(1) List<ProductCondition>? products,@HiveField(2) int? minQuantity,@HiveField(3) int? minTotal,@HiveField(4) ProductCondition? buyProduct,@HiveField(5) ProductCondition? getProduct
+@HiveField(0) List<PromoProductModel> products,@HiveField(1) List<BundleProductModel> bundleProducts,@HiveField(2) int? minQuantity,@HiveField(3) int? minTotal,@HiveField(4) PromoProductModel? buyProduct,@HiveField(5) PromoProductModel? getProduct
 });
 
 
-@override $ProductConditionCopyWith<$Res>? get buyProduct;@override $ProductConditionCopyWith<$Res>? get getProduct;
+@override $PromoProductModelCopyWith<$Res>? get buyProduct;@override $PromoProductModelCopyWith<$Res>? get getProduct;
 
 }
 /// @nodoc
-class __$ConditionsCopyWithImpl<$Res>
-    implements _$ConditionsCopyWith<$Res> {
-  __$ConditionsCopyWithImpl(this._self, this._then);
+class __$PromoConditionsModelCopyWithImpl<$Res>
+    implements _$PromoConditionsModelCopyWith<$Res> {
+  __$PromoConditionsModelCopyWithImpl(this._self, this._then);
 
-  final _Conditions _self;
-  final $Res Function(_Conditions) _then;
+  final _PromoConditionsModel _self;
+  final $Res Function(_PromoConditionsModel) _then;
 
-/// Create a copy of Conditions
+/// Create a copy of PromoConditionsModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? bundleProducts = freezed,Object? products = freezed,Object? minQuantity = freezed,Object? minTotal = freezed,Object? buyProduct = freezed,Object? getProduct = freezed,}) {
-  return _then(_Conditions(
-bundleProducts: freezed == bundleProducts ? _self._bundleProducts : bundleProducts // ignore: cast_nullable_to_non_nullable
-as List<BundleProduct>?,products: freezed == products ? _self._products : products // ignore: cast_nullable_to_non_nullable
-as List<ProductCondition>?,minQuantity: freezed == minQuantity ? _self.minQuantity : minQuantity // ignore: cast_nullable_to_non_nullable
+@override @pragma('vm:prefer-inline') $Res call({Object? products = null,Object? bundleProducts = null,Object? minQuantity = freezed,Object? minTotal = freezed,Object? buyProduct = freezed,Object? getProduct = freezed,}) {
+  return _then(_PromoConditionsModel(
+products: null == products ? _self._products : products // ignore: cast_nullable_to_non_nullable
+as List<PromoProductModel>,bundleProducts: null == bundleProducts ? _self._bundleProducts : bundleProducts // ignore: cast_nullable_to_non_nullable
+as List<BundleProductModel>,minQuantity: freezed == minQuantity ? _self.minQuantity : minQuantity // ignore: cast_nullable_to_non_nullable
 as int?,minTotal: freezed == minTotal ? _self.minTotal : minTotal // ignore: cast_nullable_to_non_nullable
 as int?,buyProduct: freezed == buyProduct ? _self.buyProduct : buyProduct // ignore: cast_nullable_to_non_nullable
-as ProductCondition?,getProduct: freezed == getProduct ? _self.getProduct : getProduct // ignore: cast_nullable_to_non_nullable
-as ProductCondition?,
+as PromoProductModel?,getProduct: freezed == getProduct ? _self.getProduct : getProduct // ignore: cast_nullable_to_non_nullable
+as PromoProductModel?,
   ));
 }
 
-/// Create a copy of Conditions
+/// Create a copy of PromoConditionsModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ProductConditionCopyWith<$Res>? get buyProduct {
+$PromoProductModelCopyWith<$Res>? get buyProduct {
     if (_self.buyProduct == null) {
     return null;
   }
 
-  return $ProductConditionCopyWith<$Res>(_self.buyProduct!, (value) {
+  return $PromoProductModelCopyWith<$Res>(_self.buyProduct!, (value) {
     return _then(_self.copyWith(buyProduct: value));
   });
-}/// Create a copy of Conditions
+}/// Create a copy of PromoConditionsModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ProductConditionCopyWith<$Res>? get getProduct {
+$PromoProductModelCopyWith<$Res>? get getProduct {
     if (_self.getProduct == null) {
     return null;
   }
 
-  return $ProductConditionCopyWith<$Res>(_self.getProduct!, (value) {
+  return $PromoProductModelCopyWith<$Res>(_self.getProduct!, (value) {
     return _then(_self.copyWith(getProduct: value));
   });
 }
@@ -723,81 +713,81 @@ $ProductConditionCopyWith<$Res>? get getProduct {
 
 
 /// @nodoc
-mixin _$BundleProduct {
+mixin _$BundleProductModel {
 
-@HiveField(0) ProductCondition get product;@HiveField(1) int? get quantity;@HiveField(2)@JsonKey(name: '_id') String? get id;
-/// Create a copy of BundleProduct
+@HiveField(0)@JsonKey(name: '_id') String? get id;@HiveField(1) PromoProductModel get product;@HiveField(2) int get quantity;
+/// Create a copy of BundleProductModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$BundleProductCopyWith<BundleProduct> get copyWith => _$BundleProductCopyWithImpl<BundleProduct>(this as BundleProduct, _$identity);
+$BundleProductModelCopyWith<BundleProductModel> get copyWith => _$BundleProductModelCopyWithImpl<BundleProductModel>(this as BundleProductModel, _$identity);
 
-  /// Serializes this BundleProduct to a JSON map.
+  /// Serializes this BundleProductModel to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BundleProduct&&(identical(other.product, product) || other.product == product)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.id, id) || other.id == id));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BundleProductModel&&(identical(other.id, id) || other.id == id)&&(identical(other.product, product) || other.product == product)&&(identical(other.quantity, quantity) || other.quantity == quantity));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,product,quantity,id);
+int get hashCode => Object.hash(runtimeType,id,product,quantity);
 
 @override
 String toString() {
-  return 'BundleProduct(product: $product, quantity: $quantity, id: $id)';
+  return 'BundleProductModel(id: $id, product: $product, quantity: $quantity)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $BundleProductCopyWith<$Res>  {
-  factory $BundleProductCopyWith(BundleProduct value, $Res Function(BundleProduct) _then) = _$BundleProductCopyWithImpl;
+abstract mixin class $BundleProductModelCopyWith<$Res>  {
+  factory $BundleProductModelCopyWith(BundleProductModel value, $Res Function(BundleProductModel) _then) = _$BundleProductModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) ProductCondition product,@HiveField(1) int? quantity,@HiveField(2)@JsonKey(name: '_id') String? id
+@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) PromoProductModel product,@HiveField(2) int quantity
 });
 
 
-$ProductConditionCopyWith<$Res> get product;
+$PromoProductModelCopyWith<$Res> get product;
 
 }
 /// @nodoc
-class _$BundleProductCopyWithImpl<$Res>
-    implements $BundleProductCopyWith<$Res> {
-  _$BundleProductCopyWithImpl(this._self, this._then);
+class _$BundleProductModelCopyWithImpl<$Res>
+    implements $BundleProductModelCopyWith<$Res> {
+  _$BundleProductModelCopyWithImpl(this._self, this._then);
 
-  final BundleProduct _self;
-  final $Res Function(BundleProduct) _then;
+  final BundleProductModel _self;
+  final $Res Function(BundleProductModel) _then;
 
-/// Create a copy of BundleProduct
+/// Create a copy of BundleProductModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? product = null,Object? quantity = freezed,Object? id = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? product = null,Object? quantity = null,}) {
   return _then(_self.copyWith(
-product: null == product ? _self.product : product // ignore: cast_nullable_to_non_nullable
-as ProductCondition,quantity: freezed == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
-as int?,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String?,
+id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String?,product: null == product ? _self.product : product // ignore: cast_nullable_to_non_nullable
+as PromoProductModel,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
-/// Create a copy of BundleProduct
+/// Create a copy of BundleProductModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ProductConditionCopyWith<$Res> get product {
+$PromoProductModelCopyWith<$Res> get product {
   
-  return $ProductConditionCopyWith<$Res>(_self.product, (value) {
+  return $PromoProductModelCopyWith<$Res>(_self.product, (value) {
     return _then(_self.copyWith(product: value));
   });
 }
 }
 
 
-/// Adds pattern-matching-related methods to [BundleProduct].
-extension BundleProductPatterns on BundleProduct {
+/// Adds pattern-matching-related methods to [BundleProductModel].
+extension BundleProductModelPatterns on BundleProductModel {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -810,10 +800,10 @@ extension BundleProductPatterns on BundleProduct {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _BundleProduct value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _BundleProductModel value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _BundleProduct() when $default != null:
+case _BundleProductModel() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -832,10 +822,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _BundleProduct value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _BundleProductModel value)  $default,){
 final _that = this;
 switch (_that) {
-case _BundleProduct():
+case _BundleProductModel():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -853,10 +843,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _BundleProduct value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _BundleProductModel value)?  $default,){
 final _that = this;
 switch (_that) {
-case _BundleProduct() when $default != null:
+case _BundleProductModel() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -874,10 +864,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  ProductCondition product, @HiveField(1)  int? quantity, @HiveField(2)@JsonKey(name: '_id')  String? id)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String? id, @HiveField(1)  PromoProductModel product, @HiveField(2)  int quantity)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _BundleProduct() when $default != null:
-return $default(_that.product,_that.quantity,_that.id);case _:
+case _BundleProductModel() when $default != null:
+return $default(_that.id,_that.product,_that.quantity);case _:
   return orElse();
 
 }
@@ -895,10 +885,10 @@ return $default(_that.product,_that.quantity,_that.id);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  ProductCondition product, @HiveField(1)  int? quantity, @HiveField(2)@JsonKey(name: '_id')  String? id)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String? id, @HiveField(1)  PromoProductModel product, @HiveField(2)  int quantity)  $default,) {final _that = this;
 switch (_that) {
-case _BundleProduct():
-return $default(_that.product,_that.quantity,_that.id);case _:
+case _BundleProductModel():
+return $default(_that.id,_that.product,_that.quantity);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -915,10 +905,10 @@ return $default(_that.product,_that.quantity,_that.id);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  ProductCondition product, @HiveField(1)  int? quantity, @HiveField(2)@JsonKey(name: '_id')  String? id)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String? id, @HiveField(1)  PromoProductModel product, @HiveField(2)  int quantity)?  $default,) {final _that = this;
 switch (_that) {
-case _BundleProduct() when $default != null:
-return $default(_that.product,_that.quantity,_that.id);case _:
+case _BundleProductModel() when $default != null:
+return $default(_that.id,_that.product,_that.quantity);case _:
   return null;
 
 }
@@ -929,80 +919,80 @@ return $default(_that.product,_that.quantity,_that.id);case _:
 /// @nodoc
 @JsonSerializable()
 
-class _BundleProduct implements BundleProduct {
-  const _BundleProduct({@HiveField(0) required this.product, @HiveField(1) this.quantity = 1, @HiveField(2)@JsonKey(name: '_id') this.id});
-  factory _BundleProduct.fromJson(Map<String, dynamic> json) => _$BundleProductFromJson(json);
+class _BundleProductModel implements BundleProductModel {
+   _BundleProductModel({@HiveField(0)@JsonKey(name: '_id') this.id, @HiveField(1) required this.product, @HiveField(2) required this.quantity});
+  factory _BundleProductModel.fromJson(Map<String, dynamic> json) => _$BundleProductModelFromJson(json);
 
-@override@HiveField(0) final  ProductCondition product;
-@override@JsonKey()@HiveField(1) final  int? quantity;
-@override@HiveField(2)@JsonKey(name: '_id') final  String? id;
+@override@HiveField(0)@JsonKey(name: '_id') final  String? id;
+@override@HiveField(1) final  PromoProductModel product;
+@override@HiveField(2) final  int quantity;
 
-/// Create a copy of BundleProduct
+/// Create a copy of BundleProductModel
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$BundleProductCopyWith<_BundleProduct> get copyWith => __$BundleProductCopyWithImpl<_BundleProduct>(this, _$identity);
+_$BundleProductModelCopyWith<_BundleProductModel> get copyWith => __$BundleProductModelCopyWithImpl<_BundleProductModel>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$BundleProductToJson(this, );
+  return _$BundleProductModelToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BundleProduct&&(identical(other.product, product) || other.product == product)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.id, id) || other.id == id));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BundleProductModel&&(identical(other.id, id) || other.id == id)&&(identical(other.product, product) || other.product == product)&&(identical(other.quantity, quantity) || other.quantity == quantity));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,product,quantity,id);
+int get hashCode => Object.hash(runtimeType,id,product,quantity);
 
 @override
 String toString() {
-  return 'BundleProduct(product: $product, quantity: $quantity, id: $id)';
+  return 'BundleProductModel(id: $id, product: $product, quantity: $quantity)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$BundleProductCopyWith<$Res> implements $BundleProductCopyWith<$Res> {
-  factory _$BundleProductCopyWith(_BundleProduct value, $Res Function(_BundleProduct) _then) = __$BundleProductCopyWithImpl;
+abstract mixin class _$BundleProductModelCopyWith<$Res> implements $BundleProductModelCopyWith<$Res> {
+  factory _$BundleProductModelCopyWith(_BundleProductModel value, $Res Function(_BundleProductModel) _then) = __$BundleProductModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) ProductCondition product,@HiveField(1) int? quantity,@HiveField(2)@JsonKey(name: '_id') String? id
+@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) PromoProductModel product,@HiveField(2) int quantity
 });
 
 
-@override $ProductConditionCopyWith<$Res> get product;
+@override $PromoProductModelCopyWith<$Res> get product;
 
 }
 /// @nodoc
-class __$BundleProductCopyWithImpl<$Res>
-    implements _$BundleProductCopyWith<$Res> {
-  __$BundleProductCopyWithImpl(this._self, this._then);
+class __$BundleProductModelCopyWithImpl<$Res>
+    implements _$BundleProductModelCopyWith<$Res> {
+  __$BundleProductModelCopyWithImpl(this._self, this._then);
 
-  final _BundleProduct _self;
-  final $Res Function(_BundleProduct) _then;
+  final _BundleProductModel _self;
+  final $Res Function(_BundleProductModel) _then;
 
-/// Create a copy of BundleProduct
+/// Create a copy of BundleProductModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? product = null,Object? quantity = freezed,Object? id = freezed,}) {
-  return _then(_BundleProduct(
-product: null == product ? _self.product : product // ignore: cast_nullable_to_non_nullable
-as ProductCondition,quantity: freezed == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
-as int?,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String?,
+@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? product = null,Object? quantity = null,}) {
+  return _then(_BundleProductModel(
+id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String?,product: null == product ? _self.product : product // ignore: cast_nullable_to_non_nullable
+as PromoProductModel,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 
-/// Create a copy of BundleProduct
+/// Create a copy of BundleProductModel
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$ProductConditionCopyWith<$Res> get product {
+$PromoProductModelCopyWith<$Res> get product {
   
-  return $ProductConditionCopyWith<$Res>(_self.product, (value) {
+  return $PromoProductModelCopyWith<$Res>(_self.product, (value) {
     return _then(_self.copyWith(product: value));
   });
 }
@@ -1010,22 +1000,22 @@ $ProductConditionCopyWith<$Res> get product {
 
 
 /// @nodoc
-mixin _$ProductCondition {
+mixin _$PromoProductModel {
 
 @HiveField(0)@JsonKey(name: '_id') String get id;@HiveField(1) String get name;
-/// Create a copy of ProductCondition
+/// Create a copy of PromoProductModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$ProductConditionCopyWith<ProductCondition> get copyWith => _$ProductConditionCopyWithImpl<ProductCondition>(this as ProductCondition, _$identity);
+$PromoProductModelCopyWith<PromoProductModel> get copyWith => _$PromoProductModelCopyWithImpl<PromoProductModel>(this as PromoProductModel, _$identity);
 
-  /// Serializes this ProductCondition to a JSON map.
+  /// Serializes this PromoProductModel to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductCondition&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PromoProductModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1034,15 +1024,15 @@ int get hashCode => Object.hash(runtimeType,id,name);
 
 @override
 String toString() {
-  return 'ProductCondition(id: $id, name: $name)';
+  return 'PromoProductModel(id: $id, name: $name)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $ProductConditionCopyWith<$Res>  {
-  factory $ProductConditionCopyWith(ProductCondition value, $Res Function(ProductCondition) _then) = _$ProductConditionCopyWithImpl;
+abstract mixin class $PromoProductModelCopyWith<$Res>  {
+  factory $PromoProductModelCopyWith(PromoProductModel value, $Res Function(PromoProductModel) _then) = _$PromoProductModelCopyWithImpl;
 @useResult
 $Res call({
 @HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name
@@ -1053,14 +1043,14 @@ $Res call({
 
 }
 /// @nodoc
-class _$ProductConditionCopyWithImpl<$Res>
-    implements $ProductConditionCopyWith<$Res> {
-  _$ProductConditionCopyWithImpl(this._self, this._then);
+class _$PromoProductModelCopyWithImpl<$Res>
+    implements $PromoProductModelCopyWith<$Res> {
+  _$PromoProductModelCopyWithImpl(this._self, this._then);
 
-  final ProductCondition _self;
-  final $Res Function(ProductCondition) _then;
+  final PromoProductModel _self;
+  final $Res Function(PromoProductModel) _then;
 
-/// Create a copy of ProductCondition
+/// Create a copy of PromoProductModel
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,}) {
   return _then(_self.copyWith(
@@ -1073,8 +1063,8 @@ as String,
 }
 
 
-/// Adds pattern-matching-related methods to [ProductCondition].
-extension ProductConditionPatterns on ProductCondition {
+/// Adds pattern-matching-related methods to [PromoProductModel].
+extension PromoProductModelPatterns on PromoProductModel {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -1087,10 +1077,10 @@ extension ProductConditionPatterns on ProductCondition {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ProductCondition value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _PromoProductModel value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _ProductCondition() when $default != null:
+case _PromoProductModel() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -1109,10 +1099,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ProductCondition value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _PromoProductModel value)  $default,){
 final _that = this;
 switch (_that) {
-case _ProductCondition():
+case _PromoProductModel():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -1130,10 +1120,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ProductCondition value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _PromoProductModel value)?  $default,){
 final _that = this;
 switch (_that) {
-case _ProductCondition() when $default != null:
+case _PromoProductModel() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -1153,7 +1143,7 @@ return $default(_that);case _:
 
 @optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _ProductCondition() when $default != null:
+case _PromoProductModel() when $default != null:
 return $default(_that.id,_that.name);case _:
   return orElse();
 
@@ -1174,7 +1164,7 @@ return $default(_that.id,_that.name);case _:
 
 @optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name)  $default,) {final _that = this;
 switch (_that) {
-case _ProductCondition():
+case _PromoProductModel():
 return $default(_that.id,_that.name);case _:
   throw StateError('Unexpected subclass');
 
@@ -1194,7 +1184,7 @@ return $default(_that.id,_that.name);case _:
 
 @optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name)?  $default,) {final _that = this;
 switch (_that) {
-case _ProductCondition() when $default != null:
+case _PromoProductModel() when $default != null:
 return $default(_that.id,_that.name);case _:
   return null;
 
@@ -1206,27 +1196,27 @@ return $default(_that.id,_that.name);case _:
 /// @nodoc
 @JsonSerializable()
 
-class _ProductCondition implements ProductCondition {
-  const _ProductCondition({@HiveField(0)@JsonKey(name: '_id') required this.id, @HiveField(1) required this.name});
-  factory _ProductCondition.fromJson(Map<String, dynamic> json) => _$ProductConditionFromJson(json);
+class _PromoProductModel implements PromoProductModel {
+   _PromoProductModel({@HiveField(0)@JsonKey(name: '_id') required this.id, @HiveField(1) required this.name});
+  factory _PromoProductModel.fromJson(Map<String, dynamic> json) => _$PromoProductModelFromJson(json);
 
 @override@HiveField(0)@JsonKey(name: '_id') final  String id;
 @override@HiveField(1) final  String name;
 
-/// Create a copy of ProductCondition
+/// Create a copy of PromoProductModel
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$ProductConditionCopyWith<_ProductCondition> get copyWith => __$ProductConditionCopyWithImpl<_ProductCondition>(this, _$identity);
+_$PromoProductModelCopyWith<_PromoProductModel> get copyWith => __$PromoProductModelCopyWithImpl<_PromoProductModel>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$ProductConditionToJson(this, );
+  return _$PromoProductModelToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductCondition&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PromoProductModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1235,15 +1225,15 @@ int get hashCode => Object.hash(runtimeType,id,name);
 
 @override
 String toString() {
-  return 'ProductCondition(id: $id, name: $name)';
+  return 'PromoProductModel(id: $id, name: $name)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$ProductConditionCopyWith<$Res> implements $ProductConditionCopyWith<$Res> {
-  factory _$ProductConditionCopyWith(_ProductCondition value, $Res Function(_ProductCondition) _then) = __$ProductConditionCopyWithImpl;
+abstract mixin class _$PromoProductModelCopyWith<$Res> implements $PromoProductModelCopyWith<$Res> {
+  factory _$PromoProductModelCopyWith(_PromoProductModel value, $Res Function(_PromoProductModel) _then) = __$PromoProductModelCopyWithImpl;
 @override @useResult
 $Res call({
 @HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name
@@ -1254,17 +1244,17 @@ $Res call({
 
 }
 /// @nodoc
-class __$ProductConditionCopyWithImpl<$Res>
-    implements _$ProductConditionCopyWith<$Res> {
-  __$ProductConditionCopyWithImpl(this._self, this._then);
+class __$PromoProductModelCopyWithImpl<$Res>
+    implements _$PromoProductModelCopyWith<$Res> {
+  __$PromoProductModelCopyWithImpl(this._self, this._then);
 
-  final _ProductCondition _self;
-  final $Res Function(_ProductCondition) _then;
+  final _PromoProductModel _self;
+  final $Res Function(_PromoProductModel) _then;
 
-/// Create a copy of ProductCondition
+/// Create a copy of PromoProductModel
 /// with the given fields replaced by the non-null parameter values.
 @override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,}) {
-  return _then(_ProductCondition(
+  return _then(_PromoProductModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,
@@ -1276,22 +1266,22 @@ as String,
 
 
 /// @nodoc
-mixin _$ActiveHours {
+mixin _$ActiveHoursModel {
 
-@HiveField(0) bool? get isEnabled;@HiveField(1) List<Schedule>? get schedule;
-/// Create a copy of ActiveHours
+@HiveField(0) bool get isEnabled;@HiveField(1) List<ScheduleModel> get schedule;
+/// Create a copy of ActiveHoursModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$ActiveHoursCopyWith<ActiveHours> get copyWith => _$ActiveHoursCopyWithImpl<ActiveHours>(this as ActiveHours, _$identity);
+$ActiveHoursModelCopyWith<ActiveHoursModel> get copyWith => _$ActiveHoursModelCopyWithImpl<ActiveHoursModel>(this as ActiveHoursModel, _$identity);
 
-  /// Serializes this ActiveHours to a JSON map.
+  /// Serializes this ActiveHoursModel to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActiveHours&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled)&&const DeepCollectionEquality().equals(other.schedule, schedule));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActiveHoursModel&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled)&&const DeepCollectionEquality().equals(other.schedule, schedule));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1300,18 +1290,18 @@ int get hashCode => Object.hash(runtimeType,isEnabled,const DeepCollectionEquali
 
 @override
 String toString() {
-  return 'ActiveHours(isEnabled: $isEnabled, schedule: $schedule)';
+  return 'ActiveHoursModel(isEnabled: $isEnabled, schedule: $schedule)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $ActiveHoursCopyWith<$Res>  {
-  factory $ActiveHoursCopyWith(ActiveHours value, $Res Function(ActiveHours) _then) = _$ActiveHoursCopyWithImpl;
+abstract mixin class $ActiveHoursModelCopyWith<$Res>  {
+  factory $ActiveHoursModelCopyWith(ActiveHoursModel value, $Res Function(ActiveHoursModel) _then) = _$ActiveHoursModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) bool? isEnabled,@HiveField(1) List<Schedule>? schedule
+@HiveField(0) bool isEnabled,@HiveField(1) List<ScheduleModel> schedule
 });
 
 
@@ -1319,28 +1309,28 @@ $Res call({
 
 }
 /// @nodoc
-class _$ActiveHoursCopyWithImpl<$Res>
-    implements $ActiveHoursCopyWith<$Res> {
-  _$ActiveHoursCopyWithImpl(this._self, this._then);
+class _$ActiveHoursModelCopyWithImpl<$Res>
+    implements $ActiveHoursModelCopyWith<$Res> {
+  _$ActiveHoursModelCopyWithImpl(this._self, this._then);
 
-  final ActiveHours _self;
-  final $Res Function(ActiveHours) _then;
+  final ActiveHoursModel _self;
+  final $Res Function(ActiveHoursModel) _then;
 
-/// Create a copy of ActiveHours
+/// Create a copy of ActiveHoursModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? isEnabled = freezed,Object? schedule = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? isEnabled = null,Object? schedule = null,}) {
   return _then(_self.copyWith(
-isEnabled: freezed == isEnabled ? _self.isEnabled : isEnabled // ignore: cast_nullable_to_non_nullable
-as bool?,schedule: freezed == schedule ? _self.schedule : schedule // ignore: cast_nullable_to_non_nullable
-as List<Schedule>?,
+isEnabled: null == isEnabled ? _self.isEnabled : isEnabled // ignore: cast_nullable_to_non_nullable
+as bool,schedule: null == schedule ? _self.schedule : schedule // ignore: cast_nullable_to_non_nullable
+as List<ScheduleModel>,
   ));
 }
 
 }
 
 
-/// Adds pattern-matching-related methods to [ActiveHours].
-extension ActiveHoursPatterns on ActiveHours {
+/// Adds pattern-matching-related methods to [ActiveHoursModel].
+extension ActiveHoursModelPatterns on ActiveHoursModel {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -1353,10 +1343,10 @@ extension ActiveHoursPatterns on ActiveHours {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ActiveHours value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ActiveHoursModel value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _ActiveHours() when $default != null:
+case _ActiveHoursModel() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -1375,10 +1365,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ActiveHours value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ActiveHoursModel value)  $default,){
 final _that = this;
 switch (_that) {
-case _ActiveHours():
+case _ActiveHoursModel():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -1396,10 +1386,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ActiveHours value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ActiveHoursModel value)?  $default,){
 final _that = this;
 switch (_that) {
-case _ActiveHours() when $default != null:
+case _ActiveHoursModel() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -1417,9 +1407,9 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  bool? isEnabled, @HiveField(1)  List<Schedule>? schedule)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  bool isEnabled, @HiveField(1)  List<ScheduleModel> schedule)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _ActiveHours() when $default != null:
+case _ActiveHoursModel() when $default != null:
 return $default(_that.isEnabled,_that.schedule);case _:
   return orElse();
 
@@ -1438,9 +1428,9 @@ return $default(_that.isEnabled,_that.schedule);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  bool? isEnabled, @HiveField(1)  List<Schedule>? schedule)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  bool isEnabled, @HiveField(1)  List<ScheduleModel> schedule)  $default,) {final _that = this;
 switch (_that) {
-case _ActiveHours():
+case _ActiveHoursModel():
 return $default(_that.isEnabled,_that.schedule);case _:
   throw StateError('Unexpected subclass');
 
@@ -1458,9 +1448,9 @@ return $default(_that.isEnabled,_that.schedule);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  bool? isEnabled, @HiveField(1)  List<Schedule>? schedule)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  bool isEnabled, @HiveField(1)  List<ScheduleModel> schedule)?  $default,) {final _that = this;
 switch (_that) {
-case _ActiveHours() when $default != null:
+case _ActiveHoursModel() when $default != null:
 return $default(_that.isEnabled,_that.schedule);case _:
   return null;
 
@@ -1472,35 +1462,33 @@ return $default(_that.isEnabled,_that.schedule);case _:
 /// @nodoc
 @JsonSerializable()
 
-class _ActiveHours implements ActiveHours {
-  const _ActiveHours({@HiveField(0) this.isEnabled = false, @HiveField(1) final  List<Schedule>? schedule = const []}): _schedule = schedule;
-  factory _ActiveHours.fromJson(Map<String, dynamic> json) => _$ActiveHoursFromJson(json);
+class _ActiveHoursModel implements ActiveHoursModel {
+   _ActiveHoursModel({@HiveField(0) this.isEnabled = false, @HiveField(1) final  List<ScheduleModel> schedule = const []}): _schedule = schedule;
+  factory _ActiveHoursModel.fromJson(Map<String, dynamic> json) => _$ActiveHoursModelFromJson(json);
 
-@override@JsonKey()@HiveField(0) final  bool? isEnabled;
- final  List<Schedule>? _schedule;
-@override@JsonKey()@HiveField(1) List<Schedule>? get schedule {
-  final value = _schedule;
-  if (value == null) return null;
+@override@JsonKey()@HiveField(0) final  bool isEnabled;
+ final  List<ScheduleModel> _schedule;
+@override@JsonKey()@HiveField(1) List<ScheduleModel> get schedule {
   if (_schedule is EqualUnmodifiableListView) return _schedule;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(value);
+  return EqualUnmodifiableListView(_schedule);
 }
 
 
-/// Create a copy of ActiveHours
+/// Create a copy of ActiveHoursModel
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$ActiveHoursCopyWith<_ActiveHours> get copyWith => __$ActiveHoursCopyWithImpl<_ActiveHours>(this, _$identity);
+_$ActiveHoursModelCopyWith<_ActiveHoursModel> get copyWith => __$ActiveHoursModelCopyWithImpl<_ActiveHoursModel>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$ActiveHoursToJson(this, );
+  return _$ActiveHoursModelToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActiveHours&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled)&&const DeepCollectionEquality().equals(other._schedule, _schedule));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActiveHoursModel&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled)&&const DeepCollectionEquality().equals(other._schedule, _schedule));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1509,18 +1497,18 @@ int get hashCode => Object.hash(runtimeType,isEnabled,const DeepCollectionEquali
 
 @override
 String toString() {
-  return 'ActiveHours(isEnabled: $isEnabled, schedule: $schedule)';
+  return 'ActiveHoursModel(isEnabled: $isEnabled, schedule: $schedule)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$ActiveHoursCopyWith<$Res> implements $ActiveHoursCopyWith<$Res> {
-  factory _$ActiveHoursCopyWith(_ActiveHours value, $Res Function(_ActiveHours) _then) = __$ActiveHoursCopyWithImpl;
+abstract mixin class _$ActiveHoursModelCopyWith<$Res> implements $ActiveHoursModelCopyWith<$Res> {
+  factory _$ActiveHoursModelCopyWith(_ActiveHoursModel value, $Res Function(_ActiveHoursModel) _then) = __$ActiveHoursModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) bool? isEnabled,@HiveField(1) List<Schedule>? schedule
+@HiveField(0) bool isEnabled,@HiveField(1) List<ScheduleModel> schedule
 });
 
 
@@ -1528,20 +1516,20 @@ $Res call({
 
 }
 /// @nodoc
-class __$ActiveHoursCopyWithImpl<$Res>
-    implements _$ActiveHoursCopyWith<$Res> {
-  __$ActiveHoursCopyWithImpl(this._self, this._then);
+class __$ActiveHoursModelCopyWithImpl<$Res>
+    implements _$ActiveHoursModelCopyWith<$Res> {
+  __$ActiveHoursModelCopyWithImpl(this._self, this._then);
 
-  final _ActiveHours _self;
-  final $Res Function(_ActiveHours) _then;
+  final _ActiveHoursModel _self;
+  final $Res Function(_ActiveHoursModel) _then;
 
-/// Create a copy of ActiveHours
+/// Create a copy of ActiveHoursModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? isEnabled = freezed,Object? schedule = freezed,}) {
-  return _then(_ActiveHours(
-isEnabled: freezed == isEnabled ? _self.isEnabled : isEnabled // ignore: cast_nullable_to_non_nullable
-as bool?,schedule: freezed == schedule ? _self._schedule : schedule // ignore: cast_nullable_to_non_nullable
-as List<Schedule>?,
+@override @pragma('vm:prefer-inline') $Res call({Object? isEnabled = null,Object? schedule = null,}) {
+  return _then(_ActiveHoursModel(
+isEnabled: null == isEnabled ? _self.isEnabled : isEnabled // ignore: cast_nullable_to_non_nullable
+as bool,schedule: null == schedule ? _self._schedule : schedule // ignore: cast_nullable_to_non_nullable
+as List<ScheduleModel>,
   ));
 }
 
@@ -1550,42 +1538,44 @@ as List<Schedule>?,
 
 
 /// @nodoc
-mixin _$Schedule {
+mixin _$ScheduleModel {
 
-@HiveField(0) int get dayOfWeek;@HiveField(1) String get startTime;@HiveField(2) String get endTime;@HiveField(3)@JsonKey(name: '_id') String? get id;
-/// Create a copy of Schedule
+@HiveField(0)@JsonKey(name: '_id') String? get id;@HiveField(1) int get dayOfWeek;// 0=Minggu, 6=Sabtu
+@HiveField(2) String get startTime;// format "HH:mm"
+@HiveField(3) String get endTime;
+/// Create a copy of ScheduleModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$ScheduleCopyWith<Schedule> get copyWith => _$ScheduleCopyWithImpl<Schedule>(this as Schedule, _$identity);
+$ScheduleModelCopyWith<ScheduleModel> get copyWith => _$ScheduleModelCopyWithImpl<ScheduleModel>(this as ScheduleModel, _$identity);
 
-  /// Serializes this Schedule to a JSON map.
+  /// Serializes this ScheduleModel to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Schedule&&(identical(other.dayOfWeek, dayOfWeek) || other.dayOfWeek == dayOfWeek)&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&(identical(other.id, id) || other.id == id));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleModel&&(identical(other.id, id) || other.id == id)&&(identical(other.dayOfWeek, dayOfWeek) || other.dayOfWeek == dayOfWeek)&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,dayOfWeek,startTime,endTime,id);
+int get hashCode => Object.hash(runtimeType,id,dayOfWeek,startTime,endTime);
 
 @override
 String toString() {
-  return 'Schedule(dayOfWeek: $dayOfWeek, startTime: $startTime, endTime: $endTime, id: $id)';
+  return 'ScheduleModel(id: $id, dayOfWeek: $dayOfWeek, startTime: $startTime, endTime: $endTime)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $ScheduleCopyWith<$Res>  {
-  factory $ScheduleCopyWith(Schedule value, $Res Function(Schedule) _then) = _$ScheduleCopyWithImpl;
+abstract mixin class $ScheduleModelCopyWith<$Res>  {
+  factory $ScheduleModelCopyWith(ScheduleModel value, $Res Function(ScheduleModel) _then) = _$ScheduleModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) int dayOfWeek,@HiveField(1) String startTime,@HiveField(2) String endTime,@HiveField(3)@JsonKey(name: '_id') String? id
+@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) int dayOfWeek,@HiveField(2) String startTime,@HiveField(3) String endTime
 });
 
 
@@ -1593,30 +1583,30 @@ $Res call({
 
 }
 /// @nodoc
-class _$ScheduleCopyWithImpl<$Res>
-    implements $ScheduleCopyWith<$Res> {
-  _$ScheduleCopyWithImpl(this._self, this._then);
+class _$ScheduleModelCopyWithImpl<$Res>
+    implements $ScheduleModelCopyWith<$Res> {
+  _$ScheduleModelCopyWithImpl(this._self, this._then);
 
-  final Schedule _self;
-  final $Res Function(Schedule) _then;
+  final ScheduleModel _self;
+  final $Res Function(ScheduleModel) _then;
 
-/// Create a copy of Schedule
+/// Create a copy of ScheduleModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? dayOfWeek = null,Object? startTime = null,Object? endTime = null,Object? id = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? dayOfWeek = null,Object? startTime = null,Object? endTime = null,}) {
   return _then(_self.copyWith(
-dayOfWeek: null == dayOfWeek ? _self.dayOfWeek : dayOfWeek // ignore: cast_nullable_to_non_nullable
+id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String?,dayOfWeek: null == dayOfWeek ? _self.dayOfWeek : dayOfWeek // ignore: cast_nullable_to_non_nullable
 as int,startTime: null == startTime ? _self.startTime : startTime // ignore: cast_nullable_to_non_nullable
 as String,endTime: null == endTime ? _self.endTime : endTime // ignore: cast_nullable_to_non_nullable
-as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String?,
+as String,
   ));
 }
 
 }
 
 
-/// Adds pattern-matching-related methods to [Schedule].
-extension SchedulePatterns on Schedule {
+/// Adds pattern-matching-related methods to [ScheduleModel].
+extension ScheduleModelPatterns on ScheduleModel {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -1629,10 +1619,10 @@ extension SchedulePatterns on Schedule {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _Schedule value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ScheduleModel value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _Schedule() when $default != null:
+case _ScheduleModel() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -1651,10 +1641,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _Schedule value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ScheduleModel value)  $default,){
 final _that = this;
 switch (_that) {
-case _Schedule():
+case _ScheduleModel():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -1672,10 +1662,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _Schedule value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ScheduleModel value)?  $default,){
 final _that = this;
 switch (_that) {
-case _Schedule() when $default != null:
+case _ScheduleModel() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -1693,10 +1683,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  int dayOfWeek, @HiveField(1)  String startTime, @HiveField(2)  String endTime, @HiveField(3)@JsonKey(name: '_id')  String? id)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String? id, @HiveField(1)  int dayOfWeek, @HiveField(2)  String startTime, @HiveField(3)  String endTime)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _Schedule() when $default != null:
-return $default(_that.dayOfWeek,_that.startTime,_that.endTime,_that.id);case _:
+case _ScheduleModel() when $default != null:
+return $default(_that.id,_that.dayOfWeek,_that.startTime,_that.endTime);case _:
   return orElse();
 
 }
@@ -1714,10 +1704,10 @@ return $default(_that.dayOfWeek,_that.startTime,_that.endTime,_that.id);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  int dayOfWeek, @HiveField(1)  String startTime, @HiveField(2)  String endTime, @HiveField(3)@JsonKey(name: '_id')  String? id)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String? id, @HiveField(1)  int dayOfWeek, @HiveField(2)  String startTime, @HiveField(3)  String endTime)  $default,) {final _that = this;
 switch (_that) {
-case _Schedule():
-return $default(_that.dayOfWeek,_that.startTime,_that.endTime,_that.id);case _:
+case _ScheduleModel():
+return $default(_that.id,_that.dayOfWeek,_that.startTime,_that.endTime);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1734,10 +1724,10 @@ return $default(_that.dayOfWeek,_that.startTime,_that.endTime,_that.id);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  int dayOfWeek, @HiveField(1)  String startTime, @HiveField(2)  String endTime, @HiveField(3)@JsonKey(name: '_id')  String? id)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String? id, @HiveField(1)  int dayOfWeek, @HiveField(2)  String startTime, @HiveField(3)  String endTime)?  $default,) {final _that = this;
 switch (_that) {
-case _Schedule() when $default != null:
-return $default(_that.dayOfWeek,_that.startTime,_that.endTime,_that.id);case _:
+case _ScheduleModel() when $default != null:
+return $default(_that.id,_that.dayOfWeek,_that.startTime,_that.endTime);case _:
   return null;
 
 }
@@ -1748,49 +1738,51 @@ return $default(_that.dayOfWeek,_that.startTime,_that.endTime,_that.id);case _:
 /// @nodoc
 @JsonSerializable()
 
-class _Schedule implements Schedule {
-  const _Schedule({@HiveField(0) required this.dayOfWeek, @HiveField(1) required this.startTime, @HiveField(2) required this.endTime, @HiveField(3)@JsonKey(name: '_id') this.id});
-  factory _Schedule.fromJson(Map<String, dynamic> json) => _$ScheduleFromJson(json);
+class _ScheduleModel implements ScheduleModel {
+   _ScheduleModel({@HiveField(0)@JsonKey(name: '_id') this.id, @HiveField(1) required this.dayOfWeek, @HiveField(2) required this.startTime, @HiveField(3) required this.endTime});
+  factory _ScheduleModel.fromJson(Map<String, dynamic> json) => _$ScheduleModelFromJson(json);
 
-@override@HiveField(0) final  int dayOfWeek;
-@override@HiveField(1) final  String startTime;
-@override@HiveField(2) final  String endTime;
-@override@HiveField(3)@JsonKey(name: '_id') final  String? id;
+@override@HiveField(0)@JsonKey(name: '_id') final  String? id;
+@override@HiveField(1) final  int dayOfWeek;
+// 0=Minggu, 6=Sabtu
+@override@HiveField(2) final  String startTime;
+// format "HH:mm"
+@override@HiveField(3) final  String endTime;
 
-/// Create a copy of Schedule
+/// Create a copy of ScheduleModel
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$ScheduleCopyWith<_Schedule> get copyWith => __$ScheduleCopyWithImpl<_Schedule>(this, _$identity);
+_$ScheduleModelCopyWith<_ScheduleModel> get copyWith => __$ScheduleModelCopyWithImpl<_ScheduleModel>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$ScheduleToJson(this, );
+  return _$ScheduleModelToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Schedule&&(identical(other.dayOfWeek, dayOfWeek) || other.dayOfWeek == dayOfWeek)&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&(identical(other.id, id) || other.id == id));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleModel&&(identical(other.id, id) || other.id == id)&&(identical(other.dayOfWeek, dayOfWeek) || other.dayOfWeek == dayOfWeek)&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,dayOfWeek,startTime,endTime,id);
+int get hashCode => Object.hash(runtimeType,id,dayOfWeek,startTime,endTime);
 
 @override
 String toString() {
-  return 'Schedule(dayOfWeek: $dayOfWeek, startTime: $startTime, endTime: $endTime, id: $id)';
+  return 'ScheduleModel(id: $id, dayOfWeek: $dayOfWeek, startTime: $startTime, endTime: $endTime)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$ScheduleCopyWith<$Res> implements $ScheduleCopyWith<$Res> {
-  factory _$ScheduleCopyWith(_Schedule value, $Res Function(_Schedule) _then) = __$ScheduleCopyWithImpl;
+abstract mixin class _$ScheduleModelCopyWith<$Res> implements $ScheduleModelCopyWith<$Res> {
+  factory _$ScheduleModelCopyWith(_ScheduleModel value, $Res Function(_ScheduleModel) _then) = __$ScheduleModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) int dayOfWeek,@HiveField(1) String startTime,@HiveField(2) String endTime,@HiveField(3)@JsonKey(name: '_id') String? id
+@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) int dayOfWeek,@HiveField(2) String startTime,@HiveField(3) String endTime
 });
 
 
@@ -1798,22 +1790,22 @@ $Res call({
 
 }
 /// @nodoc
-class __$ScheduleCopyWithImpl<$Res>
-    implements _$ScheduleCopyWith<$Res> {
-  __$ScheduleCopyWithImpl(this._self, this._then);
+class __$ScheduleModelCopyWithImpl<$Res>
+    implements _$ScheduleModelCopyWith<$Res> {
+  __$ScheduleModelCopyWithImpl(this._self, this._then);
 
-  final _Schedule _self;
-  final $Res Function(_Schedule) _then;
+  final _ScheduleModel _self;
+  final $Res Function(_ScheduleModel) _then;
 
-/// Create a copy of Schedule
+/// Create a copy of ScheduleModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? dayOfWeek = null,Object? startTime = null,Object? endTime = null,Object? id = freezed,}) {
-  return _then(_Schedule(
-dayOfWeek: null == dayOfWeek ? _self.dayOfWeek : dayOfWeek // ignore: cast_nullable_to_non_nullable
+@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? dayOfWeek = null,Object? startTime = null,Object? endTime = null,}) {
+  return _then(_ScheduleModel(
+id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String?,dayOfWeek: null == dayOfWeek ? _self.dayOfWeek : dayOfWeek // ignore: cast_nullable_to_non_nullable
 as int,startTime: null == startTime ? _self.startTime : startTime // ignore: cast_nullable_to_non_nullable
 as String,endTime: null == endTime ? _self.endTime : endTime // ignore: cast_nullable_to_non_nullable
-as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String?,
+as String,
   ));
 }
 
@@ -1822,22 +1814,22 @@ as String?,
 
 
 /// @nodoc
-mixin _$Outlet {
+mixin _$OutletModel {
 
 @HiveField(0)@JsonKey(name: '_id') String get id;@HiveField(1) String get name;
-/// Create a copy of Outlet
+/// Create a copy of OutletModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$OutletCopyWith<Outlet> get copyWith => _$OutletCopyWithImpl<Outlet>(this as Outlet, _$identity);
+$OutletModelCopyWith<OutletModel> get copyWith => _$OutletModelCopyWithImpl<OutletModel>(this as OutletModel, _$identity);
 
-  /// Serializes this Outlet to a JSON map.
+  /// Serializes this OutletModel to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Outlet&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is OutletModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1846,15 +1838,15 @@ int get hashCode => Object.hash(runtimeType,id,name);
 
 @override
 String toString() {
-  return 'Outlet(id: $id, name: $name)';
+  return 'OutletModel(id: $id, name: $name)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $OutletCopyWith<$Res>  {
-  factory $OutletCopyWith(Outlet value, $Res Function(Outlet) _then) = _$OutletCopyWithImpl;
+abstract mixin class $OutletModelCopyWith<$Res>  {
+  factory $OutletModelCopyWith(OutletModel value, $Res Function(OutletModel) _then) = _$OutletModelCopyWithImpl;
 @useResult
 $Res call({
 @HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name
@@ -1865,14 +1857,14 @@ $Res call({
 
 }
 /// @nodoc
-class _$OutletCopyWithImpl<$Res>
-    implements $OutletCopyWith<$Res> {
-  _$OutletCopyWithImpl(this._self, this._then);
+class _$OutletModelCopyWithImpl<$Res>
+    implements $OutletModelCopyWith<$Res> {
+  _$OutletModelCopyWithImpl(this._self, this._then);
 
-  final Outlet _self;
-  final $Res Function(Outlet) _then;
+  final OutletModel _self;
+  final $Res Function(OutletModel) _then;
 
-/// Create a copy of Outlet
+/// Create a copy of OutletModel
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,}) {
   return _then(_self.copyWith(
@@ -1885,8 +1877,8 @@ as String,
 }
 
 
-/// Adds pattern-matching-related methods to [Outlet].
-extension OutletPatterns on Outlet {
+/// Adds pattern-matching-related methods to [OutletModel].
+extension OutletModelPatterns on OutletModel {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -1899,10 +1891,10 @@ extension OutletPatterns on Outlet {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _Outlet value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _OutletModel value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _Outlet() when $default != null:
+case _OutletModel() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -1921,10 +1913,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _Outlet value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _OutletModel value)  $default,){
 final _that = this;
 switch (_that) {
-case _Outlet():
+case _OutletModel():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -1942,10 +1934,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _Outlet value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _OutletModel value)?  $default,){
 final _that = this;
 switch (_that) {
-case _Outlet() when $default != null:
+case _OutletModel() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -1965,7 +1957,7 @@ return $default(_that);case _:
 
 @optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _Outlet() when $default != null:
+case _OutletModel() when $default != null:
 return $default(_that.id,_that.name);case _:
   return orElse();
 
@@ -1986,7 +1978,7 @@ return $default(_that.id,_that.name);case _:
 
 @optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name)  $default,) {final _that = this;
 switch (_that) {
-case _Outlet():
+case _OutletModel():
 return $default(_that.id,_that.name);case _:
   throw StateError('Unexpected subclass');
 
@@ -2006,7 +1998,7 @@ return $default(_that.id,_that.name);case _:
 
 @optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name)?  $default,) {final _that = this;
 switch (_that) {
-case _Outlet() when $default != null:
+case _OutletModel() when $default != null:
 return $default(_that.id,_that.name);case _:
   return null;
 
@@ -2018,27 +2010,27 @@ return $default(_that.id,_that.name);case _:
 /// @nodoc
 @JsonSerializable()
 
-class _Outlet implements Outlet {
-  const _Outlet({@HiveField(0)@JsonKey(name: '_id') required this.id, @HiveField(1) required this.name});
-  factory _Outlet.fromJson(Map<String, dynamic> json) => _$OutletFromJson(json);
+class _OutletModel implements OutletModel {
+   _OutletModel({@HiveField(0)@JsonKey(name: '_id') required this.id, @HiveField(1) required this.name});
+  factory _OutletModel.fromJson(Map<String, dynamic> json) => _$OutletModelFromJson(json);
 
 @override@HiveField(0)@JsonKey(name: '_id') final  String id;
 @override@HiveField(1) final  String name;
 
-/// Create a copy of Outlet
+/// Create a copy of OutletModel
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$OutletCopyWith<_Outlet> get copyWith => __$OutletCopyWithImpl<_Outlet>(this, _$identity);
+_$OutletModelCopyWith<_OutletModel> get copyWith => __$OutletModelCopyWithImpl<_OutletModel>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$OutletToJson(this, );
+  return _$OutletModelToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Outlet&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OutletModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2047,15 +2039,15 @@ int get hashCode => Object.hash(runtimeType,id,name);
 
 @override
 String toString() {
-  return 'Outlet(id: $id, name: $name)';
+  return 'OutletModel(id: $id, name: $name)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$OutletCopyWith<$Res> implements $OutletCopyWith<$Res> {
-  factory _$OutletCopyWith(_Outlet value, $Res Function(_Outlet) _then) = __$OutletCopyWithImpl;
+abstract mixin class _$OutletModelCopyWith<$Res> implements $OutletModelCopyWith<$Res> {
+  factory _$OutletModelCopyWith(_OutletModel value, $Res Function(_OutletModel) _then) = __$OutletModelCopyWithImpl;
 @override @useResult
 $Res call({
 @HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name
@@ -2066,17 +2058,17 @@ $Res call({
 
 }
 /// @nodoc
-class __$OutletCopyWithImpl<$Res>
-    implements _$OutletCopyWith<$Res> {
-  __$OutletCopyWithImpl(this._self, this._then);
+class __$OutletModelCopyWithImpl<$Res>
+    implements _$OutletModelCopyWith<$Res> {
+  __$OutletModelCopyWithImpl(this._self, this._then);
 
-  final _Outlet _self;
-  final $Res Function(_Outlet) _then;
+  final _OutletModel _self;
+  final $Res Function(_OutletModel) _then;
 
-/// Create a copy of Outlet
+/// Create a copy of OutletModel
 /// with the given fields replaced by the non-null parameter values.
 @override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,}) {
-  return _then(_Outlet(
+  return _then(_OutletModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,

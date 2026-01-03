@@ -41,15 +41,15 @@ class HiveService {
     Hive.registerAdapter(DeviceModelAdapter());
     Hive.registerAdapter(MenuStockModelAdapter());
     Hive.registerAdapter(AutoPromoModelAdapter());
-    Hive.registerAdapter(ConditionsAdapter());
-    Hive.registerAdapter(ActiveHoursAdapter());
-    Hive.registerAdapter(OutletAdapter());
-    Hive.registerAdapter(BundleProductAdapter());
-    Hive.registerAdapter(ProductConditionAdapter());
+    Hive.registerAdapter(PromoConditionsModelAdapter());
+    Hive.registerAdapter(ActiveHoursModelAdapter());
+    Hive.registerAdapter(OutletModelAdapter());
+    Hive.registerAdapter(BundleProductModelAdapter());
+    Hive.registerAdapter(PromoProductModelAdapter());
     Hive.registerAdapter(FreeItemModelAdapter());
-    Hive.registerAdapter(ScheduleAdapter());
+    Hive.registerAdapter(ScheduleModelAdapter());
     Hive.registerAdapter(PromoGroupModelAdapter());
-    Hive.registerAdapter(PromoGroupLineAdapter());
+    Hive.registerAdapter(PromoGroupLineModelAdapter());
 
     await _openBoxes();
   }

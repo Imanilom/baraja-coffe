@@ -14,7 +14,25 @@ final autopromoProvider = FutureProvider<List<AutoPromoModel>>((ref) async {
   return autoPromos;
 });
 
+// final promoGroupsProvider = FutureProvider<List<PromoGroupModel>>((ref) async {
+//   final promos = await ref.watch(autopromoProvider.future);
+//   // return ref.read(autoPromoRepository).buildPromoGroups(promos);
+//   return [];
+// });
+
+/// Provider untuk semua promo groups
 final promoGroupsProvider = FutureProvider<List<PromoGroupModel>>((ref) async {
-  final promos = await ref.watch(autopromoProvider.future);
-  return ref.read(autoPromoRepository).buildPromoGroups(promos);
+  final allPromos = await ref.watch(autopromoProvider.future);
+
+  // Convert promos ke groups
+  return PromoGroupConverter.convertToGroups(allPromos);
+});
+
+/// Provider untuk active promo groups only
+final activePromoGroupsProvider = FutureProvider<List<PromoGroupModel>>((
+  ref,
+) async {
+  final allGroups = await ref.watch(promoGroupsProvider.future);
+
+  return allGroups.where((group) => group.isActive).toList();
 });

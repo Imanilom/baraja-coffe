@@ -357,8 +357,8 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                                           itemBuilder: (context, index) {
                                             final g = data[index];
                                             return _PromoGroupCard(
-                                              title: g.title,
-                                              subtitle: g.subtitle,
+                                              title: g.name,
+                                              subtitle: g.promoType,
                                               promoType: g.promoType,
                                               onTap: () async {
                                                 await ref
@@ -366,7 +366,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                                                       orderDetailProvider
                                                           .notifier,
                                                     )
-                                                    .applyPromoGroup(ref, g);
+                                                    .applyPromoGroup(g);
                                               },
                                             );
                                           },

@@ -63,7 +63,7 @@ class OrderDetail extends ConsumerWidget {
 
       try {
         // 1) critical path: submit backend
-        await ref.read(orderDetailProvider.notifier).submitOrder(ref);
+        await ref.read(orderDetailProvider.notifier).submitOrder();
         debugPrint('handleOpenBill took: ${sw.elapsedMilliseconds} ms');
 
         if (!context.mounted) return;
