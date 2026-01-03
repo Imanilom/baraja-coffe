@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/foundation.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -10,18 +8,15 @@ import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 
 class PromoEngine {
-  static const freeItemMarker = '__FREE_ITEM__';
-
-  static bool _isFreeItem(OrderItemModel it) =>
-      (it.notes ?? '').contains(freeItemMarker);
-
   static int _unitPrice(OrderItemModel it) {
     if (it.quantity <= 0) return 0;
-    // subtotal line sudah include addon/topping
     return it.subtotal ~/ it.quantity;
   }
 
-  /// Helper buat _recalculateAll()
+  static bool _isReservedFor(OrderItemModel it, String promoId) =>
+      it.reservedPromoId == promoId;
+
+  /// Helper buat kamu di _recalculateAll()
   static int sumAutoDiscount(List<AppliedPromosModel>? appliedPromos) {
     return (appliedPromos ?? []).fold<int>(
       0,
@@ -30,8 +25,8 @@ class PromoEngine {
   }
 
   /// allowStackingOnTotal:
-  /// - true  => discount_on_total dihitung dari invoice total (tetap jalan walau item sudah kepake promo lain)
-  /// - false => discount_on_total hanya dihitung dari sisa item (remaining)
+  /// - true  => discount_on_total pakai invoice total
+  /// - false => discount_on_total pakai remaining subtotal
   static OrderDetailModel apply(
     OrderDetailModel order,
     List<AutoPromoModel> promos,
@@ -39,26 +34,19 @@ class PromoEngine {
     MenuItemModel? Function(String id) findMenuItemById, {
     bool allowStackingOnTotal = false,
   }) {
-    // 0) bersihkan free item lama biar ga numpuk
-    final cleanedItems = order.items.where((it) => !_isFreeItem(it)).toList();
-    var current = order.copyWith(items: cleanedItems, appliedPromos: []);
+    // ✅ Tidak ada lagi “free item” di items, jadi tidak perlu cleanup marker notes.
+    // Tapi kita reset appliedPromos untuk hasil baru:
+    var current = order.copyWith(appliedPromos: []);
 
-    // 1) promo aktif + sort priority
     final active =
         promos.where((p) => _isPromoActive(p, now)).toList()..sort(
           (a, b) => _priority(a.promoType).compareTo(_priority(b.promoType)),
         );
 
-    debugPrint(
-      'incoming promos: ${active.map((p) => "${p.name}(${p.id}) from:${p.validFrom} to:${p.validTo} active:${p.isActive}").toList()}',
-    );
-    debugPrint('active promos count: ${active.length}');
-
-    // 2) remaining qty per LINE (biar aman untuk addon/topping)
+    // remaining qty per line index
     final remainingByLine = <int, int>{};
     for (int i = 0; i < current.items.length; i++) {
       final it = current.items[i];
-      if (_isFreeItem(it)) continue;
       remainingByLine[i] = it.quantity;
     }
 
@@ -107,7 +95,6 @@ class PromoEngine {
   }
 
   // ---------------- Priority ----------------
-
   static int _priority(String promoType) {
     switch (promoType) {
       case 'bundling':
@@ -126,11 +113,8 @@ class PromoEngine {
   }
 
   // ---------------- Active check ----------------
-
   static bool _isPromoActive(AutoPromoModel promo, DateTime now) {
     if (promo.isActive != true) return false;
-
-    // validFrom/validTo: pastikan bukan null di model kamu
     if (now.isBefore(promo.validFrom) || now.isAfter(promo.validTo))
       return false;
 
@@ -141,7 +125,7 @@ class PromoEngine {
     if (schedules.isEmpty) return false;
 
     // backend: 0=Sunday..6=Saturday; dart: 1=Mon..7=Sun
-    final backendDow = now.weekday % 7; // Sunday(7)->0
+    final backendDow = now.weekday % 7;
 
     final todays = schedules.where((s) => s.dayOfWeek == backendDow).toList();
     if (todays.isEmpty) return false;
@@ -156,49 +140,36 @@ class PromoEngine {
 
   // ---------------- Helpers allocation ----------------
 
-  /// ambil qty dari line item yang productId cocok, consume dari remainingByLine,
-  /// return list konsumsi: (lineIndex, takeQty)
+  /// ambil qty dari line item yang productId cocok, consume dari remainingByLine.
+  /// ✅ kalau onlyPromoId != null → hanya ambil item yang reservedPromoId == onlyPromoId
   static List<_LineTake> _takeFromLines(
     OrderDetailModel order,
     Map<int, int> remainingByLine,
     String productId,
-    int neededQty,
-  ) {
+    int neededQty, {
+    String? onlyPromoId,
+  }) {
     if (neededQty <= 0) return [];
 
-    final pid = productId.toString().trim();
     final takes = <_LineTake>[];
     int left = neededQty;
-
-    debugPrint('TAKE START pid=$pid need=$neededQty');
 
     for (int i = 0; i < order.items.length; i++) {
       if (left <= 0) break;
 
       final it = order.items[i];
-      if (_isFreeItem(it)) continue;
+      if (it.menuItem.id != productId) continue;
 
-      final mid = it.menuItem.id.toString().trim();
-      if (mid != pid) continue;
+      if (onlyPromoId != null && !_isReservedFor(it, onlyPromoId)) continue;
 
       final avail = remainingByLine[i] ?? 0;
-
-      debugPrint(
-        'TAKE CHECK i=$i mid=$mid qty=${it.quantity} avail=$avail name=${it.menuItem.name}',
-      );
-
       if (avail <= 0) continue;
 
       final take = avail < left ? avail : left;
       remainingByLine[i] = avail - take;
       takes.add(_LineTake(lineIndex: i, qty: take));
       left -= take;
-
-      debugPrint('TAKE HIT i=$i take=$take left=$left');
     }
-
-    final taken = takes.fold<int>(0, (s, t) => s + t.qty);
-    debugPrint('TAKE END pid=$pid taken=$taken');
 
     return takes;
   }
@@ -223,7 +194,6 @@ class PromoEngine {
   }
 
   // ---------------- Promo: Bundling ----------------
-
   static PromoApplyResult? _applyBundling(
     OrderDetailModel order,
     AutoPromoModel promo,
@@ -236,26 +206,20 @@ class PromoEngine {
     if (bundlePrice <= 0) return null;
 
     debugPrint('applyBundling promo:${promo.name} bundlePrice:$bundlePrice');
-    debugPrint(
-      'bundle lines: ${bundle.map((b) => "${b.product.id} qty:${b.quantity ?? 1}").toList()}',
-    );
 
-    // ✅ FIX: bundleCount dihitung pakai MIN, bukan sentinel 1<<30 yang bisa kebablasan
-    int bundleCount = -1;
+    // ✅ hitung berapa bundle yang bisa dibentuk hanya dari item yang reserved utk promo ini
+    int bundleCount = 1 << 30;
 
     for (final b in bundle) {
-      final id = b.product.id.toString().trim();
-      final req = (b.quantity ?? 1);
+      final id = b.product.id;
+      final req = b.quantity ?? 1;
       if (req <= 0) return null;
 
       int avail = 0;
       for (int i = 0; i < order.items.length; i++) {
         final it = order.items[i];
-        if (_isFreeItem(it)) continue;
-
-        final mid = it.menuItem.id.toString().trim();
-        if (mid != id) continue;
-
+        if (it.menuItem.id != id) continue;
+        if (!_isReservedFor(it, promo.id)) continue; // ✅ kunci
         avail += (remainingByLine[i] ?? 0);
       }
 
@@ -264,41 +228,39 @@ class PromoEngine {
       if (avail < req) return null;
 
       final possible = avail ~/ req;
-      bundleCount =
-          (bundleCount == -1) ? possible : math.min(bundleCount, possible);
+      if (possible < bundleCount) bundleCount = possible;
     }
 
     if (bundleCount <= 0) return null;
 
-    debugPrint('BUNDLE bundleCount=$bundleCount');
-
-    // snapshot remaining sebelum consume (buat rollback)
     final snapshot = Map<int, int>.from(remainingByLine);
 
     // consume sesuai kebutuhan bundleCount
     final takesByProduct = <String, List<_LineTake>>{};
     for (final b in bundle) {
-      final id = b.product.id.toString().trim();
+      final id = b.product.id;
       final need = (b.quantity ?? 1) * bundleCount;
 
-      debugPrint('BUNDLE CONSUME id=$id need=$need bundleCount=$bundleCount');
+      final takes = _takeFromLines(
+        order,
+        remainingByLine,
+        id,
+        need,
+        onlyPromoId: promo.id, // ✅ hanya ambil item milik promo ini
+      );
 
-      final takes = _takeFromLines(order, remainingByLine, id, need);
       final takenQty = takes.fold<int>(0, (s, t) => s + t.qty);
-
       if (takenQty < need) {
-        // rollback remaining dan batal
         remainingByLine
           ..clear()
           ..addAll(snapshot);
-        debugPrint('BUNDLE FAIL id=$id need=$need taken=$takenQty -> rollback');
         return null;
       }
 
       takesByProduct[id] = takes;
     }
 
-    // hitung subtotal original untuk qty yang ter-consume (per line, addon aman)
+    // subtotal original untuk qty yang ter-consume
     int originalBundleSubtotal = 0;
     for (final entry in takesByProduct.entries) {
       for (final t in entry.value) {
@@ -310,25 +272,20 @@ class PromoEngine {
     final targetTotal = bundlePrice * bundleCount;
     final discount = originalBundleSubtotal - targetTotal;
 
-    debugPrint(
-      'BUNDLE originalSubtotal=$originalBundleSubtotal targetTotal=$targetTotal discount=$discount',
-    );
-
     if (discount <= 0) {
-      // rollback kalau diskon <=0 (deal tidak menguntungkan)
       remainingByLine
         ..clear()
         ..addAll(snapshot);
       return null;
     }
 
-    // affectedItems: agregasi per product id (bukan per line)
+    // affectedItems: agregasi per product id
     final affected = <AffectedItemModel>[];
     int allocated = 0;
 
     for (int i = 0; i < bundle.length; i++) {
       final b = bundle[i];
-      final id = b.product.id.toString().trim();
+      final id = b.product.id;
 
       int qty = 0;
       int sub = 0;
@@ -380,7 +337,7 @@ class PromoEngine {
   }
 
   // ---------------- Promo: Buy X Get Y ----------------
-  // versi sekarang: 1:1 (buyQty == freeQty) dari remaining "buy" item.
+  // ✅ FREE ITEM TIDAK DITAMBAH KE order.items
   static PromoApplyResult? _applyBuyXGetY(
     OrderDetailModel order,
     AutoPromoModel promo,
@@ -391,17 +348,11 @@ class PromoEngine {
     final get = promo.conditions?.getProduct;
     if (buy == null || get == null) return null;
 
-    final buyId = buy.id.toString().trim();
-
-    // total remaining buy qty
     int buyRemainingQty = 0;
     for (int i = 0; i < order.items.length; i++) {
       final it = order.items[i];
-      if (_isFreeItem(it)) continue;
-
-      final mid = it.menuItem.id.toString().trim();
-      if (mid != buyId) continue;
-
+      if (it.menuItem.id != buy.id) continue;
+      // opsional: kalau kamu mau buy_x_get_y juga “dipilih” seperti bundling, bisa pakai reservedPromoId juga.
       buyRemainingQty += (remainingByLine[i] ?? 0);
     }
     if (buyRemainingQty <= 0) return null;
@@ -409,27 +360,17 @@ class PromoEngine {
     final freeQty = buyRemainingQty; // 1:1
     if (freeQty <= 0) return null;
 
-    // consume buy qty dari line
-    _takeFromLines(order, remainingByLine, buyId, freeQty);
+    _takeFromLines(order, remainingByLine, buy.id, freeQty);
 
     final menuGet = findMenuItemById(get.id);
     if (menuGet == null) return null;
-
-    final freeItem = OrderItemModel(
-      menuItem: menuGet.copyWith(originalPrice: 0),
-      quantity: freeQty,
-      subtotal: 0,
-      notes: '$freeItemMarker:${promo.id}',
-    );
-
-    final updatedOrder = order.copyWith(items: [...order.items, freeItem]);
 
     final appliedPromo = AppliedPromosModel(
       promoId: promo.id,
       promoName: promo.name,
       promoType: promo.promoType,
       discount: 0,
-      affectedItems: const [],
+      affectedItems: [],
       freeItems: [
         FreeItemModel(
           menuItem: get.id,
@@ -441,7 +382,7 @@ class PromoEngine {
     );
 
     return PromoApplyResult(
-      order: updatedOrder,
+      order: order, // ✅ tidak menambah item
       appliedPromo: appliedPromo,
       totalDiscount: 0,
     );
@@ -459,17 +400,15 @@ class PromoEngine {
     final d = promo.discount ?? 0;
     if (d <= 0) return null;
 
-    final ids = products.map((p) => p.id.toString().trim()).toSet();
+    final ids = products.map((p) => p.id).toSet();
 
     int totalDiscount = 0;
     final affected = <AffectedItemModel>[];
 
-    // consume per line agar addon/topping aman
     for (int i = 0; i < order.items.length; i++) {
       final it = order.items[i];
-      if (_isFreeItem(it)) continue;
 
-      final id = it.menuItem.id.toString().trim();
+      final id = it.menuItem.id;
       if (!ids.contains(id)) continue;
 
       final avail = remainingByLine[i] ?? 0;
@@ -481,6 +420,7 @@ class PromoEngine {
 
       final lineDiscount =
           (d <= 100) ? ((sub * d) / 100).floor() : d.clamp(0, sub);
+
       if (lineDiscount <= 0) continue;
 
       totalDiscount += lineDiscount;
@@ -507,7 +447,7 @@ class PromoEngine {
       promoType: promo.promoType,
       discount: totalDiscount,
       affectedItems: affected,
-      freeItems: const [],
+      freeItems: [],
     );
 
     return PromoApplyResult(
@@ -533,12 +473,11 @@ class PromoEngine {
     final subtotal = _remainingSubtotal(order, remainingByLine);
     if (subtotal <= 0) return null;
 
-    // persen/nominal
     final discount =
         (d <= 100) ? ((subtotal * d) / 100).floor() : d.clamp(0, subtotal);
+
     if (discount <= 0) return null;
 
-    // consume semua remaining
     remainingByLine.updateAll((_, __) => 0);
 
     final appliedPromo = AppliedPromosModel(
@@ -546,8 +485,8 @@ class PromoEngine {
       promoName: promo.name,
       promoType: promo.promoType,
       discount: discount,
-      affectedItems: const [],
-      freeItems: const [],
+      affectedItems: [],
+      freeItems: [],
     );
 
     return PromoApplyResult(
@@ -578,6 +517,7 @@ class PromoEngine {
 
     final discount =
         (d <= 100) ? ((baseTotal * d) / 100).floor() : d.clamp(0, baseTotal);
+
     if (discount <= 0) return null;
 
     if (!allowStackingOnTotal) {
@@ -589,8 +529,8 @@ class PromoEngine {
       promoName: promo.name,
       promoType: promo.promoType,
       discount: discount,
-      affectedItems: const [],
-      freeItems: const [],
+      affectedItems: [],
+      freeItems: [],
     );
 
     return PromoApplyResult(
