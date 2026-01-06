@@ -64,8 +64,8 @@ class AutoPromoRepository {
     return allPromos.where((promo) {
       if (!promo.isActive) return false;
 
-      final validFrom = DateTime.parse(promo.validFrom);
-      final validTo = DateTime.parse(promo.validTo);
+      final validFrom = promo.validFrom;
+      final validTo = promo.validTo;
 
       return now.isAfter(validFrom) && now.isBefore(validTo);
     }).toList();

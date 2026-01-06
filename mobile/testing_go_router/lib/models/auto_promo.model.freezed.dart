@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AutoPromoModel {
 
-@HiveField(0)@JsonKey(name: '_id') String get id;@HiveField(1) String get name;@HiveField(2) String get promoType;@HiveField(3) int get discount;@HiveField(4) int? get bundlePrice;@HiveField(5) PromoConditionsModel get conditions;@HiveField(6) ActiveHoursModel get activeHours;@HiveField(7) String get validFrom;@HiveField(8) String get validTo;@HiveField(9) bool get isActive;@HiveField(10) String? get consumerType;@HiveField(11) OutletModel? get outlet;
+@HiveField(0)@JsonKey(name: '_id') String get id;@HiveField(1) String get name;@HiveField(2) String get promoType;@HiveField(3) int get discount;@HiveField(4) int? get bundlePrice;@HiveField(5) PromoConditionsModel get conditions;@HiveField(6) ActiveHoursModel get activeHours;@HiveField(7) DateTime get validFrom;@HiveField(8) DateTime get validTo;@HiveField(9) bool get isActive;@HiveField(10) String? get consumerType;@HiveField(11) OutletModel? get outlet;
 /// Create a copy of AutoPromoModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $AutoPromoModelCopyWith<$Res>  {
   factory $AutoPromoModelCopyWith(AutoPromoModel value, $Res Function(AutoPromoModel) _then) = _$AutoPromoModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name,@HiveField(2) String promoType,@HiveField(3) int discount,@HiveField(4) int? bundlePrice,@HiveField(5) PromoConditionsModel conditions,@HiveField(6) ActiveHoursModel activeHours,@HiveField(7) String validFrom,@HiveField(8) String validTo,@HiveField(9) bool isActive,@HiveField(10) String? consumerType,@HiveField(11) OutletModel? outlet
+@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name,@HiveField(2) String promoType,@HiveField(3) int discount,@HiveField(4) int? bundlePrice,@HiveField(5) PromoConditionsModel conditions,@HiveField(6) ActiveHoursModel activeHours,@HiveField(7) DateTime validFrom,@HiveField(8) DateTime validTo,@HiveField(9) bool isActive,@HiveField(10) String? consumerType,@HiveField(11) OutletModel? outlet
 });
 
 
@@ -75,8 +75,8 @@ as int,bundlePrice: freezed == bundlePrice ? _self.bundlePrice : bundlePrice // 
 as int?,conditions: null == conditions ? _self.conditions : conditions // ignore: cast_nullable_to_non_nullable
 as PromoConditionsModel,activeHours: null == activeHours ? _self.activeHours : activeHours // ignore: cast_nullable_to_non_nullable
 as ActiveHoursModel,validFrom: null == validFrom ? _self.validFrom : validFrom // ignore: cast_nullable_to_non_nullable
-as String,validTo: null == validTo ? _self.validTo : validTo // ignore: cast_nullable_to_non_nullable
-as String,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
+as DateTime,validTo: null == validTo ? _self.validTo : validTo // ignore: cast_nullable_to_non_nullable
+as DateTime,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
 as bool,consumerType: freezed == consumerType ? _self.consumerType : consumerType // ignore: cast_nullable_to_non_nullable
 as String?,outlet: freezed == outlet ? _self.outlet : outlet // ignore: cast_nullable_to_non_nullable
 as OutletModel?,
@@ -194,7 +194,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  String validFrom, @HiveField(8)  String validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  DateTime validFrom, @HiveField(8)  DateTime validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AutoPromoModel() when $default != null:
 return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.validFrom,_that.validTo,_that.isActive,_that.consumerType,_that.outlet);case _:
@@ -215,7 +215,7 @@ return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundleP
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  String validFrom, @HiveField(8)  String validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  DateTime validFrom, @HiveField(8)  DateTime validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)  $default,) {final _that = this;
 switch (_that) {
 case _AutoPromoModel():
 return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.validFrom,_that.validTo,_that.isActive,_that.consumerType,_that.outlet);case _:
@@ -235,7 +235,7 @@ return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundleP
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  String validFrom, @HiveField(8)  String validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)@JsonKey(name: '_id')  String id, @HiveField(1)  String name, @HiveField(2)  String promoType, @HiveField(3)  int discount, @HiveField(4)  int? bundlePrice, @HiveField(5)  PromoConditionsModel conditions, @HiveField(6)  ActiveHoursModel activeHours, @HiveField(7)  DateTime validFrom, @HiveField(8)  DateTime validTo, @HiveField(9)  bool isActive, @HiveField(10)  String? consumerType, @HiveField(11)  OutletModel? outlet)?  $default,) {final _that = this;
 switch (_that) {
 case _AutoPromoModel() when $default != null:
 return $default(_that.id,_that.name,_that.promoType,_that.discount,_that.bundlePrice,_that.conditions,_that.activeHours,_that.validFrom,_that.validTo,_that.isActive,_that.consumerType,_that.outlet);case _:
@@ -260,8 +260,8 @@ class _AutoPromoModel implements AutoPromoModel {
 @override@HiveField(4) final  int? bundlePrice;
 @override@HiveField(5) final  PromoConditionsModel conditions;
 @override@HiveField(6) final  ActiveHoursModel activeHours;
-@override@HiveField(7) final  String validFrom;
-@override@HiveField(8) final  String validTo;
+@override@HiveField(7) final  DateTime validFrom;
+@override@HiveField(8) final  DateTime validTo;
 @override@JsonKey()@HiveField(9) final  bool isActive;
 @override@HiveField(10) final  String? consumerType;
 @override@HiveField(11) final  OutletModel? outlet;
@@ -299,7 +299,7 @@ abstract mixin class _$AutoPromoModelCopyWith<$Res> implements $AutoPromoModelCo
   factory _$AutoPromoModelCopyWith(_AutoPromoModel value, $Res Function(_AutoPromoModel) _then) = __$AutoPromoModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name,@HiveField(2) String promoType,@HiveField(3) int discount,@HiveField(4) int? bundlePrice,@HiveField(5) PromoConditionsModel conditions,@HiveField(6) ActiveHoursModel activeHours,@HiveField(7) String validFrom,@HiveField(8) String validTo,@HiveField(9) bool isActive,@HiveField(10) String? consumerType,@HiveField(11) OutletModel? outlet
+@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String name,@HiveField(2) String promoType,@HiveField(3) int discount,@HiveField(4) int? bundlePrice,@HiveField(5) PromoConditionsModel conditions,@HiveField(6) ActiveHoursModel activeHours,@HiveField(7) DateTime validFrom,@HiveField(8) DateTime validTo,@HiveField(9) bool isActive,@HiveField(10) String? consumerType,@HiveField(11) OutletModel? outlet
 });
 
 
@@ -326,8 +326,8 @@ as int,bundlePrice: freezed == bundlePrice ? _self.bundlePrice : bundlePrice // 
 as int?,conditions: null == conditions ? _self.conditions : conditions // ignore: cast_nullable_to_non_nullable
 as PromoConditionsModel,activeHours: null == activeHours ? _self.activeHours : activeHours // ignore: cast_nullable_to_non_nullable
 as ActiveHoursModel,validFrom: null == validFrom ? _self.validFrom : validFrom // ignore: cast_nullable_to_non_nullable
-as String,validTo: null == validTo ? _self.validTo : validTo // ignore: cast_nullable_to_non_nullable
-as String,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
+as DateTime,validTo: null == validTo ? _self.validTo : validTo // ignore: cast_nullable_to_non_nullable
+as DateTime,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
 as bool,consumerType: freezed == consumerType ? _self.consumerType : consumerType // ignore: cast_nullable_to_non_nullable
 as String?,outlet: freezed == outlet ? _self.outlet : outlet // ignore: cast_nullable_to_non_nullable
 as OutletModel?,

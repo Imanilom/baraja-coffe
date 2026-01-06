@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:kasirbaraja/models/affected_item.model.dart';
 import 'package:kasirbaraja/models/applied_promos.model.dart';
 import 'package:kasirbaraja/models/auto_promo.model.dart';
@@ -14,22 +15,44 @@ class PromoEngine {
     MenuItemModel? Function(String) findMenuById, {
     bool allowStackingOnTotal = false,
   }) {
+    debugPrint('=== PROMO ENGINE START ===');
+    debugPrint('Order ID: ${order.id}, Total Items: ${order.items.length}');
+    debugPrint('Available Promos: ${availablePromos.length}');
+    debugPrint('Current Time: $now');
+    debugPrint('Allow Stacking on Total: $allowStackingOnTotal');
+
     var result = order.copyWith(appliedPromos: []);
     final appliedList = <AppliedPromosModel>[];
+
+    debugPrint('Applying promos...');
 
     // Filter promo yang aktif dan valid
     final eligiblePromos =
         availablePromos.where((promo) {
-          return _isPromoValid(promo, now) &&
-              _isPromoEligible(promo, order, now);
+          final isValid = _isPromoValid(promo, now);
+          final isEligible = _isPromoEligible(promo, order, now);
+          debugPrint(
+            'Promo ${promo.name} (${promo.id}): isValid=$isValid, isEligible=$isEligible',
+          );
+          return isValid && isEligible;
         }).toList();
+
+    debugPrint('Eligible Promos: ${eligiblePromos.length}');
 
     // Urutkan berdasarkan prioritas
     eligiblePromos.sort(
       (a, b) => _getPromoPriority(a).compareTo(_getPromoPriority(b)),
     );
 
+    debugPrint('Sorted Promos by Priority:');
     for (final promo in eligiblePromos) {
+      debugPrint('  - ${promo.name}: priority=${_getPromoPriority(promo)}');
+    }
+
+    for (final promo in eligiblePromos) {
+      debugPrint('\n--- Processing Promo: ${promo.name} (${promo.id}) ---');
+      debugPrint('Promo Type: ${promo.promoType}');
+
       final applied = _applySinglePromo(
         result,
         promo,
@@ -38,53 +61,90 @@ class PromoEngine {
       );
 
       if (applied != null) {
+        debugPrint('✅ Promo applied successfully');
+        debugPrint('   Discount Amount: ${applied.discount}');
+        debugPrint('   Affected Items: ${applied.affectedItems.length}');
+        debugPrint('   Free Items: ${applied.freeItems.length}');
         appliedList.add(applied);
         result = _updateOrderWithPromo(result, applied, promo);
+      } else {
+        debugPrint('❌ Promo not applied');
       }
     }
+
+    debugPrint('\n=== PROMO ENGINE FINISH ===');
+    debugPrint('Total Applied Promos: ${appliedList.length}');
+    debugPrint('Total Discount: ${sumAutoDiscount(appliedList)}');
 
     return result.copyWith(appliedPromos: appliedList);
   }
 
   /// Validasi apakah promo masih valid (tanggal & jam)
   static bool _isPromoValid(AutoPromoModel promo, DateTime now) {
-    if (!promo.isActive) return false;
+    debugPrint('  _isPromoValid: Checking promo ${promo.name}');
+
+    if (!promo.isActive) {
+      debugPrint('    ❌ Promo is not active');
+      return false;
+    }
 
     // Check tanggal validitas
-    final validFrom = DateTime.parse(promo.validFrom);
-    final validTo = DateTime.parse(promo.validTo);
+    final validFrom = promo.validFrom;
+    final validTo = promo.validTo;
 
-    if (now.isBefore(validFrom) || now.isAfter(validTo)) {
+    if (now.isBefore(validFrom)) {
+      debugPrint('    ❌ Promo not started yet (Valid From: $validFrom)');
+      return false;
+    }
+
+    if (now.isAfter(validTo)) {
+      debugPrint('    ❌ Promo expired (Valid To: $validTo)');
       return false;
     }
 
     // Check active hours jika enabled
     if (promo.activeHours.isEnabled) {
-      return _isWithinActiveHours(promo.activeHours, now);
+      final isWithinHours = _isWithinActiveHours(promo.activeHours, now);
+      debugPrint('    Active Hours Enabled: $isWithinHours');
+      return isWithinHours;
     }
 
+    debugPrint('    ✅ Promo is valid');
     return true;
   }
 
   /// Check apakah waktu sekarang dalam jam aktif promo
   static bool _isWithinActiveHours(ActiveHoursModel activeHours, DateTime now) {
+    debugPrint('      _isWithinActiveHours: Checking schedule');
+
     final currentDay = now.weekday % 7; // Convert to 0=Sunday
     final currentTime =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
+    debugPrint('      Current Day: $currentDay, Current Time: $currentTime');
+
     for (final schedule in activeHours.schedule) {
+      debugPrint(
+        '      Checking schedule: Day ${schedule.dayOfWeek}, ${schedule.startTime} - ${schedule.endTime}',
+      );
       if (schedule.dayOfWeek == currentDay) {
         if (_isTimeBetween(currentTime, schedule.startTime, schedule.endTime)) {
+          debugPrint('        ✅ Time is within schedule');
           return true;
         }
       }
     }
 
+    debugPrint('        ❌ No matching schedule found');
     return false;
   }
 
   static bool _isTimeBetween(String current, String start, String end) {
-    return current.compareTo(start) >= 0 && current.compareTo(end) <= 0;
+    final result = current.compareTo(start) >= 0 && current.compareTo(end) <= 0;
+    debugPrint(
+      '        _isTimeBetween: $current between $start and $end = $result',
+    );
+    return result;
   }
 
   /// Check apakah order memenuhi syarat promo
@@ -93,36 +153,66 @@ class PromoEngine {
     OrderDetailModel order,
     DateTime now,
   ) {
+    debugPrint(
+      '  _isPromoEligible: Checking eligibility for ${promo.promoType}',
+    );
+
+    bool result;
     switch (promo.promoType) {
       case 'product_specific':
-        return _hasEligibleProducts(promo, order);
-
+        result = _hasEligibleProducts(promo, order);
+        break;
       case 'bundling':
-        return _hasBundleProducts(promo, order);
-
+        result = _hasBundleProducts(promo, order);
+        break;
       case 'discount_on_quantity':
-        return _meetsMinQuantity(promo, order);
-
+        result = _meetsMinQuantity(promo, order);
+        break;
       case 'discount_on_total':
-        return _meetsMinTotal(promo, order);
-
+        result = _meetsMinTotal(promo, order);
+        break;
       case 'buy_x_get_y':
-        return _hasBuyProduct(promo, order);
-
+        result = _hasBuyProduct(promo, order);
+        break;
       default:
+        debugPrint('    ❌ Unknown promo type: ${promo.promoType}');
         return false;
     }
+
+    debugPrint('    Eligibility result: $result');
+    return result;
   }
 
   static bool _hasEligibleProducts(
     AutoPromoModel promo,
     OrderDetailModel order,
   ) {
+    debugPrint('    _hasEligibleProducts: Checking product-specific promo');
     final productIds = promo.conditions.products.map((p) => p.id).toSet();
-    return order.items.any((item) => productIds.contains(item.menuItem.id));
+    debugPrint('    Eligible Product IDs: $productIds');
+
+    for (final item in order.items) {
+      debugPrint(
+        '    Checking item: ${item.menuItem.id} - ${item.menuItem.name}',
+      );
+      if (productIds.contains(item.menuItem.id)) {
+        debugPrint('      ✅ Found eligible product');
+        return true;
+      }
+    }
+
+    debugPrint('      ❌ No eligible products found');
+    return false;
   }
 
   static bool _hasBundleProducts(AutoPromoModel promo, OrderDetailModel order) {
+    debugPrint('    _hasBundleProducts: Checking bundle promo');
+
+    if (promo.conditions.bundleProducts.isEmpty) {
+      debugPrint('      ❌ No bundle products defined');
+      return false;
+    }
+
     // Check apakah semua produk bundle ada di order
     for (final bundleItem in promo.conditions.bundleProducts) {
       final found = order.items.where((item) {
@@ -130,46 +220,79 @@ class PromoEngine {
       });
 
       final totalQty = found.fold(0, (sum, item) => sum + item.quantity);
-      if (totalQty < bundleItem.quantity) return false;
+      debugPrint(
+        '    Bundle item: ${bundleItem.product.id}, Required: ${bundleItem.quantity}, Found: $totalQty',
+      );
+
+      if (totalQty < bundleItem.quantity) {
+        debugPrint('      ❌ Insufficient quantity for bundle item');
+        return false;
+      }
     }
 
-    return promo.conditions.bundleProducts.isNotEmpty;
+    debugPrint('      ✅ All bundle requirements met');
+    return true;
   }
 
   static bool _meetsMinQuantity(AutoPromoModel promo, OrderDetailModel order) {
     final minQty = promo.conditions.minQuantity ?? 0;
     final totalQty = order.items.fold(0, (sum, item) => sum + item.quantity);
+
+    debugPrint('    _meetsMinQuantity: Min Qty=$minQty, Actual Qty=$totalQty');
+    debugPrint('      Result: ${totalQty >= minQty}');
+
     return totalQty >= minQty;
   }
 
   static bool _meetsMinTotal(AutoPromoModel promo, OrderDetailModel order) {
     final minTotal = promo.conditions.minTotal ?? 0;
-    return order.totalBeforeDiscount >= minTotal;
+    final result = order.totalBeforeDiscount >= minTotal;
+
+    debugPrint(
+      '    _meetsMinTotal: Min Total=$minTotal, Order Total=${order.totalBeforeDiscount}',
+    );
+    debugPrint('      Result: $result');
+
+    return result;
   }
 
   static bool _hasBuyProduct(AutoPromoModel promo, OrderDetailModel order) {
     final buyProductId = promo.conditions.buyProduct?.id;
-    if (buyProductId == null) return false;
+    if (buyProductId == null) {
+      debugPrint('    _hasBuyProduct: No buy product defined');
+      return false;
+    }
 
-    return order.items.any((item) => item.menuItem.id == buyProductId);
+    debugPrint('    _hasBuyProduct: Looking for product ID: $buyProductId');
+    final hasProduct = order.items.any(
+      (item) => item.menuItem.id == buyProductId,
+    );
+
+    if (hasProduct) {
+      final totalQty = order.items
+          .where((item) => item.menuItem.id == buyProductId)
+          .fold(0, (sum, item) => sum + item.quantity);
+      debugPrint('      ✅ Found buy product, total quantity: $totalQty');
+    } else {
+      debugPrint('      ❌ Buy product not found in order');
+    }
+
+    return hasProduct;
   }
 
   /// Prioritas promo (lebih kecil = lebih prioritas)
   static int _getPromoPriority(AutoPromoModel promo) {
-    switch (promo.promoType) {
-      case 'bundling':
-        return 1; // Paling prioritas
-      case 'buy_x_get_y':
-        return 2;
-      case 'product_specific':
-        return 3;
-      case 'discount_on_quantity':
-        return 4;
-      case 'discount_on_total':
-        return 5; // Paling akhir
-      default:
-        return 99;
-    }
+    final priority = switch (promo.promoType) {
+      'bundling' => 1,
+      'buy_x_get_y' => 2,
+      'product_specific' => 3,
+      'discount_on_quantity' => 4,
+      'discount_on_total' => 5,
+      _ => 99,
+    };
+
+    debugPrint('  _getPromoPriority: ${promo.promoType} -> $priority');
+    return priority;
   }
 
   /// Apply promo ke order dan return AppliedPromosModel
@@ -179,6 +302,10 @@ class PromoEngine {
     MenuItemModel? Function(String) findMenuById, {
     bool allowStackingOnTotal = false,
   }) {
+    debugPrint(
+      '    _applySinglePromo: Type=${promo.promoType}, Name=${promo.name}',
+    );
+
     switch (promo.promoType) {
       case 'product_specific':
         return _applyProductSpecific(order, promo);
@@ -197,7 +324,12 @@ class PromoEngine {
                 (p) => p.promoType == 'discount_on_total',
               ) ??
               false;
-          if (hasOtherTotal) return null;
+          if (hasOtherTotal) {
+            debugPrint(
+              '      ❌ Another total discount already applied, stacking not allowed',
+            );
+            return null;
+          }
         }
         return _applyDiscountOnTotal(order, promo);
 
@@ -205,6 +337,7 @@ class PromoEngine {
         return _applyBuyXGetY(order, promo, findMenuById);
 
       default:
+        debugPrint('      ❌ Unknown promo type, cannot apply');
         return null;
     }
   }
@@ -214,15 +347,27 @@ class PromoEngine {
     OrderDetailModel order,
     AutoPromoModel promo,
   ) {
+    debugPrint('      _applyProductSpecific: ${promo.name}');
+    debugPrint('      Discount Percentage: ${promo.discount}%');
+
     final affectedItems = <AffectedItemModel>[];
     final productIds = promo.conditions.products.map((p) => p.id).toSet();
+    debugPrint('      Targeted Product IDs: $productIds');
 
     for (final item in order.items) {
       if (productIds.contains(item.menuItem.id)) {
+        debugPrint('        Processing item: ${item.menuItem.name}');
+        debugPrint(
+          '          Quantity: ${item.quantity}, Subtotal: ${item.subtotal}',
+        );
+
         final originalSubtotal = item.subtotal;
         final discountAmount =
             (originalSubtotal * promo.discount / 100).round();
         final discountedSubtotal = originalSubtotal - discountAmount;
+
+        debugPrint('          Discount Amount: $discountAmount');
+        debugPrint('          Discounted Subtotal: $discountedSubtotal');
 
         affectedItems.add(
           AffectedItemModel(
@@ -238,12 +383,18 @@ class PromoEngine {
       }
     }
 
-    if (affectedItems.isEmpty) return null;
+    if (affectedItems.isEmpty) {
+      debugPrint('        ❌ No affected items found');
+      return null;
+    }
 
     final totalDiscount = affectedItems.fold(
       0,
       (sum, item) => sum + item.discountAmount,
     );
+
+    debugPrint('        Total Discount: $totalDiscount');
+    debugPrint('        Affected Items Count: ${affectedItems.length}');
 
     return AppliedPromosModel(
       promoId: promo.id,
@@ -256,6 +407,7 @@ class PromoEngine {
   }
 
   /// BUNDLING: Paket produk dengan harga khusus
+  /// BUNDLING: Paket produk dengan harga khusus
   static AppliedPromosModel? _applyBundling(
     OrderDetailModel order,
     AutoPromoModel promo,
@@ -264,28 +416,53 @@ class PromoEngine {
     final affectedItems = <AffectedItemModel>[];
     var totalOriginal = 0;
 
+    debugPrint('🎁 Checking bundling promo: ${promo.name}');
+    debugPrint(
+      '📦 Required items: ${promo.conditions.bundleProducts.map((b) => "${b.product.name} x${b.quantity}").join(", ")}',
+    );
+
     // Hitung berapa set bundle yang bisa dibuat
     var minSets = 999999;
+
     for (final bundleItem in promo.conditions.bundleProducts) {
       final matchingItems = order.items.where(
         (item) => item.menuItem.id == bundleItem.product.id,
       );
+
+      if (matchingItems.isEmpty) {
+        debugPrint('❌ Item not found in cart: ${bundleItem.product.name}');
+        return null;
+      }
+
       final totalQty = matchingItems.fold(
         0,
         (sum, item) => sum + item.quantity,
       );
       final sets = totalQty ~/ bundleItem.quantity;
+
+      debugPrint(
+        '  - ${bundleItem.product.name}: have $totalQty, need ${bundleItem.quantity}, can make $sets sets',
+      );
+
       if (sets < minSets) minSets = sets;
     }
 
-    if (minSets == 0) return null;
+    if (minSets == 0) {
+      debugPrint('❌ Cannot make any bundle sets');
+      return null;
+    }
+
+    debugPrint('✅ Can make $minSets set(s) of bundle');
 
     // Apply discount untuk items dalam bundle
     for (final bundleItem in promo.conditions.bundleProducts) {
-      final item = order.items.firstWhere(
+      final matchingItems = order.items.where(
         (item) => item.menuItem.id == bundleItem.product.id,
       );
 
+      if (matchingItems.isEmpty) continue;
+
+      final item = matchingItems.first;
       final qtyInBundle = bundleItem.quantity * minSets;
       final pricePerItem = item.subtotal ~/ item.quantity;
       final originalSubtotal = pricePerItem * qtyInBundle;
@@ -306,7 +483,11 @@ class PromoEngine {
     final totalBundlePrice = bundlePrice * minSets;
     final totalDiscount = totalOriginal - totalBundlePrice;
 
-    // Update discount amount
+    debugPrint(
+      '💰 Original: $totalOriginal, Bundle: $totalBundlePrice, Discount: $totalDiscount',
+    );
+
+    // Update discount amount proportionally
     for (var i = 0; i < affectedItems.length; i++) {
       final ratio = affectedItems[i].originalSubtotal / totalOriginal;
       final itemDiscount = (totalDiscount * ratio).round();
@@ -324,6 +505,7 @@ class PromoEngine {
       discount: totalDiscount,
       affectedItems: affectedItems,
       freeItems: [],
+      appliedCount: minSets, // Track berapa set
     );
   }
 
@@ -332,17 +514,34 @@ class PromoEngine {
     OrderDetailModel order,
     AutoPromoModel promo,
   ) {
+    debugPrint('      _applyDiscountOnQuantity: ${promo.name}');
+
     final totalQty = order.items.fold(0, (sum, item) => sum + item.quantity);
     final minQty = promo.conditions.minQuantity ?? 0;
 
-    if (totalQty < minQty) return null;
+    debugPrint('        Total Qty: $totalQty, Min Qty: $minQty');
+
+    if (totalQty < minQty) {
+      debugPrint('        ❌ Minimum quantity not met');
+      return null;
+    }
+
+    debugPrint(
+      '        ✅ Minimum quantity met, applying ${promo.discount}% discount',
+    );
 
     final affectedItems = <AffectedItemModel>[];
+    debugPrint('        Calculating discount for each item:');
 
     for (final item in order.items) {
       final originalSubtotal = item.subtotal;
       final discountAmount = (originalSubtotal * promo.discount / 100).round();
       final discountedSubtotal = originalSubtotal - discountAmount;
+
+      debugPrint('          ${item.menuItem.name}:');
+      debugPrint('            Subtotal: $originalSubtotal');
+      debugPrint('            Discount: $discountAmount');
+      debugPrint('            Final: $discountedSubtotal');
 
       affectedItems.add(
         AffectedItemModel(
@@ -362,6 +561,8 @@ class PromoEngine {
       (sum, item) => sum + item.discountAmount,
     );
 
+    debugPrint('        Total Discount: $totalDiscount');
+
     return AppliedPromosModel(
       promoId: promo.id,
       promoName: promo.name,
@@ -377,11 +578,21 @@ class PromoEngine {
     OrderDetailModel order,
     AutoPromoModel promo,
   ) {
+    debugPrint('      _applyDiscountOnTotal: ${promo.name}');
+
     final minTotal = promo.conditions.minTotal ?? 0;
-    if (order.totalBeforeDiscount < minTotal) return null;
+    debugPrint(
+      '        Order Total: ${order.totalBeforeDiscount}, Min Total: $minTotal',
+    );
+
+    if (order.totalBeforeDiscount < minTotal) {
+      debugPrint('        ❌ Minimum total not met');
+      return null;
+    }
 
     // Diskon flat nominal
     final discountAmount = promo.discount;
+    debugPrint('        ✅ Applying discount: $discountAmount');
 
     return AppliedPromosModel(
       promoId: promo.id,
@@ -401,22 +612,41 @@ class PromoEngine {
     AutoPromoModel promo,
     MenuItemModel? Function(String) findMenuById,
   ) {
+    debugPrint('      _applyBuyXGetY: ${promo.name}');
+
     final buyProductId = promo.conditions.buyProduct?.id;
     final getProductId = promo.conditions.getProduct?.id;
 
-    if (buyProductId == null || getProductId == null) return null;
+    if (buyProductId == null || getProductId == null) {
+      debugPrint('        ❌ Buy or Get product not defined');
+      return null;
+    }
+
+    debugPrint('        Buy Product ID: $buyProductId');
+    debugPrint('        Get Product ID: $getProductId');
 
     // Cari produk yang dibeli
     final buyItems = order.items.where(
       (item) => item.menuItem.id == buyProductId,
     );
-    if (buyItems.isEmpty) return null;
+
+    if (buyItems.isEmpty) {
+      debugPrint('        ❌ Buy product not found in order');
+      return null;
+    }
 
     final totalBuyQty = buyItems.fold(0, (sum, item) => sum + item.quantity);
+    debugPrint('        Total Buy Quantity: $totalBuyQty');
 
     // Free item sesuai qty yang dibeli
     final getProduct = findMenuById(getProductId);
-    if (getProduct == null) return null;
+    if (getProduct == null) {
+      debugPrint('        ❌ Get product not found in menu');
+      return null;
+    }
+
+    debugPrint('        Get Product: ${getProduct.name}');
+    debugPrint('        Free Quantity: $totalBuyQty');
 
     final freeItems = [
       FreeItemModel(
@@ -430,6 +660,9 @@ class PromoEngine {
     // Affected items (produk yang dibeli)
     final affectedItems =
         buyItems.map((item) {
+          debugPrint(
+            '          Affected item: ${item.menuItem.name}, Qty: ${item.quantity}',
+          );
           return AffectedItemModel(
             menuItem: item.menuItem.id,
             menuItemName: item.menuItem.name ?? 'Produk tidak ada',
@@ -439,6 +672,8 @@ class PromoEngine {
             discountedSubtotal: item.subtotal,
           );
         }).toList();
+
+    debugPrint('        Created ${freeItems.length} free item(s)');
 
     return AppliedPromosModel(
       promoId: promo.id,
@@ -458,6 +693,11 @@ class PromoEngine {
     AppliedPromosModel appliedPromo,
     AutoPromoModel promo,
   ) {
+    debugPrint('      _updateOrderWithPromo: ${promo.name}');
+    debugPrint('        Applied discount: ${appliedPromo.discount}');
+    debugPrint('        Free items count: ${appliedPromo.freeItems.length}');
+    debugPrint('        Note: Free items are NOT added to order.items');
+
     // Free items TIDAK ditambahkan ke order.items
     // Hanya disimpan di appliedPromos.freeItems
     return order;
@@ -465,17 +705,31 @@ class PromoEngine {
 
   /// Helper: Sum semua discount dari appliedPromos
   static int sumAutoDiscount(List<AppliedPromosModel>? promos) {
-    if (promos == null || promos.isEmpty) return 0;
-    return promos.fold(0, (sum, p) => sum + (p.discount ?? 0));
+    if (promos == null || promos.isEmpty) {
+      debugPrint('sumAutoDiscount: No promos to sum');
+      return 0;
+    }
+
+    final total = promos.fold(0, (sum, p) => sum + (p.discount ?? 0));
+    debugPrint('sumAutoDiscount: Total discount = $total');
+    return total;
   }
 
   /// Helper: Get daftar produk yang kena promo
   static Set<String> getAffectedProductIds(List<AppliedPromosModel>? promos) {
-    if (promos == null || promos.isEmpty) return {};
-    return promos
-        .expand((p) => p.affectedItems)
-        .map((item) => item.menuItem)
-        .toSet();
+    if (promos == null || promos.isEmpty) {
+      debugPrint('getAffectedProductIds: No promos');
+      return {};
+    }
+
+    final ids =
+        promos
+            .expand((p) => p.affectedItems)
+            .map((item) => item.menuItem)
+            .toSet();
+
+    debugPrint('getAffectedProductIds: Affected product IDs = $ids');
+    return ids;
   }
 
   /// Helper: Check apakah item tertentu kena promo
@@ -483,10 +737,21 @@ class PromoEngine {
     String menuItemId,
     List<AppliedPromosModel>? promos,
   ) {
-    if (promos == null || promos.isEmpty) return false;
-    return promos.any(
+    if (promos == null || promos.isEmpty) {
+      debugPrint(
+        'isItemAffectedByPromo: No promos, item $menuItemId not affected',
+      );
+      return false;
+    }
+
+    final isAffected = promos.any(
       (p) => p.affectedItems.any((item) => item.menuItem == menuItemId),
     );
+
+    debugPrint(
+      'isItemAffectedByPromo: Item $menuItemId affected = $isAffected',
+    );
+    return isAffected;
   }
 
   /// Helper: Get total discount untuk item tertentu
@@ -494,9 +759,12 @@ class PromoEngine {
     String menuItemId,
     List<AppliedPromosModel>? promos,
   ) {
-    if (promos == null || promos.isEmpty) return 0;
+    if (promos == null || promos.isEmpty) {
+      debugPrint('getItemDiscount: No promos, discount for $menuItemId = 0');
+      return 0;
+    }
 
-    return promos.fold(0, (sum, promo) {
+    final totalDiscount = promos.fold(0, (sum, promo) {
       final affected = promo.affectedItems.firstWhere(
         (item) => item.menuItem == menuItemId,
         orElse:
@@ -511,5 +779,10 @@ class PromoEngine {
       );
       return sum + affected.discountAmount;
     });
+
+    debugPrint(
+      'getItemDiscount: Total discount for $menuItemId = $totalDiscount',
+    );
+    return totalDiscount;
   }
 }

@@ -212,6 +212,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final menu = ref.watch(reservationMenuItemProvider);
     final promoGroup = ref.watch(promoGroupsProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
+    final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
     print('Promo Groups: $promoGroup');
     const categories = [
       'promo',
@@ -361,11 +362,13 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                                               subtitle: g.promoType,
                                               promoType: g.promoType,
                                               onTap: () async {
-                                                await ref
-                                                    .read(
-                                                      orderDetailProvider
-                                                          .notifier,
-                                                    )
+                                                orderDetailNotifier
+                                                    .initializeOrder(
+                                                      orderType:
+                                                          OrderType.dineIn,
+                                                    );
+
+                                                await orderDetailNotifier
                                                     .applyPromoGroup(g);
                                               },
                                             );

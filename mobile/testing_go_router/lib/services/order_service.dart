@@ -4,7 +4,6 @@ import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
-import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/services/api_response_handler.dart';
@@ -20,13 +19,12 @@ class OrderService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
 
   Future<Map<String, dynamic>> createOrder(OrderDetailModel orderDetail) async {
-    // final requestBody = orderDetail.toJson();
-    // debugPrint('request body create order: $requestBody');
-
     try {
-      debugPrint('request body: ${createOrderRequest(orderDetail)}');
-
-      // return {'orderId': '', 'orderNumber': '', 'paymentStatus': 'settlement'};
+      debugPrint('order request: ${createOrderRequest(orderDetail)}');
+      debugPrint('log order: ${logOrder(orderDetail)}');
+      debugPrint('log menu item: ${logMenuItem(orderDetail)}');
+      debugPrint('log payments: ${logPayments(orderDetail)}');
+      debugPrint('log appliedPromo: ${logAppliedPRomo(orderDetail)}');
 
       Response response = await _dio.post(
         '/api/unified-order',
@@ -53,86 +51,6 @@ class OrderService {
     }
   }
 
-  // TODO: BOLEH DIHAPUS JIKA TIDAK DIGUNAKAN
-  // Future<Map<String, dynamic>> createOrder(
-  //   OrderDetailModel orderDetail,
-  //   PaymentState paymentData,
-  // ) async {
-  //   // final requestBody = orderDetail.toJson();
-  //   final String paymentMethod =
-  //       "${paymentData.selectedPaymentType?.name ?? ""} ${paymentData.selectedPaymentMethod?.name ?? "Cash"}";
-  //   final Map<String, dynamic> paymentDetails = {
-  //     'grand_total': orderDetail.grandTotal,
-  //     'payment_type': paymentMethod,
-  //     'is_down_payment': paymentData.isDownPayment,
-  //     'down_payment_amount': paymentData.selectedDownPayment ?? 0,
-  //     'remaining_payment':
-  //         paymentData.selectedDownPayment != null
-  //             ? orderDetail.grandTotal - (paymentData.selectedDownPayment ?? 0)
-  //             : 0,
-  //     'tendered_amount': paymentData.selectedCashAmount ?? 0,
-  //     'change_amount': paymentData.change ?? 0,
-  //   };
-
-  //   try {
-  //     debugPrint(
-  //       'start create order...request body: ${createOrderRequest(orderDetail, paymentDetails)}',
-  //     );
-
-  //     Response response = await _dio.post(
-  //       '/api/unified-order',
-  //       data: createOrderRequest(orderDetail, paymentDetails),
-  //       options: Options(
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Accept': 'application/json',
-  //           'ngrok-skip-browser-warning': 'true',
-  //         },
-  //       ),
-  //     );
-  //     debugPrint('response create order: ${response.data}');
-
-  //     // Response chargeResponse = await _dio.post(
-  //     //   '/api/cashierCharge',
-  //     //   data: createChargeRequest(
-  //     //     response.data['orderId'],
-  //     //     orderDetail.grandTotal,
-  //     //     paymentMethod,
-  //     //     paymentData.isDownPayment,
-  //     //     paymentData.selectedDownPayment ?? 0,
-  //     //     paymentData.selectedDownPayment != null
-  //     //         ? orderDetail.grandTotal - (paymentData.selectedDownPayment ?? 0)
-  //     //         : 0,
-  //     //     paymentData.selectedCashAmount ?? 0,
-  //     //     paymentData.change ?? 0,
-  //     //   ),
-  //     //   options: Options(
-  //     //     headers: {
-  //     //       'Content-Type': 'application/json',
-  //     //       'Accept': 'application/json',
-  //     //       'ngrok-skip-browser-warning': 'true',
-  //     //     },
-  //     //   ),
-  //     // );
-
-  //     // debugPrint('response charge: ${chargeResponse.data}');
-  //     // if (chargeResponse.statusCode != 200) {
-  //     //   throw Exception('Failed to create charge');
-  //     // }
-
-  //     return {
-  //       'orderId': response.data['orderId'],
-  //       'orderNumber': response.data['orderNumber'],
-  //       'paymentStatus': 'settlement',
-  //       // 'paymentStatus': chargeResponse.data['paymentStatus'],
-  //     };
-  //   } on DioException catch (e) {
-  //     debugPrint('error create order: $e');
-  //     throw ApiResponseHandler.handleError(e);
-  //   }
-  // }
-
-  // Future<List<dynamic>> fetchPendingOrders(String outletId) async {
   Future<Map<String, dynamic>> fetchPendingOrders(String outletId) async {
     try {
       Response response = await _dio.get(
@@ -482,68 +400,98 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
   };
 }
 
-//TODO: bisa dihapus jika tidak digunakan
-// Map<String, dynamic> createOrderRequest(
-//   OrderDetailModel order,
-//   Map<String, dynamic> paymentDetails,
-// ) {
-//   final box = Hive.box('userBox');
-//   final user = box.get('user') as UserModel;
-//   final loginDevice = box.get('device') as DeviceModel;
-//   return {
-//     'order_id': order.orderId,
-//     'user_id': order.userId ?? "",
-//     'user': order.user,
-//     'cashierId': order.cashier?.id ?? '',
-//     'device_id': loginDevice.id,
-//     'items':
-//         order.items.map((item) {
-//           return {
-//             'id': item.menuItem.id, // Ambil id menu aja
-//             'quantity': item.quantity,
-//             'selectedAddons':
-//                 item.selectedAddons.map((addon) {
-//                   return {
-//                     'id': addon.id,
-//                     'options':
-//                         addon.options
-//                             ?.map((option) => {'id': option.id})
-//                             .toList(),
-//                   };
-//                 }).toList(),
-//             'selectedToppings':
-//                 item.selectedToppings
-//                     .map((topping) => {'id': topping.id})
-//                     .toList(),
-//             'notes': item.notes,
-//             'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
-//           };
-//         }).toList(),
-//     'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
-//     'tableNumber': order.tableNumber ?? 1,
-//     'paymentMethod': order.paymentMethod ?? 'Cash',
-//     'outletId': user.outletId,
-//     'outlet': user.outletId,
-//     'totalPrice': order.grandTotal,
-//     'source': "Cashier",
-//     'isOpenBill': order.isOpenBill,
-//     'isSplitPayment': order.isSplitPayment,
-//     'customAmountItems':
-//         order.customAmountItems != null
-//             ? order.customAmountItems?.map((item) {
-//               return {
-//                 'name': item.name,
-//                 'description': item.description,
-//                 'amount': item.amount,
-//                 'orderType': OrderTypeExtension.orderTypeToJson(
-//                   item.orderType ?? OrderType.dineIn,
-//                 ),
-//               };
-//             }).toList()
-//             : [],
-//     'paymentDetails': paymentDetails,
-//   };
-// }
+Map<String, dynamic> logOrder(OrderDetailModel order) {
+  final box = Hive.box('userBox');
+  final user = box.get('user') as UserModel;
+  final loginDevice = box.get('device') as DeviceModel;
+  return {
+    'order_id': order.orderId,
+    'user_id': order.userId ?? "",
+    'user': order.user,
+    'cashierId': order.cashier?.id ?? '',
+    'device_id': loginDevice.id,
+    'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
+    'tableNumber': order.tableNumber ?? 1,
+    'paymentMethod': order.paymentMethod ?? 'Cash',
+    'outletId': user.outletId,
+    'outlet': user.outletId,
+    'selectedPromoIds': order.selectedPromoIds,
+    'discounts': order.discounts,
+    'totalPrice': order.grandTotal,
+    'source': "Cashier",
+    'isOpenBill': order.isOpenBill,
+    'isSplitPayment': order.isSplitPayment,
+    'customAmountItems':
+        order.customAmountItems != null
+            ? order.customAmountItems?.map((item) {
+              return {
+                'name': item.name,
+                'description': item.description,
+                'amount': item.amount,
+                'orderType': OrderTypeExtension.orderTypeToJson(
+                  item.orderType ?? OrderType.dineIn,
+                ),
+              };
+            }).toList()
+            : [],
+  };
+}
+
+Map<String, dynamic> logMenuItem(OrderDetailModel order) {
+  return {
+    'items':
+        order.items.map((item) {
+          return {
+            'id': item.menuItem.id, // Ambil id menu aja
+            'quantity': item.quantity,
+            'selectedAddons':
+                item.selectedAddons.map((addon) {
+                  return {
+                    'id': addon.id,
+                    'options':
+                        addon.options
+                            ?.map((option) => {'id': option.id})
+                            .toList(),
+                  };
+                }).toList(),
+            'selectedToppings':
+                item.selectedToppings
+                    .map((topping) => {'id': topping.id})
+                    .toList(),
+            'notes': item.notes,
+            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+          };
+        }).toList(),
+  };
+}
+
+Map<String, dynamic> logPayments(OrderDetailModel order) {
+  return {
+    'paymentDetails':
+        order.isOpenBill == true
+            ? []
+            : order.payments.map((payment) {
+              final methodtype = PaymentDetails.buildPaymentMethodLabel(
+                payment,
+              );
+              return {
+                'status': payment.status,
+                'method': payment.method,
+                'methodType': methodtype,
+                'amount': payment.amount,
+                'remainingAmount': payment.remainingAmount,
+                'tenderedAmount': payment.tenderedAmount,
+                'changeAmount': payment.changeAmount,
+                'vaNumbers': payment.vaNumbers?.toList() ?? [],
+                'actions': payment.actions?.toList() ?? [],
+              };
+            }).toList(),
+  };
+}
+
+Map<String, dynamic> logAppliedPRomo(OrderDetailModel order) {
+  return {'appliedPromos': order.appliedPromos};
+}
 
 Map<String, dynamic> createChargeRequest(
   String orderId,

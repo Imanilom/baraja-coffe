@@ -603,6 +603,62 @@ class OrderDetail extends ConsumerWidget {
             ),
           ),
 
+          // Di dalam widget OrderDetail, setelah list regular items
+
+          // FREE ITEMS SECTION (dari appliedPromos)
+          if ((orderDetail?.appliedPromos ?? []).any(
+            (p) => p.freeItems.isNotEmpty,
+          )) ...[
+            const SizedBox(height: 4),
+            // List Free Items
+            ...orderDetail!.appliedPromos!
+                .expand((promo) => promo.freeItems)
+                .map((freeItem) {
+                  return Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.only(right: 4),
+                    child: ListTile(
+                      horizontalTitleGap: 4,
+                      visualDensity: const VisualDensity(
+                        vertical: -4,
+                        horizontal: 0,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 0,
+                        horizontal: 4,
+                      ),
+                      dense: true,
+                      leading: CircleAvatar(
+                        child: Text(freeItem.quantity.toString()),
+                      ),
+                      title: Text(freeItem.menuItemName),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.green.shade400,
+                              Colors.green.shade600,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'GRATIS',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+          ],
           const SizedBox(height: 4),
 
           // Bottom summary + actions

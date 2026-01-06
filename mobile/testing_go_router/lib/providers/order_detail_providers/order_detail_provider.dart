@@ -329,9 +329,11 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   /// Apply promo group (untuk bundling/paket)
   Future<void> applyPromoGroup(PromoGroupModel group) async {
-    if (state == null) return;
+    if (state == null) {
+      initializeOrder(orderType: OrderType.dineIn);
+    }
 
-    debugPrint('Applying promo group: ${group.name}');
+    debugPrint('🎯 Applying promo group: ${group.name}');
 
     // Get menu items
     final menus = await ref.read(menuItemRepository).getLocalMenuItems();
@@ -343,7 +345,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     // Build order items dari group lines
     for (final line in group.lines) {
       final menu = findMenu(line.menuItemId);
-      if (menu == null) continue;
+      if (menu == null) {
+        debugPrint('⚠️ Menu not found: ${line.menuItemId}');
+        continue;
+      }
 
       // Get default addons
       final selectedAddons = _getDefaultAddons(menu);
@@ -360,14 +365,44 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       );
     }
 
-    // Select promo dan add items
-    selectAutoPromo(group.promoId);
-
-    if (items.isNotEmpty) {
-      addItemsToOrder(items);
+    if (items.isEmpty) {
+      debugPrint('❌ No items to add from promo group');
+      return;
     }
 
-    debugPrint('Promo group applied: ${items.length} items added');
+    debugPrint('📦 Adding ${items.length} items from promo group');
+
+    // ✅ PERBAIKAN: Update state SEKALI dengan semua perubahan
+    final currentIds = state!.selectedPromoIds;
+    final newIds =
+        currentIds.contains(group.promoId)
+            ? currentIds
+            : [...currentIds, group.promoId];
+
+    // Merge items
+    var updatedItems = [...state!.items];
+    for (final orderItem in items) {
+      final idx = updatedItems.findSimilarItemIndex(orderItem);
+      if (idx != -1) {
+        updatedItems[idx] = updatedItems[idx].copyWith(
+          quantity: updatedItems[idx].quantity + orderItem.quantity,
+        );
+      } else {
+        updatedItems.add(orderItem);
+      }
+    }
+
+    // Update state SEKALI dengan semua perubahan
+    state = state!.copyWith(items: updatedItems, selectedPromoIds: newIds);
+
+    debugPrint(
+      '✅ State updated: ${updatedItems.length} items, ${newIds.length} promos',
+    );
+
+    // Recalculate setelah state lengkap
+    await _recalculateAll();
+
+    debugPrint('✅ Promo group applied successfully');
   }
 
   /// Auto-select eligible promos
@@ -449,10 +484,21 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   // ============================================================================
 
   Future<void> _recalculateAll() async {
-    if (state == null || _isCalculating) return;
+    if (state == null || _isCalculating) {
+      debugPrint(
+        '⏭️ Skipping recalculation: state=${state != null}, calculating=$_isCalculating',
+      );
+      return;
+    }
+
     _isCalculating = true;
 
     try {
+      debugPrint('🔄 Starting recalculation...');
+      debugPrint(
+        '📊 Current state: ${state!.items.length} items, ${state!.selectedPromoIds.length} selected promos',
+      );
+
       // 1) Update subtotal setiap item
       final updatedItems =
           state!.items
@@ -474,12 +520,23 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       // 4) Total before discount
       final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
 
+      debugPrint('💰 Total before discount: $totalBeforeDiscount');
+
       // 5) Get selected promos
       final allPromos =
           await ref.read(autoPromoRepository).getLocalAutoPromos();
       final selectedIds = state!.selectedPromoIds;
+
+      debugPrint(
+        '🎫 All promos: ${allPromos.length}, Selected IDs: $selectedIds',
+      );
+
       final selectedPromos =
           allPromos.where((p) => selectedIds.contains(p.id)).toList();
+
+      debugPrint(
+        '✅ Selected promos: ${selectedPromos.map((p) => p.name).toList()}',
+      );
 
       // 6) Get menu items for lookup
       final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
@@ -489,6 +546,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       final now = DateTime.now();
 
       // 7) Apply promo engine
+      debugPrint('🚀 Applying promo engine...');
+
       final orderAfterPromo = PromoEngine.apply(
         state!.copyWith(
           items: updatedItems,
@@ -499,6 +558,18 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         findMenuItemById,
         allowStackingOnTotal: false,
       );
+
+      debugPrint(
+        '🎉 Applied promos: ${orderAfterPromo.appliedPromos?.length ?? 0}',
+      );
+
+      if (orderAfterPromo.appliedPromos != null) {
+        for (final p in orderAfterPromo.appliedPromos!) {
+          debugPrint(
+            '  - ${p.promoName}: discount=${p.discount}, affected=${p.affectedItems.length}, free=${p.freeItems.length}',
+          );
+        }
+      }
 
       // 8) Calculate discounts
       final autoDiscount = PromoEngine.sumAutoDiscount(
@@ -519,6 +590,9 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         1 << 31,
       );
 
+      debugPrint('🎁 Auto discount: $autoDiscount');
+      debugPrint('💸 Total discount: $totalDiscount');
+
       // 9) Calculate tax & service
       int totalTax = 0;
       int totalServiceFee = 0;
@@ -533,7 +607,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
           totalTax = result.taxAmount;
           totalServiceFee = result.serviceAmount;
         } catch (e) {
-          debugPrint('Error calculating tax/service: $e');
+          debugPrint('❌ Error calculating tax/service: $e');
         }
       }
 
@@ -551,10 +625,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         grandTotal: grandTotal,
       );
 
-      // Debug logs
-      _printCalculationSummary();
-    } catch (e) {
-      debugPrint('Error in recalculation: $e');
+      debugPrint('✅ Recalculation complete: grandTotal=$grandTotal');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error in recalculation: $e');
+      debugPrint('Stack trace: $stackTrace');
     } finally {
       _isCalculating = false;
     }
@@ -683,9 +757,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   bool _isPromoValidNow(AutoPromoModel promo, DateTime now) {
     if (!promo.isActive) return false;
 
-    final validFrom = DateTime.parse(promo.validFrom);
-    final validTo = DateTime.parse(promo.validTo);
-
+    final validFrom = promo.validFrom;
+    final validTo = promo.validTo;
     return now.isAfter(validFrom) && now.isBefore(validTo);
   }
 
