@@ -2403,7 +2403,7 @@ export const createUnifiedOrder = async (req, res) => {
       cashierId,
       device_id,
       isSplitPayment = false,
-      promoSelections = []  // ✅ RENAME: dari promoBundles ke promoSelections
+      promoSelections = [],  // ✅ RENAME: dari promoBundles ke promoSelections
       // ========== OPEN BILL FIELDS ==========
       isOpenBill = false,
       customersCount = 1,
@@ -2483,6 +2483,7 @@ export const createUnifiedOrder = async (req, res) => {
     // Generate order ID early
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
+    }
     // ========== HANDLE OPEN BILL CLOSE REQUEST ==========
     if (closeOpenBill && order_id) {
       console.log('🔒 Processing Open Bill close request for:', order_id);
@@ -2521,7 +2522,7 @@ export const createUnifiedOrder = async (req, res) => {
       isOpenBill,
       isSplitPayment,
       promoSelectionsCount: promoSelections?.length || 0,
-      promoTypes: promoSelections?.map(p => p.promoType) || []
+      promoTypes: promoSelections?.map(p => p.promoType) || [],
       hasItems: req.body.items?.length || 0
     });
 
@@ -2569,7 +2570,7 @@ export const createUnifiedOrder = async (req, res) => {
         customerId,
         loyaltyPointsToRedeem,
         orderType,
-        promoSelections  // ✅ PASS PROMO SELECTIONS
+        promoSelections,  // ✅ PASS PROMO SELECTIONS
         orderType,
         voucherCode,
         customerType,
@@ -2682,7 +2683,7 @@ export const createUnifiedOrder = async (req, res) => {
         recipient_data,
         user,
         contact,
-        promoSelections  // ✅ PASS PROMO SELECTIONS
+        promoSelections,  // ✅ PASS PROMO SELECTIONS
         contact,
         voucherCode,
         customerType,

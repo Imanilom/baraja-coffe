@@ -1,6 +1,6 @@
 import { MenuItem } from '../../models/MenuItem.model.js';
 import { TaxAndService } from '../../models/TaxAndService.model.js';
-import { Order } from '../../models/Order.model.js';
+import { Order } from '../../models/order.model.js';
 import Recipe from '../../models/modul_menu/Recipe.model.js';
 import { checkAutoPromos, checkManualPromo, checkVoucher } from '../../helpers/promo.helper.js';
 import { calculateLoyaltyPoints, redeemLoyaltyPoints } from '../../helpers/loyalty.helper.js';
