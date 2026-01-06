@@ -18,10 +18,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::Config;
 use db::DbConnection;
-use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository, OrderRepository};
+use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository, OrderRepository, MarketListRepository};
 use error::AppResult;
 use kafka::KafkaProducer;
-use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService};
+use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService, MarketListService};
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -37,6 +37,7 @@ pub struct AppState {
     pub loyalty_service: LoyaltyService,
     pub tax_service: TaxService,
     pub promo_service: PromoService,
+    pub market_list_service: MarketListService,
     pub lock_util: crate::utils::LockUtil,
 }
 
@@ -71,6 +72,7 @@ async fn main() -> AppResult<()> {
     let inventory_repo = InventoryRepository::new(db.clone());
     let outlet_repo = OutletRepository::new(db.clone());
     let order_repo = OrderRepository::new(db.clone());
+    let market_list_repo = MarketListRepository::new(db.clone());
 
     // Initialize services
     let menu_service = MenuService::new(menu_repo.clone(), inventory_repo.clone(), kafka.clone());
@@ -79,6 +81,7 @@ async fn main() -> AppResult<()> {
     let loyalty_service = LoyaltyService::new(db.clone());
     let tax_service = TaxService::new(db.clone());
     let promo_service = PromoService::new(db.clone());
+    let market_list_service = MarketListService::new(market_list_repo.clone(), inventory_service.clone());
 
     // Initialize Redis and LockUtil
     let redis_client = redis::Client::open(config.redis.url.as_str())
@@ -99,6 +102,7 @@ async fn main() -> AppResult<()> {
         loyalty_service,
         tax_service,
         promo_service,
+        market_list_service,
         lock_util,
     });
 

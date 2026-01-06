@@ -1,12 +1,15 @@
+import { MenuItem } from '../../models/MenuItem.model.js';
+import { TaxAndService } from '../../models/TaxAndService.model.js';
+import { Order } from '../../models/Order.model.js';
+import Recipe from '../../models/modul_menu/Recipe.model.js';
+import { checkAutoPromos, checkManualPromo, checkVoucher } from '../../helpers/promo.helper.js';
+import { calculateLoyaltyPoints, redeemLoyaltyPoints } from '../../helpers/loyalty.helper.js';
+import { processSelectedPromos } from '../../helpers/promo.handler.js';
 import mongoose from 'mongoose';
-import { Order } from '../../models/order.model.js';
-import { processOrderItems } from '../../services/order.service.js';
-import { orderQueue } from '../../queues/order.queue.js';
-import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
-import Payment from '../../models/Payment.model.js';
 import { triggerImmediatePrint, broadcastCashOrderToKitchen } from '../../helpers/broadcast.helper.js';
 
+// ========== CREATE ORDER HANDLER (UPDATED) ==========
 export async function createOrderHandler({
   orderId,
   orderData,
@@ -16,29 +19,32 @@ export async function createOrderHandler({
   requiresDelivery,
   recipientData,
   paymentDetails,
-  selectedPromoBundles = [] // ✅ NEW: Accept selected bundles
+  promoSelections = []  // ✅ RENAME parameter
 }) {
   let session = null;
 
-  // 🔥 CRITICAL FIX: Simplify transaction logic
-  // Only use transactions when absolutely necessary
-  const useTransaction = (source === 'Web' || source === 'App') && 
-                        (orderData.loyaltyPointsToRedeem > 0 || orderData.customerId);
-  
-  // For Cashier, only use transaction if loyalty operations needed
-  const cashierNeedsTransaction = source === 'Cashier' && 
-                                 (orderData.loyaltyPointsToRedeem > 0 || orderData.customerId);
-  
+  const useTransaction = (source === 'Web' || source === 'App') &&
+    (orderData.loyaltyPointsToRedeem > 0 || orderData.customerId);
+
+  const cashierNeedsTransaction = source === 'Cashier' &&
+    (orderData.loyaltyPointsToRedeem > 0 || orderData.customerId);
+
   const shouldUseTransaction = useTransaction || cashierNeedsTransaction;
 
   try {
-    console.log(`📝 createOrderHandler: source=${source}, useTransaction=${shouldUseTransaction}, hasLoyalty=${orderData.loyaltyPointsToRedeem > 0}, selectedBundles=${selectedPromoBundles?.length || 0}`);
+    console.log(`📝 createOrderHandler:`, {
+      orderId,
+      source,
+      useTransaction,
+      hasLoyalty: orderData.loyaltyPointsToRedeem > 0,
+      promoSelectionsCount: promoSelections?.length || 0,
+      promoTypes: promoSelections?.map(p => p.promoType) || []
+    });
 
     if (shouldUseTransaction) {
       session = await mongoose.startSession();
     }
 
-    // 🔥 FIX: Use simpler transaction logic without complex retry wrapper
     const orderResult = await createOrderWithSimpleTransaction({
       session: shouldUseTransaction ? session : null,
       orderId,
@@ -49,15 +55,14 @@ export async function createOrderHandler({
       requiresDelivery,
       recipientData,
       paymentDetails,
-      selectedPromoBundles, // ✅ PASS TO PROCESSOR
+      promoSelections,  // ✅ PASS PROMO SELECTIONS
       useTransaction: shouldUseTransaction
     });
 
-    // 🔥 PERBAIKAN: Verifikasi order tersimpan di database
+    // Verifikasi order tersimpan di database
     console.log('🔄 Verifying order in database...');
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Verifikasi order ada di database
     const verifiedOrder = await Order.findOne({ order_id: orderId });
     if (!verifiedOrder) {
       throw new Error(`Order ${orderId} not found in database after creation`);
@@ -69,16 +74,13 @@ export async function createOrderHandler({
       grandTotal: verifiedOrder.grandTotal,
       itemsCount: verifiedOrder.items.length,
       customAmountItemsCount: verifiedOrder.customAmountItems.length,
-      totalCustomAmount: verifiedOrder.totalCustomAmount,
-      isSplitPayment: verifiedOrder.isSplitPayment,
-      splitPaymentStatus: verifiedOrder.splitPaymentStatus,
-      selectedBundlesCount: verifiedOrder.selectedPromoBundles?.length || 0,
+      selectedPromosCount: verifiedOrder.selectedPromos?.length || 0,
+      selectedPromoDiscount: verifiedOrder.discounts?.selectedPromoDiscount || 0,
       paymentsTotal: verifiedOrder.payments.reduce((sum, p) => sum + p.amount, 0)
     });
 
-    // ✅ FIX: Emit socket event IMMEDIATELY for workstation to receive order
+    // Trigger immediate print
     try {
-      // Prepare items with workstation info for routing
       const itemsForPrint = verifiedOrder.items.map(item => ({
         _id: item._id?.toString(),
         menuItemId: item.menuItem?.toString(),
@@ -92,7 +94,7 @@ export async function createOrderHandler({
         category: item.category
       }));
 
-      // ✅ ADDED: Include customAmount items in print payload (Routed to Bar Depan)
+      // Add customAmount items
       if (verifiedOrder.customAmountItems && verifiedOrder.customAmountItems.length > 0) {
         verifiedOrder.customAmountItems.forEach(customItem => {
           itemsForPrint.push({
@@ -108,7 +110,7 @@ export async function createOrderHandler({
           });
         });
 
-        console.log(`➕ Added ${verifiedOrder.customAmountItems.length} custom amount items to print payload (Routed to Bar)`);
+        console.log(`➕ Added ${verifiedOrder.customAmountItems.length} custom amount items to print payload`);
       }
 
       await triggerImmediatePrint({
@@ -130,10 +132,10 @@ export async function createOrderHandler({
 
       console.log(`📡 Immediate print triggered for order ${orderId}`);
     } catch (printError) {
-      console.error('⚠️ Failed to trigger immediate print (non-blocking):', printError.message);
+      console.error('⚠️ Failed to trigger immediate print:', printError.message);
     }
 
-    // Enqueue inventory update setelah order berhasil
+    // Enqueue inventory update
     const queueResult = await enqueueInventoryUpdate(orderResult);
 
     // Update table status untuk Dine-In orders
@@ -150,7 +152,7 @@ export async function createOrderHandler({
       loyalty: orderResult.loyalty,
       hasCustomAmountItems: orderResult.customAmountItems && orderResult.customAmountItems.length > 0,
       isSplitPayment: orderResult.isSplitPayment,
-      selectedPromoBundles: orderResult.selectedPromoBundles, // ✅ RETURN SELECTED BUNDLES
+      selectedPromos: orderResult.selectedPromos,  // ✅ RETURN SELECTED PROMOS
       orderStatus: verifiedOrder.status,
       orderId: verifiedOrder._id
     };
@@ -163,7 +165,7 @@ export async function createOrderHandler({
       source,
       orderType: orderData?.orderType,
       hasCustomAmountItems: orderData?.customAmountItems?.length > 0,
-      selectedBundlesCount: selectedPromoBundles?.length || 0,
+      promoSelectionsCount: promoSelections?.length || 0,
       outletId: orderData?.outletId,
       tableNumber: orderData?.tableNumber,
       isSplitPayment: orderData?.isSplitPayment
@@ -202,7 +204,7 @@ export async function createOrderHandler({
   }
 }
 
-// 🔥 NEW: Simplified order creation without complex retry logic
+// ========== CREATE ORDER WITH SIMPLE TRANSACTION (UPDATED) ==========
 async function createOrderWithSimpleTransaction({
   session,
   orderId,
@@ -213,24 +215,21 @@ async function createOrderWithSimpleTransaction({
   requiresDelivery,
   recipientData,
   paymentDetails,
-  selectedPromoBundles = [], // ✅ NEW
+  promoSelections = [],  // ✅ RENAME parameter
   useTransaction
 }) {
   console.log('Order Handler - Starting Order Creation:', {
     orderId,
     orderType: orderData.orderType,
-    requiresDelivery,
-    hasRecipientData: !!recipientData,
     source,
-    selectedBundlesCount: selectedPromoBundles.length,
+    promoSelectionsCount: promoSelections.length,
+    promoTypes: promoSelections.map(p => p.promoType),
     hasCustomAmountItems: orderData.customAmountItems && orderData.customAmountItems.length > 0,
-    customAmountItemsCount: orderData.customAmountItems ? orderData.customAmountItems.length : 0,
     menuItemsCount: orderData.items ? orderData.items.length : 0,
     outletId: orderData.outletId,
     customerId: orderData.customerId || 'none',
     paymentMethod: orderData.paymentMethod,
     isSplitPayment: orderData.isSplitPayment,
-    paymentDetailsType: Array.isArray(paymentDetails) ? 'array' : 'object',
     useTransaction
   });
 
@@ -264,7 +263,7 @@ async function createOrderWithSimpleTransaction({
       ...cleanOrderData
     } = orderData;
 
-    // Process order items dengan selected bundles
+    // Process order items dengan promo selections
     const processed = await processOrderItems({
       items,
       outlet: outletId,
@@ -275,7 +274,7 @@ async function createOrderWithSimpleTransaction({
       customerId,
       loyaltyPointsToRedeem,
       customAmountItems,
-      selectedPromoBundles // ✅ PASS SELECTED BUNDLES
+      promoSelections  // ✅ PASS PROMO SELECTIONS
     }, useTransaction ? session : null);
 
     if (!processed) {
@@ -289,25 +288,19 @@ async function createOrderWithSimpleTransaction({
       discounts,
       promotions,
       loyalty,
-      taxesAndFees
+      taxesAndFees,
+      selectedPromos  // ✅ NEW: hasil dari processSelectedPromos
     } = processed;
 
-    // ✅ FORMAT SELECTED BUNDLES UNTUK DISIMPAN
-    const formattedSelectedBundles = promotions.selectedPromoBundles?.map(bundle => ({
-      promoId: bundle.promoId,
-      promoName: bundle.promoName,
-      bundleSets: bundle.bundleSets,
-      appliedDiscount: bundle.appliedDiscount,
-      affectedItems: bundle.affectedItems.map(item => ({
-        menuItem: item.menuItem,
-        menuItemName: item.menuItemName,
-        quantityInBundle: item.quantityInBundle,
-        discountShare: item.discountShare,
-        originalSubtotal: item.originalSubtotal,
-        discountedSubtotal: item.discountedSubtotal
-      }))
-    })) || [];
+    console.log('📊 Processed Order Data:', {
+      orderItemsCount: orderItems.length,
+      customItemsCount: processedCustomAmountItems.length,
+      selectedPromosCount: selectedPromos?.length || 0,
+      totalDiscount: discounts.total,
+      grandTotal: totals.grandTotal
+    });
 
+    // Format applied promos untuk disimpan
     const formattedAppliedPromos = (promotions.appliedPromos || []).map(promo => ({
       promoId: promo.promoId,
       promoName: promo.promoName,
@@ -331,26 +324,13 @@ async function createOrderWithSimpleTransaction({
       }))
     }));
 
-    console.log('📊 Formatted Promos & Bundles:', {
-      selectedBundlesCount: formattedSelectedBundles.length,
-      selectedBundles: formattedSelectedBundles.map(b => ({
-        name: b.promoName,
-        sets: b.bundleSets,
-        discount: b.appliedDiscount
-      })),
-      appliedPromosCount: formattedAppliedPromos.length
-    });
-
     // Determine initial status based on source and payment method
     let initialStatus = 'Pending';
     let paymentMethodData = 'Cash';
 
-    // Handle split payment status determination
     if (source === 'Cashier') {
-      console.log('Source Cashier - isOpenBill:', isOpenBill);
       initialStatus = isOpenBill ? 'Pending' : 'Waiting';
 
-      // Untuk split payment, gunakan metode pertama atau 'Multiple'
       if (Array.isArray(orderPaymentDetails) && orderPaymentDetails.length > 0) {
         paymentMethodData = orderPaymentDetails[0].method || 'Multiple';
       } else {
@@ -367,8 +347,7 @@ async function createOrderWithSimpleTransaction({
       initialStatus,
       paymentMethod: paymentMethodData,
       isOpenBill,
-      isSplitPayment,
-      paymentDetails: orderPaymentDetails
+      isSplitPayment
     });
 
     // Validasi payment details vs order total
@@ -378,7 +357,7 @@ async function createOrderWithSimpleTransaction({
         (orderPaymentDetails.amount || 0)) : 0;
 
     const totalCustomAmount = processedCustomAmountItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const effectiveOrderTotal = totals.grandTotal + totalCustomAmount;
+    const effectiveOrderTotal = totals.grandTotal;
 
     console.log('💰 Payment Validation:', {
       totalPaymentAmount,
@@ -392,26 +371,13 @@ async function createOrderWithSimpleTransaction({
     let payments = [];
 
     if (isSplitPayment && Array.isArray(orderPaymentDetails)) {
-      console.log('Processing split payment in createOrderHandler:', {
+      console.log('Processing split payment:', {
         paymentCount: orderPaymentDetails.length,
-        totalAmount: orderPaymentDetails.reduce((sum, p) => sum + (p.amount || 0), 0),
-        payments: orderPaymentDetails.map(p => ({
-          method: p.method,
-          amount: p.amount,
-          status: p.status
-        }))
+        totalAmount: orderPaymentDetails.reduce((sum, p) => sum + (p.amount || 0), 0)
       });
 
-      // Process split payment details
       payments = orderPaymentDetails.map((payment, index) => {
         const paymentStatus = mapPaymentStatus(payment.status || 'completed');
-
-        console.log(`Creating payment ${index + 1}:`, {
-          method: payment.method,
-          amount: payment.amount,
-          status: paymentStatus,
-          originalStatus: payment.status
-        });
 
         const paymentData = {
           paymentMethod: payment.method,
@@ -443,18 +409,8 @@ async function createOrderWithSimpleTransaction({
 
         return paymentData;
       });
-
-      console.log('Final payments array:', {
-        count: payments.length,
-        totalAmount: payments.reduce((sum, p) => sum + p.amount, 0),
-        payments: payments.map(p => ({
-          method: p.paymentMethod,
-          amount: p.amount,
-          status: p.status
-        }))
-      });
     } else {
-      // Single payment (legacy) - handle both array dengan 1 element dan object
+      // Single payment
       const effectivePayment = Array.isArray(orderPaymentDetails) ?
         orderPaymentDetails[0] : orderPaymentDetails;
 
@@ -474,8 +430,8 @@ async function createOrderWithSimpleTransaction({
       cashierId: cashierId || null,
       items: orderItems,
       customAmountItems: processedCustomAmountItems,
-      // ✅ SIMPAN SELECTED BUNDLES
-      selectedPromoBundles: formattedSelectedBundles,
+      // ✅ SIMPAN SELECTED PROMOS (RENAME FIELD)
+      selectedPromos: selectedPromos || [],
       status: initialStatus,
       payments: payments,
       paymentMethod: paymentMethodData,
@@ -495,7 +451,7 @@ async function createOrderWithSimpleTransaction({
       isSplitPayment: isSplitPayment,
       splitPaymentStatus: calculateSplitPaymentStatus(payments, totals.grandTotal),
       discounts: {
-        selectedBundleDiscount: discounts.selectedBundleDiscount || 0, // ✅ BARU
+        selectedPromoDiscount: discounts.selectedPromoDiscount || 0,  // ✅ RENAME FIELD
         autoPromoDiscount: discounts.autoPromoDiscount || 0,
         manualDiscount: discounts.manualDiscount || 0,
         voucherDiscount: discounts.voucherDiscount || 0,
@@ -545,18 +501,9 @@ async function createOrderWithSimpleTransaction({
       };
     }
 
-    // Handle delivery fields hanya untuk delivery orders
+    // Handle delivery fields
     const isDeliveryOrder = (orderType === 'Delivery' || requiresDelivery) && source === 'App';
-    console.log('Delivery Order Check:', {
-      isDeliveryOrder,
-      orderType,
-      requiresDelivery,
-      source,
-      delivery_option: orderData.delivery_option
-    });
-
     if (isDeliveryOrder) {
-      console.log('Creating delivery order with recipient data:', recipientData);
       baseOrderData.deliveryStatus = 'pending';
       baseOrderData.deliveryProvider = 'GoSend';
       baseOrderData.delivery_option = delivery_option || 'delivery';
@@ -570,10 +517,7 @@ async function createOrderWithSimpleTransaction({
           note: recipientData.note || ''
         };
       }
-
-      baseOrderData.deliveryTracking = {};
     } else {
-      console.log('Non-delivery order - skipping delivery fields');
       baseOrderData.deliveryStatus = "false";
       baseOrderData.deliveryProvider = "false";
     }
@@ -582,29 +526,19 @@ async function createOrderWithSimpleTransaction({
     if (isReservation && orderData.reservationData) {
       baseOrderData.reservation = orderData.reservationData._id || orderData.reservationData;
       baseOrderData.orderType = 'Reservation';
-      console.log('Reservation order linked:', baseOrderData.reservation);
     }
 
-    // Log data sebelum save untuk debugging
+    // Log data sebelum save
     console.log('Order data before save:', {
       orderId,
-      cashierId: baseOrderData.cashierId,
       orderType: baseOrderData.orderType,
       source: baseOrderData.source,
       status: baseOrderData.status,
       totalMenuItems: baseOrderData.items.length,
-      selectedBundlesCount: baseOrderData.selectedPromoBundles?.length || 0,
-      hasCustomAmountItems: baseOrderData.customAmountItems.length > 0,
-      customAmountItemsCount: baseOrderData.customAmountItems.length,
-      totalCustomAmount: baseOrderData.totalCustomAmount,
+      selectedPromosCount: baseOrderData.selectedPromos?.length || 0,
+      selectedPromoDiscount: baseOrderData.discounts.selectedPromoDiscount,
       grandTotal: baseOrderData.grandTotal,
-      discounts: baseOrderData.discounts,
-      deliveryStatus: baseOrderData.deliveryStatus,
-      isOpenBill: baseOrderData.isOpenBill,
-      isSplitPayment: baseOrderData.isSplitPayment,
-      splitPaymentStatus: baseOrderData.splitPaymentStatus,
-      paymentsCount: baseOrderData.payments.length,
-      totalPaymentsAmount: baseOrderData.payments.reduce((sum, p) => sum + p.amount, 0)
+      paymentsCount: baseOrderData.payments.length
     });
 
     // Validasi data required
@@ -637,35 +571,41 @@ async function createOrderWithSimpleTransaction({
       throw new Error(`VALIDATION_ERROR: ${validationError.message}`);
     }
 
-    // 🔥 FIX: Save with session only if using transaction
+    // Save dengan session
     const saveOptions = useTransaction && session ? { session } : {};
     await newOrder.save(saveOptions);
 
-    // ✅ LOG ORDER CREATION SUCCESS (User-Friendly Format)
+    // Log order creation success
     console.log(`\n✅ ========== ORDER CREATED ==========`);
     console.log(`📋 Order ID: ${newOrder.order_id}`);
     console.log(`🪑 Table: ${newOrder.tableNumber || 'N/A'}`);
     console.log(`👤 Customer: ${newOrder.user || 'Guest'}`);
     console.log(`📦 Items: ${newOrder.items.length} items`);
+
     if (newOrder.customAmountItems && newOrder.customAmountItems.length > 0) {
       console.log(`💵 Custom Amounts: ${newOrder.customAmountItems.length} items`);
     }
-    if (newOrder.selectedPromoBundles && newOrder.selectedPromoBundles.length > 0) {
-      console.log(`🎁 Selected Bundles: ${newOrder.selectedPromoBundles.length} bundles`);
-      newOrder.selectedPromoBundles.forEach(bundle => {
-        console.log(`   • ${bundle.promoName}: ${bundle.bundleSets} set(s) - Discount: Rp ${bundle.appliedDiscount.toLocaleString('id-ID')}`);
+
+    if (newOrder.selectedPromos && newOrder.selectedPromos.length > 0) {
+      console.log(`🎁 Selected Promos: ${newOrder.selectedPromos.length} promos`);
+      newOrder.selectedPromos.forEach(promo => {
+        console.log(`   • ${promo.promoName} (${promo.promoType}): Discount: Rp ${promo.appliedDiscount.toLocaleString('id-ID')}`);
       });
     }
+
     console.log(`💰 Total: Rp ${newOrder.grandTotal.toLocaleString('id-ID')}`);
     console.log(`📱 Source: ${newOrder.source}`);
     console.log(`🔖 Status: ${newOrder.status}`);
     console.log(`💳 Payment: ${newOrder.paymentMethod}`);
+
     if (newOrder.isSplitPayment) {
       console.log(`💳 Split Payment: ${newOrder.payments.length} methods`);
     }
+
     if (newOrder.isOpenBill) {
       console.log(`📝 Type: Open Bill`);
     }
+
     console.log(`=====================================\n`);
 
     console.log('Order created successfully:', {
@@ -673,19 +613,11 @@ async function createOrderWithSimpleTransaction({
       orderNumber: orderId,
       orderType: newOrder.orderType,
       status: newOrder.status,
-      totalMenuItems: newOrder.items.length,
-      selectedBundlesCount: newOrder.selectedPromoBundles?.length || 0,
-      hasCustomAmountItems: newOrder.customAmountItems.length > 0,
-      customAmountItemsCount: newOrder.customAmountItems.length,
-      totalCustomAmount: newOrder.totalCustomAmount,
+      selectedPromosCount: newOrder.selectedPromos?.length || 0,
+      selectedPromoDiscount: newOrder.discounts.selectedPromoDiscount,
       grandTotal: newOrder.grandTotal,
-      discounts: newOrder.discounts,
-      source: newOrder.source,
       isSplitPayment: newOrder.isSplitPayment,
-      splitPaymentStatus: newOrder.splitPaymentStatus,
-      paymentsCount: newOrder.payments.length,
-      totalPaymentsAmount: newOrder.payments.reduce((sum, p) => sum + p.amount, 0),
-      createdAt: newOrder.createdAt
+      paymentsCount: newOrder.payments.length
     });
 
     // Commit transaction jika aktif
@@ -702,7 +634,7 @@ async function createOrderWithSimpleTransaction({
       customAmountItems: processedCustomAmountItems,
       totals: totals,
       loyalty: loyalty,
-      selectedPromoBundles: formattedSelectedBundles, // ✅ RETURN SELECTED BUNDLES
+      selectedPromos: selectedPromos,  // ✅ RETURN SELECTED PROMOS
       isSplitPayment: isSplitPayment,
       orderData: baseOrderData
     };
@@ -717,32 +649,596 @@ async function createOrderWithSimpleTransaction({
         console.warn('Failed to abort transaction:', abortErr.message);
       }
     }
-    
+
     throw error;
   }
 }
 
-// Helper function untuk map payment status
+// ========== PROCESS ORDER ITEMS (UPDATED) ==========
+export async function processOrderItems({
+  items,
+  outlet,
+  orderType,
+  voucherCode,
+  customerType,
+  source,
+  customerId,
+  loyaltyPointsToRedeem,
+  customAmountItems,
+  promoSelections = []  // ✅ RENAME parameter
+}, session) {
+
+  if ((!items || !Array.isArray(items) || items.length === 0) &&
+    (!customAmountItems || !Array.isArray(customAmountItems) || customAmountItems.length === 0)) {
+    throw new Error('Order items cannot be empty');
+  }
+
+  const orderItems = [];
+  let totalBeforeDiscount = 0;
+
+  // Process regular menu items
+  if (items && Array.isArray(items)) {
+    for (const item of items) {
+      if (!item.id || !item.quantity || item.quantity <= 0) {
+        throw new Error(`Invalid item quantity (${item.quantity}) or missing ID for item`);
+      }
+
+      const [menuItem, recipe] = await Promise.all([
+        MenuItem.findById(item.id).populate('category').session(session),
+        Recipe.findOne({ menuItemId: item.id }).session(session),
+      ]);
+
+      if (!menuItem) {
+        throw new Error(`Menu item ${item.id} not found`);
+      }
+      if (!recipe) {
+        throw new Error(`Recipe for menu item ${menuItem.name} (${item.id}) not found`);
+      }
+
+      let itemPrice = menuItem.price;
+      const addons = [];
+      const toppings = [];
+
+      // Process toppings
+      if (item.selectedToppings?.length > 0) {
+        await processToppings(item, menuItem, recipe, toppings, (added) => {
+          itemPrice += added;
+        });
+      }
+
+      // Process addons
+      if (item.selectedAddons?.length > 0) {
+        await processAddons(item, menuItem, recipe, addons, (added) => {
+          itemPrice += added;
+        });
+      }
+
+      const subtotal = itemPrice * item.quantity;
+      totalBeforeDiscount += subtotal;
+
+      // Check if item belongs to Bazar category
+      const isBazarCategory = await checkBazarCategory(menuItem.category, session);
+
+      orderItems.push({
+        menuItem: item.id,
+        menuItemName: menuItem.name,
+        quantity: item.quantity,
+        price: itemPrice,
+        subtotal,
+        addons,
+        toppings,
+        notes: item.notes || '',
+        isPrinted: false,
+        dineType: item.dineType || 'Dine-In',
+        isBazarCategory
+      });
+    }
+  }
+
+  // Process custom amount items
+  let customAmountItemsData = [];
+  let totalCustomAmount = 0;
+
+  if (customAmountItems && Array.isArray(customAmountItems)) {
+    customAmountItemsData = customAmountItems.map(item => ({
+      amount: Number(item.amount) || 0,
+      name: item.name || 'Penyesuaian Pembayaran',
+      description: item.description || 'Penyesuaian jumlah pembayaran',
+      dineType: item.dineType || 'Dine-In',
+      appliedAt: new Date(),
+      isAutoCalculated: false
+    }));
+
+    totalCustomAmount = customAmountItemsData.reduce((total, item) => total + item.amount, 0);
+  }
+
+  // Gabungkan total menu items dan custom amount
+  const combinedTotalBeforeDiscount = totalBeforeDiscount + totalCustomAmount;
+
+  // LOYALTY PROGRAM (opsional)
+  let loyaltyDiscount = 0;
+  let loyaltyPointsUsed = 0;
+  let loyaltyPointsEarned = 0;
+  let loyaltyDetails = null;
+
+  const isEligibleForLoyalty = customerId &&
+    mongoose.Types.ObjectId.isValid(customerId) &&
+    (source === 'app' || source === 'cashier' || source === 'Cashier');
+
+  if (isEligibleForLoyalty && loyaltyPointsToRedeem && loyaltyPointsToRedeem > 0) {
+    try {
+      const redemptionResult = await redeemLoyaltyPoints(
+        customerId,
+        loyaltyPointsToRedeem,
+        outlet,
+        session
+      );
+      loyaltyDiscount = redemptionResult.discountAmount;
+      loyaltyPointsUsed = redemptionResult.pointsUsed;
+    } catch (redemptionError) {
+      console.error('Loyalty points redemption failed:', redemptionError);
+      loyaltyDiscount = 0;
+      loyaltyPointsUsed = 0;
+    }
+  }
+
+  // PERBAIKAN: Semua diskon diterapkan SEBELUM tax
+  const totalAfterLoyaltyDiscount = Math.max(0, combinedTotalBeforeDiscount - loyaltyDiscount);
+
+  console.log('🎯 PRE-PROMO CALCULATION:', {
+    menuItemsTotal: totalBeforeDiscount,
+    customAmountTotal: totalCustomAmount,
+    combinedTotalBeforeDiscount,
+    loyaltyDiscount,
+    totalAfterLoyaltyDiscount,
+    promoSelectionsCount: promoSelections.length
+  });
+
+  // ✅ PROSES SELECTED PROMOS JIKA ADA (PRIORITAS TINGGI)
+  let selectedPromoResult = {
+    totalDiscount: 0,
+    appliedPromos: [],
+    usedItems: [],
+    freeItems: []
+  };
+
+  // Hanya proses untuk kasir yang memilih promo
+  if (promoSelections.length > 0 && (source === 'Cashier' || source === 'cashier')) {
+    selectedPromoResult = await processSelectedPromos(
+      promoSelections,
+      orderItems,
+      outlet,
+      session
+    );
+
+    console.log('✅ SELECTED PROMOS PROCESSED:', {
+      totalDiscount: selectedPromoResult.totalDiscount,
+      appliedPromosCount: selectedPromoResult.appliedPromos.length,
+      usedItemsCount: selectedPromoResult.usedItems.length,
+      freeItemsCount: selectedPromoResult.freeItems.length
+    });
+  }
+
+  // HITUNG ITEMS YANG MASIH BISA DIKENAI AUTO PROMO
+  let availableItemsForAutoPromo = [];
+  if (selectedPromoResult.usedItems.length > 0) {
+    const usedItemIds = new Set(selectedPromoResult.usedItems.map(item =>
+      item.menuItem.toString()
+    ));
+
+    availableItemsForAutoPromo = orderItems.map(item => {
+      const isUsed = usedItemIds.has(item.menuItem.toString());
+      if (isUsed) {
+        const usedPromo = selectedPromoResult.usedItems.find(used =>
+          used.menuItem.toString() === item.menuItem.toString()
+        );
+
+        if (usedPromo && usedPromo.quantityUsed) {
+          const remainingQuantity = Math.max(0, item.quantity - usedPromo.quantityUsed);
+          return {
+            ...item,
+            quantity: remainingQuantity,
+            subtotal: item.price * remainingQuantity
+          };
+        }
+      }
+      return item;
+    }).filter(item => item.quantity > 0);
+  } else {
+    availableItemsForAutoPromo = [...orderItems];
+  }
+
+  // Tambahkan free items dari Buy X Get Y ke order items
+  if (selectedPromoResult.freeItems && selectedPromoResult.freeItems.length > 0) {
+    selectedPromoResult.freeItems.forEach(freeItem => {
+      availableItemsForAutoPromo.push({
+        menuItem: freeItem.menuItem,
+        menuItemName: freeItem.menuItemName,
+        quantity: freeItem.quantity,
+        price: 0, // Gratis
+        subtotal: 0,
+        isFreeItem: true,
+        dineType: 'Dine-In',
+        isPrinted: false
+      });
+    });
+  }
+
+  // PROSES AUTO PROMO HANYA UNTUK ITEMS YANG BELUM TERPAKAI
+  const autoPromoResult = await checkAutoPromos(
+    availableItemsForAutoPromo,
+    outlet,
+    orderType
+  );
+
+  console.log('🎯 AUTO PROMO AFTER SELECTED PROMOS:', {
+    totalDiscount: autoPromoResult.totalDiscount,
+    appliedPromosCount: autoPromoResult.appliedPromos.length,
+    itemsUsed: availableItemsForAutoPromo.length
+  });
+
+  // MANUAL PROMO & VOUCHER
+  const promotionResults = await processAllDiscountsBeforeTax({
+    orderItems: availableItemsForAutoPromo,
+    outlet,
+    orderType,
+    voucherCode,
+    customerType,
+    totalBeforeDiscount: totalAfterLoyaltyDiscount - selectedPromoResult.totalDiscount,
+    source,
+    customAmountItems: customAmountItemsData,
+    selectedPromoDiscount: selectedPromoResult.totalDiscount
+  });
+
+  // TOTAL SEMUA DISKON
+  const totalAllDiscounts =
+    selectedPromoResult.totalDiscount +
+    autoPromoResult.totalDiscount +
+    loyaltyDiscount +
+    promotionResults.autoPromoDiscount +
+    promotionResults.manualDiscount +
+    promotionResults.voucherDiscount;
+
+  const totalAfterAllDiscounts = Math.max(0, combinedTotalBeforeDiscount - totalAllDiscounts);
+
+  console.log('🎯 DISCOUNT BREAKDOWN:', {
+    selectedPromoDiscount: selectedPromoResult.totalDiscount,
+    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    manualDiscount: promotionResults.manualDiscount,
+    voucherDiscount: promotionResults.voucherDiscount,
+    loyaltyDiscount,
+    totalAllDiscounts,
+    combinedTotalBeforeDiscount,
+    totalAfterAllDiscounts
+  });
+
+  // Hitung proporsi diskon untuk custom amount
+  let customAmountDiscount = 0;
+  let menuItemsDiscount = totalAllDiscounts - loyaltyDiscount;
+
+  if (totalCustomAmount > 0 && menuItemsDiscount > 0) {
+    const totalEligibleAmount = totalBeforeDiscount + totalCustomAmount;
+    const customAmountRatio = totalCustomAmount / totalEligibleAmount;
+    customAmountDiscount = menuItemsDiscount * customAmountRatio;
+    menuItemsDiscount = menuItemsDiscount - customAmountDiscount;
+  }
+
+  // LOYALTY POINTS EARNED (setelah semua diskon)
+  if (isEligibleForLoyalty) {
+    try {
+      const eligibleAmountForLoyalty = totalAfterAllDiscounts;
+      const pointsResult = await calculateLoyaltyPoints(
+        eligibleAmountForLoyalty,
+        customerId,
+        outlet,
+        session
+      );
+      loyaltyPointsEarned = pointsResult.pointsEarned;
+      loyaltyDetails = pointsResult.loyaltyDetails;
+    } catch (pointsError) {
+      console.error('Loyalty points calculation failed:', pointsError);
+      loyaltyPointsEarned = 0;
+    }
+  }
+
+  // APPLY TAX SETELAH SEMUA DISKON
+  const taxResult = await calculateTaxesAndServices(
+    outlet,
+    totalAfterAllDiscounts,
+    orderItems,
+    customAmountItemsData
+  );
+
+  // FINAL GRAND TOTAL
+  const grandTotal = totalAfterAllDiscounts + taxResult.totalTax + taxResult.totalServiceFee;
+
+  console.log('🎯 ORDER PROCESSING FINAL SUMMARY:', {
+    menuItemsTotal: totalBeforeDiscount,
+    customAmountTotal: totalCustomAmount,
+    combinedTotalBeforeDiscount,
+    selectedPromoDiscount: selectedPromoResult.totalDiscount,
+    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    manualDiscount: promotionResults.manualDiscount,
+    voucherDiscount: promotionResults.voucherDiscount,
+    loyaltyDiscount,
+    totalAllDiscounts,
+    totalAfterAllDiscounts,
+    totalTax: taxResult.totalTax,
+    totalServiceFee: taxResult.totalServiceFee,
+    grandTotal,
+    selectedPromosCount: selectedPromoResult.appliedPromos.length,
+    hasCustomAmountItems: customAmountItemsData.length > 0
+  });
+
+  return {
+    orderItems,
+    customAmountItems: customAmountItemsData,
+    totals: {
+      beforeDiscount: combinedTotalBeforeDiscount,
+      afterDiscount: totalAfterAllDiscounts,
+      totalCustomAmount: totalCustomAmount,
+      totalTax: taxResult.totalTax,
+      totalServiceFee: taxResult.totalServiceFee,
+      grandTotal
+    },
+    discounts: {
+      selectedPromoDiscount: selectedPromoResult.totalDiscount,  // ✅ RENAME FIELD
+      autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+      manualDiscount: promotionResults.manualDiscount,
+      voucherDiscount: promotionResults.voucherDiscount,
+      loyaltyDiscount: loyaltyDiscount,
+      customAmountDiscount: customAmountDiscount,
+      total: totalAllDiscounts
+    },
+    promotions: {
+      appliedPromos: [...promotionResults.appliedPromos, ...autoPromoResult.appliedPromos],
+      appliedManualPromo: promotionResults.appliedPromo,
+      appliedVoucher: promotionResults.voucher
+    },
+    selectedPromos: selectedPromoResult.appliedPromos,  // ✅ NEW: return selected promos
+    loyalty: isEligibleForLoyalty ? {
+      pointsUsed: loyaltyPointsUsed,
+      pointsEarned: loyaltyPointsEarned,
+      discountAmount: loyaltyDiscount,
+      loyaltyDetails: loyaltyDetails,
+      customerId: customerId,
+      isApplied: true
+    } : {
+      pointsUsed: 0,
+      pointsEarned: 0,
+      discountAmount: 0,
+      isApplied: false
+    },
+    taxesAndFees: taxResult.taxAndServiceDetails,
+    taxCalculationMethod: 'ALL_DISCOUNTS_BEFORE_TAX',
+    bazarItemsExcluded: taxResult.bazarItemsExcluded
+  };
+}
+
+// ========== HELPER FUNCTIONS ==========
+async function processToppings(item, menuItem, recipe, toppings, addPriceCallback) {
+  for (const topping of item.selectedToppings) {
+    const toppingInfo = menuItem.toppings.find(t => t._id.toString() === topping.id);
+    if (!toppingInfo) {
+      console.warn(`Topping ${topping.id} not found in menu item ${menuItem._id}`);
+      continue;
+    }
+
+    toppings.push({
+      id: topping.id,
+      name: toppingInfo.name,
+      price: toppingInfo.price || 0
+    });
+
+    addPriceCallback(toppingInfo.price || 0);
+  }
+}
+
+async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
+  for (const addon of item.selectedAddons) {
+    const addonInfo = menuItem.addons.find(a => a._id.toString() === addon.id);
+    if (!addonInfo) {
+      console.warn(`Addon ${addon.id} not found in menu item ${menuItem._id}`);
+      continue;
+    }
+
+    if (addon.options?.length > 0) {
+      for (const option of addon.options) {
+        const optionInfo = addonInfo.options.find(o => o._id.toString() === option.id);
+        if (!optionInfo) {
+          console.warn(`Addon option ${option.id} not found in addon ${addonInfo.name}`);
+          continue;
+        }
+
+        addons.push({
+          id: addon.id,
+          name: `${addonInfo.name}`,
+          price: optionInfo.price || 0,
+          options: [{
+            id: option.id,
+            label: optionInfo.label,
+            price: optionInfo.price
+          }]
+        });
+
+        addPriceCallback(optionInfo.price || 0);
+      }
+    }
+  }
+}
+
+async function checkBazarCategory(categoryId, session) {
+  if (!categoryId) return false;
+
+  try {
+    const Category = mongoose.model('Category');
+    const category = await Category.findById(categoryId).session(session);
+
+    return category && (category.name === 'Bazar' || category._id.toString() === '691ab44b8c10cbe7789d7a03');
+  } catch (error) {
+    console.error('Error checking Bazar category:', error);
+    return false;
+  }
+}
+
+export async function calculateTaxesAndServices(outlet, taxableAmount, orderItems, customAmountItems = []) {
+  const taxesAndServices = await TaxAndService.find({
+    isActive: true,
+    appliesToOutlets: new mongoose.Types.ObjectId(outlet)
+  });
+
+  const taxAndServiceDetails = [];
+  let totalTax = 0;
+  let totalServiceFee = 0;
+  let bazarItemsExcluded = 0;
+  let bazarItemsAmount = 0;
+
+  // Hitung total amount untuk items Bazar (tidak kena pajak)
+  const nonBazarItems = orderItems.filter(item => !item.isBazarCategory);
+  const bazarItems = orderItems.filter(item => item.isBazarCategory);
+
+  bazarItemsExcluded = bazarItems.length;
+  bazarItemsAmount = bazarItems.reduce((total, item) => total + (item.subtotal || 0), 0);
+
+  for (const charge of taxesAndServices) {
+    let applicableAmount = taxableAmount - bazarItemsAmount;
+
+    if (charge.appliesToMenuItems?.length > 0) {
+      applicableAmount = 0;
+
+      for (const item of nonBazarItems) {
+        if (charge.appliesToMenuItems.some(menuId =>
+          menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
+        )) {
+          applicableAmount += item.subtotal || 0;
+        }
+      }
+
+      for (const customItem of customAmountItems) {
+        applicableAmount += customItem.amount || 0;
+      }
+    }
+
+    if (charge.type === 'tax') {
+      const taxAmount = (charge.percentage / 100) * applicableAmount;
+      totalTax += taxAmount;
+
+      taxAndServiceDetails.push({
+        id: charge._id,
+        name: charge.name,
+        type: 'tax',
+        amount: taxAmount,
+        percentage: charge.percentage,
+        appliesTo: charge.appliesToMenuItems?.length > 0 ? 'specific_items' : 'all_items',
+        applicableAmount,
+        bazarItemsExcluded: bazarItemsExcluded
+      });
+    } else if (charge.type === 'service') {
+      const feeAmount = charge.fixedFee
+        ? charge.fixedFee
+        : (charge.percentage / 100) * applicableAmount;
+
+      totalServiceFee += feeAmount;
+
+      taxAndServiceDetails.push({
+        id: charge._id,
+        name: charge.name,
+        type: 'service',
+        amount: feeAmount,
+        ...(charge.fixedFee
+          ? { fixedFee: charge.fixedFee }
+          : { percentage: charge.percentage }),
+        appliesTo: charge.appliesToMenuItems?.length > 0 ? 'specific_items' : 'all_items',
+        applicableAmount,
+        bazarItemsExcluded: bazarItemsExcluded
+      });
+    }
+  }
+
+  return {
+    taxAndServiceDetails,
+    totalTax,
+    totalServiceFee,
+    bazarItemsExcluded
+  };
+}
+
+export async function processAllDiscountsBeforeTax({
+  orderItems,
+  outlet,
+  orderType,
+  voucherCode,
+  customerType,
+  totalBeforeDiscount,
+  source,
+  customAmountItems,
+  selectedPromoDiscount = 0
+}) {
+  const canUsePromo = source === 'app' || source === 'cashier' || source === 'Cashier';
+
+  // 1. APPLY AUTO PROMO
+  const autoPromoResult = await checkAutoPromos(orderItems, outlet, orderType);
+  const autoPromoDiscount = autoPromoResult.totalDiscount;
+
+  // 2. APPLY MANUAL PROMO
+  const manualPromoResult = canUsePromo ?
+    await checkManualPromo(totalBeforeDiscount, outlet, customerType) :
+    { discount: 0, appliedPromo: null };
+  const manualDiscount = manualPromoResult.discount;
+
+  // 3. APPLY VOUCHER
+  const subtotalAfterAutoManual = Math.max(0,
+    totalBeforeDiscount - autoPromoDiscount - manualDiscount
+  );
+
+  const voucherResult = canUsePromo ?
+    await checkVoucher(voucherCode, subtotalAfterAutoManual, outlet) :
+    { discount: 0, voucher: null };
+  const voucherDiscount = voucherResult.voucher ? voucherResult.discount : 0;
+
+  // 4. TOTAL SEMUA DISKON
+  const totalAllDiscounts = selectedPromoDiscount + autoPromoDiscount + manualDiscount + voucherDiscount;
+  const totalAfterAllDiscounts = Math.max(0, totalBeforeDiscount - totalAllDiscounts);
+
+  return {
+    autoPromoDiscount,
+    manualDiscount,
+    voucherDiscount,
+    totalAllDiscounts,
+    totalAfterAllDiscounts,
+    appliedPromos: autoPromoResult.appliedPromos,
+    appliedPromo: manualPromoResult.appliedPromo,
+    voucher: voucherResult.voucher
+  };
+}
+
 function mapPaymentStatus(status) {
   const statusMap = {
-    'partial': 'pending',
     'settlement': 'completed',
     'pending': 'pending',
+    'deny': 'failed',
+    'cancel': 'failed',
+    'expire': 'failed',
+    'refund': 'refunded',
     'completed': 'completed',
-    'failed': 'failed'
+    'failed': 'failed',
+    'pending_refund': 'pending'
   };
+
   return statusMap[status] || 'pending';
 }
 
-// Helper function untuk calculate split payment status
 function calculateSplitPaymentStatus(payments, grandTotal) {
   if (!payments || payments.length === 0) {
     return 'not_started';
   }
 
-  const totalPaid = payments
-    .filter(p => p.status === 'completed')
-    .reduce((sum, p) => sum + p.amount, 0);
+  const totalPaid = payments.reduce((total, payment) => {
+    if (payment.status === 'completed') {
+      return total + (payment.amount || 0);
+    }
+    return total;
+  }, 0);
 
   if (totalPaid === 0) {
     return 'not_started';
@@ -786,20 +1282,39 @@ export async function verifyOrderExists(orderId, maxRetries = 5, initialDelay = 
 
 export async function enqueueInventoryUpdate(orderResult) {
   if (!orderResult?.success) {
-    throw new Error('Cannot enqueue inventory update for failed order');
+    console.error('Cannot enqueue inventory update for failed order');
+    return {
+      success: true, // Tetap return success agar order tidak gagal
+      orderId: orderResult?.orderId,
+      warning: 'Inventory update skipped - order result invalid'
+    };
   }
 
   try {
+    // Validasi orderQueue tersedia
+    if (!orderQueue) {
+      console.warn('⚠️ orderQueue not available, skipping inventory update');
+      return {
+        success: true,
+        orderId: orderResult.orderId,
+        warning: 'Inventory update skipped - queue not available'
+      };
+    }
+
     const jobData = {
       type: 'update_inventory',
       payload: {
         orderId: orderResult.orderId,
         orderNumber: orderResult.orderNumber,
-        items: orderResult.processedItems
+        items: orderResult.processedItems || [],
+        customAmountItems: orderResult.customAmountItems || [],
+        outletId: orderResult.orderData?.outletId,
+        timestamp: new Date()
       }
     };
 
-    await orderQueue.add(
+    // Coba enqueue dengan error handling
+    const job = await orderQueue.add(
       'inventory_update',
       jobData,
       {
@@ -810,27 +1325,46 @@ export async function enqueueInventoryUpdate(orderResult) {
           delay: 5000
         },
         removeOnComplete: true,
-        removeOnFail: true
+        removeOnFail: false, // Biarkan job gagal tetap ada untuk debugging
+        delay: 1000 // Delay 1 detik agar order commit dulu
       }
     );
 
-    console.log('Inventory update enqueued:', {
+    console.log('✅ Inventory update enqueued:', {
       orderId: orderResult.orderId,
-      regularItemsCount: orderResult.processedItems.length,
-      hasCustomAmountItems: orderResult.customAmountItems && orderResult.customAmountItems.length > 0
+      jobId: job.id,
+      itemsCount: jobData.payload.items.length,
+      customItemsCount: jobData.payload.customAmountItems.length
     });
 
     return {
       success: true,
       orderId: orderResult.orderId,
-      orderNumber: orderResult.orderNumber
+      orderNumber: orderResult.orderNumber,
+      jobId: job.id
     };
   } catch (err) {
-    console.error('Failed to enqueue inventory update:', {
+    console.error('⚠️ Failed to enqueue inventory update (non-blocking):', {
       error: err.message,
-      orderId: orderResult?.orderId
+      orderId: orderResult?.orderId,
+      errorType: err.name
     });
 
-    throw new Error('INVENTORY_UPDATE_ENQUEUE_FAILED');
+    // JANGAN throw error di sini, biarkan order tetap berhasil
+    return {
+      success: true, // Tetap return success
+      orderId: orderResult?.orderId,
+      warning: 'Inventory update failed but order created successfully',
+      error: err.message
+    };
   }
 }
+
+
+export default {
+  createOrderHandler,
+  processOrderItems,
+  calculateTaxesAndServices,
+  processAllDiscountsBeforeTax,
+  verifyOrderExists,
+};

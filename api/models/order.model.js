@@ -181,6 +181,52 @@ const SelectedPromoBundleSchema = new mongoose.Schema({
   }]
 });
 
+const SelectedPromoSchema = new mongoose.Schema({
+  promoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AutoPromo',
+    required: true
+  },
+  promoName: { type: String, required: true },
+  promoType: {
+    type: String,
+    required: true,
+    enum: ['bundling', 'buy_x_get_y', 'product_specific']
+  },
+  // Untuk bundling
+  bundleSets: { type: Number, min: 1 },
+  // Untuk semua jenis
+  appliedDiscount: { type: Number, default: 0 },
+  affectedItems: [{
+    menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: String,
+    quantity: Number,
+    originalSubtotal: Number,
+    discountAmount: Number,
+    discountedSubtotal: Number,
+    discountType: String,
+    discountValue: Number
+  }],
+  // Untuk Buy X Get Y
+  freeItems: [{
+    menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: String,
+    quantity: Number,
+    price: Number,
+    isFree: { type: Boolean, default: true }
+  }],
+  // Metadata
+  selectedAt: {
+    type: Date,
+    default: () => new Date()
+  },
+  selectedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }
+});
+
+
 // Model Order
 const OrderSchema = new mongoose.Schema({
   order_id: { type: String, required: true, unique: true },
@@ -209,6 +255,7 @@ const OrderSchema = new mongoose.Schema({
 
   // ✅ BARU: Field untuk selected promo bundles dari user
   selectedPromoBundles: [SelectedPromoBundleSchema],
+  selectedPromos: [SelectedPromoSchema],
 
   status: {
     type: String,
@@ -635,29 +682,41 @@ OrderSchema.pre('save', function (next) {
   // Update updatedAtWIB
   this.updatedAtWIB = nowWIB;
 
-  // Ensure createdAtWIB is set
-  if (!this.createdAtWIB && this.isNew) {
-    this.createdAtWIB = nowWIB;
-  }
+  try {
+    // Update total selected promo discount
+    if (this.selectedPromos && Array.isArray(this.selectedPromos)) {
+      const totalSelectedDiscount = this.selectedPromos.reduce((total, promo) =>
+        total + (promo.appliedDiscount || 0), 0);
 
-  // Convert all Date fields that should be in WIB
-  if (this.lastItemAddedAt && !(this.lastItemAddedAt instanceof Date)) {
-    this.lastItemAddedAt = toWIB(new Date(this.lastItemAddedAt));
-  }
+      this.discounts.selectedPromoDiscount = totalSelectedDiscount;
+    }
+    // Ensure createdAtWIB is set
+    if (!this.createdAtWIB && this.isNew) {
+      this.createdAtWIB = nowWIB;
+    }
 
-  // For items array
-  if (this.items && Array.isArray(this.items)) {
-    this.items.forEach(item => {
-      if (item.addedAt && !(item.addedAt instanceof Date)) {
-        item.addedAt = toWIB(new Date(item.addedAt));
-      }
-      if (item.printedAt && !(item.printedAt instanceof Date)) {
-        item.printedAt = toWIB(new Date(item.printedAt));
-      }
-    });
-  }
+    // Convert all Date fields that should be in WIB
+    if (this.lastItemAddedAt && !(this.lastItemAddedAt instanceof Date)) {
+      this.lastItemAddedAt = toWIB(new Date(this.lastItemAddedAt));
+    }
 
-  next();
+    // For items array
+    if (this.items && Array.isArray(this.items)) {
+      this.items.forEach(item => {
+        if (item.addedAt && !(item.addedAt instanceof Date)) {
+          item.addedAt = toWIB(new Date(item.addedAt));
+        }
+        if (item.printedAt && !(item.printedAt instanceof Date)) {
+          item.printedAt = toWIB(new Date(item.printedAt));
+        }
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error in order pre-save middleware:', error);
+    next();
+  }
 });
 
 // Indeks untuk performa

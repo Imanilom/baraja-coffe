@@ -21,7 +21,7 @@ export async function processOrderItems({
   customerId,
   loyaltyPointsToRedeem,
   customAmountItems,
-  selectedPromoBundles = []  // ✅ NEW: User-selected bundles
+  selectedPromoBundles = []
 }, session) {
 
   if ((!items || !Array.isArray(items) || items.length === 0) &&
@@ -106,7 +106,7 @@ export async function processOrderItems({
     }));
 
     totalCustomAmount = customAmountItemsData.reduce((total, item) => total + item.amount, 0);
-    
+
     console.log('Custom Amount Items Processed:', {
       count: customAmountItemsData.length,
       totalCustomAmount,
@@ -174,7 +174,7 @@ export async function processOrderItems({
       outlet,
       session
     );
-    
+
     console.log('✅ SELECTED BUNDLES PROCESSED:', {
       totalDiscount: selectedBundleResult.totalDiscount,
       appliedBundlesCount: selectedBundleResult.appliedBundles.length,
@@ -192,18 +192,18 @@ export async function processOrderItems({
   let availableItemsForAutoPromo = [];
   if (selectedBundleResult.usedItems.length > 0) {
     // Filter out items that are already used in selected bundles
-    const usedItemIds = new Set(selectedBundleResult.usedItems.map(item => 
+    const usedItemIds = new Set(selectedBundleResult.usedItems.map(item =>
       item.menuItem.toString()
     ));
-    
+
     availableItemsForAutoPromo = orderItems.map(item => {
       const isUsed = usedItemIds.has(item.menuItem.toString());
       if (isUsed) {
         // Cari berapa quantity yang sudah terpakai
-        const usedBundle = selectedBundleResult.usedItems.find(used => 
+        const usedBundle = selectedBundleResult.usedItems.find(used =>
           used.menuItem.toString() === item.menuItem.toString()
         );
-        
+
         if (usedBundle && usedBundle.quantityUsed) {
           const remainingQuantity = Math.max(0, item.quantity - usedBundle.quantityUsed);
           return {
@@ -215,7 +215,7 @@ export async function processOrderItems({
       }
       return item;
     }).filter(item => item.quantity > 0);
-    
+
     console.log('📊 Items available for auto promo after selected bundles:', {
       originalItemsCount: orderItems.length,
       usedItemsCount: selectedBundleResult.usedItems.length,
@@ -227,8 +227,8 @@ export async function processOrderItems({
 
   // PROSES AUTO PROMO HANYA UNTUK ITEMS YANG BELUM TERPAKAI
   const autoPromoResult = await checkAutoPromos(
-    availableItemsForAutoPromo, 
-    outlet, 
+    availableItemsForAutoPromo,
+    outlet,
     orderType
   );
 
@@ -252,12 +252,12 @@ export async function processOrderItems({
   });
 
   // TOTAL SEMUA DISKON
-  const totalAllDiscounts = 
-    selectedBundleResult.totalDiscount + 
-    autoPromoResult.totalDiscount + 
-    loyaltyDiscount + 
-    promotionResults.autoPromoDiscount + 
-    promotionResults.manualDiscount + 
+  const totalAllDiscounts =
+    selectedBundleResult.totalDiscount +
+    autoPromoResult.totalDiscount +
+    loyaltyDiscount +
+    promotionResults.autoPromoDiscount +
+    promotionResults.manualDiscount +
     promotionResults.voucherDiscount;
 
   const totalAfterAllDiscounts = Math.max(0, combinedTotalBeforeDiscount - totalAllDiscounts);
@@ -433,13 +433,13 @@ async function processSelectedPromoBundles(selectedPromoBundles, orderItems, out
 
       if (bundleResult.applied) {
         totalDiscount += bundleResult.discount;
-        
+
         // Record used items untuk mencegah double counting
         bundleResult.usedItems.forEach(usedItem => {
-          const existingIndex = usedItems.findIndex(item => 
+          const existingIndex = usedItems.findIndex(item =>
             item.menuItem.toString() === usedItem.menuItem.toString()
           );
-          
+
           if (existingIndex >= 0) {
             usedItems[existingIndex].quantityUsed += usedItem.quantityUsed;
           } else {
@@ -483,27 +483,27 @@ async function processSelectedPromoBundles(selectedPromoBundles, orderItems, out
  */
 async function applySelectedBundling(promo, orderItems, bundleSets, alreadyUsedItems = []) {
   const bundleProducts = promo.conditions?.bundleProducts || [];
-  
+
   if (!bundleProducts || bundleProducts.length === 0) {
     return { applied: false, discount: 0, reason: 'No bundle products defined' };
   }
 
   // Hitung available quantity per item setelah dikurangi yang sudah digunakan di bundle lain
   const itemAvailability = new Map();
-  
+
   for (const orderItem of orderItems) {
     const itemId = orderItem.menuItem.toString();
     let availableQuantity = orderItem.quantity;
-    
+
     // Kurangi quantity yang sudah digunakan di bundles sebelumnya
-    const usedInOtherBundles = alreadyUsedItems.find(used => 
+    const usedInOtherBundles = alreadyUsedItems.find(used =>
       used.menuItem.toString() === itemId
     );
-    
+
     if (usedInOtherBundles) {
       availableQuantity -= usedInOtherBundles.quantityUsed;
     }
-    
+
     itemAvailability.set(itemId, {
       orderItem,
       availableQuantity,
@@ -525,22 +525,22 @@ async function applySelectedBundling(promo, orderItems, bundleSets, alreadyUsedI
 
   // Hitung maksimal bundle sets yang bisa dibuat
   let maxPossibleSets = Infinity;
-  
+
   for (const bundleProduct of bundleProducts) {
     const productId = bundleProduct.product._id.toString();
     const requiredQuantity = bundleProduct.quantity * bundleSets;
-    
+
     const itemData = itemAvailability.get(productId);
-    
+
     if (!itemData) {
       console.log('❌ Missing product:', bundleProduct.product.name);
-      return { 
-        applied: false, 
-        discount: 0, 
-        reason: `Missing product: ${bundleProduct.product.name}` 
+      return {
+        applied: false,
+        discount: 0,
+        reason: `Missing product: ${bundleProduct.product.name}`
       };
     }
-    
+
     if (itemData.availableQuantity < requiredQuantity) {
       console.log('❌ Insufficient quantity:', {
         product: bundleProduct.product.name,
@@ -548,19 +548,19 @@ async function applySelectedBundling(promo, orderItems, bundleSets, alreadyUsedI
         available: itemData.availableQuantity,
         usedInOtherBundles: itemData.usedInOtherBundles
       });
-      return { 
-        applied: false, 
-        discount: 0, 
-        reason: `Insufficient quantity for ${bundleProduct.product.name}` 
+      return {
+        applied: false,
+        discount: 0,
+        reason: `Insufficient quantity for ${bundleProduct.product.name}`
       };
     }
-    
+
     const setsForThisProduct = Math.floor(itemData.availableQuantity / bundleProduct.quantity);
     maxPossibleSets = Math.min(maxPossibleSets, setsForThisProduct);
   }
 
   const actualSets = Math.min(maxPossibleSets, bundleSets);
-  
+
   if (actualSets === 0) {
     return { applied: false, discount: 0, reason: 'No complete sets available' };
   }
@@ -569,7 +569,7 @@ async function applySelectedBundling(promo, orderItems, bundleSets, alreadyUsedI
   const originalBundlePrice = bundleProducts.reduce((total, bundleProduct) => {
     return total + (bundleProduct.product.price * bundleProduct.quantity * actualSets);
   }, 0);
-  
+
   const discountedBundlePrice = promo.bundlePrice * actualSets;
   const discount = originalBundlePrice - discountedBundlePrice;
 
@@ -581,7 +581,7 @@ async function applySelectedBundling(promo, orderItems, bundleSets, alreadyUsedI
     const productId = bundleProduct.product._id.toString();
     const itemData = itemAvailability.get(productId);
     const quantityUsed = bundleProduct.quantity * actualSets;
-    
+
     usedItems.push({
       menuItem: bundleProduct.product._id,
       menuItemName: bundleProduct.product.name,
@@ -591,7 +591,7 @@ async function applySelectedBundling(promo, orderItems, bundleSets, alreadyUsedI
     // Hitung discount share untuk item ini
     const itemOriginalTotal = bundleProduct.product.price * quantityUsed;
     const itemDiscountShare = (itemOriginalTotal / originalBundlePrice) * discount;
-    
+
     affectedItems.push({
       menuItem: bundleProduct.product._id,
       menuItemName: bundleProduct.product.name,
@@ -626,16 +626,16 @@ async function applySelectedBundling(promo, orderItems, bundleSets, alreadyUsedI
 /**
  * PROSES SEMUA DISKON SEBELUM TAX (Updated)
  */
-export async function processAllDiscountsBeforeTax({ 
-  orderItems, 
-  outlet, 
-  orderType, 
-  voucherCode, 
-  customerType, 
-  totalBeforeDiscount, 
-  source, 
+export async function processAllDiscountsBeforeTax({
+  orderItems,
+  outlet,
+  orderType,
+  voucherCode,
+  customerType,
+  totalBeforeDiscount,
+  source,
   customAmountItems,
-  selectedBundleDiscount = 0 
+  selectedBundleDiscount = 0
 }) {
   const canUsePromo = source === 'app' || source === 'cashier' || source === 'Cashier';
 
@@ -659,7 +659,7 @@ export async function processAllDiscountsBeforeTax({
   const manualDiscount = manualPromoResult.discount;
 
   // 3. APPLY VOUCHER (setelah auto & manual promo)
-  const subtotalAfterAutoManual = Math.max(0, 
+  const subtotalAfterAutoManual = Math.max(0,
     totalBeforeDiscount - autoPromoDiscount - manualDiscount
   );
 
@@ -767,7 +767,7 @@ async function checkBazarCategory(categoryId, session) {
   try {
     const Category = mongoose.model('Category');
     const category = await Category.findById(categoryId).session(session);
-    
+
     return category && (category.name === 'Bazar' || category._id.toString() === '691ab44b8c10cbe7789d7a03');
   } catch (error) {
     console.error('Error checking Bazar category:', error);
@@ -800,7 +800,7 @@ export async function calculateTaxesAndServices(outlet, taxableAmount, orderItem
   // Hitung total amount untuk items Bazar (tidak kena pajak)
   const nonBazarItems = orderItems.filter(item => !item.isBazarCategory);
   const bazarItems = orderItems.filter(item => item.isBazarCategory);
-  
+
   bazarItemsExcluded = bazarItems.length;
   bazarItemsAmount = bazarItems.reduce((total, item) => total + (item.subtotal || 0), 0);
 
