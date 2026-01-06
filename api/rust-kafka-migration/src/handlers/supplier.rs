@@ -27,7 +27,7 @@ pub async fn create_supplier(
     let collection = state.db.collection::<Supplier>("suppliers");
     let mut supplier = payload;
     supplier.id = None;
-    supplier.created_at = Utc::now();
+    supplier.created_at = mongodb::bson::DateTime::now();
     
     let result = collection.insert_one(supplier, None).await?;
     Ok(ApiResponse::success(json!({ "id": result.inserted_id.as_object_id().unwrap().to_hex() })))
@@ -41,7 +41,7 @@ pub async fn bulk_create_suppliers(
     let mut suppliers = payload;
     for s in &mut suppliers {
         s.id = None;
-        s.created_at = Utc::now();
+        s.created_at = mongodb::bson::DateTime::now();
     }
     
     let result = collection.insert_many(suppliers, None).await?;

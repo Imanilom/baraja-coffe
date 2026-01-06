@@ -102,8 +102,8 @@ impl InventoryService {
             notes: None,
             related_warehouse: None,
             transfer_id: None,
-            last_calculated_at: chrono::Utc::now(),
-            last_adjusted_at: chrono::Utc::now(),
+            last_calculated_at: mongodb::bson::DateTime::now(),
+            last_adjusted_at: mongodb::bson::DateTime::now(),
             created_at: None,
             updated_at: None,
         };

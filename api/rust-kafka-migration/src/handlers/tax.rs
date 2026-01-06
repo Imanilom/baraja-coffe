@@ -28,8 +28,8 @@ pub async fn create_tax(
     let collection = state.db.collection::<TaxAndService>("taxandservices");
     let mut tax = payload;
     tax.id = None;
-    tax.created_at = Some(Utc::now());
-    tax.updated_at = Some(Utc::now());
+    tax.created_at = Some(mongodb::bson::DateTime::now());
+    tax.updated_at = Some(mongodb::bson::DateTime::now());
     
     let result = collection.insert_one(tax, None).await?;
     Ok(ApiResponse::success(json!({ "id": result.inserted_id.as_object_id().unwrap().to_hex() })))
@@ -54,7 +54,7 @@ pub async fn update_tax(
             "appliesToOutlets": payload.applies_to_outlets,
             "appliesToMenuItems": payload.applies_to_menu_items,
             "isActive": payload.is_active,
-            "updatedAt": Utc::now()
+            "updatedAt": mongodb::bson::DateTime::now()
         }
     };
     

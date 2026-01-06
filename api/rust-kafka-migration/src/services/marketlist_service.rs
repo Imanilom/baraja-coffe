@@ -22,8 +22,8 @@ impl MarketListService {
     }
 
     pub async fn create_request(&self, mut request: Request) -> AppResult<Request> {
-        request.created_at = Some(Utc::now());
-        request.updated_at = Some(Utc::now());
+        request.created_at = Some(mongodb::bson::DateTime::now());
+        request.updated_at = Some(mongodb::bson::DateTime::now());
         
         // Auto-approve if transfer items exist (matching Node.js behavior in some controllers)
         request.status = RequestStatus::Approved;
@@ -50,7 +50,7 @@ impl MarketListService {
 
         for item_id in items_to_approve {
             // Find item in transfer_items or purchase_items
-            let mut item = request.transfer_items.iter_mut()
+            let item = request.transfer_items.iter_mut()
                 .find(|i| i.id == Some(item_id))
                 .or_else(|| request.purchase_items.iter_mut().find(|i| i.id == Some(item_id)));
 
@@ -66,7 +66,7 @@ impl MarketListService {
                     source_warehouse: Some(source_warehouse_id),
                     destination_warehouse: Some(destination_warehouse_id),
                     handled_by: Some(reviewed_by.clone()),
-                    date: Utc::now(),
+                    date: mongodb::bson::DateTime::now(),
                 };
 
                 // Perform the stock update via InventoryService
@@ -86,15 +86,15 @@ impl MarketListService {
 
                 item.status = RequestItemStatus::Approved;
                 item.fulfilled_quantity = quantity;
-                item.processed_at = Some(Utc::now());
+                item.processed_at = Some(mongodb::bson::DateTime::now());
                 item.processed_by = Some(reviewed_by.clone());
             }
         }
 
-        request.reviewed_at = Some(Utc::now());
+        request.reviewed_at = Some(mongodb::bson::DateTime::now());
         request.reviewed_by = Some(reviewed_by);
         request.fulfillment_status = FulfillmentStatus::Partial; // Simplified update
-        request.updated_at = Some(Utc::now());
+        request.updated_at = Some(mongodb::bson::DateTime::now());
 
         // Update in DB
         let update_doc = doc! {
@@ -102,9 +102,9 @@ impl MarketListService {
                 "transferItems": bson::to_bson(&request.transfer_items).unwrap(),
                 "purchaseItems": bson::to_bson(&request.purchase_items).unwrap(),
                 "fulfillmentStatus": bson::to_bson(&request.fulfillment_status).unwrap(),
-                "reviewedAt": Utc::now(),
+                "reviewedAt": mongodb::bson::DateTime::now(),
                 "reviewedBy": request.reviewed_by.clone(),
-                "updatedAt": Utc::now()
+                "updatedAt": mongodb::bson::DateTime::now()
             }
         };
         self.repo.update_request(&request_id, update_doc).await?;
@@ -117,8 +117,8 @@ impl MarketListService {
         mut market_list: MarketList,
         handled_by: String,
     ) -> AppResult<MarketList> {
-        market_list.created_at = Some(Utc::now());
-        market_list.updated_at = Some(Utc::now());
+        market_list.created_at = Some(mongodb::bson::DateTime::now());
+        market_list.updated_at = Some(mongodb::bson::DateTime::now());
         market_list.created_by = handled_by.clone();
 
         for item in &mut market_list.items {
@@ -135,7 +135,7 @@ impl MarketListService {
                 source_warehouse: None,
                 destination_warehouse: Some(item.warehouse),
                 handled_by: Some(handled_by.clone()),
-                date: Utc::now(),
+                date: mongodb::bson::DateTime::now(),
             };
 
             self.inventory_service.update_product_stock(

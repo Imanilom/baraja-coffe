@@ -24,7 +24,7 @@ pub struct ProductSupplier {
     pub price: Option<f64>,
     
     #[serde(rename = "lastPurchaseDate", skip_serializing_if = "Option::is_none")]
-    pub last_purchase_date: Option<DateTime<Utc>>,
+    pub last_purchase_date: Option<mongodb::bson::DateTime>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,10 +51,10 @@ pub struct Product {
     pub suppliers: Vec<ProductSupplier>,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_minimum_request() -> i32 {

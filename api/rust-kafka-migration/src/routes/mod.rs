@@ -43,7 +43,8 @@ fn menu_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(handlers::get_menu_items).post(handlers::create_menu_item))
         .route("/:id", get(handlers::get_menu_item).put(handlers::update_menu_item).delete(handlers::delete_menu_item))
-        .route("/categories", get(handlers::get_categories))
+        .route("/categories", get(handlers::menu::get_categories))
+        .route("/debug/db", get(handlers::menu::list_collections_debug))
 }
 
 /// Create product routes
@@ -59,7 +60,7 @@ fn product_routes() -> Router<Arc<AppState>> {
 /// Create supplier routes
 fn supplier_routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/", get(handlers::get_suppliers).post(handlers::create_supplier))
+        .route("/", get(handlers::supplier::get_suppliers).post(handlers::create_supplier))
         .route("/bulk", post(handlers::bulk_create_suppliers))
         .route("/:id", put(handlers::update_supplier).delete(handlers::delete_supplier))
 }
@@ -88,7 +89,7 @@ fn outlet_routes() -> Router<Arc<AppState>> {
         .route("/", get(handlers::get_outlets))
         .route("/:id", get(handlers::get_outlet))
         .route("/warehouses", get(handlers::get_warehouses))
-        .route("/suppliers", get(handlers::get_suppliers))
+        .route("/suppliers", get(handlers::supplier::get_suppliers))
 }
 
 /// Create order routes

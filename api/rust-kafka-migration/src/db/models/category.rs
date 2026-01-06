@@ -1,5 +1,5 @@
 use bson::oid::ObjectId;
-use chrono::{DateTime, Utc};
+// No longer using chrono here
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,15 +18,15 @@ pub struct Category {
     #[serde(rename = "parentCategory", default, skip_serializing_if = "Option::is_none")]
     pub parent_category: Option<ObjectId>,
     
-    #[serde(rename = "lastUpdated", default = "Utc::now")]
-    pub last_updated: DateTime<Utc>,
+    #[serde(rename = "lastUpdated", default = "mongodb::bson::DateTime::now")]
+    pub last_updated: mongodb::bson::DateTime,
     
     #[serde(rename = "lastUpdatedBy", skip_serializing_if = "Option::is_none")]
     pub last_updated_by: Option<ObjectId>,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }

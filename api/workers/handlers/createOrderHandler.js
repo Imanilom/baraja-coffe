@@ -19,7 +19,7 @@ export async function createOrderHandler({
   requiresDelivery,
   recipientData,
   paymentDetails,
-  promoSelections = []  // ✅ RENAME parameter
+  appliedPromos = []
 }) {
   let session = null;
 
@@ -37,8 +37,8 @@ export async function createOrderHandler({
       source,
       useTransaction,
       hasLoyalty: orderData.loyaltyPointsToRedeem > 0,
-      promoSelectionsCount: promoSelections?.length || 0,
-      promoTypes: promoSelections?.map(p => p.promoType) || []
+      appliedPromosCount: appliedPromos?.length || 0,
+      promoTypes: appliedPromos?.map(p => p.promoType) || []
     });
 
     if (shouldUseTransaction) {
@@ -55,7 +55,7 @@ export async function createOrderHandler({
       requiresDelivery,
       recipientData,
       paymentDetails,
-      promoSelections,  // ✅ PASS PROMO SELECTIONS
+      appliedPromos,
       useTransaction: shouldUseTransaction
     });
 
@@ -215,15 +215,15 @@ async function createOrderWithSimpleTransaction({
   requiresDelivery,
   recipientData,
   paymentDetails,
-  promoSelections = [],  // ✅ RENAME parameter
+  appliedPromos = [],  // ✅ RENAME parameter
   useTransaction
 }) {
   console.log('Order Handler - Starting Order Creation:', {
     orderId,
     orderType: orderData.orderType,
     source,
-    promoSelectionsCount: promoSelections.length,
-    promoTypes: promoSelections.map(p => p.promoType),
+    appliedPromosCount: appliedPromos.length,
+    promoTypes: appliedPromos.map(p => p.promoType),
     hasCustomAmountItems: orderData.customAmountItems && orderData.customAmountItems.length > 0,
     menuItemsCount: orderData.items ? orderData.items.length : 0,
     outletId: orderData.outletId,
@@ -263,6 +263,7 @@ async function createOrderWithSimpleTransaction({
       ...cleanOrderData
     } = orderData;
 
+
     // Process order items dengan promo selections
     const processed = await processOrderItems({
       items,
@@ -274,7 +275,7 @@ async function createOrderWithSimpleTransaction({
       customerId,
       loyaltyPointsToRedeem,
       customAmountItems,
-      promoSelections  // ✅ PASS PROMO SELECTIONS
+      appliedPromos
     }, useTransaction ? session : null);
 
     if (!processed) {
@@ -430,8 +431,6 @@ async function createOrderWithSimpleTransaction({
       cashierId: cashierId || null,
       items: orderItems,
       customAmountItems: processedCustomAmountItems,
-      // ✅ SIMPAN SELECTED PROMOS (RENAME FIELD)
-      selectedPromos: selectedPromos || [],
       status: initialStatus,
       payments: payments,
       paymentMethod: paymentMethodData,
@@ -459,7 +458,7 @@ async function createOrderWithSimpleTransaction({
         customAmountDiscount: discounts.customAmountDiscount || 0,
         total: discounts.total || 0
       },
-      appliedPromos: formattedAppliedPromos,
+      appliedPromos: selectedPromos,
       appliedManualPromo: promotions.appliedManualPromo || null,
       appliedVoucher: promotions.appliedVoucher || null,
       taxAndServiceDetails: taxesAndFees || [],
@@ -665,7 +664,7 @@ export async function processOrderItems({
   customerId,
   loyaltyPointsToRedeem,
   customAmountItems,
-  promoSelections = []  // ✅ RENAME parameter
+  appliedPromos = []
 }, session) {
 
   if ((!items || !Array.isArray(items) || items.length === 0) &&
@@ -791,8 +790,9 @@ export async function processOrderItems({
     combinedTotalBeforeDiscount,
     loyaltyDiscount,
     totalAfterLoyaltyDiscount,
-    promoSelectionsCount: promoSelections.length
+    appliedPromosCount: appliedPromos.length
   });
+
 
   // ✅ PROSES SELECTED PROMOS JIKA ADA (PRIORITAS TINGGI)
   let selectedPromoResult = {
@@ -803,15 +803,15 @@ export async function processOrderItems({
   };
 
   // Hanya proses untuk kasir yang memilih promo
-  if (promoSelections.length > 0 && (source === 'Cashier' || source === 'cashier')) {
+  if (appliedPromos.length > 0 && (source === 'Cashier' || source === 'cashier')) {
     selectedPromoResult = await processSelectedPromos(
-      promoSelections,
+      appliedPromos,
       orderItems,
       outlet,
       session
     );
 
-    console.log('✅ SELECTED PROMOS PROCESSED:', {
+    console.log('✅ APPLIED PROMOS PROCESSED:', {
       totalDiscount: selectedPromoResult.totalDiscount,
       appliedPromosCount: selectedPromoResult.appliedPromos.length,
       usedItemsCount: selectedPromoResult.usedItems.length,

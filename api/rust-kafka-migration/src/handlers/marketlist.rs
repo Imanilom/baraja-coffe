@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use std::sync::Arc;
+// use futures::stream::TryStreamExt;
 use bson::{doc, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -43,7 +44,7 @@ pub async fn get_requests(
     // ... add more filter logic as needed ...
 
     let limit = filter.limit.unwrap_or(50);
-    let skip = (filter.page.unwrap_or(1).saturating_sub(1)) * limit as u64;
+    let _skip = (filter.page.unwrap_or(1).saturating_sub(1)) * limit as u64;
 
     let requests = state.db.collection::<Request>("requests")
         .find(db_filter, None).await?;

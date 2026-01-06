@@ -2402,7 +2402,7 @@ export const createUnifiedOrder = async (req, res) => {
       cashierId,
       device_id,
       isSplitPayment = false,
-      promoSelections = []  // ✅ RENAME: dari promoBundles ke promoSelections
+      appliedPromos = []
     } = req.body;
 
     // ========== VALIDASI AWAL ==========
@@ -2460,8 +2460,8 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     // ✅ VALIDASI PROMO SELECTIONS UNTUK KASIR
-    if (source === 'Cashier' && promoSelections.length > 0) {
-      const validationResult = validatePromoSelections(promoSelections);
+    if (source === 'Cashier' && appliedPromos.length > 0) {
+      const validationResult = validateappliedPromos(appliedPromos);
       if (!validationResult.valid) {
         return res.status(400).json({
           success: false,
@@ -2470,6 +2470,7 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
     }
+
 
     // Generate order ID early
     if (tableNumber) {
@@ -2484,8 +2485,8 @@ export const createUnifiedOrder = async (req, res) => {
       outletId,
       tableNumber,
       isSplitPayment,
-      promoSelectionsCount: promoSelections?.length || 0,
-      promoTypes: promoSelections?.map(p => p.promoType) || []
+      appliedPromosCount: appliedPromos?.length || 0,
+      promoTypes: appliedPromos?.map(p => p.promoType) || []
     });
 
     // ========== CASHIER: LANGSUNG TANPA LOCK ==========
@@ -2505,7 +2506,7 @@ export const createUnifiedOrder = async (req, res) => {
         customerId,
         loyaltyPointsToRedeem,
         orderType,
-        promoSelections  // ✅ PASS PROMO SELECTIONS
+        appliedPromos
       });
 
       return res.status(200).json(result);
@@ -2605,7 +2606,7 @@ export const createUnifiedOrder = async (req, res) => {
         recipient_data,
         user,
         contact,
-        promoSelections  // ✅ PASS PROMO SELECTIONS
+        appliedPromos  // ✅ PASS PROMO SELECTIONS
       });
     }, {
       owner: `order-${source}-${process.pid}-${Date.now()}`,
@@ -2694,10 +2695,10 @@ export const createUnifiedOrder = async (req, res) => {
 };
 
 // ========== VALIDASI PROMO SELECTIONS ==========
-function validatePromoSelections(promoSelections) {
+function validateappliedPromos(appliedPromos) {
   const errors = [];
 
-  for (const selection of promoSelections) {
+  for (const selection of appliedPromos) {
     // Validasi field yang dibutuhkan
     if (!selection.promoId) {
       errors.push('Promo ID is required');
@@ -2760,7 +2761,7 @@ const processCashierOrderDirect = async ({
   customerId,
   loyaltyPointsToRedeem,
   orderType,
-  promoSelections = []
+  appliedPromos = []
 }) => {
   // Cek outlet
   const outlet = await Outlet.findById(outletId);
@@ -2786,8 +2787,8 @@ const processCashierOrderDirect = async ({
   }
 
   console.log('🎯 Selected promos for Cashier order:', {
-    count: promoSelections.length,
-    selections: promoSelections.map(p => ({
+    count: appliedPromos.length,
+    selections: appliedPromos.map(p => ({
       promoId: p.promoId,
       type: p.promoType,
       bundleSets: p.bundleSets,
@@ -2859,7 +2860,7 @@ const processCashierOrderDirect = async ({
     requiresDelivery: false,
     recipientData: null,
     paymentDetails: validatedPaymentDetails,
-    promoSelections  // ✅ PASS PROMO SELECTIONS
+    appliedPromos  // ✅ PASS PROMO SELECTIONS
   });
 
   console.log('✅ Cashier order created:', {
@@ -2880,7 +2881,7 @@ const processCashierOrderDirect = async ({
     paymentDetails: validatedPaymentDetails,
     hasCustomAmountItems: finalCustomAmountItems.length > 0,
     isSplitPayment: orderResult.isSplitPayment,
-    promoSelections: promoSelections
+    appliedPromos: appliedPromos
   });
 
   // Adjust payment amounts berdasarkan grand total setelah tax
@@ -2994,7 +2995,7 @@ const processWebAppOrder = async ({
   recipient_data,
   user,
   contact,
-  promoSelections = []
+  appliedPromos = []
 }) => {
   // Cek outlet
   const outlet = await Outlet.findById(outletId);
@@ -3031,8 +3032,8 @@ const processWebAppOrder = async ({
   }
 
   console.log('🎯 Selected promos for Web/App order:', {
-    count: promoSelections.length,
-    selections: promoSelections
+    count: appliedPromos.length,
+    selections: appliedPromos
   });
 
   const validatedPaymentDetails = validateAndNormalizePaymentDetails(
@@ -3092,7 +3093,7 @@ const processWebAppOrder = async ({
     requiresDelivery: source === 'App' && delivery_option === 'delivery',
     recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null,
     paymentDetails: validatedPaymentDetails,
-    promoSelections
+    appliedPromos
   });
 
   await broadcastOrderCreation(orderId, {
@@ -3103,7 +3104,7 @@ const processWebAppOrder = async ({
     paymentDetails: validatedPaymentDetails,
     hasCustomAmountItems: finalCustomAmountItems.length > 0,
     isSplitPayment: orderResult.isSplitPayment,
-    promoSelections: promoSelections
+    appliedPromos: appliedPromos
   });
 
   const grandTotalAfterTax = orderResult.grandTotal;
@@ -3152,7 +3153,7 @@ const processWebAppOrder = async ({
         isAppOrder: true,
         deliveryOption: delivery_option,
         hasCustomAmountItems: finalCustomAmountItems.length > 0,
-        selectedPromos: promoSelections
+        selectedPromos: appliedPromos
       });
 
       return {
@@ -3221,7 +3222,7 @@ const processWebAppOrder = async ({
         outletId,
         isWebOrder: true,
         hasCustomAmountItems: finalCustomAmountItems.length > 0,
-        selectedPromos: promoSelections
+        selectedPromos: appliedPromos
       });
 
       return {

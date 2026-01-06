@@ -28,8 +28,8 @@ pub async fn create_voucher(
     let collection = state.db.collection::<Voucher>("vouchers");
     let mut voucher = payload;
     voucher.id = None;
-    voucher.created_at = Some(Utc::now());
-    voucher.updated_at = Some(Utc::now());
+    voucher.created_at = Some(mongodb::bson::DateTime::now());
+    voucher.updated_at = Some(mongodb::bson::DateTime::now());
     
     let result = collection.insert_one(voucher, None).await?;
     Ok(ApiResponse::success(json!({ "id": result.inserted_id.as_object_id().unwrap().to_hex() })))
@@ -58,7 +58,7 @@ pub async fn update_voucher(
             "customerType": payload.customer_type,
             "printOnReceipt": payload.print_on_receipt,
             "isActive": payload.is_active,
-            "updatedAt": Utc::now()
+            "updatedAt": mongodb::bson::DateTime::now()
         }
     };
     

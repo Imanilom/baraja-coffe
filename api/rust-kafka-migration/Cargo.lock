@@ -244,6 +244,7 @@ dependencies = [
  "chrono-tz",
  "config",
  "dotenvy",
+ "futures",
  "jsonwebtoken",
  "mockall",
  "mongodb",

@@ -1,7 +1,6 @@
 use axum::{
-    extract::{State, Path},
+    extract::{State, Path, Query, Json},
     response::IntoResponse,
-    Json,
 };
 use std::sync::Arc;
 use bson::oid::ObjectId;
@@ -43,8 +42,8 @@ pub async fn create_product(
     let collection = state.db.collection::<Product>("products");
     let mut product = payload;
     product.id = None;
-    product.created_at = Some(Utc::now());
-    product.updated_at = Some(Utc::now());
+    product.created_at = Some(mongodb::bson::DateTime::now());
+    product.updated_at = Some(mongodb::bson::DateTime::now());
     
     let result = collection.insert_one(product, None).await?;
     Ok(ApiResponse::success(json!({ "id": result.inserted_id.as_object_id().unwrap().to_hex() })))
@@ -68,7 +67,7 @@ pub async fn update_product(
             "minimumrequest": payload.minimumrequest,
             "limitperrequest": payload.limitperrequest,
             "suppliers": bson::to_bson(&payload.suppliers).unwrap(),
-            "updatedAt": Utc::now()
+            "updatedAt": mongodb::bson::DateTime::now()
         }
     };
     
@@ -105,8 +104,8 @@ pub async fn bulk_create_products(
     let mut products = payload;
     for p in &mut products {
         p.id = None;
-        p.created_at = Some(Utc::now());
-        p.updated_at = Some(Utc::now());
+        p.created_at = Some(mongodb::bson::DateTime::now());
+        p.updated_at = Some(mongodb::bson::DateTime::now());
     }
     
     let result = collection.insert_many(products, None).await?;
@@ -135,8 +134,8 @@ pub async fn update_product_price(
         doc! {
             "$set": {
                 "suppliers.$.price": payload.price,
-                "suppliers.$.lastPurchaseDate": Utc::now(),
-                "updatedAt": Utc::now()
+                "suppliers.$.lastPurchaseDate": mongodb::bson::DateTime::now(),
+                "updatedAt": mongodb::bson::DateTime::now()
             }
         },
         None
@@ -167,7 +166,7 @@ pub async fn search_products(
         ]
     };
     
-    let mut cursor = collection.find(filter, None).await?;
+    let cursor = collection.find(filter, None).await?;
     let products: Vec<Product> = cursor.try_collect().await?;
     
     Ok(ApiResponse::success(products))

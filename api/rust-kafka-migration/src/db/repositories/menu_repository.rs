@@ -76,11 +76,33 @@ impl MenuRepository {
         } else {
             doc! {}
         };
-        let mut cursor = self.menu_collection.find(filter, None).await?;
+        tracing::debug!("Finding all menu items with filter: {:?}", filter);
+        let mut cursor = self.menu_collection.clone_with_type::<bson::Document>().find(filter, None).await?;
         let mut items = Vec::new();
         while cursor.advance().await? {
-            items.push(cursor.deserialize_current()?);
+            let doc = cursor.deserialize_current();
+            let doc = match doc {
+                Ok(doc) => doc,
+                Err(e) => {
+                    tracing::error!("Failed to get document from cursor: {:?}", e);
+                    return Err(AppError::Database(e));
+                }
+            };
+            
+            let item: Result<MenuItem, _> = bson::from_document(doc.clone());
+            match item {
+                Ok(item) => items.push(item),
+                Err(e) => {
+                    let id = doc.get("_id")
+                        .and_then(|id| id.as_object_id())
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    tracing::error!("Failed to deserialize menu item ID {}: {:?}. Doc: {:?}", id, e, doc);
+                    return Err(AppError::BsonDeserialization(e));
+                }
+            }
         }
+        tracing::debug!("Found {} menu items", items.len());
         Ok(items)
     }
 

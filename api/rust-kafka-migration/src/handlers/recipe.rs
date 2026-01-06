@@ -4,10 +4,9 @@ use axum::{
     Json,
 };
 use std::sync::Arc;
-use bson::oid::ObjectId;
-use bson::doc;
-use chrono::Utc;
 use futures::stream::TryStreamExt;
+use mongodb::bson::{doc, oid::ObjectId};
+use chrono::Utc;
 use serde_json::json;
 
 use crate::AppState;
@@ -42,7 +41,7 @@ pub async fn create_recipe(
     let collection = state.db.collection::<Recipe>("recipes");
     let mut recipe = payload;
     recipe.id = None;
-    recipe.created_at = Utc::now();
+    recipe.created_at = mongodb::bson::DateTime::now();
     
     let result = collection.insert_one(recipe, None).await?;
     Ok(ApiResponse::success(json!({ "id": result.inserted_id.as_object_id().unwrap().to_hex() })))
@@ -61,7 +60,7 @@ pub async fn update_recipe(
             "baseIngredients": bson::to_bson(&payload.base_ingredients).unwrap(),
             "toppingOptions": bson::to_bson(&payload.topping_options).unwrap(),
             "addonOptions": bson::to_bson(&payload.addon_options).unwrap(),
-            "createdAt": Utc::now() // usually updateAt, but model only has createdAt
+            "createdAt": mongodb::bson::DateTime::now() // usually updateAt, but model only has createdAt
         }
     };
     

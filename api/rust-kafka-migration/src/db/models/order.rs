@@ -1,15 +1,15 @@
 use serde::{Deserialize, Serialize};
 use mongodb::bson::oid::ObjectId;
-use chrono::{DateTime, Utc};
+// No longer using chrono here
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SplitPayment {
     #[serde(rename = "paymentMethod")]
     pub payment_method: String,
     pub amount: f64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub va_numbers: Vec<VaNumber>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub actions: Vec<PaymentAction>,
     #[serde(rename = "paymentDetails", default)]
     pub payment_details: Option<PaymentDetails>,
@@ -18,7 +18,7 @@ pub struct SplitPayment {
     #[serde(rename = "processedBy", skip_serializing_if = "Option::is_none")]
     pub processed_by: Option<ObjectId>,
     #[serde(rename = "processedAt", skip_serializing_if = "Option::is_none")]
-    pub processed_at: Option<DateTime<Utc>>,
+    pub processed_at: Option<mongodb::bson::DateTime>,
     #[serde(default)]
     pub notes: String,
     #[serde(rename = "refundDetails", skip_serializing_if = "Option::is_none")]
@@ -78,7 +78,7 @@ pub struct RefundDetails {
     #[serde(rename = "refundReason", skip_serializing_if = "Option::is_none")]
     pub refund_reason: Option<String>,
     #[serde(rename = "refundedAt", skip_serializing_if = "Option::is_none")]
-    pub refunded_at: Option<DateTime<Utc>>,
+    pub refunded_at: Option<mongodb::bson::DateTime>,
     #[serde(rename = "refundedBy", skip_serializing_if = "Option::is_none")]
     pub refunded_by: Option<ObjectId>,
 }
@@ -94,9 +94,9 @@ pub struct OrderItem {
     pub quantity: i32,
     pub subtotal: f64,
     
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub addons: Vec<OrderItemAddon>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub toppings: Vec<OrderItemTopping>,
     
     #[serde(default)]
@@ -106,8 +106,8 @@ pub struct OrderItem {
     #[serde(rename = "batchNumber", default = "default_batch_number")]
     pub batch_number: i32,
     
-    #[serde(rename = "addedAt", default = "chrono::Utc::now")]
-    pub added_at: DateTime<Utc>,
+    #[serde(rename = "addedAt", default = "mongodb::bson::DateTime::now")]
+    pub added_at: mongodb::bson::DateTime,
     
     #[serde(rename = "kitchenStatus", default = "default_kitchen_status")]
     pub kitchen_status: String, // pending, printed, cooking, ready, served
@@ -115,7 +115,7 @@ pub struct OrderItem {
     #[serde(rename = "isPrinted", default)]
     pub is_printed: bool,
     #[serde(rename = "printedAt", skip_serializing_if = "Option::is_none")]
-    pub printed_at: Option<DateTime<Utc>>,
+    pub printed_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "dineType", default = "default_dine_type")]
     pub dine_type: String, // Dine-In, Take Away
@@ -140,9 +140,9 @@ pub struct MenuItemData {
     pub category: String,
     #[serde(default)]
     pub sku: String,
-    #[serde(rename = "selectedAddons", default)]
+    #[serde(rename = "selectedAddons", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub selected_addons: Vec<OrderItemAddon>,
-    #[serde(rename = "selectedToppings", default)]
+    #[serde(rename = "selectedToppings", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub selected_toppings: Vec<OrderItemTopping>,
     #[serde(rename = "isActive", default = "default_true")]
     pub is_active: bool,
@@ -154,7 +154,7 @@ fn default_true() -> bool { true }
 pub struct OrderItemAddon {
     pub name: String,
     pub price: f64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub options: Vec<AddonOption>,
 }
 
@@ -181,8 +181,8 @@ pub struct CustomAmountItem {
     pub description: String,
     #[serde(rename = "dineType", default = "default_dine_type")]
     pub dine_type: String,
-    #[serde(rename = "appliedAt", default = "chrono::Utc::now")]
-    pub applied_at: DateTime<Utc>,
+    #[serde(rename = "appliedAt", default = "mongodb::bson::DateTime::now")]
+    pub applied_at: mongodb::bson::DateTime,
     #[serde(rename = "originalAmount", skip_serializing_if = "Option::is_none")]
     pub original_amount: Option<f64>,
     #[serde(rename = "discountApplied", default)]
@@ -201,9 +201,9 @@ pub struct AppliedPromo {
     pub promo_type: Option<String>,
     #[serde(default)]
     pub discount: f64,
-    #[serde(rename = "affectedItems", default)]
+    #[serde(rename = "affectedItems", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub affected_items: Vec<AffectedItem>,
-    #[serde(rename = "freeItems", default)]
+    #[serde(rename = "freeItems", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub free_items: Vec<FreeItem>,
 }
 
@@ -263,8 +263,8 @@ pub struct CreatedBy {
     pub employee_id: Option<ObjectId>,
     #[serde(rename = "employee_name", default)]
     pub employee_name: Option<String>,
-    #[serde(rename = "created_at", default = "chrono::Utc::now")]
-    pub created_at: DateTime<Utc>,
+    #[serde(rename = "created_at", default = "mongodb::bson::DateTime::now")]
+    pub created_at: mongodb::bson::DateTime,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -275,7 +275,7 @@ pub struct DeliveryTracking {
     pub driver_name: Option<String>,
     pub driver_phone: Option<String>,
     pub live_tracking_url: Option<String>,
-    pub estimated_arrival: Option<DateTime<Utc>>,
+    pub estimated_arrival: Option<mongodb::bson::DateTime>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -287,7 +287,7 @@ pub struct RecipientInfo {
     pub note: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Order {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
@@ -306,15 +306,15 @@ pub struct Order {
     #[serde(rename = "device_id", skip_serializing_if = "Option::is_none")]
     pub device_id: Option<ObjectId>,
     
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub items: Vec<OrderItem>,
-    #[serde(rename = "customAmountItems", default)]
+    #[serde(rename = "customAmountItems", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub custom_amount_items: Vec<CustomAmountItem>,
     
     #[serde(default = "default_status")]
     pub status: String, // Pending, Waiting, Reserved, OnProcess, Completed, Canceled
     
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub payments: Vec<SplitPayment>,
     
     // Legacy Payment Method
@@ -346,14 +346,14 @@ pub struct Order {
     #[serde(default)]
     pub discounts: Option<Discounts>,
     
-    #[serde(rename = "appliedPromos", default)]
+    #[serde(rename = "appliedPromos", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub applied_promos: Vec<AppliedPromo>,
     #[serde(rename = "appliedManualPromo", skip_serializing_if = "Option::is_none")]
     pub applied_manual_promo: Option<ObjectId>,
     #[serde(rename = "appliedVoucher", skip_serializing_if = "Option::is_none")]
     pub applied_voucher: Option<ObjectId>,
     
-    #[serde(rename = "taxAndServiceDetails", default)]
+    #[serde(rename = "taxAndServiceDetails", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub tax_and_service_details: Vec<TaxAndService>,
     #[serde(rename = "totalTax", default)]
     pub total_tax: f64,
@@ -384,15 +384,15 @@ pub struct Order {
     pub current_batch: i32,
     
     #[serde(rename = "lastItemAddedAt", skip_serializing_if = "Option::is_none")]
-    pub last_item_added_at: Option<DateTime<Utc>>,
+    pub last_item_added_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "reservation", skip_serializing_if = "Option::is_none")]
     pub reservation: Option<ObjectId>,
     
-    #[serde(rename = "createdAtWIB", default = "chrono::Utc::now")]
-    pub created_at_wib: DateTime<Utc>,
-    #[serde(rename = "updatedAtWIB", default = "chrono::Utc::now")]
-    pub updated_at_wib: DateTime<Utc>,
+    #[serde(rename = "createdAtWIB", default = "mongodb::bson::DateTime::now")]
+    pub created_at_wib: mongodb::bson::DateTime,
+    #[serde(rename = "updatedAtWIB", default = "mongodb::bson::DateTime::now")]
+    pub updated_at_wib: mongodb::bson::DateTime,
     
     // Delivery fields
     #[serde(rename = "deliveryStatus", default)]
@@ -417,12 +417,70 @@ pub struct Order {
     pub canceled_by_system: bool,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_user() -> String { "Guest".to_string() }
 fn default_status() -> String { "Pending".to_string() }
 fn default_type_indoor() -> String { "Indoor".to_string() }
 fn default_split_payment_status() -> String { "not_started".to_string() }
+
+impl Default for Order {
+    fn default() -> Self {
+        Self {
+            id: None,
+            order_id: String::new(),
+            user_id: None,
+            user: default_user(),
+            cashier_id: None,
+            gro_id: None,
+            device_id: None,
+            items: Vec::new(),
+            custom_amount_items: Vec::new(),
+            status: default_status(),
+            payments: Vec::new(),
+            payment_method: None,
+            order_type: String::new(),
+            delivery_address: None,
+            table_number: None,
+            pickup_time: None,
+            place_type: default_type_indoor(),
+            cancellation_reason: None,
+            is_open_bill: false,
+            original_reservation_id: None,
+            discounts: None,
+            applied_promos: Vec::new(),
+            applied_manual_promo: None,
+            applied_voucher: None,
+            tax_and_service_details: Vec::new(),
+            total_tax: 0.0,
+            total_service_fee: 0.0,
+            outlet: None,
+            total_before_discount: 0.0,
+            total_after_discount: 0.0,
+            total_custom_amount: 0.0,
+            grand_total: 0.0,
+            change: 0.0,
+            source: String::new(),
+            created_by: None,
+            current_batch: default_batch_number(),
+            last_item_added_at: None,
+            reservation: None,
+            created_at_wib: mongodb::bson::DateTime::now(),
+            updated_at_wib: mongodb::bson::DateTime::now(),
+            delivery_status: None,
+            delivery_provider: None,
+            delivery_tracking: None,
+            recipient_info: None,
+            is_split_payment: false,
+            split_payment_status: default_split_payment_status(),
+            stock_rolled_back: false,
+            table_released: false,
+            canceled_by_system: false,
+            created_at: None,
+            updated_at: None,
+        }
+    }
+}

@@ -22,9 +22,9 @@ pub struct TaxAndService {
     #[serde(rename = "isActive", default = "default_true")]
     pub is_active: bool,
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_tax_type() -> String { "tax".to_string() }

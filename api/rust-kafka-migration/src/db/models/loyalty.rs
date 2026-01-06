@@ -26,9 +26,9 @@ pub struct LoyaltyProgram {
     #[serde(rename = "isActive", default = "default_true")]
     pub is_active: bool,
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_consumer_type() -> String { "member".to_string() }
@@ -57,9 +57,9 @@ pub struct LoyaltyLevel {
     #[serde(default)]
     pub benefits: Vec<String>,
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_points_per_currency() -> f64 { 1.0 }
@@ -83,11 +83,11 @@ pub struct CustomerLoyalty {
     #[serde(rename = "isFirstTransaction", default = "default_true")]
     pub is_first_transaction: bool,
     #[serde(rename = "lastTransactionDate", skip_serializing_if = "Option::is_none")]
-    pub last_transaction_date: Option<DateTime<Utc>>,
+    pub last_transaction_date: Option<mongodb::bson::DateTime>,
     #[serde(rename = "transactionCount", default)]
     pub transaction_count: i32,
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }

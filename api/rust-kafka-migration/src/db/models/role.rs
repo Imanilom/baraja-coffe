@@ -1,5 +1,5 @@
 use bson::oid::ObjectId;
-use chrono::{DateTime, Utc};
+// No longer using chrono here
 use serde::{Deserialize, Serialize};
 
 /// Permission types for role-based access control
@@ -38,14 +38,14 @@ pub struct Role {
     #[serde(default)]
     pub description: String,
     
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub permissions: Vec<Permission>,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 impl Role {
