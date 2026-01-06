@@ -37,6 +37,7 @@ import {
 } from '../controllers/report/payment.report.controller.js';
 
 import DailyProfitController from '../controllers/report/sales.report.controller.js';
+import DashboardController from '../controllers/report/dashboard.report.controller.js';
 import stockOpnameController from '../controllers/stockopname.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { validateSalesReportQuery } from '../utils/salesReportQuery.js';
@@ -143,6 +144,20 @@ router.get('/sales-report/device', DailyProfitController.getDeviceSalesReport);
 router.delete('/sales-report/:id', DailyProfitController.deleteSingleOrder);
 
 router.get('/sales-report/transaction-customer', DailyProfitController.getCustomerSalesReport);
+
+router.get('/sales-report/summary', DailyProfitController.getSalesSummary);
+
+// @route   GET /api/dashboard/data
+// @desc    Get complete dashboard data (summary, products, charts)
+// @access  Private
+// @query   startDate, endDate, outlet (optional)
+router.get('/dashboard', DashboardController.getDashboardData);
+
+// @route   GET /api/dashboard/quick-stats
+// @desc    Get quick stats only (for fast initial load)
+// @access  Private
+// @query   startDate, endDate, outlet (optional)
+router.get('/quick-stats', DashboardController.getQuickStats);
 
 
 export default router;

@@ -6,6 +6,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import PaymentDetailModal from "./detailModal";
+import { exportPaymentMethodExcel } from '../../../../utils/exportPaymentMethodExcel';
 
 const PaymentMethodSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -275,7 +276,7 @@ const PaymentMethodSales = () => {
         }).format(amount || 0);
     };
 
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
         if (paymentMethodData.length === 0) {
             alert("Tidak ada data untuk diekspor");
             return;
@@ -293,54 +294,23 @@ const PaymentMethodSales = () => {
                 : 'Semua Tanggal';
 
             const taxLabel = includeTax ? 'Dengan Pajak' : 'Tanpa Pajak';
-
-            const rows = [
-                { col1: 'Laporan Metode Pembayaran', col2: '', col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
-                { col1: 'Periode', col2: dateRangeText, col3: '', col4: '' },
-                { col1: 'Jenis Laporan', col2: taxLabel, col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Metode Pembayaran', col2: 'Jumlah Transaksi', col3: 'Total', col4: 'Persentase' },
-            ];
-
-            paymentMethodData.forEach(group => {
-                rows.push({
-                    col1: group.paymentMethod,
-                    col2: group.count,
-                    col3: group.subtotal,
-                    col4: `${group.percentage}%`
-                });
-            });
-
-            rows.push({ col1: '', col2: '', col3: '', col4: '' });
-            rows.push({
-                col1: 'GRAND TOTAL',
-                col2: grandTotal.count,
-                col3: grandTotal.subtotal,
-                col4: '100%'
-            });
-
-            const ws = XLSX.utils.json_to_sheet(rows, {
-                header: ['col1', 'col2', 'col3', 'col4'],
-                skipHeader: true
-            });
-
-            ws['!cols'] = [
-                { wch: 25 },
-                { wch: 20 },
-                { wch: 20 },
-                { wch: 15 }
-            ];
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Metode Pembayaran");
-
             const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const filename = `Metode_Pembayaran_${taxLabel}_${outletName}_${startDate}_${endDate}.xlsx`;
 
-            XLSX.writeFile(wb, filename);
+            await exportPaymentMethodExcel({
+                data: paymentMethodData,
+                grandTotal,
+                summary: reportData?.summary,
+                includeTax,
+                fileName: `Metode_Pembayaran_${taxLabel}_${outletName}_${startDate}_${endDate}.xlsx`,
+                headerInfo: [
+                    ['Outlet', outletName],
+                    ['Periode', dateRangeText],
+                    ['Jenis Laporan', taxLabel],
+                    ['Tanggal Export', new Date().toLocaleString('id-ID')]
+                ]
+            });
+
         } catch (err) {
             console.error("Error exporting:", err);
             alert("Gagal mengekspor data. Silakan coba lagi.");

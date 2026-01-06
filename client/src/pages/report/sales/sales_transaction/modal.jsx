@@ -156,7 +156,7 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                     <div className="my-4 space-y-2">
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Sub Total</span>
-                            <span className="font-medium">{formatCurrency(selectedTrx.totalAfterDiscount)}</span>
+                            <span className="font-medium">{formatCurrency(selectedTrx.totalBeforeDiscount)}</span>
                         </div>
 
                         {/* Discounts if any */}
@@ -183,6 +183,11 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                             </>
                         )}
 
+                        {/* <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Total Setelah Diskon</span>
+                            <span className="font-medium">{formatCurrency(selectedTrx.totalAfterDiscount)}</span>
+                        </div> */}
+
                         {/* Tax */}
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">{selectedTrx.taxAndServiceDetails?.[0]?.name || "Tax"}</span>
@@ -194,7 +199,7 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                         {/* Grand Total */}
                         <div className="flex justify-between text-base font-bold text-green-700 border-t border-dashed pt-3 mt-2">
                             <span>Total Harga</span>
-                            <span>{formatCurrency(selectedTrx.grandTotal || finalTotal)}</span>
+                            <span>{formatCurrency(selectedTrx.grandTotal)}</span>
                         </div>
                     </div>
 

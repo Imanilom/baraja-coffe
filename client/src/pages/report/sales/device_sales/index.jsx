@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -7,6 +10,12 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import DeviceSalesSkeleton from "./skeleton";
+import { exportDeviceSalesExcel } from '../../../../utils/exportDeviceSalesExcel';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const DeviceSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -62,6 +71,16 @@ const DeviceSales = () => {
 
     const ITEMS_PER_PAGE = 50;
 
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
+
     // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
@@ -71,15 +90,18 @@ const DeviceSales = () => {
 
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: new Date(startDateParam),
-                endDate: new Date(endDateParam),
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            const today = new Date();
-            setDateRange({
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
+            const newDateRange = {
                 startDate: today,
-                endDate: today,
-            });
+                endDate: today
+            };
+            setDateRange(newDateRange);
+
+            updateURLParams(newDateRange, outletParam || "", parseInt(pageParam, 10) || 1);
         }
 
         if (outletParam) {
@@ -96,8 +118,8 @@ const DeviceSales = () => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -139,8 +161,8 @@ const DeviceSales = () => {
         setLoading(true);
         try {
             const params = {
-                startDate: new Date(dateRange.startDate).toISOString().split('T')[0],
-                endDate: new Date(dateRange.endDate).toISOString().split('T')[0],
+                startDate: formatDateForAPI(dateRange.startDate),
+                endDate: formatDateForAPI(dateRange.endDate),
             };
 
             if (selectedOutlet) {
@@ -243,67 +265,19 @@ const DeviceSales = () => {
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : new Date().toLocaleDateString('id-ID');
 
-            // Create export data
-            const exportData = [
-                { col1: 'Laporan Penjualan Per Perangkat', col2: '', col3: '', col4: '', col5: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '', col5: '' },
-                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '', col5: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '' },
-                { col1: 'Nama Perangkat', col2: 'Tipe', col3: 'Jumlah Transaksi', col4: 'Penjualan', col5: 'Rata-Rata' }
-            ];
-
-            // Add data rows
-            deviceData.forEach(device => {
-                exportData.push({
-                    col1: device.deviceName || '-',
-                    col2: device.deviceType || '-',
-                    col3: device.transactionCount || 0,
-                    col4: device.totalSales || 0,
-                    col5: device.averagePerTransaction || 0
-                });
-            });
-
-            // Add Grand Total row
-            exportData.push({
-                col1: 'Grand Total',
-                col2: '',
-                col3: summary.totalTransactions,
-                col4: summary.totalSales,
-                col5: summary.averagePerTransaction
-            });
-
-            // Create worksheet
-            const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2', 'col3', 'col4', 'col5'],
-                skipHeader: true
-            });
-
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 25 },
-                { wch: 15 },
-                { wch: 20 },
-                { wch: 20 },
-                { wch: 15 }
-            ];
-
-            // Merge cells for title
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }
-            ];
-
-            // Create workbook and add worksheet
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Perangkat");
-
-            // Generate filename
             const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const fileName = `Laporan_Penjualan_Per_Perangkat_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
 
-            // Export file
-            XLSX.writeFile(wb, fileName);
+            await exportDeviceSalesExcel({
+                data: deviceData,
+                summary,
+                fileName: `Laporan_Penjualan_Per_Perangkat_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
+                headerInfo: [
+                    ['Outlet', outletName],
+                    ['Tanggal', dateRangeText],
+                    ['Tanggal Export', new Date().toLocaleString('id-ID')]
+                ]
+            });
 
         } catch (error) {
             console.error("Error exporting to Excel:", error);

@@ -164,6 +164,72 @@ const OrderItemSchema = new mongoose.Schema({
   cancellationReason: { type: String }
 });
 
+// Schema untuk selected promo bundles
+const SelectedPromoBundleSchema = new mongoose.Schema({
+  promoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AutoPromo',
+    required: true
+  },
+  promoName: { type: String, required: true },
+  bundleSets: { type: Number, required: true, min: 1 },
+  appliedDiscount: { type: Number, default: 0 },
+  affectedItems: [{
+    menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: String,
+    quantityInBundle: Number,
+    discountShare: Number,
+    originalSubtotal: Number,
+    discountedSubtotal: Number
+  }]
+});
+
+const SelectedPromoSchema = new mongoose.Schema({
+  promoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AutoPromo',
+    required: true
+  },
+  promoName: { type: String, required: true },
+  promoType: {
+    type: String,
+    required: true,
+    enum: ['bundling', 'buy_x_get_y', 'product_specific']
+  },
+  // Untuk bundling
+  bundleSets: { type: Number, min: 1 },
+  // Untuk semua jenis
+  appliedDiscount: { type: Number, default: 0 },
+  affectedItems: [{
+    menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: String,
+    quantity: Number,
+    originalSubtotal: Number,
+    discountAmount: Number,
+    discountedSubtotal: Number,
+    discountType: String,
+    discountValue: Number
+  }],
+  // Untuk Buy X Get Y
+  freeItems: [{
+    menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: String,
+    quantity: Number,
+    price: Number,
+    isFree: { type: Boolean, default: true }
+  }],
+  // Metadata
+  selectedAt: {
+    type: Date,
+    default: () => new Date()
+  },
+  selectedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }
+});
+
+
 // Model Order
 const OrderSchema = new mongoose.Schema({
   order_id: { type: String, required: true, unique: true },
@@ -189,6 +255,10 @@ const OrderSchema = new mongoose.Schema({
     originalAmount: { type: Number },
     discountApplied: { type: Number, default: 0 }
   }],
+
+  // ✅ BARU: Field untuk selected promo bundles dari user
+  selectedPromoBundles: [SelectedPromoBundleSchema],
+  selectedPromos: [SelectedPromoSchema],
 
   status: {
     type: String,
@@ -285,7 +355,8 @@ const OrderSchema = new mongoose.Schema({
   discounts: {
     autoPromoDiscount: { type: Number, default: 0 },
     manualDiscount: { type: Number, default: 0 },
-    voucherDiscount: { type: Number, default: 0 }
+    voucherDiscount: { type: Number, default: 0 },
+    selectedBundleDiscount: { type: Number, default: 0 } // ✅ BARU: Total discount dari selected bundles
   },
   appliedPromos: [{
     promoId: {
@@ -488,6 +559,14 @@ OrderSchema.virtual('updatedAtWIBFormatted').get(function () {
   return this.updatedAt ? this.formatToWIB(this.updatedAt) : null;
 });
 
+// Virtual untuk total selected bundle discount
+OrderSchema.virtual('selectedBundleDiscount').get(function () {
+  if (!this.selectedPromoBundles || !Array.isArray(this.selectedPromoBundles)) {
+    return 0;
+  }
+  return this.selectedPromoBundles.reduce((total, bundle) => total + (bundle.appliedDiscount || 0), 0);
+});
+
 // Virtual untuk total paid amount dari semua payments
 OrderSchema.virtual('totalPaid').get(function () {
   if (!this.payments || !Array.isArray(this.payments)) {
@@ -560,7 +639,6 @@ OrderSchema.methods.formatToWIB = function (date) {
     hour12: false
   });
 };
-
 
 // Method untuk mendapatkan tanggal WIB (tanpa waktu)
 OrderSchema.methods.getWIBDate = function () {
@@ -831,6 +909,14 @@ OrderSchema.pre('save', async function (next) {
       if (this.payments.length > 0) {
         this.paymentMethod = this.payments[0].paymentMethod;
       }
+    }
+
+    // Update total selected bundle discount
+    if (this.selectedPromoBundles && Array.isArray(this.selectedPromoBundles)) {
+      const totalBundleDiscount = this.selectedPromoBundles.reduce((total, bundle) => {
+        return total + (bundle.appliedDiscount || 0);
+      }, 0);
+      this.discounts.selectedBundleDiscount = totalBundleDiscount;
     }
 
     next();

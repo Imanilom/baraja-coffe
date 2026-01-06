@@ -12,6 +12,8 @@ pub mod menu_stock;
 pub mod product_stock;
 pub mod loyalty;
 pub mod tax;
+pub mod marketlist;
+pub mod request;
 pub mod promo;
 pub mod voucher;
 
@@ -30,3 +32,5 @@ pub use loyalty::{LoyaltyProgram, LoyaltyLevel, CustomerLoyalty};
 pub use tax::TaxAndService;
 pub use promo::{Promo, AutoPromo};
 pub use voucher::Voucher;
+pub use marketlist::{MarketList, MarketListItem, Payment, PaymentMethod, PaymentStatus};
+pub use request::{Request, RequestItem, RequestStatus, FulfillmentStatus};

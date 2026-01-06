@@ -39,6 +39,252 @@ const extractBankInfo = (payment) => {
 };
 
 class DailyProfitController {
+
+  async getSalesSummary(req, res) {
+    try {
+      const { startDate, endDate, cashierId, outletId, paymentMethod, orderType } = req.query;
+
+      // Build filter
+      const filter = { status: 'Completed' };
+
+      // Date filter dengan timezone +07:00 (WIB)
+      if (startDate || endDate) {
+        filter.createdAt = {};
+
+        if (startDate) {
+          const startDateStr = startDate;
+          const start = new Date(startDateStr + 'T00:00:00.000+07:00');
+          filter.createdAt.$gte = start;
+        }
+
+        if (endDate) {
+          const endDateStr = endDate;
+          const end = new Date(endDateStr + 'T23:59:59.999+07:00');
+          filter.createdAt.$lte = end;
+        }
+      }
+
+      // Convert ObjectId fields properly
+      if (cashierId) {
+        const cashierObjectId = toObjectId(cashierId);
+        if (cashierObjectId) {
+          filter.cashierId = cashierObjectId;
+        }
+      }
+
+      if (outletId) {
+        const outletObjectId = toObjectId(outletId);
+        if (outletObjectId) {
+          filter.outlet = outletObjectId;
+        }
+      }
+
+      if (orderType) filter.orderType = { $in: orderType.split(',') };
+
+      // Summary stats dengan lookup ke Payment
+      const summaryPipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: 'payments',
+            localField: 'order_id',
+            foreignField: 'order_id',
+            as: 'payments'
+          }
+        },
+        {
+          $addFields: {
+            // Ambil method_type dari payment yang settled/paid
+            actualPaymentMethod: {
+              $arrayElemAt: [
+                {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: '$payments',
+                        as: 'payment',
+                        cond: { $in: ['$$payment.status', ['settlement', 'paid', 'partial']] }
+                      }
+                    },
+                    as: 'p',
+                    in: '$$p.method_type'
+                  }
+                },
+                0
+              ]
+            }
+          }
+        },
+        // Filter berdasarkan method_type jika ada
+        ...(paymentMethod ? [{ $match: { actualPaymentMethod: { $in: paymentMethod.split(',') } } }] : []),
+        {
+          $group: {
+            _id: null,
+            totalSales: { $sum: '$grandTotal' },
+            totalTransactions: { $sum: 1 },
+            totalTax: { $sum: '$totalTax' },
+            totalServiceFee: { $sum: '$totalServiceFee' },
+            // ✅ FIXED: Hitung berdasarkan quantity items + customAmountItems (count as 1 each)
+            totalItems: {
+              $sum: {
+                $add: [
+                  // Sum quantity dari regular items
+                  {
+                    $reduce: {
+                      input: { $ifNull: ['$items', []] },
+                      initialValue: 0,
+                      in: { $add: ['$$value', { $ifNull: ['$$this.quantity', 0] }] }
+                    }
+                  },
+                  // Count customAmountItems (setiap item = 1)
+                  { $size: { $ifNull: ['$customAmountItems', []] } }
+                ]
+              }
+            },
+            avgOrderValue: { $avg: '$grandTotal' },
+            totalDiscount: {
+              $sum: {
+                $add: [
+                  '$discounts.autoPromoDiscount',
+                  '$discounts.manualDiscount',
+                  '$discounts.voucherDiscount'
+                ]
+              }
+            }
+          }
+        }
+      ];
+
+      // Payment method breakdown dengan detail payment type (menggunakan method_type)
+      const paymentBreakdownPipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: 'payments',
+            localField: 'order_id',
+            foreignField: 'order_id',
+            as: 'payments'
+          }
+        },
+        { $unwind: '$payments' },
+        {
+          $match: {
+            'payments.status': { $in: ['settlement', 'paid', 'partial'] },
+            'payments.isAdjustment': { $ne: true }, // Exclude adjustment payments
+            ...(paymentMethod && { 'payments.method_type': { $in: paymentMethod.split(',') } })
+          }
+        },
+        {
+          $group: {
+            _id: {
+              method_type: '$payments.method_type',
+              paymentType: '$payments.paymentType'
+            },
+            total: { $sum: '$payments.amount' },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $group: {
+            _id: '$_id.method_type',
+            total: { $sum: '$total' },
+            count: { $sum: '$count' },
+            breakdown: {
+              $push: {
+                paymentType: '$_id.paymentType',
+                amount: '$total',
+                count: '$count'
+              }
+            }
+          }
+        }
+      ];
+
+      // Order type breakdown
+      const orderTypeBreakdownPipeline = [
+        { $match: filter },
+        ...(paymentMethod ? [{
+          $lookup: {
+            from: 'payments',
+            localField: 'order_id',
+            foreignField: 'order_id',
+            as: 'payments'
+          }
+        }, {
+          $match: {
+            'payments.method_type': { $in: paymentMethod.split(',') },
+            'payments.status': { $in: ['settlement', 'paid', 'partial'] }
+          }
+        }] : []),
+        {
+          $group: {
+            _id: '$orderType',
+            count: { $sum: 1 },
+            total: { $sum: '$grandTotal' }
+          }
+        }
+      ];
+
+      const [summaryResult, paymentBreakdown, orderTypeBreakdown] = await Promise.all([
+        Order.aggregate(summaryPipeline),
+        Order.aggregate(paymentBreakdownPipeline),
+        Order.aggregate(orderTypeBreakdownPipeline)
+      ]);
+
+      const summary = summaryResult[0] || {
+        totalSales: 0,
+        totalTransactions: 0,
+        totalTax: 0,
+        totalServiceFee: 0,
+        totalItems: 0,
+        avgOrderValue: 0,
+        totalDiscount: 0
+      };
+
+      // Calculate percentages for payment methods
+      const totalSalesForPayment = paymentBreakdown.reduce((sum, item) => sum + item.total, 0);
+      const paymentMethodData = paymentBreakdown.map(item => ({
+        method: item._id,
+        amount: item.total,
+        count: item.count,
+        percentage: totalSalesForPayment > 0 ? ((item.total / totalSalesForPayment) * 100).toFixed(1) : '0.0',
+        breakdown: item.breakdown
+      }));
+
+      // Calculate percentages for order types
+      const totalOrdersForType = orderTypeBreakdown.reduce((sum, item) => sum + item.count, 0);
+      const orderTypeData = orderTypeBreakdown.map(item => ({
+        type: item._id,
+        count: item.count,
+        total: item.total,
+        percentage: totalOrdersForType > 0 ? ((item.count / totalOrdersForType) * 100).toFixed(1) : '0.0'
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          summary: {
+            totalSales: summary.totalSales,
+            totalTransactions: summary.totalTransactions,
+            avgOrderValue: Math.round(summary.avgOrderValue),
+            totalTax: summary.totalTax,
+            totalServiceFee: summary.totalServiceFee,
+            totalDiscount: summary.totalDiscount,
+            totalItems: summary.totalItems // ✅ Sekarang berdasarkan quantity
+          },
+          paymentMethodBreakdown: paymentMethodData,
+          orderTypeBreakdown: orderTypeData
+        }
+      });
+    } catch (error) {
+      console.error('Error in getSalesSummary:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message
+      });
+    }
+  };
   /**
    * Get daily profit summary for a specific date - DUKUNG SPLIT PAYMENT
    */
@@ -730,277 +976,6 @@ class DailyProfitController {
   * Get order report - DUKUNG SPLIT PAYMENT
   */
 
-  // async getOrdersWithPayments(req, res) {
-  //   try {
-  //     const page = parseInt(req.query.page) || 1;
-  //     const limit = parseInt(req.query.limit) || 20;
-  //     const mode = req.query.mode || 'paginated';
-
-  //     // PERBAIKAN: Tambah search parameter
-  //     const searchTerm = req.query.search || '';
-
-  //     const filters = {};
-
-  //     if (req.query.status) filters.status = req.query.status;
-  //     if (req.query.orderType) filters.orderType = req.query.orderType;
-  //     if (req.query.outlet) filters.outlet = req.query.outlet;
-
-  //     // Date range filter
-  //     if (req.query.startDate || req.query.endDate) {
-  //       filters.createdAt = {};
-
-  //       if (req.query.startDate) {
-  //         const startDateStr = req.query.startDate;
-  //         const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
-  //         filters.createdAt.$gte = startDate;
-  //       }
-
-  //       if (req.query.endDate) {
-  //         const endDateStr = req.query.endDate;
-  //         const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
-  //         filters.createdAt.$lte = endDate;
-  //       }
-  //     }
-
-  //     // PERBAIKAN: Tambah search filter ke MongoDB query
-  //     if (searchTerm) {
-  //       filters.$or = [
-  //         { order_id: { $regex: searchTerm, $options: 'i' } },
-  //         { user: { $regex: searchTerm, $options: 'i' } },
-  //         { 'items.menuItemData.name': { $regex: searchTerm, $options: 'i' } },
-  //       ];
-  //     }
-
-  //     const buildQuery = () => {
-  //       return Order.find(filters)
-  //         .populate('items.menuItem')
-  //         .populate({
-  //           path: 'items.menuItem',
-  //           populate: {
-  //             path: 'category',
-  //             model: 'Category',
-  //             select: 'name'
-  //           }
-  //         })
-  //         .populate('outlet')
-  //         .populate('user_id')
-  //         .populate({
-  //           path: 'cashierId',
-  //           populate: {
-  //             path: 'outlet.outletId',
-  //             model: 'Outlet',
-  //             select: 'name address',
-  //           },
-  //         })
-  //         .sort({ createdAt: -1 })
-  //         .lean();
-  //     };
-
-  //     let orders, totalOrders, paginationInfo = null;
-
-  //     switch (mode) {
-  //       case 'all':
-  //         // PERBAIKAN: Pastikan tidak ada limit MongoDB default
-  //         const allOrdersQuery = buildQuery();
-  //         // Set maxTimeMS untuk query besar
-  //         allOrdersQuery.maxTimeMS(60000);
-  //         orders = await allOrdersQuery.exec();
-  //         totalOrders = orders.length;
-  //         break;
-
-  //       case 'recent':
-  //         orders = await buildQuery().limit(10);
-  //         totalOrders = await Order.countDocuments(filters);
-  //         paginationInfo = {
-  //           mode: 'recent',
-  //           showing: orders.length,
-  //           total: totalOrders
-  //         };
-  //         break;
-
-  //       case 'count':
-  //         totalOrders = await Order.countDocuments(filters);
-  //         return res.status(200).json({
-  //           success: true,
-  //           count: totalOrders
-  //         });
-
-  //       case 'ids':
-  //         const orderIds = await Order.find(filters)
-  //           .select('order_id createdAt status')
-  //           .sort({ createdAt: -1 })
-  //           .lean();
-  //         return res.status(200).json({
-  //           success: true,
-  //           data: orderIds
-  //         });
-
-  //       case 'paginated':
-  //       default:
-  //         const skip = (page - 1) * limit;
-  //         totalOrders = await Order.countDocuments(filters);
-  //         const totalPages = Math.ceil(totalOrders / limit);
-
-  //         orders = await buildQuery().skip(skip).limit(limit);
-
-  //         paginationInfo = {
-  //           currentPage: page,
-  //           totalPages: totalPages,
-  //           totalOrders: totalOrders,
-  //           limit: limit,
-  //           hasNextPage: page < totalPages,
-  //           hasPrevPage: page > 1
-  //         };
-  //         break;
-  //     }
-
-  //     // Fetch payments
-  //     const orderIds = orders.map(order => order.order_id);
-  //     const allPayments = await Payment.find({
-  //       order_id: { $in: orderIds }
-  //     }).lean();
-
-  //     const paymentMap = {};
-  //     allPayments.forEach(payment => {
-  //       if (!paymentMap[payment.order_id]) {
-  //         paymentMap[payment.order_id] = [];
-  //       }
-  //       paymentMap[payment.order_id].push(payment);
-  //     });
-
-  //     // PERBAIKAN: Pastikan semua items memiliki menuItemData
-  //     const ordersWithPayments = orders.map(order => {
-  //       if (order.items && Array.isArray(order.items)) {
-  //         // order.items = order.items.map(item => {
-  //         //   // Prioritas: menuItemData > menuItem > default
-  //         //   if (!item.menuItemData || !item.menuItemData.name) {
-  //         //     if (item.menuItem) {
-  //         //       item.menuItemData = {
-  //         //         name: item.menuItem.name || 'Unknown Item',
-  //         //         price: item.menuItem.price || 0,
-  //         //         category:
-  //         //           typeof item.menuItem.category === 'object'
-  //         //             ? item.menuItem.category.name
-  //         //             : 'Uncategorized',
-  //         //         sku: item.menuItem.sku || '',
-  //         //         isActive: item.menuItem.isActive !== false,
-  //         //         selectedAddons: item.addons || [],
-  //         //         selectedToppings: item.toppings || []
-  //         //       };
-  //         //     } else {
-  //         //       // Fallback untuk item yang tidak memiliki menuItem reference
-  //         //       item.menuItemData = {
-  //         //         name: 'Unknown Item',
-  //         //         price: item.subtotal / (item.quantity || 1) || 0,
-  //         //         category: 'Unknown',
-  //         //         sku: 'N/A',
-  //         //         isActive: false,
-  //         //         selectedAddons: item.addons || [],
-  //         //         selectedToppings: item.toppings || []
-  //         //       };
-  //         //     }
-  //         //   } else if (!item.menuItemData.selectedAddons) {
-  //         //     // Pastikan addons dan toppings selalu ada
-  //         //     item.menuItemData.selectedAddons = item.addons || [];
-  //         //     item.menuItemData.selectedToppings = item.toppings || [];
-  //         //   }
-  //         //   return item;
-  //         // });
-  //         order.items = order.items.map(item => {
-  //           // Pastikan menuItemData ada
-  //           if (!item.menuItemData) {
-  //             item.menuItemData = {};
-  //           }
-
-  //           // Sinkronisasi dari menuItem (populate)
-  //           if (item.menuItem) {
-  //             item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
-  //             item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
-
-  //             // 🔥 FIX UTAMA: ambil CATEGORY NAME, BUKAN ID
-  //             if (item.menuItem.category && typeof item.menuItem.category === 'object') {
-  //               item.menuItemData.category = item.menuItem.category.name;
-  //             } else {
-  //               item.menuItemData.category = item.menuItemData.category || 'Uncategorized';
-  //             }
-
-  //             item.menuItemData.sku = item.menuItem.sku || '';
-  //             item.menuItemData.isActive = item.menuItem.isActive !== false;
-  //           }
-
-  //           // Pastikan addons & toppings selalu ada
-  //           item.menuItemData.selectedAddons = item.addons || [];
-  //           item.menuItemData.selectedToppings = item.toppings || [];
-
-  //           return item;
-  //         });
-
-  //       }
-
-  //       const relatedPayments = paymentMap[order.order_id] || [];
-  //       let paymentDetails = null;
-  //       let actualPaymentMethod = order.paymentMethod || 'N/A';
-
-  //       if (order.orderType !== "Reservation") {
-  //         paymentDetails = relatedPayments.find(p =>
-  //           p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
-  //         );
-  //       } else {
-  //         paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
-  //           relatedPayments.find(p => p.status === 'partial') ||
-  //           relatedPayments.find(p => p.status === 'settlement') ||
-  //           relatedPayments.find(p =>
-  //             p.paymentType === 'Final Payment' &&
-  //             p.relatedPaymentId &&
-  //             (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
-  //           );
-  //       }
-
-  //       if (paymentDetails) {
-  //         actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
-  //       }
-
-  //       return {
-  //         ...order,
-  //         paymentDetails: paymentDetails || null,
-  //         actualPaymentMethod
-  //       };
-  //     });
-
-  //     const response = {
-  //       success: true,
-  //       data: ordersWithPayments,
-  //       // PERBAIKAN: Tambah metadata untuk debugging
-  //       metadata: {
-  //         mode: mode,
-  //         filters: {
-  //           status: req.query.status || 'all',
-  //           outlet: req.query.outlet || 'all',
-  //           dateRange: req.query.startDate && req.query.endDate
-  //             ? `${req.query.startDate} to ${req.query.endDate}`
-  //             : 'all',
-  //           search: searchTerm || 'none'
-  //         },
-  //         resultCount: ordersWithPayments.length
-  //       }
-  //     };
-
-  //     if (paginationInfo) {
-  //       response.pagination = paginationInfo;
-  //     }
-
-  //     res.status(200).json(response);
-
-  //   } catch (error) {
-  //     console.error('Get orders with payments error:', error);
-  //     res.status(500).json({
-  //       success: false,
-  //       message: 'Failed to fetch orders with payments',
-  //       error: error.message
-  //     });
-  //   }
-  // }
-
   async getOrdersWithPayments(req, res) {
     try {
       const page = parseInt(req.query.page) || 1;
@@ -1249,6 +1224,292 @@ class DailyProfitController {
       });
     }
   }
+
+  // Optimized getOrdersWithPayments untuk export berat
+
+  // SAFER VERSION - Optimized getOrdersWithPayments dengan error handling
+
+  // async getOrdersWithPayments(req, res) {
+  //   try {
+  //     const page = parseInt(req.query.page) || 1;
+  //     const limit = parseInt(req.query.limit) || 20;
+  //     const mode = req.query.mode || 'paginated';
+
+  //     const searchTerm = req.query.search || '';
+
+  //     const filters = {};
+
+  //     if (req.query.status) filters.status = req.query.status;
+  //     if (req.query.orderType) filters.orderType = req.query.orderType;
+  //     if (req.query.outlet) filters.outlet = req.query.outlet;
+
+  //     // Date range filter
+  //     if (req.query.startDate || req.query.endDate) {
+  //       filters.createdAt = {};
+
+  //       if (req.query.startDate) {
+  //         const startDateStr = req.query.startDate;
+  //         const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
+  //         filters.createdAt.$gte = startDate;
+  //       }
+
+  //       if (req.query.endDate) {
+  //         const endDateStr = req.query.endDate;
+  //         const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
+  //         filters.createdAt.$lte = endDate;
+  //       }
+  //     }
+
+  //     // Search filter
+  //     if (searchTerm) {
+  //       filters.$or = [
+  //         { order_id: { $regex: searchTerm, $options: 'i' } },
+  //         { user: { $regex: searchTerm, $options: 'i' } },
+  //         { 'items.menuItemData.name': { $regex: searchTerm, $options: 'i' } },
+  //       ];
+  //     }
+
+  //     const buildQuery = () => {
+  //       return Order.find(filters)
+  //         .populate('items.menuItem')
+  //         .populate({
+  //           path: 'items.menuItem',
+  //           populate: {
+  //             path: 'category',
+  //             model: 'Category',
+  //             select: 'name'
+  //           }
+  //         })
+  //         .populate('outlet')
+  //         .populate({
+  //           path: 'user_id',
+  //           select: 'name email phone role outlet username'
+  //         })
+  //         .populate({
+  //           path: 'cashierId',
+  //           select: 'name email phone role outlet username',
+  //           populate: {
+  //             path: 'outlet.outletId',
+  //             model: 'Outlet',
+  //             select: 'name address',
+  //           },
+  //         })
+  //         .populate({
+  //           path: 'groId',
+  //           select: 'name email phone role outlet username',
+  //           populate: {
+  //             path: 'outlet.outletId',
+  //             model: 'Outlet',
+  //             select: 'name address',
+  //           },
+  //         })
+  //         .sort({ createdAt: -1 })
+  //         .lean();
+  //     };
+
+  //     let orders, totalOrders, paginationInfo = null;
+
+  //     switch (mode) {
+  //       case 'all':
+  //         console.log('🔄 Fetching ALL orders for export...');
+  //         const allOrdersQuery = buildQuery();
+  //         allOrdersQuery.maxTimeMS(180000); // 3 minutes timeout
+
+  //         try {
+  //           orders = await allOrdersQuery.exec();
+  //           totalOrders = orders.length;
+  //           console.log(`✅ Fetched ${totalOrders} orders successfully`);
+  //         } catch (queryError) {
+  //           console.error('❌ Error in ALL mode query:', queryError);
+  //           // Fallback: try without maxTimeMS
+  //           orders = await buildQuery().exec();
+  //           totalOrders = orders.length;
+  //           console.log(`✅ Fallback successful: ${totalOrders} orders`);
+  //         }
+  //         break;
+
+  //       case 'recent':
+  //         orders = await buildQuery().limit(10);
+  //         totalOrders = await Order.countDocuments(filters);
+  //         paginationInfo = {
+  //           mode: 'recent',
+  //           showing: orders.length,
+  //           total: totalOrders
+  //         };
+  //         break;
+
+  //       case 'count':
+  //         totalOrders = await Order.countDocuments(filters);
+  //         return res.status(200).json({
+  //           success: true,
+  //           count: totalOrders
+  //         });
+
+  //       case 'ids':
+  //         const orderIds = await Order.find(filters)
+  //           .select('order_id createdAt status')
+  //           .sort({ createdAt: -1 })
+  //           .lean();
+  //         return res.status(200).json({
+  //           success: true,
+  //           data: orderIds
+  //         });
+
+  //       case 'paginated':
+  //       default:
+  //         const skip = (page - 1) * limit;
+  //         totalOrders = await Order.countDocuments(filters);
+  //         const totalPages = Math.ceil(totalOrders / limit);
+
+  //         orders = await buildQuery().skip(skip).limit(limit);
+
+  //         paginationInfo = {
+  //           currentPage: page,
+  //           totalPages: totalPages,
+  //           totalOrders: totalOrders,
+  //           limit: limit,
+  //           hasNextPage: page < totalPages,
+  //           hasPrevPage: page > 1
+  //         };
+  //         break;
+  //     }
+
+  //     // Fetch payments
+  //     console.log(`🔄 Fetching payments for ${orders.length} orders...`);
+  //     const orderIds = orders.map(order => order.order_id);
+
+  //     let allPayments = [];
+  //     try {
+  //       allPayments = await Payment.find({
+  //         order_id: { $in: orderIds }
+  //       }).lean();
+  //       console.log(`✅ Fetched ${allPayments.length} payments`);
+  //     } catch (paymentError) {
+  //       console.error('❌ Error fetching payments:', paymentError);
+  //       // Continue without payments
+  //       allPayments = [];
+  //     }
+
+  //     // Build payment map
+  //     const paymentMap = {};
+  //     allPayments.forEach(payment => {
+  //       if (!paymentMap[payment.order_id]) {
+  //         paymentMap[payment.order_id] = [];
+  //       }
+  //       paymentMap[payment.order_id].push(payment);
+  //     });
+
+  //     // Process orders with payments
+  //     console.log(`🔄 Processing ${orders.length} orders...`);
+  //     const ordersWithPayments = orders.map(order => {
+  //       // Ensure menuItemData is properly populated
+  //       if (order.items && Array.isArray(order.items)) {
+  //         order.items = order.items.map(item => {
+  //           if (!item.menuItemData) {
+  //             item.menuItemData = {};
+  //           }
+
+  //           // Sync from populated menuItem
+  //           if (item.menuItem) {
+  //             item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
+  //             item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
+
+  //             // Get category name, not ID
+  //             if (item.menuItem.category && typeof item.menuItem.category === 'object') {
+  //               item.menuItemData.category = item.menuItem.category.name;
+  //             } else {
+  //               item.menuItemData.category = item.menuItemData.category || 'Uncategorized';
+  //             }
+
+  //             item.menuItemData.sku = item.menuItem.sku || '';
+  //             item.menuItemData.isActive = item.menuItem.isActive !== false;
+  //           }
+
+  //           // Ensure addons & toppings always exist
+  //           item.menuItemData.selectedAddons = item.addons || [];
+  //           item.menuItemData.selectedToppings = item.toppings || [];
+
+  //           return item;
+  //         });
+  //       }
+
+  //       // Get related payments
+  //       const relatedPayments = paymentMap[order.order_id] || [];
+  //       let paymentDetails = null;
+  //       let actualPaymentMethod = order.paymentMethod || 'N/A';
+
+  //       if (order.orderType !== "Reservation") {
+  //         paymentDetails = relatedPayments.find(p =>
+  //           p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
+  //         );
+  //       } else {
+  //         paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+  //           relatedPayments.find(p => p.status === 'partial') ||
+  //           relatedPayments.find(p => p.status === 'settlement') ||
+  //           relatedPayments.find(p =>
+  //             p.paymentType === 'Final Payment' &&
+  //             p.relatedPaymentId &&
+  //             (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
+  //           );
+  //       }
+
+  //       if (paymentDetails) {
+  //         actualPaymentMethod = paymentDetails.method_type || actualPaymentMethod;
+  //       }
+
+  //       // FIX: Gunakan afterDiscount untuk grand total yang benar
+  //       const grandTotal = order.afterDiscount !== undefined && order.afterDiscount !== null
+  //         ? order.afterDiscount
+  //         : order.total;
+
+  //       return {
+  //         ...order,
+  //         grandTotal, // Tambahkan field grandTotal yang sudah termasuk diskon
+  //         user_id: order.user_id || null,
+  //         cashierId: order.cashierId || null,
+  //         groId: order.groId || null,
+  //         paymentDetails: paymentDetails || null,
+  //         actualPaymentMethod
+  //       };
+  //     });
+
+  //     console.log(`✅ Successfully processed all orders`);
+
+  //     const response = {
+  //       success: true,
+  //       data: ordersWithPayments,
+  //       metadata: {
+  //         mode: mode,
+  //         filters: {
+  //           status: req.query.status || 'all',
+  //           outlet: req.query.outlet || 'all',
+  //           dateRange: req.query.startDate && req.query.endDate
+  //             ? `${req.query.startDate} to ${req.query.endDate}`
+  //             : 'all',
+  //           search: searchTerm || 'none'
+  //         },
+  //         resultCount: ordersWithPayments.length
+  //       }
+  //     };
+
+  //     if (paginationInfo) {
+  //       response.pagination = paginationInfo;
+  //     }
+
+  //     res.status(200).json(response);
+
+  //   } catch (error) {
+  //     console.error('❌ Get orders with payments error:', error);
+  //     console.error('❌ Error stack:', error.stack);
+
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to fetch orders with payments',
+  //       error: error.message,
+  //       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  //     });
+  //   }
+  // }
 
   /**
    * Get detailed order report dengan handling deleted items - DUKUNG SPLIT PAYMENT

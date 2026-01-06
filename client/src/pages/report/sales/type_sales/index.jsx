@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -7,6 +10,12 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import TypeSalesSkeleton from "./skeleton";
 import Paginated from "../../../../components/paginated";
+import { exportTypeSalesExcel } from '../../../../utils/exportTypeSalesExcel';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const TypeSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -59,6 +68,16 @@ const TypeSales = () => {
 
     const ITEMS_PER_PAGE = 50;
 
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
+
     // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
@@ -69,15 +88,18 @@ const TypeSales = () => {
 
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: new Date(startDateParam),
-                endDate: new Date(endDateParam),
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            const today = new Date();
-            setDateRange({
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
+            const newDateRange = {
                 startDate: today,
-                endDate: today,
-            });
+                endDate: today
+            };
+            setDateRange(newDateRange);
+
+            updateURLParams(newDateRange, outletParam || "", searchParam || "", parseInt(pageParam, 10) || 1);
         }
 
         if (outletParam) {
@@ -111,8 +133,8 @@ const TypeSales = () => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -132,7 +154,7 @@ const TypeSales = () => {
         setSearchParams(params);
     }, [setSearchParams]);
 
-    // Fetch data from API - FIXED: Added dependencies
+    // Fetch data from API
     useEffect(() => {
         const fetchData = async () => {
             // Skip if dateRange is not set yet
@@ -145,8 +167,8 @@ const TypeSales = () => {
                 const params = new URLSearchParams();
 
                 // Format dates properly
-                const startDate = new Date(dateRange.startDate).toISOString().split('T')[0];
-                const endDate = new Date(dateRange.endDate).toISOString().split('T')[0];
+                const startDate = formatDateForAPI(dateRange.startDate);
+                const endDate = formatDateForAPI(dateRange.endDate);
 
                 params.append('startDate', startDate);
                 params.append('endDate', endDate);
@@ -179,7 +201,7 @@ const TypeSales = () => {
         };
 
         fetchData();
-    }, [dateRange, selectedOutlet, searchTerm, currentPage]); // FIXED: Added dependencies
+    }, [dateRange, selectedOutlet, searchTerm, currentPage]);
 
     // Handler functions
     const handleDateRangeChange = (newValue) => {
@@ -225,95 +247,38 @@ const TypeSales = () => {
 
     // Export to Excel - Using data from API
     const exportToExcel = async () => {
-        if (groupedData.length === 0) {
-            alert("Tidak ada data untuk diekspor");
-            return;
-        }
+        const outletName = selectedOutlet
+            ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
+            : 'Semua Outlet';
 
-        setIsExporting(true);
+        const dateRangeText = dateRange?.startDate && dateRange?.endDate
+            ? `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`
+            : dayjs().format('DD/MM/YYYY');
 
-        try {
-            await new Promise(resolve => setTimeout(resolve, 500));
+        const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+        const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
 
-            // Get outlet name
-            const outletName = selectedOutlet
-                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
-                : 'Semua Outlet';
-
-            // Get date range
-            const dateRangeText = dateRange?.startDate && dateRange?.endDate
-                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-                : new Date().toLocaleDateString('id-ID');
-
-            // Create export data
-            const exportData = [
-                { col1: 'Laporan Tipe Penjualan', col2: '', col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
-                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '' },
-                { col1: '', col2: '', col3: '', col4: '' },
-                { col1: 'Tipe Penjualan', col2: 'Jumlah Transaksi', col3: 'Total Transaksi', col4: 'Total Fee' }
-            ];
-
-            // Add data rows
-            groupedData.forEach(item => {
-                exportData.push({
-                    col1: item.orderType,
-                    col2: item.count,
-                    col3: item.penjualanTotal,
-                    col4: 0
-                });
-            });
-
-            // Add Grand Total row
-            exportData.push({
-                col1: 'Grand Total',
-                col2: grandTotal.count,
-                col3: grandTotal.penjualanTotal,
-                col4: 0
-            });
-
-            // Create worksheet
-            const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2', 'col3', 'col4'],
-                skipHeader: true
-            });
-
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 25 },
-                { wch: 20 },
-                { wch: 20 },
-                { wch: 15 }
-            ];
-
-            // Merge cells for title
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
-            ];
-
-            // Create workbook and add worksheet
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Tipe Penjualan");
-
-            // Generate filename
-            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const fileName = `Laporan_Tipe_Penjualan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
-
-            // Export file
-            XLSX.writeFile(wb, fileName);
-
-        } catch (error) {
-            console.error("Error exporting to Excel:", error);
-            alert("Gagal mengekspor data. Silakan coba lagi.");
-        } finally {
-            setIsExporting(false);
-        }
+        await exportTypeSalesExcel({
+            data: groupedData,
+            grandTotal: grandTotal,
+            summary: {
+                totalTransactions: grandTotal.count,
+                totalRevenue: grandTotal.penjualanTotal,
+                averageTransaction: grandTotal.count > 0
+                    ? Math.round(grandTotal.penjualanTotal / grandTotal.count)
+                    : 0
+            },
+            fileName: `Laporan_Tipe_Penjualan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
+            headerInfo: [
+                ["Outlet", outletName],
+                ["Tanggal", dateRangeText],
+                ["Tanggal Export", dayjs().format('DD/MM/YYYY HH:mm:ss')]
+            ]
+        });
     };
 
     // Show loading state
-    if (loading) {
+    if (loading && !dateRange) {
         return <TypeSalesSkeleton />;
     }
 
@@ -418,7 +383,15 @@ const TypeSales = () => {
                                 <th className="px-4 py-3 font-normal text-right">Total Fee</th>
                             </tr>
                         </thead>
-                        {groupedData.length > 0 ? (
+                        {loading ? (
+                            <tbody>
+                                <tr>
+                                    <td colSpan={4} className="text-center py-8">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900 mx-auto"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        ) : groupedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {groupedData.map((group, index) => (
                                     <tr key={index} className="text-left text-sm hover:bg-gray-50">

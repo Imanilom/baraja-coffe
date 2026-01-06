@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -7,6 +10,12 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import CustomerSalesSkeleton from "./skeleton";
+import { exportCustomerSalesExcel } from '../../../../utils/exportCustomerSalesExcel';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const CustomerSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -75,6 +84,16 @@ const CustomerSales = () => {
 
     const ITEMS_PER_PAGE = 10;
 
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
+
     // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
@@ -85,15 +104,18 @@ const CustomerSales = () => {
 
         if (startDateParam && endDateParam) {
             setDateRange({
-                startDate: new Date(startDateParam),
-                endDate: new Date(endDateParam),
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
             });
         } else {
-            const today = new Date();
-            setDateRange({
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
+            const newDateRange = {
                 startDate: today,
-                endDate: today,
-            });
+                endDate: today
+            };
+            setDateRange(newDateRange);
+
+            updateURLParams(1, searchParam || "", outletParam || "", newDateRange);
         }
 
         if (outletParam) {
@@ -114,8 +136,8 @@ const CustomerSales = () => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -161,8 +183,8 @@ const CustomerSales = () => {
         setLoading(true);
         try {
             const params = {
-                startDate: new Date(dateRange.startDate).toISOString().split('T')[0],
-                endDate: new Date(dateRange.endDate).toISOString().split('T')[0],
+                startDate: formatDateForAPI(dateRange.startDate),
+                endDate: formatDateForAPI(dateRange.endDate),
                 page: currentPage,
                 limit: ITEMS_PER_PAGE
             };
@@ -179,7 +201,7 @@ const CustomerSales = () => {
 
             if (response.data.success) {
                 setCustomerData(response.data.data || []);
-                setAllCustomerData(response.data.allData || []); // Get all data from same response
+                setAllCustomerData(response.data.allData || []);
                 setPagination(response.data.pagination || {
                     totalPages: 0,
                     totalItems: 0,
@@ -284,90 +306,22 @@ const CustomerSales = () => {
                 : 'Semua Outlet';
 
             const dateRangeText = dateRange?.startDate && dateRange?.endDate
-                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-                : new Date().toLocaleDateString('id-ID');
+                ? `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`
+                : dayjs().format('DD/MM/YYYY');
 
-            // Create export data
-            const excelData = [
-                { col1: 'Laporan Penjualan Per Pelanggan', col2: '', col3: '', col4: '', col5: '', col6: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '', col5: '', col6: '' },
-                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '', col5: '', col6: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' },
-                { col1: 'Nama Pelanggan', col2: 'Tipe Pelanggan', col3: 'No Telepon', col4: 'Jumlah Transaksi', col5: 'Total Penjualan', col6: 'Rata-rata per Transaksi' }
-            ];
+            const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+            const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
 
-            // Add data rows
-            allCustomerData.forEach(customer => {
-                excelData.push({
-                    col1: customer.customerName || 'Walk-in Customer',
-                    col2: customer.customerType || '-',
-                    col3: customer.customerPhone || '-',
-                    col4: customer.transactionCount || 0,
-                    col5: customer.totalSales || 0,
-                    col6: customer.averagePerTransaction || 0
-                });
+            await exportCustomerSalesExcel({
+                data: allCustomerData,
+                summary,
+                fileName: `Laporan_Penjualan_Per_Pelanggan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
+                headerInfo: [
+                    ['Outlet', outletName],
+                    ['Tanggal', dateRangeText],
+                    ['Tanggal Export', dayjs().format('DD/MM/YYYY HH:mm:ss')]
+                ]
             });
-
-            // Add summary rows
-            excelData.push({ col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' });
-            excelData.push({
-                col1: 'Grand Total',
-                col2: '',
-                col3: '',
-                col4: summary.totalTransactions,
-                col5: summary.totalSales,
-                col6: summary.averagePerTransaction
-            });
-            excelData.push({
-                col1: 'Total Pelanggan',
-                col2: summary.totalCustomers,
-                col3: '',
-                col4: '',
-                col5: '',
-                col6: ''
-            });
-            excelData.push({
-                col1: 'Rata-rata per Pelanggan',
-                col2: summary.averagePerCustomer,
-                col3: '',
-                col4: '',
-                col5: '',
-                col6: ''
-            });
-
-            // Create worksheet
-            const ws = XLSX.utils.json_to_sheet(excelData, {
-                header: ['col1', 'col2', 'col3', 'col4', 'col5', 'col6'],
-                skipHeader: true
-            });
-
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 30 },
-                { wch: 20 },
-                { wch: 18 },
-                { wch: 18 },
-                { wch: 20 },
-                { wch: 25 }
-            ];
-
-            // Merge cells for title
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }
-            ];
-
-            // Create workbook and add worksheet
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Pelanggan");
-
-            // Generate filename
-            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const fileName = `Laporan_Penjualan_Per_Pelanggan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
-
-            // Export file
-            XLSX.writeFile(wb, fileName);
 
         } catch (error) {
             console.error("Error exporting to Excel:", error);

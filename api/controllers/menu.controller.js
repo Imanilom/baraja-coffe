@@ -1992,7 +1992,6 @@ export const getWorkstationMenuData = async (req, res) => {
 
     // 1. Fetch menu items dengan stock dalam 1 query
     const menuItems = await MenuItem.find({
-      isActive: true,
       workstation: workstation.toLowerCase()
     })
       .populate('category', 'name')

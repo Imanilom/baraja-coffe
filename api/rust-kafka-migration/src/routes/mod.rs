@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{get, post, put, delete},
     Router,
     middleware,
 };
@@ -46,6 +46,34 @@ fn menu_routes() -> Router<Arc<AppState>> {
         .route("/categories", get(handlers::get_categories))
 }
 
+/// Create product routes
+fn product_routes() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", get(handlers::get_products).post(handlers::create_product))
+        .route("/bulk", post(handlers::bulk_create_products))
+        .route("/search", get(handlers::search_products))
+        .route("/:id", get(handlers::get_product).put(handlers::update_product).delete(handlers::delete_product))
+        .route("/:id/price", put(handlers::update_product_price))
+}
+
+/// Create supplier routes
+fn supplier_routes() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", get(handlers::get_suppliers).post(handlers::create_supplier))
+        .route("/bulk", post(handlers::bulk_create_suppliers))
+        .route("/:id", put(handlers::update_supplier).delete(handlers::delete_supplier))
+}
+
+/// Create marketlist routes
+fn marketlist_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/requests", get(handlers::get_requests).post(handlers::create_request))
+        .route("/requests/:id", get(handlers::get_request))
+        .route("/requests/:id/approve", post(handlers::approve_request_items))
+        .route("/purchase", post(handlers::record_purchase))
+        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+}
+
 /// Create inventory routes
 fn inventory_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
@@ -80,4 +108,7 @@ pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .nest("/api/inventory", inventory_routes(state.clone()))
         .nest("/api/outlets", outlet_routes())
         .nest("/api/order", order_routes(state.clone()))
+        .nest("/api/products", product_routes())
+        .nest("/api/suppliers", supplier_routes())
+        .nest("/api/marketlist", marketlist_routes(state.clone()))
 }
