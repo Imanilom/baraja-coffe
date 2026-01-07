@@ -8532,6 +8532,7 @@ export const getCashierOrderHistory = async (req, res) => {
       })
       .populate('items.menuItem')
       .sort({ updatedAt: -1 })
+      // .limit(2) //untuk test
       .lean();
 
     console.log(orders.length);

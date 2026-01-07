@@ -49,6 +49,8 @@ class OrderDetailWidget extends ConsumerWidget {
           const SizedBox(height: 8),
           _buildItemsList(selectedOrder),
           const SizedBox(height: 8),
+          _buildPromoDetails(selectedOrder),
+          const SizedBox(height: 8),
           _buildPricingDetails(selectedOrder),
         ],
       ),
@@ -309,6 +311,32 @@ class OrderDetailWidget extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             'Subtotal: ${formatRupiah(item.amount)}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromoDetails(OrderDetailModel order) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Promo Details',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          //text kumpulan nama promo,
+          Text(
+            'Promo: ${order.appliedPromos?.map((e) => e.promoName).join(', ')}',
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           ),
         ],
