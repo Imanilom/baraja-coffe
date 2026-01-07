@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use mongodb::bson::oid::ObjectId;
 // No longer using chrono here
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct SplitPayment {
     #[serde(rename = "paymentMethod")]
     pub payment_method: String,
@@ -25,20 +25,20 @@ pub struct SplitPayment {
     pub refund_details: Option<RefundDetails>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct VaNumber {
     pub bank: String,
     pub va_number: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PaymentAction {
     pub name: String,
     pub method: String,
     pub url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PaymentDetails {
     // Cash
     #[serde(rename = "cashTendered", skip_serializing_if = "Option::is_none")]
@@ -71,7 +71,7 @@ pub struct PaymentDetails {
     pub transfer_reference: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct RefundDetails {
     #[serde(rename = "refundAmount", default)]
     pub refund_amount: f64,
@@ -126,6 +126,30 @@ pub struct OrderItem {
     pub outlet_name: Option<String>,
 }
 
+
+impl Default for OrderItem {
+    fn default() -> Self {
+        Self {
+            menu_item: None,
+            menu_item_data: MenuItemData::default(),
+            quantity: 0,
+            subtotal: 0.0,
+            addons: Vec::new(),
+            toppings: Vec::new(),
+            notes: String::new(),
+            guest_name: String::new(),
+            batch_number: default_batch_number(),
+            added_at: mongodb::bson::DateTime::now(),
+            kitchen_status: default_kitchen_status(),
+            is_printed: false,
+            printed_at: None,
+            dine_type: default_dine_type(),
+            outlet_id: None,
+            outlet_name: None,
+        }
+    }
+}
+
 fn default_batch_number() -> i32 { 1 }
 fn default_kitchen_status() -> String { "pending".to_string() }
 fn default_dine_type() -> String { "Dine-In".to_string() }
@@ -150,7 +174,7 @@ pub struct MenuItemData {
 
 fn default_true() -> bool { true }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct OrderItemAddon {
     pub name: String,
     pub price: f64,
@@ -158,13 +182,13 @@ pub struct OrderItemAddon {
     pub options: Vec<AddonOption>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AddonOption {
     pub label: String,
     pub price: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct OrderItemTopping {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -189,9 +213,23 @@ pub struct CustomAmountItem {
     pub discount_applied: f64,
 }
 
+impl Default for CustomAmountItem {
+    fn default() -> Self {
+        Self {
+            amount: 0.0,
+            name: default_custom_item_name(),
+            description: String::new(),
+            dine_type: default_dine_type(),
+            applied_at: mongodb::bson::DateTime::now(),
+            original_amount: None,
+            discount_applied: 0.0,
+        }
+    }
+}
+
 fn default_custom_item_name() -> String { "Penyesuaian Pembayaran".to_string() }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AppliedPromo {
     #[serde(rename = "promoId")]
     pub promo_id: ObjectId,
@@ -207,7 +245,7 @@ pub struct AppliedPromo {
     pub free_items: Vec<FreeItem>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AffectedItem {
     #[serde(rename = "menuItem", skip_serializing_if = "Option::is_none")]
     pub menu_item: Option<ObjectId>,
@@ -225,7 +263,7 @@ pub struct AffectedItem {
     pub discount_percentage: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct FreeItem {
     #[serde(rename = "menuItem", skip_serializing_if = "Option::is_none")]
     pub menu_item: Option<ObjectId>,
@@ -239,7 +277,7 @@ pub struct FreeItem {
     pub is_free: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct TaxAndService {
     #[serde(rename = "type")]
     pub kind: String, // tax, service
@@ -247,7 +285,7 @@ pub struct TaxAndService {
     pub amount: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Discounts {
     #[serde(rename = "autoPromoDiscount", default)]
     pub auto_promo_discount: f64,
@@ -267,7 +305,17 @@ pub struct CreatedBy {
     pub created_at: mongodb::bson::DateTime,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+impl Default for CreatedBy {
+    fn default() -> Self {
+        Self {
+            employee_id: None,
+            employee_name: None,
+            created_at: mongodb::bson::DateTime::now(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct DeliveryTracking {
     pub provider: Option<String>,
     pub tracking_number: Option<String>,
@@ -278,7 +326,7 @@ pub struct DeliveryTracking {
     pub estimated_arrival: Option<mongodb::bson::DateTime>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct RecipientInfo {
     pub name: Option<String>,
     pub phone: Option<String>,
@@ -328,6 +376,13 @@ pub struct Order {
     pub delivery_address: Option<String>,
     #[serde(rename = "tableNumber", skip_serializing_if = "Option::is_none")]
     pub table_number: Option<String>,
+
+    #[serde(rename = "tableCode", skip_serializing_if = "Option::is_none")]
+    pub table_code: Option<String>,
+
+    #[serde(rename = "guestNumber", skip_serializing_if = "Option::is_none")]
+    pub guest_number: Option<i32>,
+
     #[serde(rename = "pickupTime", skip_serializing_if = "Option::is_none")]
     pub pickup_time: Option<String>,
     
@@ -443,6 +498,8 @@ impl Default for Order {
             payments: Vec::new(),
             payment_method: None,
             order_type: String::new(),
+            table_code: None,
+            guest_number: None,
             delivery_address: None,
             table_number: None,
             pickup_time: None,

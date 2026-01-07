@@ -16,6 +16,7 @@ pub mod marketlist;
 pub mod request;
 pub mod promo;
 pub mod voucher;
+pub mod payment;
 
 pub use user::{User, UserResponse, AuthType};
 pub use role::{Role, Permission};
@@ -32,6 +33,7 @@ pub use loyalty::{LoyaltyProgram, LoyaltyLevel, CustomerLoyalty};
 pub use tax::TaxAndService;
 pub use promo::{Promo, AutoPromo};
 pub use voucher::{Voucher, VoucherUsage};
-pub use marketlist::{MarketList, MarketListItem, MarketListPurpose, Payment, PaymentMethod, PaymentStatus};
+pub use marketlist::{MarketList, MarketListItem, MarketListPurpose, Payment as MarketListPayment};
+pub use payment::Payment as OrderPayment;
 pub use request::{Request, RequestItem, RequestStatus, FulfillmentStatus, RequestType, RequestItemStatus};
-pub use order::{Order, OrderItem, SplitPayment, CustomAmountItem, MenuItemData};
+pub use order::{Order, OrderItem, SplitPayment, CustomAmountItem, MenuItemData, VaNumber, PaymentAction};

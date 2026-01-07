@@ -135,6 +135,9 @@ pub struct MenuItem {
     #[serde(rename = "isActive", default = "default_true")]
     pub is_active: bool,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sku: Option<String>,
+
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<mongodb::bson::DateTime>,
 
