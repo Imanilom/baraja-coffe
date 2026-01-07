@@ -390,7 +390,7 @@ class PromoEngine {
 
     final totalDiscount = affectedItems.fold(
       0,
-      (sum, item) => sum + item.discountAmount,
+      (sum, item) => sum + item.discountAmount!,
     );
 
     debugPrint('        Total Discount: $totalDiscount');
@@ -489,12 +489,13 @@ class PromoEngine {
 
     // Update discount amount proportionally
     for (var i = 0; i < affectedItems.length; i++) {
-      final ratio = affectedItems[i].originalSubtotal / totalOriginal;
+      final ratio = affectedItems[i].originalSubtotal ?? 0 / totalOriginal;
       final itemDiscount = (totalDiscount * ratio).round();
 
       affectedItems[i] = affectedItems[i].copyWith(
         discountAmount: itemDiscount,
-        discountedSubtotal: affectedItems[i].originalSubtotal - itemDiscount,
+        discountedSubtotal:
+            affectedItems[i].originalSubtotal ?? 0 - itemDiscount,
       );
     }
 
@@ -505,7 +506,8 @@ class PromoEngine {
       discount: totalDiscount,
       affectedItems: affectedItems,
       freeItems: [],
-      appliedCount: minSets, // Track berapa set
+      appliedCount: minSets,
+      bundleSets: promo.promoType.toUpperCase() == 'BUNDLING' ? minSets : 0,
     );
   }
 
@@ -558,7 +560,7 @@ class PromoEngine {
 
     final totalDiscount = affectedItems.fold(
       0,
-      (sum, item) => sum + item.discountAmount,
+      (sum, item) => sum + item.discountAmount!,
     );
 
     debugPrint('        Total Discount: $totalDiscount');
@@ -777,7 +779,7 @@ class PromoEngine {
               discountedSubtotal: 0,
             ),
       );
-      return sum + affected.discountAmount;
+      return sum + affected.discountAmount!;
     });
 
     debugPrint(

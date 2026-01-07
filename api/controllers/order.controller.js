@@ -2403,7 +2403,7 @@ export const createUnifiedOrder = async (req, res) => {
       cashierId,
       device_id,
       isSplitPayment = false,
-      appliedPromos = []
+      appliedPromos = [],
       // ========== OPEN BILL FIELDS ==========
       isOpenBill = false,
       customersCount = 1,
@@ -2523,7 +2523,7 @@ export const createUnifiedOrder = async (req, res) => {
       isOpenBill,
       isSplitPayment,
       appliedPromosCount: appliedPromos?.length || 0,
-      promoTypes: appliedPromos?.map(p => p.promoType) || []
+      promoTypes: appliedPromos?.map(p => p.promoType) || [],
       hasItems: req.body.items?.length || 0
     });
 
@@ -2571,7 +2571,7 @@ export const createUnifiedOrder = async (req, res) => {
         customerId,
         loyaltyPointsToRedeem,
         orderType,
-        appliedPromos
+        appliedPromos,
         orderType,
         voucherCode,
         customerType,
@@ -2684,7 +2684,7 @@ export const createUnifiedOrder = async (req, res) => {
         recipient_data,
         user,
         contact,
-        appliedPromos  // ✅ PASS PROMO SELECTIONS
+        appliedPromos,  // ✅ PASS PROMO SELECTIONS
         contact,
         voucherCode,
         customerType,
@@ -2796,10 +2796,11 @@ function validateappliedPromos(appliedPromos) {
         errors.push(`Promo type '${selection.promoType}' is not selectable by cashier. Allowed: ${allowedTypes.join(', ')}`);
       }
     }
-
+    console.log(selection.promoType);
     // Validasi berdasarkan tipe promo
     switch (selection.promoType) {
       case 'bundling':
+        console.log(selection.bundleSets);
         if (!selection.bundleSets || selection.bundleSets < 1) {
           errors.push('Bundle sets is required and must be at least 1');
         }
@@ -8533,7 +8534,7 @@ export const getCashierOrderHistory = async (req, res) => {
       })
       .populate('items.menuItem')
       .sort({ updatedAt: -1 })
-      // .limit(2) //untuk test
+      .limit(1) //untuk test
       .lean();
 
     console.log(orders.length);
@@ -8657,8 +8658,22 @@ export const getCashierOrderHistory = async (req, res) => {
 
       const updatedAtFromPayment = lastPayment?.updatedAt || lastPayment?.createdAt || null;
       const baseUpdatedAt = updatedAtFromPayment;
+      const appliedPromosdata = order.appliedPromos.map(promo => {
+        return {
+          ...promo,
+          // affectedItems: promo.affectedItems.map(affectedItem => {
+          //   return {
+          //     ...affectedItem,
+          //     discountedSubtotal: parseInt(affectedItem.discountedSubtotal),
+          //   }
+          // })
+          affectedItems: []
+        }
+      });
+
       return {
         ...order,
+        appliedPromos: appliedPromosdata,
         updatedAtWIB: toISOJakartaWithOffset(updatedAtFromPayment),
         cashierId: undefined,
         cashier: order.cashierId,

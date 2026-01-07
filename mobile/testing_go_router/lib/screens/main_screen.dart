@@ -223,7 +223,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     context: context,
                     ref: ref,
                     icon: Icons.pending_actions,
-                    title: 'Pending Order',
+                    title: 'Open Bill',
                     isSelected: currentPageIndex == 1,
                     onTap: () {
                       if (currentPageIndex != 1) {

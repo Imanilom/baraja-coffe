@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AppliedPromosModel {
 
-@HiveField(0) String get promoId;@HiveField(1) String get promoName;@HiveField(2) String get promoType;@HiveField(3) int? get discount;@HiveField(4) List<AffectedItemModel> get affectedItems;@HiveField(5) List<FreeItemModel> get freeItems;@HiveField(6)@JsonKey(name: '_id') String? get id;@HiveField(7) int get appliedCount;
+@HiveField(0) String get promoId;@HiveField(1) String get promoName;@HiveField(2) String get promoType;@HiveField(3) int? get discount;@HiveField(4) List<AffectedItemModel> get affectedItems;@HiveField(5) List<FreeItemModel> get freeItems;@HiveField(6)@JsonKey(name: '_id') String? get id;@HiveField(7) int? get appliedCount;@HiveField(8) int? get bundleSets;
 /// Create a copy of AppliedPromosModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $AppliedPromosModelCopyWith<AppliedPromosModel> get copyWith => _$AppliedPromosM
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppliedPromosModel&&(identical(other.promoId, promoId) || other.promoId == promoId)&&(identical(other.promoName, promoName) || other.promoName == promoName)&&(identical(other.promoType, promoType) || other.promoType == promoType)&&(identical(other.discount, discount) || other.discount == discount)&&const DeepCollectionEquality().equals(other.affectedItems, affectedItems)&&const DeepCollectionEquality().equals(other.freeItems, freeItems)&&(identical(other.id, id) || other.id == id)&&(identical(other.appliedCount, appliedCount) || other.appliedCount == appliedCount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppliedPromosModel&&(identical(other.promoId, promoId) || other.promoId == promoId)&&(identical(other.promoName, promoName) || other.promoName == promoName)&&(identical(other.promoType, promoType) || other.promoType == promoType)&&(identical(other.discount, discount) || other.discount == discount)&&const DeepCollectionEquality().equals(other.affectedItems, affectedItems)&&const DeepCollectionEquality().equals(other.freeItems, freeItems)&&(identical(other.id, id) || other.id == id)&&(identical(other.appliedCount, appliedCount) || other.appliedCount == appliedCount)&&(identical(other.bundleSets, bundleSets) || other.bundleSets == bundleSets));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,promoId,promoName,promoType,discount,const DeepCollectionEquality().hash(affectedItems),const DeepCollectionEquality().hash(freeItems),id,appliedCount);
+int get hashCode => Object.hash(runtimeType,promoId,promoName,promoType,discount,const DeepCollectionEquality().hash(affectedItems),const DeepCollectionEquality().hash(freeItems),id,appliedCount,bundleSets);
 
 @override
 String toString() {
-  return 'AppliedPromosModel(promoId: $promoId, promoName: $promoName, promoType: $promoType, discount: $discount, affectedItems: $affectedItems, freeItems: $freeItems, id: $id, appliedCount: $appliedCount)';
+  return 'AppliedPromosModel(promoId: $promoId, promoName: $promoName, promoType: $promoType, discount: $discount, affectedItems: $affectedItems, freeItems: $freeItems, id: $id, appliedCount: $appliedCount, bundleSets: $bundleSets)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $AppliedPromosModelCopyWith<$Res>  {
   factory $AppliedPromosModelCopyWith(AppliedPromosModel value, $Res Function(AppliedPromosModel) _then) = _$AppliedPromosModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) String promoId,@HiveField(1) String promoName,@HiveField(2) String promoType,@HiveField(3) int? discount,@HiveField(4) List<AffectedItemModel> affectedItems,@HiveField(5) List<FreeItemModel> freeItems,@HiveField(6)@JsonKey(name: '_id') String? id,@HiveField(7) int appliedCount
+@HiveField(0) String promoId,@HiveField(1) String promoName,@HiveField(2) String promoType,@HiveField(3) int? discount,@HiveField(4) List<AffectedItemModel> affectedItems,@HiveField(5) List<FreeItemModel> freeItems,@HiveField(6)@JsonKey(name: '_id') String? id,@HiveField(7) int? appliedCount,@HiveField(8) int? bundleSets
 });
 
 
@@ -65,7 +65,7 @@ class _$AppliedPromosModelCopyWithImpl<$Res>
 
 /// Create a copy of AppliedPromosModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? promoId = null,Object? promoName = null,Object? promoType = null,Object? discount = freezed,Object? affectedItems = null,Object? freeItems = null,Object? id = freezed,Object? appliedCount = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? promoId = null,Object? promoName = null,Object? promoType = null,Object? discount = freezed,Object? affectedItems = null,Object? freeItems = null,Object? id = freezed,Object? appliedCount = freezed,Object? bundleSets = freezed,}) {
   return _then(_self.copyWith(
 promoId: null == promoId ? _self.promoId : promoId // ignore: cast_nullable_to_non_nullable
 as String,promoName: null == promoName ? _self.promoName : promoName // ignore: cast_nullable_to_non_nullable
@@ -74,8 +74,9 @@ as String,discount: freezed == discount ? _self.discount : discount // ignore: c
 as int?,affectedItems: null == affectedItems ? _self.affectedItems : affectedItems // ignore: cast_nullable_to_non_nullable
 as List<AffectedItemModel>,freeItems: null == freeItems ? _self.freeItems : freeItems // ignore: cast_nullable_to_non_nullable
 as List<FreeItemModel>,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String?,appliedCount: null == appliedCount ? _self.appliedCount : appliedCount // ignore: cast_nullable_to_non_nullable
-as int,
+as String?,appliedCount: freezed == appliedCount ? _self.appliedCount : appliedCount // ignore: cast_nullable_to_non_nullable
+as int?,bundleSets: freezed == bundleSets ? _self.bundleSets : bundleSets // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -160,10 +161,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  String promoId, @HiveField(1)  String promoName, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  List<AffectedItemModel> affectedItems, @HiveField(5)  List<FreeItemModel> freeItems, @HiveField(6)@JsonKey(name: '_id')  String? id, @HiveField(7)  int appliedCount)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  String promoId, @HiveField(1)  String promoName, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  List<AffectedItemModel> affectedItems, @HiveField(5)  List<FreeItemModel> freeItems, @HiveField(6)@JsonKey(name: '_id')  String? id, @HiveField(7)  int? appliedCount, @HiveField(8)  int? bundleSets)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppliedPromosModel() when $default != null:
-return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_that.affectedItems,_that.freeItems,_that.id,_that.appliedCount);case _:
+return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_that.affectedItems,_that.freeItems,_that.id,_that.appliedCount,_that.bundleSets);case _:
   return orElse();
 
 }
@@ -181,10 +182,10 @@ return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  String promoId, @HiveField(1)  String promoName, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  List<AffectedItemModel> affectedItems, @HiveField(5)  List<FreeItemModel> freeItems, @HiveField(6)@JsonKey(name: '_id')  String? id, @HiveField(7)  int appliedCount)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  String promoId, @HiveField(1)  String promoName, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  List<AffectedItemModel> affectedItems, @HiveField(5)  List<FreeItemModel> freeItems, @HiveField(6)@JsonKey(name: '_id')  String? id, @HiveField(7)  int? appliedCount, @HiveField(8)  int? bundleSets)  $default,) {final _that = this;
 switch (_that) {
 case _AppliedPromosModel():
-return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_that.affectedItems,_that.freeItems,_that.id,_that.appliedCount);case _:
+return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_that.affectedItems,_that.freeItems,_that.id,_that.appliedCount,_that.bundleSets);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -201,10 +202,10 @@ return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  String promoId, @HiveField(1)  String promoName, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  List<AffectedItemModel> affectedItems, @HiveField(5)  List<FreeItemModel> freeItems, @HiveField(6)@JsonKey(name: '_id')  String? id, @HiveField(7)  int appliedCount)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  String promoId, @HiveField(1)  String promoName, @HiveField(2)  String promoType, @HiveField(3)  int? discount, @HiveField(4)  List<AffectedItemModel> affectedItems, @HiveField(5)  List<FreeItemModel> freeItems, @HiveField(6)@JsonKey(name: '_id')  String? id, @HiveField(7)  int? appliedCount, @HiveField(8)  int? bundleSets)?  $default,) {final _that = this;
 switch (_that) {
 case _AppliedPromosModel() when $default != null:
-return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_that.affectedItems,_that.freeItems,_that.id,_that.appliedCount);case _:
+return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_that.affectedItems,_that.freeItems,_that.id,_that.appliedCount,_that.bundleSets);case _:
   return null;
 
 }
@@ -216,7 +217,7 @@ return $default(_that.promoId,_that.promoName,_that.promoType,_that.discount,_th
 @JsonSerializable()
 
 class _AppliedPromosModel implements AppliedPromosModel {
-   _AppliedPromosModel({@HiveField(0) required this.promoId, @HiveField(1) required this.promoName, @HiveField(2) required this.promoType, @HiveField(3) this.discount = 0, @HiveField(4) final  List<AffectedItemModel> affectedItems = const [], @HiveField(5) final  List<FreeItemModel> freeItems = const [], @HiveField(6)@JsonKey(name: '_id') this.id = null, @HiveField(7) this.appliedCount = 1}): _affectedItems = affectedItems,_freeItems = freeItems;
+   _AppliedPromosModel({@HiveField(0) required this.promoId, @HiveField(1) required this.promoName, @HiveField(2) required this.promoType, @HiveField(3) this.discount = 0, @HiveField(4) final  List<AffectedItemModel> affectedItems = const [], @HiveField(5) final  List<FreeItemModel> freeItems = const [], @HiveField(6)@JsonKey(name: '_id') this.id = null, @HiveField(7) this.appliedCount = 1, @HiveField(8) this.bundleSets = 1}): _affectedItems = affectedItems,_freeItems = freeItems;
   factory _AppliedPromosModel.fromJson(Map<String, dynamic> json) => _$AppliedPromosModelFromJson(json);
 
 @override@HiveField(0) final  String promoId;
@@ -238,7 +239,8 @@ class _AppliedPromosModel implements AppliedPromosModel {
 }
 
 @override@HiveField(6)@JsonKey(name: '_id') final  String? id;
-@override@JsonKey()@HiveField(7) final  int appliedCount;
+@override@JsonKey()@HiveField(7) final  int? appliedCount;
+@override@JsonKey()@HiveField(8) final  int? bundleSets;
 
 /// Create a copy of AppliedPromosModel
 /// with the given fields replaced by the non-null parameter values.
@@ -253,16 +255,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppliedPromosModel&&(identical(other.promoId, promoId) || other.promoId == promoId)&&(identical(other.promoName, promoName) || other.promoName == promoName)&&(identical(other.promoType, promoType) || other.promoType == promoType)&&(identical(other.discount, discount) || other.discount == discount)&&const DeepCollectionEquality().equals(other._affectedItems, _affectedItems)&&const DeepCollectionEquality().equals(other._freeItems, _freeItems)&&(identical(other.id, id) || other.id == id)&&(identical(other.appliedCount, appliedCount) || other.appliedCount == appliedCount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppliedPromosModel&&(identical(other.promoId, promoId) || other.promoId == promoId)&&(identical(other.promoName, promoName) || other.promoName == promoName)&&(identical(other.promoType, promoType) || other.promoType == promoType)&&(identical(other.discount, discount) || other.discount == discount)&&const DeepCollectionEquality().equals(other._affectedItems, _affectedItems)&&const DeepCollectionEquality().equals(other._freeItems, _freeItems)&&(identical(other.id, id) || other.id == id)&&(identical(other.appliedCount, appliedCount) || other.appliedCount == appliedCount)&&(identical(other.bundleSets, bundleSets) || other.bundleSets == bundleSets));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,promoId,promoName,promoType,discount,const DeepCollectionEquality().hash(_affectedItems),const DeepCollectionEquality().hash(_freeItems),id,appliedCount);
+int get hashCode => Object.hash(runtimeType,promoId,promoName,promoType,discount,const DeepCollectionEquality().hash(_affectedItems),const DeepCollectionEquality().hash(_freeItems),id,appliedCount,bundleSets);
 
 @override
 String toString() {
-  return 'AppliedPromosModel(promoId: $promoId, promoName: $promoName, promoType: $promoType, discount: $discount, affectedItems: $affectedItems, freeItems: $freeItems, id: $id, appliedCount: $appliedCount)';
+  return 'AppliedPromosModel(promoId: $promoId, promoName: $promoName, promoType: $promoType, discount: $discount, affectedItems: $affectedItems, freeItems: $freeItems, id: $id, appliedCount: $appliedCount, bundleSets: $bundleSets)';
 }
 
 
@@ -273,7 +275,7 @@ abstract mixin class _$AppliedPromosModelCopyWith<$Res> implements $AppliedPromo
   factory _$AppliedPromosModelCopyWith(_AppliedPromosModel value, $Res Function(_AppliedPromosModel) _then) = __$AppliedPromosModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) String promoId,@HiveField(1) String promoName,@HiveField(2) String promoType,@HiveField(3) int? discount,@HiveField(4) List<AffectedItemModel> affectedItems,@HiveField(5) List<FreeItemModel> freeItems,@HiveField(6)@JsonKey(name: '_id') String? id,@HiveField(7) int appliedCount
+@HiveField(0) String promoId,@HiveField(1) String promoName,@HiveField(2) String promoType,@HiveField(3) int? discount,@HiveField(4) List<AffectedItemModel> affectedItems,@HiveField(5) List<FreeItemModel> freeItems,@HiveField(6)@JsonKey(name: '_id') String? id,@HiveField(7) int? appliedCount,@HiveField(8) int? bundleSets
 });
 
 
@@ -290,7 +292,7 @@ class __$AppliedPromosModelCopyWithImpl<$Res>
 
 /// Create a copy of AppliedPromosModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? promoId = null,Object? promoName = null,Object? promoType = null,Object? discount = freezed,Object? affectedItems = null,Object? freeItems = null,Object? id = freezed,Object? appliedCount = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? promoId = null,Object? promoName = null,Object? promoType = null,Object? discount = freezed,Object? affectedItems = null,Object? freeItems = null,Object? id = freezed,Object? appliedCount = freezed,Object? bundleSets = freezed,}) {
   return _then(_AppliedPromosModel(
 promoId: null == promoId ? _self.promoId : promoId // ignore: cast_nullable_to_non_nullable
 as String,promoName: null == promoName ? _self.promoName : promoName // ignore: cast_nullable_to_non_nullable
@@ -299,8 +301,9 @@ as String,discount: freezed == discount ? _self.discount : discount // ignore: c
 as int?,affectedItems: null == affectedItems ? _self._affectedItems : affectedItems // ignore: cast_nullable_to_non_nullable
 as List<AffectedItemModel>,freeItems: null == freeItems ? _self._freeItems : freeItems // ignore: cast_nullable_to_non_nullable
 as List<FreeItemModel>,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String?,appliedCount: null == appliedCount ? _self.appliedCount : appliedCount // ignore: cast_nullable_to_non_nullable
-as int,
+as String?,appliedCount: freezed == appliedCount ? _self.appliedCount : appliedCount // ignore: cast_nullable_to_non_nullable
+as int?,bundleSets: freezed == bundleSets ? _self.bundleSets : bundleSets // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

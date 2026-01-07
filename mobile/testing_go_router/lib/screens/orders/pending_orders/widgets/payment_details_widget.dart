@@ -37,15 +37,23 @@ class PaymentDetailsWidget extends ConsumerWidget {
         [];
 
     if (pendingPayments.isEmpty && paidPayments.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.receipt_long, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text(
-              'No Payment details found',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+            // Text(
+            //   'No Payment details found',
+            //   style: TextStyle(fontSize: 16, color: Colors.grey),
+            // ),
+            TextButton(
+              onPressed: null,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.blue,
+              ),
+              child: Text('Close Bill'),
             ),
           ],
         ),

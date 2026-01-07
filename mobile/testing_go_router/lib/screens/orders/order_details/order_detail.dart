@@ -166,26 +166,26 @@ class OrderDetail extends ConsumerWidget {
         children: [
           Expanded(
             child: TextButton(
-              // onPressed: isLoading ? null : () => handleOpenBill(),
-              onPressed: () {
-                //alert dialog fitur belum jadi
-                showDialog(
-                  context: context,
-                  builder:
-                      (context) => AlertDialog(
-                        title: const Text('Fitur belum jadi'),
-                        content: const Text(
-                          'Fitur ini belum jadi, silahkan tunggu beberapa hari lagi',
-                        ),
-                        actions: [
-                          TextButton(
-                            child: const Text('OK'),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                );
-              },
+              onPressed: isLoading ? null : () => handleOpenBill(),
+              // onPressed: () {
+              //   //alert dialog fitur belum jadi
+              //   showDialog(
+              //     context: context,
+              //     builder:
+              //         (context) => AlertDialog(
+              //           title: const Text('Fitur belum jadi'),
+              //           content: const Text(
+              //             'Fitur ini belum jadi, silahkan tunggu beberapa hari lagi',
+              //           ),
+              //           actions: [
+              //             TextButton(
+              //               child: const Text('OK'),
+              //               onPressed: () => Navigator.pop(context),
+              //             ),
+              //           ],
+              //         ),
+              //   );
+              // },
               style: TextButton.styleFrom(
                 backgroundColor: Colors.grey[50],
                 shape: RoundedRectangleBorder(
@@ -689,7 +689,7 @@ class OrderDetail extends ConsumerWidget {
                       ...orderDetail.appliedPromos!.map((p) {
                         final promoDiscount = p.affectedItems.fold(
                           0,
-                          (s, it) => s + it.discountAmount,
+                          (s, it) => s + it.discountAmount!,
                         );
 
                         final freebies = p.freeItems;

@@ -180,7 +180,9 @@ class OrderDetailWidget extends ConsumerWidget {
                 color: Colors.green,
               ),
               label: Text(
-                order.items.isEmpty ? 'Add Order Item' : 'Edit Order Item',
+                order.items.isEmpty || order.isOpenBill == true
+                    ? 'Add Order Item'
+                    : 'Edit Order Item',
                 style: TextStyle(color: Colors.green),
               ),
               onPressed: () {

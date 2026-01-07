@@ -28,14 +28,15 @@ class AppliedPromosModelAdapter extends TypeAdapter<AppliedPromosModel> {
       freeItems:
           fields[5] == null ? [] : (fields[5] as List).cast<FreeItemModel>(),
       id: fields[6] == null ? null : fields[6] as String?,
-      appliedCount: fields[7] == null ? 1 : (fields[7] as num).toInt(),
+      appliedCount: fields[7] == null ? 1 : (fields[7] as num?)?.toInt(),
+      bundleSets: fields[8] == null ? 1 : (fields[8] as num?)?.toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, AppliedPromosModel obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.promoId)
       ..writeByte(1)
@@ -51,7 +52,9 @@ class AppliedPromosModelAdapter extends TypeAdapter<AppliedPromosModel> {
       ..writeByte(6)
       ..write(obj.id)
       ..writeByte(7)
-      ..write(obj.appliedCount);
+      ..write(obj.appliedCount)
+      ..writeByte(8)
+      ..write(obj.bundleSets);
   }
 
   @override
@@ -89,6 +92,7 @@ _AppliedPromosModel _$AppliedPromosModelFromJson(Map<String, dynamic> json) =>
           const [],
       id: json['_id'] as String? ?? null,
       appliedCount: (json['appliedCount'] as num?)?.toInt() ?? 1,
+      bundleSets: (json['bundleSets'] as num?)?.toInt() ?? 1,
     );
 
 Map<String, dynamic> _$AppliedPromosModelToJson(_AppliedPromosModel instance) =>
@@ -101,4 +105,5 @@ Map<String, dynamic> _$AppliedPromosModelToJson(_AppliedPromosModel instance) =>
       'freeItems': instance.freeItems,
       '_id': instance.id,
       'appliedCount': instance.appliedCount,
+      'bundleSets': instance.bundleSets,
     };
