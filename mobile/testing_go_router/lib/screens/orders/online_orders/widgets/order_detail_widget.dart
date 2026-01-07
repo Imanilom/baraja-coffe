@@ -49,7 +49,7 @@ class OrderDetailWidget extends ConsumerWidget {
         gradient: LinearGradient(
           colors: [
             PaymentStatusUtils.getColor(order.paymentStatus!),
-            PaymentStatusUtils.getColor(order.paymentStatus!).withOpacity(0.8),
+            PaymentStatusUtils.getColor(order.paymentStatus!).withValues(alpha: 0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -81,7 +81,7 @@ class OrderDetailWidget extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(

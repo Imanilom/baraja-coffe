@@ -1,6 +1,6 @@
 // test/performance/order_item_performance_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kasirbaraja/extentions/order_item_extensions.dart';
+import 'package:kasirbaraja/extensions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';

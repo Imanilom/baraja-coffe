@@ -137,7 +137,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   spreadRadius: 1,
                   blurRadius: 5,
                   offset: const Offset(0, -2),
@@ -213,7 +213,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   spreadRadius: 1,
                   blurRadius: 5,
                   offset: const Offset(0, -2),
@@ -226,9 +226,9 @@ class PaymentDetailsWidget extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
+                      color: Colors.orange.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -305,9 +305,9 @@ class PaymentDetailsWidget extends ConsumerWidget {
   }) {
     final Color primaryColor = isPending ? Colors.orange : Colors.green;
     final Color backgroundColor =
-        isSelected ? primaryColor.withOpacity(0.05) : Colors.white;
+        isSelected ? primaryColor.withValues(alpha: 0.05) : Colors.white;
     final Color borderColor =
-        isSelected ? primaryColor : Colors.grey.withOpacity(0.2);
+        isSelected ? primaryColor : Colors.grey.withValues(alpha: 0.2);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -320,8 +320,8 @@ class PaymentDetailsWidget extends ConsumerWidget {
           BoxShadow(
             color:
                 isSelected
-                    ? primaryColor.withOpacity(0.15)
-                    : Colors.black.withOpacity(0.05),
+                    ? primaryColor.withValues(alpha: 0.15)
+                    : Colors.black.withValues(alpha: 0.05),
             blurRadius: isSelected ? 12 : 6,
             offset: const Offset(0, 4),
             spreadRadius: isSelected ? 1 : 0,
@@ -333,8 +333,8 @@ class PaymentDetailsWidget extends ConsumerWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          splashColor: primaryColor.withOpacity(0.1),
-          highlightColor: primaryColor.withOpacity(0.05),
+          splashColor: primaryColor.withValues(alpha: 0.1),
+          highlightColor: primaryColor.withValues(alpha: 0.05),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -349,10 +349,10 @@ class PaymentDetailsWidget extends ConsumerWidget {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.1),
+                        color: primaryColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: primaryColor.withOpacity(0.3),
+                          color: primaryColor.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
@@ -389,14 +389,14 @@ class PaymentDetailsWidget extends ConsumerWidget {
                                 decoration: BoxDecoration(
                                   color:
                                       isPending
-                                          ? Colors.orange.withOpacity(0.1)
-                                          : Colors.green.withOpacity(0.1),
+                                          ? Colors.orange.withValues(alpha: 0.1)
+                                          : Colors.green.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color:
                                         isPending
-                                            ? Colors.orange.withOpacity(0.3)
-                                            : Colors.green.withOpacity(0.3),
+                                            ? Colors.orange.withValues(alpha: 0.3)
+                                            : Colors.green.withValues(alpha: 0.3),
                                   ),
                                 ),
                                 child: Row(
@@ -441,7 +441,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
                               color:
                                   isSelected
                                       ? primaryColor
-                                      : Colors.grey.withOpacity(0.4),
+                                      : Colors.grey.withValues(alpha: 0.4),
                               width: 2,
                             ),
                           ),
@@ -492,9 +492,9 @@ class PaymentDetailsWidget extends ConsumerWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.08),
+                    color: primaryColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: primaryColor.withOpacity(0.2)),
+                    border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -529,9 +529,9 @@ class PaymentDetailsWidget extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.05),
+                    color: Colors.grey.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
                   ),
                   child: Column(
                     children: [

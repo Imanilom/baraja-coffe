@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/extentions/order_item_extensions.dart';
+import 'package:kasirbaraja/extensions/order_item_extensions.dart';
 import 'package:kasirbaraja/features/promos/promo_engine.dart';
 import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';

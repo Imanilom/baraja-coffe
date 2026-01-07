@@ -417,7 +417,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                   borderRadius: BorderRadius.circular(32),
                   side: const BorderSide(color: Color(0xFF4CAF50)),
                 ),
-                backgroundColor: const Color(0xFF4CAF50).withOpacity(0.1),
+                backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.1),
               ),
               onPressed: () {
                 context.pushNamed('promotions');
@@ -453,7 +453,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: isSelected ? const Color(0xFF4CAF50).withOpacity(0.1) : null,
+        color: isSelected ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : null,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

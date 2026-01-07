@@ -8,6 +8,7 @@ import '../../models/order_detail.model.dart';
 import '../../models/order_item.model.dart';
 import '../../models/menu_item.model.dart';
 import '../../enums/order_type.dart';
+import '../../utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class QRScannerOverlay extends ConsumerStatefulWidget {
@@ -67,7 +68,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                       size: 28,
                     ),
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withOpacity(0.5),
+                      backgroundColor: Colors.black.withValues(alpha: 0.5),
                       padding: const EdgeInsets.all(8),
                     ),
                   ),
@@ -89,7 +90,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                           size: 28,
                         ),
                         style: IconButton.styleFrom(
-                          backgroundColor: Colors.black.withOpacity(0.5),
+                          backgroundColor: Colors.black.withValues(alpha: 0.5),
                           padding: const EdgeInsets.all(8),
                         ),
                       ),
@@ -111,7 +112,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                             size: 28,
                           ),
                           style: IconButton.styleFrom(
-                            backgroundColor: Colors.black.withOpacity(0.5),
+                            backgroundColor: Colors.black.withValues(alpha: 0.5),
                             padding: const EdgeInsets.all(8),
                           ),
                         ),
@@ -125,7 +126,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
           // Processing overlay
           if (isProcessing)
             Container(
-              color: Colors.black.withOpacity(0.7),
+              color: Colors.black.withValues(alpha: 0.7),
               child: const Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -206,7 +207,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
   }
 
   void _processScanResult(String scannedData) async {
-    print('QR Code scanned: $scannedData');
+    AppLogger.info('QR Code scanned: $scannedData');
 
     try {
       // Parse JSON untuk mendapatkan order_id
@@ -220,7 +221,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
         _showErrorDialog('Order ID tidak ditemukan dalam QR code');
       }
     } catch (e) {
-      print('Error parsing QR code: $e');
+      AppLogger.error('Error parsing QR code', error: e);
       // Jika bukan JSON yang valid, tampilkan error
       _showErrorDialog('QR code tidak valid atau format tidak sesuai');
     }
@@ -249,7 +250,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
       if (response.statusCode == 200) {
         // API berhasil dipanggil
         final responseData = response.data;
-        print('API Response: $responseData');
+        AppLogger.debug('API Response: $responseData');
 
         // Convert API response ke OrderDetailModel
         final orderDetailModel = OrderDetailModel.fromJson(
@@ -278,7 +279,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
       }
       _showErrorDialog(errorMessage);
     } catch (e) {
-      print('Unexpected error: $e');
+      AppLogger.error('Unexpected error in QR scanner', error: e);
       _showErrorDialog('Terjadi kesalahan yang tidak terduga');
     } finally {
       setState(() {
@@ -287,109 +288,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
     }
   }
 
-  OrderDetailModel? _convertToOrderDetailModel(Map<String, dynamic> orderData) {
-    try {
-      // Validate required fields
-      if (orderData['orderId'] == null || orderData['items'] == null) {
-        print('Missing required fields in order data');
-        return null;
-      }
-
-      // Convert items dari API response
-      List<OrderItemModel> items = [];
-      if (orderData['items'] != null && orderData['items'] is List) {
-        for (var item in orderData['items']) {
-          try {
-            // Validate item data
-            if (item['menuItemId'] == null ||
-                item['name'] == null ||
-                item['price'] == null ||
-                item['quantity'] == null) {
-              print('Missing required fields in item data');
-              continue;
-            }
-
-            // Create MenuItemModel with proper type conversion
-            final menuItem = MenuItemModel(
-              id: item['menuItemId'],
-              name: item['name'],
-              discountedPrice: (item['price'] as num).toInt(), // Convert to int
-              mainCategory:
-                  item['mainCategory'] ?? '', // Default empty if not provided
-              workstation:
-                  item['workstation'] ?? '', // Default empty if not provided
-              // Add other required fields with defaults
-            );
-
-            // Create OrderItemModel
-            final orderItem = OrderItemModel(
-              menuItem: menuItem,
-              quantity: item['quantity'] as int,
-              subtotal:
-                  ((item['price'] as num) * (item['quantity'] as int)).toInt(),
-              selectedAddons: [], // Handle addons if available
-              selectedToppings: [], // Handle toppings if available
-              notes: item['notes']?.toString() ?? '',
-            );
-
-            items.add(orderItem);
-          } catch (e) {
-            print('Error processing item: $e');
-            continue;
-          }
-        }
-      }
-
-      if (items.isEmpty) {
-        print('No valid items found in order data');
-        return null;
-      }
-
-      // Determine order type berdasarkan data
-      OrderType orderType = OrderType.dineIn; // Default
-      if (orderData['orderType'] != null) {
-        String orderTypeStr = orderData['orderType'].toString().toLowerCase();
-        switch (orderTypeStr) {
-          case 'delivery':
-            orderType = OrderType.delivery;
-            break;
-          case 'takeaway':
-          case 'pickup':
-            orderType = OrderType.takeAway;
-            break;
-          case 'dinein':
-          default:
-            orderType = OrderType.dineIn;
-            break;
-        }
-      }
-
-      // Calculate totals
-      double totalPrice = (orderData['total'] as num?)?.toDouble() ?? 0.0;
-      double taxRate = 0.1; // 10% tax
-      double totalTax = totalPrice * taxRate;
-      double grandTotal = totalPrice + totalTax;
-
-      // Create OrderDetailModel
-      final orderDetailModel = OrderDetailModel(
-        orderId: orderData['orderId'].toString(),
-        items: items,
-        user: orderData['customerName']?.toString() ?? 'Customer',
-        tableNumber: orderData['tableNumber']?.toString() ?? '',
-        orderType: orderType,
-        totalAfterDiscount: totalPrice.toInt(),
-        totalTax: totalTax.toInt(),
-        grandTotal: grandTotal.toInt(),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      return orderDetailModel;
-    } catch (e) {
-      print('Error converting to OrderDetailModel: $e');
-      return null;
-    }
-  }
+  // Unused function - removed as per audit recommendation
 
   void _showOrderDetailDialog(OrderDetailModel orderDetail) {
     showDialog(
@@ -484,7 +383,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
               onPressed: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).pop();
-                print(
+                AppLogger.debug(
                   'Navigating to Order Detail with orderDetail: $orderDetail',
                 );
                 widget.onScanned(orderDetail.orderId ?? '');
@@ -538,7 +437,8 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
 
   @override
   void dispose() {
-    controller?.dispose();
+    // Note: QRViewController.dispose() is deprecated and no longer necessary
+    // The controller will self-dispose when the QRView is un-mounted
     super.dispose();
   }
 }

@@ -237,7 +237,7 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
     final orderType = OrderTypeExtension.orderTypeToJson(order.orderType);
     return Card(
       elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.1),
+      shadowColor: Colors.black.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
@@ -267,7 +267,7 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: _getStatusColor(orderStatus).withOpacity(0.1),
+                  color: _getStatusColor(orderStatus).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -390,7 +390,7 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _getStatusColor(status).withOpacity(0.1),
+        color: _getStatusColor(status).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(

@@ -111,7 +111,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withOpacity(0.1),
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Icon(
@@ -193,7 +193,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50).withOpacity(0.1),
+                        color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Icon(
@@ -578,7 +578,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
       decoration: BoxDecoration(
         color:
             isSelected
-                ? const Color(0xFF4CAF50).withOpacity(0.1)
+                ? const Color(0xFF4CAF50).withValues(alpha: 0.1)
                 : Colors.white,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
@@ -697,7 +697,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
       decoration: BoxDecoration(
         color:
             isSelected
-                ? const Color(0xFF4CAF50).withOpacity(0.1)
+                ? const Color(0xFF4CAF50).withValues(alpha: 0.1)
                 : Colors.white,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
