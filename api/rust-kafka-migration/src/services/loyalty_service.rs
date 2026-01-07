@@ -1,11 +1,12 @@
 use mongodb::{Client, Collection, Database};
 use mongodb::bson::{doc, oid::ObjectId};
 use mongodb::options::{ClientOptions, FindOneOptions, FindOptions};
-use futures::stream::TryStreamExt;
+use futures::stream::{StreamExt, TryStreamExt};
 use chrono::Utc;
 use crate::db::models::{LoyaltyProgram, LoyaltyLevel, CustomerLoyalty};
 use crate::error::Result;
 
+#[derive(Clone)]
 pub struct LoyaltyService {
     db: Database,
     loyalty_program_collection: Collection<LoyaltyProgram>,
@@ -64,8 +65,8 @@ impl LoyaltyService {
                     is_first_transaction: true,
                     last_transaction_date: None,
                     transaction_count: 0,
-                    created_at: Some(Utc::now()),
-                    updated_at: Some(Utc::now()),
+                    created_at: Some(mongodb::bson::DateTime::now()),
+                    updated_at: Some(mongodb::bson::DateTime::now()),
                 };
                 let insert_result = self.customer_loyalty_collection.insert_one(new_cl.clone(), None).await?;
                 let mut created_cl = new_cl;
@@ -92,11 +93,11 @@ impl LoyaltyService {
         customer_loyalty.current_points += total_points_earned;
         customer_loyalty.total_points_earned += total_points_earned;
         customer_loyalty.transaction_count += 1;
-        customer_loyalty.last_transaction_date = Some(Utc::now());
-        customer_loyalty.updated_at = Some(Utc::now());
+        customer_loyalty.last_transaction_date = Some(mongodb::bson::DateTime::now());
+        customer_loyalty.updated_at = Some(mongodb::bson::DateTime::now());
 
         // Check and update loyalty level
-        let new_level = self.update_loyalty_level(&mut customer_loyalty).await?;
+        let new_level: Option<LoyaltyLevel> = self.update_loyalty_level(&mut customer_loyalty).await?;
 
         // Persist updates to DB
         let update_filter = doc! { "_id": customer_loyalty.id.unwrap() };
@@ -128,7 +129,7 @@ impl LoyaltyService {
 
     async fn update_loyalty_level(&self, customer_loyalty: &mut CustomerLoyalty) -> Result<Option<LoyaltyLevel>> {
         let sort = doc! { "requiredPoints": 1 };
-        let find_options = FindOneOptions::builder().sort(sort.clone()).build();
+        let _find_options = FindOneOptions::builder().sort(sort.clone()).build();
         let find_many_options = FindOptions::builder().sort(sort).build();
 
         let mut cursor = self.loyalty_level_collection.find(None, find_many_options).await?;
@@ -206,7 +207,7 @@ impl LoyaltyService {
 
         customer_loyalty.current_points -= points_to_redeem;
         customer_loyalty.total_points_redeemed += points_to_redeem;
-        customer_loyalty.updated_at = Some(Utc::now());
+        customer_loyalty.updated_at = Some(mongodb::bson::DateTime::now());
 
         let update_filter = doc! { "_id": customer_loyalty.id.unwrap() };
         let update_doc = doc! {

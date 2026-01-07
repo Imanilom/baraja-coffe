@@ -78,17 +78,17 @@ pub struct MenuStock {
     #[serde(rename = "transferId", skip_serializing_if = "Option::is_none")]
     pub transfer_id: Option<ObjectId>,
     
-    #[serde(rename = "lastCalculatedAt", default = "Utc::now")]
-    pub last_calculated_at: DateTime<Utc>,
+    #[serde(rename = "lastCalculatedAt", default = "mongodb::bson::DateTime::now")]
+    pub last_calculated_at: mongodb::bson::DateTime,
     
-    #[serde(rename = "lastAdjustedAt", default = "Utc::now")]
-    pub last_adjusted_at: DateTime<Utc>,
+    #[serde(rename = "lastAdjustedAt", default = "mongodb::bson::DateTime::now")]
+    pub last_adjusted_at: mongodb::bson::DateTime,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_stock_update_type() -> StockUpdateType {

@@ -24,6 +24,7 @@ pub struct Ingredient {
 pub struct ToppingOption {
     #[serde(rename = "toppingName")]
     pub topping_name: String,
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub ingredients: Vec<Ingredient>,
 }
 
@@ -34,6 +35,7 @@ pub struct AddonOption {
     
     #[serde(rename = "optionLabel")]
     pub option_label: String,
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub ingredients: Vec<Ingredient>,
 }
 
@@ -45,15 +47,15 @@ pub struct Recipe {
     #[serde(rename = "menuItemId")]
     pub menu_item_id: ObjectId,
     
-    #[serde(rename = "baseIngredients", default)]
+    #[serde(rename = "baseIngredients", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub base_ingredients: Vec<Ingredient>,
     
-    #[serde(rename = "toppingOptions", default)]
+    #[serde(rename = "toppingOptions", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub topping_options: Vec<ToppingOption>,
     
-    #[serde(rename = "addonOptions", default)]
+    #[serde(rename = "addonOptions", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub addon_options: Vec<AddonOption>,
     
-    #[serde(rename = "createdAt", default = "Utc::now")]
-    pub created_at: DateTime<Utc>,
+    #[serde(rename = "createdAt", default = "mongodb::bson::DateTime::now")]
+    pub created_at: mongodb::bson::DateTime,
 }

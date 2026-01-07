@@ -31,10 +31,10 @@ pub struct Outlet {
     pub close_time: String,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_true() -> bool {

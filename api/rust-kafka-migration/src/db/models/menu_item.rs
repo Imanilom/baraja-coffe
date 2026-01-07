@@ -30,12 +30,15 @@ pub enum Workstation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WarehouseStock {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+
     #[serde(rename = "warehouseId")]
     pub warehouse_id: ObjectId,
-    
+
     #[serde(default)]
     pub stock: f64,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workstation: Option<String>,
 }
@@ -69,6 +72,7 @@ pub struct AddonOptionDetail {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Addon {
     pub name: String,
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub options: Vec<AddonOptionDetail>,
 }
 
@@ -76,67 +80,68 @@ pub struct Addon {
 pub struct MenuItem {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
-    
+
     pub name: String,
     pub price: f64,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    
-    #[serde(rename = "mainCategory", default = "default_main_category")]
-    pub main_category: MainCategory,
-    
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category: Option<ObjectId>,
-    
-    #[serde(rename = "subCategory", skip_serializing_if = "Option::is_none")]
-    pub sub_category: Option<ObjectId>,
-    
-    #[serde(rename = "imageURL", default = "default_image_url")]
-    pub image_url: String,
-    
-    #[serde(rename = "costPrice", default)]
-    pub cost_price: f64,
-    
-    #[serde(rename = "availableStock", default)]
-    pub available_stock: f64,
-    
-    #[serde(rename = "warehouseStocks", default)]
-    pub warehouse_stocks: Vec<WarehouseStock>,
-    
-    #[serde(rename = "workstationMapping", default)]
-    pub workstation_mapping: Vec<WorkstationMapping>,
-    
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event: Option<ObjectId>,
-    
-    #[serde(rename = "isEventItem", default)]
-    pub is_event_item: bool,
-    
-    #[serde(rename = "eventType", default = "default_event_type")]
-    pub event_type: EventType,
-    
-    #[serde(default)]
-    pub toppings: Vec<Topping>,
-    
-    #[serde(default)]
-    pub addons: Vec<Addon>,
-    
-    #[serde(rename = "availableAt", default)]
-    pub available_at: Vec<ObjectId>,
-    
+
+    #[serde(rename = "mainCategory", skip_serializing_if = "Option::is_none")]
+    pub main_category: Option<MainCategory>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workstation: Option<Workstation>,
-    
+
+    #[serde(rename = "workstationMapping", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
+    pub workstation_mapping: Vec<WorkstationMapping>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event: Option<ObjectId>,
+
+    #[serde(rename = "isEventItem", default)]
+    pub is_event_item: bool,
+
+    #[serde(rename = "eventType", skip_serializing_if = "Option::is_none")]
+    pub event_type: Option<EventType>,
+
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
+    pub toppings: Vec<Topping>,
+
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
+    pub addons: Vec<Addon>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<ObjectId>,
+
+    #[serde(rename = "subCategory", skip_serializing_if = "Option::is_none")]
+    pub sub_category: Option<ObjectId>,
+
+    #[serde(rename = "imageURL", skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
+
+    #[serde(rename = "costPrice", default)]
+    pub cost_price: f64,
+
+    #[serde(rename = "availableStock", default)]
+    pub available_stock: f64,
+
+    #[serde(rename = "warehouseStocks", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
+    pub warehouse_stocks: Vec<WarehouseStock>,
+
+    #[serde(rename = "availableAt", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
+    pub available_at: Vec<ObjectId>,
+
     #[serde(rename = "isActive", default = "default_true")]
     pub is_active: bool,
-    
+
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
-    
+    pub created_at: Option<mongodb::bson::DateTime>,
+
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
+
 
 fn default_true() -> bool {
     true

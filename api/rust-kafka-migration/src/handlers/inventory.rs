@@ -63,7 +63,7 @@ pub async fn update_product_stock(
         source_warehouse: None,
         destination_warehouse: None,
         handled_by: Some("system".to_string()),
-        date: chrono::Utc::now(),
+        date: mongodb::bson::DateTime::now(),
     };
 
     state.inventory_service.update_product_stock(

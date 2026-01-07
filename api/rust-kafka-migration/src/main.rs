@@ -78,14 +78,14 @@ async fn main() -> AppResult<()> {
     let menu_service = MenuService::new(menu_repo.clone(), inventory_repo.clone(), kafka.clone());
     let inventory_service = InventoryService::new(inventory_repo.clone(), menu_repo.clone(), kafka.clone());
     let outlet_service = OutletService::new(outlet_repo.clone());
-    let loyalty_service = LoyaltyService::new(db.clone());
-    let tax_service = TaxService::new(db.clone());
-    let promo_service = PromoService::new(db.clone());
+    let loyalty_service = LoyaltyService::new(db.database().clone());
+    let tax_service = TaxService::new(db.database().clone());
+    let promo_service = PromoService::new(db.database().clone());
     let market_list_service = MarketListService::new(market_list_repo.clone(), inventory_service.clone());
 
     // Initialize Redis and LockUtil
     let redis_client = redis::Client::open(config.redis.url.as_str())
-        .map_err(|e| error::AppError::Config(config::ConfigError::Message(e.to_string())))?;
+        .map_err(error::AppError::Redis)?;
     let lock_util = utils::LockUtil::new(redis_client);
     tracing::info!("Redis connection initialized");
 

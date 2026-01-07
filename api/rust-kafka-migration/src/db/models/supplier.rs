@@ -1,5 +1,5 @@
 use bson::oid::ObjectId;
-use chrono::{DateTime, Utc};
+// No longer using chrono here
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +18,6 @@ pub struct Supplier {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
     
-    #[serde(rename = "createdAt", default = "Utc::now")]
-    pub created_at: DateTime<Utc>,
+    #[serde(rename = "createdAt", default = "mongodb::bson::DateTime::now")]
+    pub created_at: mongodb::bson::DateTime,
 }

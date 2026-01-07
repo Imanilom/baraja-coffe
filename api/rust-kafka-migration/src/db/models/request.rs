@@ -72,7 +72,7 @@ pub struct RequestItem {
     pub destination_warehouse: Option<ObjectId>,
     
     #[serde(rename = "processedAt", skip_serializing_if = "Option::is_none")]
-    pub processed_at: Option<DateTime<Utc>>,
+    pub processed_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "processedBy", skip_serializing_if = "Option::is_none")]
     pub processed_by: Option<String>,
@@ -115,16 +115,22 @@ pub struct Request {
     pub processed_by: Option<String>,
     
     #[serde(rename = "processedAt", skip_serializing_if = "Option::is_none")]
-    pub processed_at: Option<DateTime<Utc>>,
+    pub processed_at: Option<mongodb::bson::DateTime>,
     
-    #[serde(default = "Utc::now")]
-    pub date: DateTime<Utc>,
+    #[serde(rename = "reviewedBy", skip_serializing_if = "Option::is_none")]
+    pub reviewed_by: Option<String>,
+    
+    #[serde(rename = "reviewedAt", skip_serializing_if = "Option::is_none")]
+    pub reviewed_at: Option<mongodb::bson::DateTime>,
+    
+    #[serde(default = "mongodb::bson::DateTime::now")]
+    pub date: mongodb::bson::DateTime,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_request_status() -> RequestStatus {

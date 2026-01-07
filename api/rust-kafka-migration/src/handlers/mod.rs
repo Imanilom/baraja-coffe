@@ -21,7 +21,6 @@ pub use order::*;
 pub use promo::*;
 pub use tax::*;
 pub use voucher::*;
-pub use category::*;
 pub use product::*;
 pub use supplier::*;
 pub use marketlist::*;

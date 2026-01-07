@@ -47,8 +47,8 @@ pub struct Payment {
     #[serde(rename = "amountNonPhysical", default)]
     pub amount_non_physical: f64,
     
-    #[serde(default = "Utc::now")]
-    pub date: DateTime<Utc>,
+    #[serde(default = "mongodb::bson::DateTime::now")]
+    pub date: mongodb::bson::DateTime,
 }
 
 fn default_payment_status() -> PaymentStatus {
@@ -131,8 +131,8 @@ pub struct MarketList {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     
-    #[serde(default = "Utc::now")]
-    pub date: DateTime<Utc>,
+    #[serde(default = "mongodb::bson::DateTime::now")]
+    pub date: mongodb::bson::DateTime,
     
     pub day: Option<String>,
     pub items: Vec<MarketListItem>,
@@ -162,8 +162,8 @@ pub struct MarketList {
     pub total_non_physical: f64,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }

@@ -113,6 +113,15 @@ impl ApiResponse<()> {
     }
 }
 
+impl<T> IntoResponse for ApiResponse<T>
+where
+    T: serde::Serialize,
+{
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
+    }
+}
+
 /// Convert AppError to HTTP response matching Node.js format
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
@@ -182,4 +191,5 @@ impl IntoResponse for AppError {
 }
 
 /// Result type alias for convenience
-pub type AppResult<T> = Result<T, AppError>;
+pub type AppResult<T> = std::result::Result<T, AppError>;
+pub type Result<T, E = AppError> = std::result::Result<T, E>;

@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use crate::db::models::{Promo, AutoPromo, Voucher, OrderItem, MenuItem, VoucherUsage};
 use crate::error::Result;
 
+#[derive(Clone)]
 pub struct PromoService {
     promo_collection: Collection<Promo>,
     auto_promo_collection: Collection<AutoPromo>,
@@ -24,7 +25,7 @@ impl PromoService {
         &self,
         order_items: &[OrderItem],
         outlet_id: ObjectId,
-        order_type: &str,
+        _order_type: &str,
     ) -> Result<AutoPromoResult> {
         let now = Utc::now();
         let filter = doc! {
@@ -89,7 +90,7 @@ impl PromoService {
 
     pub async fn check_manual_promo(
         &self,
-        total_amount: f64,
+        _total_amount: f64,
         outlet_id: ObjectId,
         customer_type: &str,
     ) -> Result<ManualPromoResult> {
@@ -99,7 +100,7 @@ impl PromoService {
         // It seems to find active promos matching formatted criteria.
         
         let now = Utc::now();
-        let filter = doc! {
+        let _filter = doc! {
             "isActive": true,
             "outlet": outlet_id,
             "customerType": customer_type,

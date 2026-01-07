@@ -4,6 +4,7 @@ use futures::stream::TryStreamExt;
 use crate::db::models::{TaxAndService, OrderItem, CustomAmountItem};
 use crate::error::Result;
 
+#[derive(Clone)]
 pub struct TaxService {
     tax_collection: Collection<TaxAndService>,
 }
@@ -34,7 +35,7 @@ impl TaxService {
         let mut total_service_fee = 0.0;
         
         // Calculate bazar items amount (to exclude)
-        let bazar_items: Vec<&OrderItem> = order_items.iter().filter(|item| {
+        let _bazar_items: Vec<&OrderItem> = order_items.iter().filter(|_item| {
             // Logic to check if item is Bazar category. 
             // In Node.js it checks `isBazarCategory` on the item, which is pre-calculated.
             // Here we assume OrderItem might not have it yet unless we passed that info.

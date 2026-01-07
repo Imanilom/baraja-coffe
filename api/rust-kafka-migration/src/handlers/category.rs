@@ -9,6 +9,7 @@ use bson::doc;
 use chrono::Utc;
 use futures::stream::TryStreamExt;
 use serde_json::json;
+use bson::DateTime as BsonDateTime;
 
 use crate::AppState;
 use crate::error::{AppResult, AppError, ApiResponse};
@@ -41,13 +42,17 @@ pub async fn create_category(
 ) -> AppResult<impl IntoResponse> {
     let collection = state.db.collection::<Category>("categories");
     let mut category = payload;
+
     category.id = None;
-    category.created_at = Some(Utc::now());
-    category.updated_at = Some(Utc::now());
-    
+    category.created_at = Some(BsonDateTime::now());
+    category.updated_at = Some(BsonDateTime::now());
+
     let result = collection.insert_one(category, None).await?;
-    Ok(ApiResponse::success(json!({ "id": result.inserted_id.as_object_id().unwrap().to_hex() })))
+    Ok(ApiResponse::success(json!({
+        "id": result.inserted_id.as_object_id().unwrap().to_hex()
+    })))
 }
+
 
 pub async fn update_category(
     State(state): State<Arc<AppState>>,
@@ -63,7 +68,7 @@ pub async fn update_category(
             "description": payload.description,
             "type": payload.category_type,
             "parentCategory": payload.parent_category,
-            "updatedAt": Utc::now()
+            "updatedAt": BsonDateTime::now()
         }
     };
     

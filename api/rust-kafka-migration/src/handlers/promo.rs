@@ -43,8 +43,8 @@ pub async fn create_auto_promo(
     let collection = state.db.collection::<AutoPromo>("autopromos");
     let mut promo = payload;
     promo.id = None; // Ensure new ID
-    promo.created_at = Some(Utc::now());
-    promo.updated_at = Some(Utc::now());
+    promo.created_at = Some(mongodb::bson::DateTime::now());
+    promo.updated_at = Some(mongodb::bson::DateTime::now());
     
     let result = collection.insert_one(promo, None).await?;
     let created_id = result.inserted_id.as_object_id().unwrap();
@@ -74,7 +74,7 @@ pub async fn update_auto_promo(
             "validTo": payload.valid_to,
             "activeHours": bson::to_bson(&payload.active_hours).unwrap(),
             "isActive": payload.is_active,
-            "updatedAt": Utc::now()
+            "updatedAt": mongodb::bson::DateTime::now()
         }
     };
     
@@ -148,8 +148,8 @@ pub async fn create_promo(
     let collection = state.db.collection::<Promo>("promos");
     let mut promo = payload;
     promo.id = None;
-    promo.created_at = Some(Utc::now());
-    promo.updated_at = Some(Utc::now());
+    promo.created_at = Some(mongodb::bson::DateTime::now());
+    promo.updated_at = Some(mongodb::bson::DateTime::now());
     
     let result = collection.insert_one(promo, None).await?;
     let created_id = result.inserted_id.as_object_id().unwrap();
@@ -175,7 +175,7 @@ pub async fn update_promo(
             "validFrom": payload.valid_from,
             "validTo": payload.valid_to,
             "isActive": payload.is_active,
-            "updatedAt": Utc::now()
+            "updatedAt": mongodb::bson::DateTime::now()
         }
     };
     

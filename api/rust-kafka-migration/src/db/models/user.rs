@@ -1,5 +1,5 @@
 use bson::oid::ObjectId;
-use chrono::{DateTime, Utc};
+// No longer using chrono here
 use serde::{Deserialize, Serialize};
 
 /// Authentication type
@@ -20,11 +20,17 @@ impl Default for AuthType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum CashierType {
+    #[serde(rename = "bar-1-amphi")]
     Bar1Amphi,
+    #[serde(rename = "bar-2-amphi")]
     Bar2Amphi,
+    #[serde(rename = "bar-3-amphi")]
     Bar3Amphi,
+    #[serde(rename = "bar-tp")]
     BarTp,
+    #[serde(rename = "bar-dp")]
     BarDp,
+    #[serde(rename = "drive-thru")]
     DriveThru,
 }
 
@@ -53,7 +59,7 @@ pub struct User {
     #[serde(skip_serializing)]
     pub password: String,
     
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub address: Vec<String>,
     
     #[serde(rename = "profilePicture")]
@@ -65,10 +71,10 @@ pub struct User {
     #[serde(rename = "cashierType", skip_serializing_if = "Option::is_none")]
     pub cashier_type: Option<CashierType>,
     
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub outlet: Vec<OutletRef>,
     
-    #[serde(rename = "claimedVouchers", default)]
+    #[serde(rename = "claimedVouchers", default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub claimed_vouchers: Vec<ObjectId>,
     
     #[serde(rename = "loyaltyPoints", default)]
@@ -77,7 +83,7 @@ pub struct User {
     #[serde(rename = "loyaltyLevel", skip_serializing_if = "Option::is_none")]
     pub loyalty_level: Option<ObjectId>,
     
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::serde_utils::deserialize_vec_or_single")]
     pub favorites: Vec<ObjectId>,
     
     #[serde(rename = "authType", default)]
@@ -87,10 +93,10 @@ pub struct User {
     pub is_active: bool,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_true() -> bool {
