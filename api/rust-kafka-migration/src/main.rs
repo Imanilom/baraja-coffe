@@ -18,7 +18,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::Config;
 use db::DbConnection;
-use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository, OrderRepository, MarketListRepository};
+use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository, OrderRepository, MarketListRepository, PaymentRepository};
 use error::AppResult;
 use kafka::KafkaProducer;
 use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService, MarketListService};
@@ -31,6 +31,7 @@ pub struct AppState {
     pub kafka: Arc<KafkaProducer>,
     pub user_repo: UserRepository,
     pub order_repo: OrderRepository,
+    pub payment_repo: PaymentRepository,
     pub menu_service: MenuService,
     pub inventory_service: InventoryService,
     pub outlet_service: OutletService,
@@ -73,6 +74,7 @@ async fn main() -> AppResult<()> {
     let outlet_repo = OutletRepository::new(db.clone());
     let order_repo = OrderRepository::new(db.clone());
     let market_list_repo = MarketListRepository::new(db.clone());
+    let payment_repo = PaymentRepository::new(db.clone());
 
     // Initialize services
     let menu_service = MenuService::new(menu_repo.clone(), inventory_repo.clone(), kafka.clone());
@@ -96,6 +98,7 @@ async fn main() -> AppResult<()> {
         kafka,
         user_repo,
         order_repo,
+        payment_repo,
         menu_service,
         inventory_service,
         outlet_service,

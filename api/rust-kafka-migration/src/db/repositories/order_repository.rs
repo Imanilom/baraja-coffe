@@ -46,4 +46,31 @@ impl OrderRepository {
             None
         ).await?)
     }
+
+    /// Count orders for a specific table today
+    pub async fn count_orders_for_table_today(&self, table_number: &str) -> AppResult<u64> {
+        let now = chrono::Utc::now();
+        let start_of_day = now.date_naive().and_hms_opt(0, 0, 0).unwrap();
+        let end_of_day = now.date_naive().and_hms_opt(23, 59, 59).unwrap();
+
+        let start_bson = bson::DateTime::from_millis(start_of_day.and_utc().timestamp_millis());
+        let end_bson = bson::DateTime::from_millis(end_of_day.and_utc().timestamp_millis());
+
+        let filter = doc! {
+            "tableNumber": table_number,
+            "created_at": {
+                "$gte": start_bson,
+                "$lte": end_bson
+            }
+        };
+
+        Ok(self.collection.count_documents(filter, None).await?)
+    }
+
+    /// Update an existing order
+    pub async fn update(&self, order: &Order) -> AppResult<()> {
+        let id = order.id.ok_or_else(|| AppError::BadRequest("Order ID missing for update".to_string()))?;
+        self.collection.replace_one(doc! { "_id": id }, order, None).await?;
+        Ok(())
+    }
 }

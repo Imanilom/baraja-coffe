@@ -172,3 +172,21 @@ impl AutoPromo {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct PromoResult {
+    #[serde(rename = "totalDiscount")]
+    pub total_discount: f64,
+    #[serde(rename = "appliedPromos")]
+    pub applied_promos: Vec<AppliedPromoDetails>,
+    #[serde(rename = "bundleSets")]
+    pub bundle_sets: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppliedPromoDetails {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "promoType")]
+    pub promo_type: String,
+    pub amount: f64,
+}
