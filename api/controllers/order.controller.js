@@ -26,6 +26,8 @@ import { replaceOrderItemsAndAllocate } from '../services/orderEdit.service.js';
 import { createOrderHandler } from '../workers/handlers/createOrderHandler.js';
 import { LockUtil } from '../utils/lock.util.js';
 import { validateAndNormalizePaymentDetails } from '../utils/payment.utils.js';
+import { Device } from '../models/Device.model.js';
+import { PrintLogger } from '../services/print-logger.service.js';
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
@@ -90,6 +92,119 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
   }
 };
 
+/**
+ * ==================================================================================
+ * CASHIER ORDER BROADCAST TO WORKSTATION
+ * ==================================================================================
+ * Broadcasts orders directly to Cashier devices for immediate print.
+ * This ensures cashier orders are printed without delay.
+ */
+async function broadcastCashierOrderToWorkstation({
+  orderId, tableNumber, orderItems, orderType, outlet, customerName, isReservation, service
+}) {
+  try {
+    if (!orderItems || orderItems.length === 0) {
+      console.log('📭 No items to broadcast to cashier');
+      return;
+    }
+
+    console.log('\n🖨️ ========== CASHIER WORKSTATION BROADCAST ==========');
+    console.log(`📋 Order ID: ${orderId}`);
+    console.log(`🪑 Table: ${tableNumber || 'N/A'}`);
+    console.log(`📦 Items: ${orderItems.length}`);
+    console.log(`📅 Type: ${orderType}${isReservation ? ' (Reservation)' : ''}`);
+
+    // Get target devices: kasir/cashier from same outlet
+    const targetDevices = await Device.find({
+      outlet: outlet,
+      isActive: true,
+      $or: [
+        { location: 'kasir' },
+        { location: 'cashier' },
+        { location: 'Kasir Utama' }
+      ]
+    }).lean();
+
+    if (targetDevices.length === 0) {
+      console.log('⚠️ No active cashier devices found for outlet:', outlet);
+      console.log('====================================================\n');
+      return;
+    }
+
+    console.log(`📱 Found ${targetDevices.length} cashier devices`);
+
+    // ✅ LOGGING: Log pending attempts on server side (Non-blocking)
+    const logPromises = [];
+    orderItems.forEach(item => {
+      logPromises.push(PrintLogger.logPrintAttempt(
+        orderId,
+        item,
+        'cashier',
+        { type: 'unknown', info: 'Cashier Broadcast' },
+        { is_auto_print: true }
+      ));
+    });
+
+    // Fire-and-forget logging
+    Promise.allSettled(logPromises).then((results) => {
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      console.log(`📝 [CASHIER-LOG] Logged ${successCount}/${logPromises.length} print attempts`);
+    }).catch(err => console.error('⚠️ [CASHIER-LOG] Failed to log:', err));
+
+    // Emit to each device
+    let sentCount = 0;
+    for (const device of targetDevices) {
+      const printData = {
+        orderId,
+        tableNumber: tableNumber || '',
+        orderType: orderType || 'Dine-In',
+        source: 'Cashier',
+        name: customerName || 'Guest',
+        service: service || 'Dine-In',
+        orderItems: orderItems.map(item => ({
+          _id: item._id?.toString() || item.menuItem?._id?.toString(),
+          menuItemId: item.menuItem?._id?.toString() || item._id?.toString(),
+          name: item.menuItem?.name || item.menuItemData?.name || item.name || 'Unknown',
+          quantity: item.quantity || 1,
+          notes: item.notes || '',
+          addons: item.addons || [],
+          toppings: item.toppings || [],
+          workstation: item.menuItem?.workstation || item.workstation || 'cashier',
+          mainCategory: item.menuItem?.mainCategory || item.mainCategory
+        })),
+        deviceId: device.deviceId,
+        targetDevice: device.deviceName,
+        isReservation: isReservation || false,
+        isCashierOrder: true,
+        timestamp: new Date()
+      };
+
+      const eventType = 'cashier_immediate_print';
+
+      // Send via socket
+      if (device.socketId && io) {
+        io.to(device.socketId).emit(eventType, printData);
+        console.log(`   ✅ Sent to ${device.deviceName} via socket: ${device.socketId}`);
+        sentCount++;
+      } else {
+        // Fallback: send to room
+        const roomName = 'cashier_room';
+        if (io) {
+          io.to(roomName).emit(eventType, printData);
+          console.log(`   ✅ Sent to ${device.deviceName} via room: ${roomName}`);
+          sentCount++;
+        }
+      }
+    }
+
+    console.log(`📊 Broadcast complete: ${sentCount} devices notified`);
+    console.log('====================================================\n');
+
+  } catch (error) {
+    console.error('❌ Error broadcasting order to cashier workstations:', error);
+  }
+}
+
 export const createAppOrder = async (req, res) => {
   try {
     const {
@@ -112,6 +227,7 @@ export const createAppOrder = async (req, res) => {
       discount: frontendDiscount,
       // ✅ TAMBAHAN: Parameter untuk GRO mode
       isGroMode,
+      isCashierMode, // ✅ NEW: Parameter for Cashier mode
       groId,
       userName,
       guestPhone,
@@ -119,6 +235,7 @@ export const createAppOrder = async (req, res) => {
 
     console.log('Received createAppOrder request:', {
       isGroMode,
+      isCashierMode,
       groId,
       userName,
       guestPhone,
@@ -829,6 +946,20 @@ export const createAppOrder = async (req, res) => {
     } else {
       io.to('cashier_room').emit('new_order', { mappedOrders });
       console.log(`📤 Socket emitted: new_order → cashier_room`);
+    }
+
+    // 🔥 CASHIER IMMEDIATE PRINT: Broadcast to workstations
+    if (isCashierMode && orderItems.length > 0) {
+      await broadcastCashierOrderToWorkstation({
+        orderId: newOrder.order_id,
+        tableNumber: newOrder.tableNumber,
+        orderItems: orderItems,
+        orderType: formattedOrderType,
+        outlet: outlet || newOrder.outlet,
+        customerName: finalUserName,
+        isReservation: orderType === 'reservation',
+        service: newOrder.type || 'Dine-In'
+      });
     }
 
     res.status(201).json(responseData);
@@ -9965,6 +10096,20 @@ export async function patchEditOrder(req, res) {
       userId: req.user?.id,
       idempotencyKey: req.headers['x-idempotency-key'],
     });
+
+    // 🔥 CASHIER IMMEDIATE PRINT: Broadcast to workstations after edit
+    if (result.order && result.order.items && result.order.items.length > 0) {
+      await broadcastCashierOrderToWorkstation({
+        orderId: result.order.order_id,
+        tableNumber: result.order.tableNumber,
+        orderItems: result.order.items,
+        orderType: result.order.orderType,
+        outlet: result.order.outlet,
+        customerName: result.order.user || 'Guest',
+        isReservation: result.order.orderType?.toLowerCase() === 'reservation',
+        service: result.order.type || 'Dine-In'
+      });
+    }
 
     res.status(200).json({ success: true, message: 'Order updated', data: result });
   } catch (err) {
