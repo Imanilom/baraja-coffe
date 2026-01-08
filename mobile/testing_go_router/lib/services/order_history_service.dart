@@ -1,5 +1,6 @@
 import 'package:kasirbaraja/configs/app_config.dart';
 import 'package:dio/dio.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/models/try/activity_model.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,7 +22,7 @@ class OrderHistoryService {
 
   Future<Map<String, dynamic>> fetchOrderHistory(String cashierId) async {
     try {
-      print('Fetching order history for cashierId: $cashierId');
+      AppLogger.info('Fetching order history for cashierId: $cashierId');
       final response = await _dio.get('/api/orders/cashier/$cashierId');
 
       if (response.statusCode != 200) {
@@ -32,11 +33,11 @@ class OrderHistoryService {
         throw Exception('No data found for order history');
       }
 
-      // print('Order history data: ${response.data}');
+      // AppLogger.debug('Order history data: ${response.data}');
 
       return response.data;
     } on DioException catch (e) {
-      print('DioException: ${e.message}');
+      AppLogger.error('DioException in fetchOrderHistory', error: e.message);
       throw e.error ?? Exception('Failed to fetch order history: ${e.message}');
     }
   }
@@ -51,10 +52,10 @@ final Dio _dios = Dio(
 final activityProvider = FutureProvider.autoDispose<Activity>((ref) async {
   try {
     final response = await _dios.get('/quotes/random');
-    // print('activity: ${response.data}');
+    // AppLogger.debug('activity: ${response.data}');
     return Activity.fromJson(response.data);
   } on DioException catch (e) {
-    print('DioException: ${e.message}');
+    AppLogger.error('DioException in activityProvider', error: e.message);
     throw e.error ?? Exception('Failed to fetch activity: ${e.message}');
   }
 });

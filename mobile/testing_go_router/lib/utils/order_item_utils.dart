@@ -2,6 +2,7 @@
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:collection/collection.dart';
 
 class OrderItemUtils {
@@ -96,13 +97,15 @@ class OrderItemUtils {
     OrderItemModel item1,
     OrderItemModel item2,
   ) {
-    print('Comparing item id: ${item1.menuItem.id} vs ${item2.menuItem.id}');
-    print(
+    AppLogger.debug(
+      'Comparing item id: ${item1.menuItem.id} vs ${item2.menuItem.id}',
+    );
+    AppLogger.debug(
       'Toppings equal: ${areToppingsEqual(item1.selectedToppings, item2.selectedToppings)}',
     );
-    print(
+    AppLogger.debug(
       'Addons equal: ${areAddonsEqual(item1.selectedAddons, item2.selectedAddons)}',
     );
-    print('Notes equal: ${areNotesEqual(item1.notes, item2.notes)}');
+    AppLogger.debug('Notes equal: ${areNotesEqual(item1.notes, item2.notes)}');
   }
 }

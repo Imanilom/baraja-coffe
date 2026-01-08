@@ -1,4 +1,4 @@
-import 'package:flutter/rendering.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/models/promo_group.model.dart';
 import 'package:kasirbaraja/services/auto_promo_service.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
@@ -48,10 +48,10 @@ class AutoPromoRepository {
       final box = HiveService.autoPromosBox;
       final promos = box.values.toList();
 
-      debugPrint('Loaded ${promos.length} promos from local storage');
+      AppLogger.debug('Loaded ${promos.length} promos from local storage');
       return promos;
     } catch (e) {
-      debugPrint('Error loading promos from local: $e');
+      AppLogger.error('Error loading promos from local', error: e);
       return [];
     }
   }

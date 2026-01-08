@@ -12,6 +12,7 @@ import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 
 class PaymentProcessScreen extends ConsumerStatefulWidget {
   final PaymentModel payment;
@@ -1026,7 +1027,10 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Container(height: 1, color: Colors.orange.withValues(alpha: 0.2)),
+                Container(
+                  height: 1,
+                  color: Colors.orange.withValues(alpha: 0.2),
+                ),
                 const SizedBox(height: 16),
                 _buildSummaryRow('Tagihan', _getPaymentTitle(widget.payment)),
                 const SizedBox(height: 8),
@@ -1254,7 +1258,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           (widget.order.payments ?? [])
               .map((p) => p.copyWith(method: paymentMethodAndType))
               .toList();
-      print('req data: $requestData');
+      AppLogger.debug('req data: $requestData');
       final result = await ref
           .read(paymentProcessProvider.notifier)
           .processPayment(ref, requestData!);

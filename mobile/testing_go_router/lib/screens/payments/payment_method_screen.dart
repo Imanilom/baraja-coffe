@@ -289,7 +289,6 @@
 //                       margin: const EdgeInsets.only(bottom: 10),
 //                       child: GestureDetector(
 //                         onTap: () {
-//                           print('Selected method: ${method.type}');
 //                           notifier.clearSelection();
 //                           notifier.selectMethod(method);
 //                         },

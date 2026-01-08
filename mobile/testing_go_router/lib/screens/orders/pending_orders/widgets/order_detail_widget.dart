@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
@@ -33,7 +34,7 @@ class OrderDetailWidget extends ConsumerWidget {
           const SizedBox(height: 8),
           _buildOrderInfo(order),
           const SizedBox(height: 8),
-          _buildItemsList(order),
+          _buildItemsList(context, order, ref),
           const SizedBox(height: 8),
           _buildPricingDetails(order),
         ],
@@ -48,7 +49,9 @@ class OrderDetailWidget extends ConsumerWidget {
         gradient: LinearGradient(
           colors: [
             PaymentStatusUtils.getColor(order.paymentStatus!),
-            PaymentStatusUtils.getColor(order.paymentStatus!).withValues(alpha: 0.8),
+            PaymentStatusUtils.getColor(
+              order.paymentStatus!,
+            ).withValues(alpha: 0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -150,7 +153,11 @@ class OrderDetailWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildItemsList(OrderDetailModel order) {
+  Widget _buildItemsList(
+    BuildContext context,
+    OrderDetailModel order,
+    WidgetRef ref,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -186,14 +193,83 @@ class OrderDetailWidget extends ConsumerWidget {
                 style: TextStyle(color: Colors.green),
               ),
               onPressed: () {
-                // showModalBottomSheet(
-                //   context: context,
-                //   isScrollControlled: true,
-                //   backgroundColor: Colors.transparent,
-                //   builder: (ctx) => EditOrderItemSheet(order: order),
-                // );
+                context.pushNamed(
+                  'edit-order-item',
+                  pathParameters: {'id': order.id ?? ''},
+                  extra: order,
+                );
               },
             ),
+
+          if (order.isOpenBill == true) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange[700],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.receipt_long),
+                label: const Text(
+                  'CLOSE BILL',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder:
+                        (context) => AlertDialog(
+                          title: const Text('Konfirmasi Close Bill'),
+                          content: const Text(
+                            'Apakah Anda yakin ingin menutup bill ini? Struk akan dicetak dengan keterangan BELUM LUNAS.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Batal'),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange[700],
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Ya, Close Bill'),
+                            ),
+                          ],
+                        ),
+                  );
+
+                  if (confirm == true) {
+                    try {
+                      final success = await ref
+                          .read(pendingOrderDetailProvider.notifier)
+                          .closeBill(ref, order.orderId!);
+
+                      if (success && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Bill berhasil ditutup'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Gagal menutup bill: $e')),
+                        );
+                      }
+                    }
+                  }
+                },
+              ),
+            ),
+          ],
         ],
       ),
     );

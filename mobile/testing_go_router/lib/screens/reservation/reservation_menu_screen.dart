@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
@@ -62,7 +63,13 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
             )
             .toList();
 
-    // print('selectedAddons: $selectedAddons');
+    // notifier.addItemToOrder(
+    //   OrderItemModel(
+    //     menuItem: menuItem,
+    //     selectedToppings: [],
+    //     selectedAddons: selectedAddons,
+    //   ),
+    // );
 
     notifier.addItemToOrder(
       OrderItemModel(
@@ -85,7 +92,7 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
     // final selectedTableNumbers =
     //     arguments?['selectedTableNumbers'] as List<String>? ?? [];
 
-    print('ReservationData: $arguments');
+    AppLogger.debug('ReservationData: $reservationData');
     const categories = ['All', 'makanan', 'minuman'];
 
     return Scaffold(

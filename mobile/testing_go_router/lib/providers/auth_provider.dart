@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/providers/message_provider.dart';
 import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
@@ -69,10 +69,14 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   Future<void> checkLoginStatus() async {
     try {
       final user = await _authRepository.getCurrentUser();
-      print('cek login status disini dulu ngga?: $user');
+      AppLogger.debug('Checking login status: ${user?.username ?? 'Guest'}');
       state = AsyncValue.data(user);
     } catch (e, stackTrace) {
-      print("cek login status disini dulu ngga?: $e");
+      AppLogger.error(
+        "Error checking login status",
+        error: e,
+        stackTrace: stackTrace,
+      );
       state = AsyncValue.error(e, stackTrace);
     }
   }
@@ -85,7 +89,7 @@ class CashierNotifier extends StateNotifier<AsyncValue<CashierModel?>> {
 
   Future<void> login(CashierModel cashier) async {
     state = AsyncValue.data(cashier);
-    print('cek login data cashier: $cashier');
+    AppLogger.debug('Cashier logged in: ${cashier.username}');
     await HiveService.saveCashier(cashier);
 
     await ref
@@ -113,7 +117,7 @@ class CashierNotifier extends StateNotifier<AsyncValue<CashierModel?>> {
         throw Exception("PIN salah");
       }
 
-      print('cek login data cashier: $matchedCashier');
+      AppLogger.debug('cek login data cashier: $matchedCashier');
 
       // Jika berhasil, set state ke kasir yang login
       state = AsyncValue.data(matchedCashier);
@@ -160,7 +164,7 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
           paymentTypeBox.isNotEmpty;
     } catch (e) {
       // If boxes are not initialized yet, return false
-      debugPrint('Error checking local data: $e');
+      AppLogger.debug('Error checking local data: $e');
       return false;
     }
   }
@@ -171,8 +175,8 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
       final box = Hive.box('userBox');
       final cashier = box.get('cashier') as CashierModel?;
       final user = box.get('user') as UserModel?;
-      final sd = HiveService.getCashier();
-      print('cek login data cashier sd: $sd');
+      final sd = await HiveService.getCashier();
+      AppLogger.debug('Checking cashier data from Hive: ${sd?.username}');
 
       if (user != null) {
         if (cashier != null) {
@@ -181,7 +185,7 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
         }
         final syncData = await _hasRequiredLocalData();
         if (syncData) {
-          print('to need pin disini');
+          AppLogger.debug('Redirecting to PIN entry');
           state = const AsyncValue.data(AuthStatus.needPin);
         } else {
           state = const AsyncValue.data(AuthStatus.needDataSync);
@@ -216,7 +220,7 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
       // state = const AsyncValue.data(AuthStatus.needPin);
     } catch (e) {
       // state = const AsyncValue.data(AuthStatus.unauthenticated);
-      print('login gagal: $e');
+      AppLogger.error('Login failed', error: e);
     }
   }
 
@@ -307,7 +311,7 @@ class CashierLoginToDeviceNotifier extends StateNotifier<AsyncValue<bool>> {
     final socketRoom = ref.read(socketServiceProvider);
     await socketRoom.logout();
     await repository.logoutCashierFromDevice();
-    print('behasil logout device dan leave socket rooms');
+    AppLogger.info('Successfully logged out from device and left socket rooms');
   }
 }
 

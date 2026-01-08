@@ -5,6 +5,7 @@ import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 class EditOrderItemDialog extends StatefulWidget {
@@ -37,7 +38,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     super.initState();
     selectedToppings = List.from(widget.orderItem.selectedToppings);
     selectedAddons = List.from(widget.orderItem.selectedAddons);
-    print('selectedAddons: $selectedAddons');
+    AppLogger.debug('selectedAddons: $selectedAddons');
     quantity = widget.orderItem.quantity;
     note = widget.orderItem.notes ?? '';
     selectedOrderType = widget.orderItem.orderType ?? OrderType.dineIn;
@@ -1022,7 +1023,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                 setState(() {
                   selectedOrderType = newSelection.first;
                 });
-                print('Selected Order Type: $selectedOrderType');
+                AppLogger.debug('Selected Order Type: $selectedOrderType');
               },
               showSelectedIcon: false,
             ),

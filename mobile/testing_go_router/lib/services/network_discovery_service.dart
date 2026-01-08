@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:ping_discover_network_forked/ping_discover_network_forked.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 
 class DiscoveredDevice {
   final String ipAddress;
@@ -40,11 +41,13 @@ class DiscoveredDevice {
     // Enhanced printer name
     String printerName = _generatePrinterName();
 
-    print('🖨️ Creating printer model for $ipAddress:');
-    print('   Name: $printerName');
-    print('   Paper Size: $paperSize');
-    print('   Manufacturer: ${deviceInfo['manufacturer'] ?? 'Unknown'}');
-    print('   Model: ${deviceInfo['model'] ?? 'Unknown'}');
+    AppLogger.debug('🖨️ Creating printer model for $ipAddress:');
+    AppLogger.debug('   Name: $printerName');
+    AppLogger.debug('   Paper Size: $paperSize');
+    AppLogger.debug(
+      '   Manufacturer: ${deviceInfo['manufacturer'] ?? 'Unknown'}',
+    );
+    AppLogger.debug('   Model: ${deviceInfo['model'] ?? 'Unknown'}');
 
     return BluetoothPrinterModel(
       name: printerName,
@@ -186,17 +189,17 @@ class DiscoveredDevice {
 
   // Helper method untuk debugging
   void printDebugInfo() {
-    print('🔍 DiscoveredDevice Debug Info:');
-    print('   IP: $ipAddress');
-    print('   Reachable: $isReachable');
-    print('   Open Ports: $openPorts');
-    print('   Response Time: ${responseTime?.inMilliseconds}ms');
-    print('   Device Info:');
+    AppLogger.debug('🔍 DiscoveredDevice Debug Info:');
+    AppLogger.debug('   IP: $ipAddress');
+    AppLogger.debug('   Reachable: $isReachable');
+    AppLogger.debug('   Open Ports: $openPorts');
+    AppLogger.debug('   Response Time: ${responseTime?.inMilliseconds}ms');
+    AppLogger.debug('   Device Info:');
     deviceInfo.forEach((key, value) {
-      print('     $key: $value');
+      AppLogger.debug('     $key: $value');
     });
-    print('   Final Paper Size: ${_determinePaperSize()}');
-    print('   Final Name: ${_generatePrinterName()}');
+    AppLogger.debug('   Final Paper Size: ${_determinePaperSize()}');
+    AppLogger.debug('   Final Name: ${_generatePrinterName()}');
   }
 }
 
@@ -214,7 +217,7 @@ class NetworkDiscoveryService {
       }
       return null;
     } catch (e) {
-      print('❌ Error getting subnet: $e');
+      AppLogger.error('❌ Error getting subnet', error: e);
       return null;
     }
   }
@@ -380,7 +383,7 @@ class NetworkDiscoveryService {
         final printerInfo = await _queryPrinterInfo(ipAddress, 9100);
         deviceInfo.addAll(printerInfo);
       }
-      print('✅ Dapatkan info printer untuk $ipAddress: $deviceInfo');
+      AppLogger.info('✅ Dapatkan info printer untuk $ipAddress: $deviceInfo');
 
       deviceInfo['detectedPorts'] = openPorts;
       deviceInfo['isPrinter'] = openPorts.any(
@@ -388,7 +391,10 @@ class NetworkDiscoveryService {
       );
       deviceInfo['scanTime'] = DateTime.now().toIso8601String();
     } catch (e) {
-      print('⚠️ Could not get device info for $ipAddress: $e');
+      AppLogger.warning(
+        '⚠️ Could not get device info for $ipAddress',
+        error: e,
+      );
     }
 
     return deviceInfo;
@@ -408,7 +414,7 @@ class NetworkDiscoveryService {
         timeout: const Duration(seconds: 3),
       );
 
-      print('🔍 Querying printer info for $ipAddress:$port');
+      AppLogger.debug('🔍 Querying printer info for $ipAddress:$port');
 
       // Initialize printer and get status
       final commands = [
@@ -440,7 +446,7 @@ class NetworkDiscoveryService {
           }
         }
       } catch (e) {
-        print('⚠️ Timeout collecting responses: $e');
+        AppLogger.warning('⚠️ Timeout collecting responses', error: e);
       }
 
       await socket.close();
@@ -461,7 +467,7 @@ class NetworkDiscoveryService {
 
         if (responseStr.isNotEmpty) {
           info['rawResponse'] = responseStr;
-          print('📝 Printer response: $responseStr');
+          AppLogger.debug('📝 Printer response: $responseStr');
         }
 
         // Enhanced parsing with paper size detection
@@ -473,7 +479,7 @@ class NetworkDiscoveryService {
         );
       }
     } catch (e) {
-      print('⚠️ Could not query printer info: $e');
+      AppLogger.warning('⚠️ Could not query printer info', error: e);
       info['supportsEscPos'] = false;
     }
 
@@ -496,7 +502,7 @@ class NetworkDiscoveryService {
           response.replaceAll(RegExp(r'[^\x20-\x7E]'), '').trim();
 
       if (cleanResponse.isNotEmpty) {
-        print('📄 Clean response: $cleanResponse');
+        AppLogger.debug('📄 Clean response: $cleanResponse');
 
         // Manufacturer detection (enhanced)
         final manufacturerPatterns = {
@@ -566,13 +572,15 @@ class NetworkDiscoveryService {
       );
       if (detectedPaperSize != null) {
         info['paperSize'] = detectedPaperSize;
-        print('📏 Detected paper size: $detectedPaperSize for $ipAddress');
+        AppLogger.info(
+          '📏 Detected paper size: $detectedPaperSize for $ipAddress',
+        );
       }
 
       // Status byte analysis for additional info
       _analyzeStatusBytes(rawBytes, info);
     } catch (e) {
-      print('⚠️ Error in enhanced parsing: $e');
+      AppLogger.error('⚠️ Error in enhanced parsing', error: e);
     }
   }
 
@@ -616,7 +624,7 @@ class NetworkDiscoveryService {
         return testResult;
       }
     } catch (e) {
-      print('⚠️ Paper width test failed: $e');
+      AppLogger.warning('⚠️ Paper width test failed', error: e);
     }
 
     // Method 3: Manufacturer default patterns
@@ -683,9 +691,9 @@ class NetworkDiscoveryService {
 
       // This is experimental - in practice, we can't easily determine
       // the paper size from the response, but we tried
-      print('📏 Paper width test completed for $ipAddress');
+      AppLogger.debug('📏 Paper width test completed for $ipAddress');
     } catch (e) {
-      print('⚠️ Paper width test error: $e');
+      AppLogger.error('⚠️ Paper width test error', error: e);
     }
 
     return null; // Unable to determine from test
@@ -718,7 +726,7 @@ class NetworkDiscoveryService {
         }
       }
     } catch (e) {
-      print('⚠️ Status byte analysis error: $e');
+      AppLogger.error('⚠️ Status byte analysis error', error: e);
     }
   }
 
@@ -746,7 +754,7 @@ class NetworkDiscoveryService {
       }
 
       onProgress?.call('🔍 Memindai jaringan $subnet.0/24...');
-      print('🔍 Memindai jaringan: $subnet');
+      AppLogger.info('🔍 Memindai jaringan: $subnet');
 
       final discoveredDevices = <DiscoveredDevice>[];
       int currentHost = 0;
@@ -785,7 +793,9 @@ class NetworkDiscoveryService {
               // Log the detected paper size
               final paperSize =
                   deviceDetails.deviceInfo['paperSize'] ?? 'unknown';
-              print('📏 Device ${device.ip} - Paper size: $paperSize');
+              AppLogger.debug(
+                '📏 Device ${device.ip} - Paper size: $paperSize',
+              );
             } else {
               // Update existing device with new port
               final updatedPorts = List<int>.from(existingDevice.openPorts);
@@ -812,7 +822,9 @@ class NetworkDiscoveryService {
       // Log paper sizes found
       for (final device in printerDevices) {
         final paperSize = device.deviceInfo['paperSize'] ?? 'unknown';
-        print('📋 Final: ${device.ipAddress} -> Paper size: $paperSize');
+        AppLogger.info(
+          '📋 Final: ${device.ipAddress} -> Paper size: $paperSize',
+        );
       }
 
       onProgress?.call(
@@ -821,7 +833,7 @@ class NetworkDiscoveryService {
 
       return printerDevices;
     } catch (e) {
-      print('❌ Error saat discover network: $e');
+      AppLogger.error('❌ Error saat discover network', error: e);
       throw Exception('Gagal memindai jaringan: $e');
     }
   }
@@ -836,7 +848,10 @@ class NetworkDiscoveryService {
       await socket.close();
       return true;
     } catch (e) {
-      print('❌ Test connection failed for $ipAddress:$port - $e');
+      AppLogger.error(
+        '❌ Test connection failed for $ipAddress:$port',
+        error: e,
+      );
       return false;
     }
   }
@@ -860,16 +875,16 @@ class NetworkDiscoveryService {
       // Wait a bit to ensure data is sent
       await Future.delayed(const Duration(milliseconds: 500));
 
-      print('✅ Test print berhasil dikirim ke ${printer.name}');
+      AppLogger.info('✅ Test print berhasil dikirim ke ${printer.name}');
       return true;
     } catch (e) {
-      print('❌ Test print gagal ke ${printer.name}: $e');
+      AppLogger.error('❌ Test print gagal ke ${printer.name}', error: e);
       return false;
     } finally {
       try {
         await socket?.close();
       } catch (e) {
-        print('⚠️ Error closing socket: $e');
+        AppLogger.warning('⚠️ Error closing socket', error: e);
       }
     }
   }

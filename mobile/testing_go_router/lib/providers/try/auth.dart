@@ -1,3 +1,4 @@
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/user.model.dart';
 import '../../repositories/auth_repository.dart';
@@ -41,7 +42,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
       final user = await _authRepository.login(username, password);
       state = AsyncValue.data(user);
     } catch (e, stackTrace) {
-      print("Login gagal: $e");
+      AppLogger.error("Login gagal", error: e);
       state = AsyncValue.error(e, stackTrace);
     }
   }
@@ -52,7 +53,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
       await _authRepository.logout();
       state = const AsyncValue.data(null);
     } catch (e, stackTrace) {
-      print("Logout gagal: $e");
+      AppLogger.error("Logout gagal", error: e);
       state = AsyncValue.error(e, stackTrace);
     }
   }

@@ -4,6 +4,7 @@ import '../models/user.model.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import '../services/hive_service.dart';
 import '../models/device.model.dart';
 
@@ -20,13 +21,13 @@ class AuthRepository {
 
       await _storage.saveDetailUser(userData);
       await _storage.saveUserData(userData.token, userData.id);
-      print('login berhasil $userData[outletId]');
+      AppLogger.info('Login successful for outlet: ${userData.outletId}');
       //masukan data user ke hive?
       await HiveService.saveUser(userData);
 
       return userData;
     } catch (e) {
-      print('login dan simpan data gagal $e');
+      AppLogger.error('Login failed', error: e);
       rethrow;
     }
   }
@@ -68,11 +69,11 @@ class AuthDevice {
       //   await deviceBox.put(device.id, device);
       // }
 
-      print('get devices: $devices');
+      AppLogger.debug('Devices fetched: ${devices.length}');
 
       return devices;
     } catch (e) {
-      print('error saat convert to model device: $e');
+      AppLogger.error('error saat convert to model device', error: e);
       throw Exception('Failed to fetch devices: $e');
     }
   }
@@ -89,7 +90,10 @@ class AuthDevice {
   }
 
   //login cashier to device
-  Future<bool> loginCashierToDevice(CashierModel cashier, DeviceModel device) async {
+  Future<bool> loginCashierToDevice(
+    CashierModel cashier,
+    DeviceModel device,
+  ) async {
     try {
       final token = await HiveService.userToken;
 

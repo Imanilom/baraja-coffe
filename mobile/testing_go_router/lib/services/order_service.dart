@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/adapters.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -20,11 +20,11 @@ class OrderService {
 
   Future<Map<String, dynamic>> createOrder(OrderDetailModel orderDetail) async {
     try {
-      debugPrint('order request: ${createOrderRequest(orderDetail)}');
-      debugPrint('log order: ${logOrder(orderDetail)}');
-      debugPrint('log menu item: ${logMenuItem(orderDetail)}');
-      debugPrint('log payments: ${logPayments(orderDetail)}');
-      debugPrint('log appliedPromo: ${logAppliedPRomo(orderDetail)}');
+      AppLogger.debug('order request: ${createOrderRequest(orderDetail)}');
+      AppLogger.debug('log order: ${logOrder(orderDetail)}');
+      AppLogger.debug('log menu item: ${logMenuItem(orderDetail)}');
+      AppLogger.debug('log payments: ${logPayments(orderDetail)}');
+      AppLogger.debug('log appliedPromo: ${logAppliedPRomo(orderDetail)}');
 
       Response response = await _dio.post(
         '/api/unified-order',
@@ -37,7 +37,7 @@ class OrderService {
           },
         ),
       );
-      debugPrint('response create order: ${response.data}');
+      AppLogger.debug('response create order: ${response.data}');
 
       return {
         'orderId': response.data['orderId'],
@@ -46,7 +46,7 @@ class OrderService {
         // 'paymentStatus': chargeResponse.data['paymentStatus'],
       };
     } on DioException catch (e) {
-      debugPrint('error create order: $e');
+      AppLogger.error('error create order', error: e);
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -69,7 +69,7 @@ class OrderService {
 
       return response.data;
     } on DioException catch (e) {
-      print('error fetch pending orders: ${e.response?.data}');
+      AppLogger.error('error fetch pending orders', error: e.response?.data);
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -94,7 +94,10 @@ class OrderService {
 
       return response.data;
     } on DioException catch (e) {
-      print('error fetch pending orders: ${e.response?.data}');
+      AppLogger.error(
+        'error fetch pending orders cashier',
+        error: e.response?.data,
+      );
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -127,14 +130,17 @@ class OrderService {
         ),
       );
 
-      print('response confirm order: ${response.data}');
+      AppLogger.info('response confirm order: ${response.data}');
       if (response.statusCode == 200) {
         return ConfirmOrderResponse.fromJson(response.data);
       } else {
         throw Exception('Failed to confirm order: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('error fetch order detail: ${e.response?.data}');
+      AppLogger.error(
+        'error fetch order detail in confirmPaidOrder',
+        error: e.response?.data,
+      );
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -142,7 +148,7 @@ class OrderService {
   Future<ProcessPaymentResponse> processPaymentOrder(
     ProcessPaymentRequest request,
   ) async {
-    print('process payment request: ${request.toJson()}');
+    AppLogger.debug('process payment request: ${request.toJson()}');
     try {
       Response response = await _dio.post(
         '/api/order/cashier/process-payment',
@@ -157,13 +163,16 @@ class OrderService {
       );
 
       if (response.statusCode == 200) {
-        print('response process payment: ${response.data}');
+        AppLogger.info('response process payment: ${response.data}');
         return ProcessPaymentResponse.fromJson(response.data);
       } else {
         throw Exception('Failed to process payment: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('error fetch order detail: ${e.response?.data}');
+      AppLogger.error(
+        'error fetch order detail in processPaymentOrder',
+        error: e.response?.data,
+      );
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -175,7 +184,7 @@ class OrderService {
     final box = Hive.box('userBox');
     final cashierId = box.get('cashier').id;
 
-    print('cashierId: $cashierId , orderId: ${orderDetail.orderId}');
+    AppLogger.debug('cashierId: $cashierId , orderId: ${orderDetail.orderId}');
 
     try {
       if (orderDetail.orderId == null) {
@@ -197,11 +206,14 @@ class OrderService {
         ),
       );
 
-      print('response confirm order: ${response.data}');
+      AppLogger.info('response confirm order: ${response.data}');
 
       return response.data;
     } on DioException catch (e) {
-      print('error fetch order detail: ${e.response?.data}');
+      AppLogger.error(
+        'error fetch order detail in confirmPendingOrder',
+        error: e.response?.data,
+      );
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -221,7 +233,7 @@ class OrderService {
 
       return response.data as List;
     } on DioException catch (e) {
-      print('error fetch order history: ${e.response?.data}');
+      AppLogger.error('error fetch order history', error: e.response?.data);
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -229,9 +241,9 @@ class OrderService {
   Future<OrderDetailModel> fetchOrderDetail(String orderId) async {
     final res = await _dio.get('/api/order/$orderId/cashier');
     final json = res.data['data']?['order'] ?? res.data['data'] ?? res.data;
-    print('response fetch order detail: $json');
+    AppLogger.debug('response fetch order detail: $json');
     final result = OrderDetailModel.fromJson(json);
-    print('result fetch order detail: $result');
+    AppLogger.debug('result fetch order detail: $result');
     return result;
   }
 
@@ -244,7 +256,7 @@ class OrderService {
         throw Exception("orderId atau menuItemId tidak boleh kosong");
       }
 
-      print('orderId: $orderId, menuItemId: $menuItemId');
+      AppLogger.debug('orderId: $orderId, menuItemId: $menuItemId');
 
       final res = await _dio.post(
         '/api/order/delete-order-item',
@@ -270,7 +282,7 @@ class OrderService {
       throw Exception("orderId tidak boleh kosong");
     }
 
-    print('orderId: $orderId, patchData: $patchData');
+    AppLogger.debug('orderId: $orderId, patchData: $patchData');
 
     try {
       final patchEditData = updateEditOrderRequest(
@@ -278,7 +290,7 @@ class OrderService {
         patchData.order?.items ?? [],
       );
 
-      print('patchEditData on order service: $patchEditData');
+      AppLogger.debug('patchEditData on order service: $patchEditData');
 
       final res = await _dio.patch(
         '/api/orders/$orderId/edit',
@@ -503,7 +515,7 @@ Map<String, dynamic> createChargeRequest(
   int tenderedAmount,
   int changeAmount,
 ) {
-  print(
+  AppLogger.debug(
     'create charge orderId: $orderId, grandTotal: $grandTotal, paymentType: $paymentType',
   );
 

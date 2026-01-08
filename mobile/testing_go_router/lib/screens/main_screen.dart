@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_ce/hive.dart';
@@ -308,7 +309,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               title: 'Settings',
               onTap: () {
                 context.pushNamed('settings');
-                print('tombol settings sudah ditekan');
+                AppLogger.debug('Settings button pressed');
               },
             ),
             _buildDrawerItem(
@@ -453,7 +454,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: isSelected ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : null,
+        color:
+            isSelected ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : null,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -631,7 +633,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       // Jalankan sinkronisasi yang kamu perlukan
       // NOTE: ganti/ambah sesuai kebutuhanmu (payment types, categories, dsb)
 
-      // print('hasil update data: ${reusltitem.length} items');
       // refresh ulang menu item dan reservation menu item
       // Contoh kalau mau paralel:
       await Future.wait([

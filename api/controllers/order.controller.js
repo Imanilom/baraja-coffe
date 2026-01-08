@@ -7615,6 +7615,7 @@ export const getPendingOrders = async (req, res) => {
       ],
     })
       .lean()
+      .limit(10) // untuk test
       .sort({ createdAt: -1 });
     log.timeEnd('query_orders');
     log.info('orders_fetched', {

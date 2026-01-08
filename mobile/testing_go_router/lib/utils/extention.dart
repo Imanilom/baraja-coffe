@@ -20,7 +20,8 @@ extension OrderCalculations on OrderDetailModel {
   //       (discounts['manualDiscount'] ?? 0) +
   //       (discounts['autoPromoDiscount'] ?? 0);
 
-  //   print('Data pending orders yg diambil: $discounts');
+  //
+  //   AppLogger.debug('Data pending orders yg diambil: $discounts');
 
   //   return copyWith(
   //     subTotalPrice: subtotal,

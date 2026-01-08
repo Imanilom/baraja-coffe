@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:kasirbaraja/utils/app_logger.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
@@ -27,20 +28,20 @@ class SocketService {
     });
 
     socket.onConnect((_) async {
-      print('CONNECTED: ${socket.id}');
+      AppLogger.info('CONNECTED: ${socket.id}');
       socket.emit('join_cashier_room', {'id': cashierId});
       final device = await HiveService.getDevice();
-      print('bersiap join area');
+      AppLogger.debug('bersiap join area');
       if (device != null && device.assignedAreas.isNotEmpty) {
-        print('mencoba join area');
+        AppLogger.debug('mencoba join area');
         joinArea(device.assignedAreas[0]);
       }
     });
-    socket.onDisconnect((_) => print('DISCONNECTED'));
-    socket.onError((err) => print('ERROR: $err'));
+    socket.onDisconnect((_) => AppLogger.warning('DISCONNECTED'));
+    socket.onError((err) => AppLogger.error('ERROR', error: err));
 
     socket.on('order_created', (data) {
-      print('order_created: $data');
+      AppLogger.info('order_created: $data');
       NotificationService.showSystemNotification(
         'Pesanan Baru',
         'Hello World!',
@@ -52,7 +53,7 @@ class SocketService {
     });
 
     socket.on('new_order', (data) {
-      print('new_order at my device: $data');
+      AppLogger.info('new_order at my device: $data');
       NotificationService.showSystemNotification(
         'Pesanan Baru',
         'Hello World! new_order',
@@ -64,7 +65,7 @@ class SocketService {
     });
 
     socket.on('new_order_created', (data) {
-      print('new_order_created at my device: $data');
+      AppLogger.info('new_order_created at my device: $data');
       NotificationService.showSystemNotification(
         'Pesanan Baru dari area device anda,',
         "cek detail di menu 'pesanan online'",
@@ -76,7 +77,7 @@ class SocketService {
     });
 
     socket.on('update_stock', (data) {
-      print('update_stock: $data');
+      AppLogger.info('update_stock: $data');
       NotificationService.showSystemNotification(
         'Stok Menu Diperbarui',
         "Stok menu telah diperbarui.",
@@ -92,19 +93,19 @@ class SocketService {
 
   void joinArea(String tableCode) {
     socket.emit('join_area', tableCode);
-    print('join_area_group: $tableCode');
+    AppLogger.info('join_area_group: $tableCode');
   }
 
   // Tambahkan method untuk meninggalkan area
   void leaveArea(String tableCode) {
     socket.emit('leave_area', tableCode);
-    print('leave_area: $tableCode');
+    AppLogger.info('leave_area: $tableCode');
   }
 
   // Tambahkan method untuk meninggalkan cashier room
   void leaveCashierRoom(String cashierId) {
     socket.emit('leave_cashier_room', {'id': cashierId});
-    print('leave_cashier_room: $cashierId');
+    AppLogger.info('leave_cashier_room: $cashierId');
   }
 
   void disconnect() {
@@ -131,7 +132,7 @@ class SocketService {
         'device:leaveAll',
         null,
         ack: (res) {
-          print('leaveAll ack: $res');
+          AppLogger.debug('leaveAll ack: $res');
         },
       );
       // Kalau versi package kamu belum ada Future-nya, cara di atas sudah cukup.
@@ -160,7 +161,7 @@ class SocketService {
       socket.disconnect();
     }
 
-    print('Left all rooms & disconnected');
+    AppLogger.info('Left all rooms & disconnected');
   }
 
   IO.Socket get instance => socket;

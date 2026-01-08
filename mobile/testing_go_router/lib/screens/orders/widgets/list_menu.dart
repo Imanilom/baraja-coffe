@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
@@ -159,7 +160,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
             )
             .toList();
 
-    print('selectedAddons: $selectedAddons');
+    AppLogger.debug('selectedAddons: $selectedAddons');
 
     final orderItem = OrderItemModel(
       menuItem: menuItem,
@@ -213,7 +214,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final promoGroup = ref.watch(promoGroupsProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
     final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
-    print('Promo Groups: $promoGroup');
+    AppLogger.debug('Promo Groups count: ${promoGroup.valueOrNull?.length}');
     const categories = [
       'promo',
       'All',
@@ -275,7 +276,6 @@ class _ListMenuState extends ConsumerState<ListMenu> {
 
                         if (category == 'promo') {
                           // paksa refetch realtime
-                          print('asd');
                           ref.invalidate(autopromoProvider);
                           ref.invalidate(promoGroupsProvider);
                         }

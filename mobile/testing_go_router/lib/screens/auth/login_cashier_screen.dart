@@ -2,6 +2,7 @@ import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/message_provider.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
@@ -33,12 +34,7 @@ class _ModernLoginCashierScreenState
 
   Future<void> debugCheckNotifPermission() async {
     final s = await Permission.notification.status;
-    debugPrint(
-      'NOTIF STATUS -> '
-      'granted=${s.isGranted}, denied=${s.isDenied}, '
-      'perma=${s.isPermanentlyDenied}, restricted=${s.isRestricted}, '
-      'limited=${s.isLimited}',
-    );
+    AppLogger.debug('Notification Permission Status: ${s.name}');
   }
 
   Future<void> _initNotification() async {
@@ -63,9 +59,9 @@ class _ModernLoginCashierScreenState
         }
       }
 
-      debugPrint('✅ Notifikasi berhasil diinisialisasi');
+      AppLogger.debug('Notifikasi berhasil diinisialisasi');
     } catch (e) {
-      debugPrint('❌ Gagal inisialisasi notifikasi: $e');
+      AppLogger.error('Gagal inisialisasi notifikasi', error: e);
     }
   }
 
@@ -371,7 +367,9 @@ class _ModernLoginCashierScreenState
                                   border: Border.all(color: Colors.grey[200]!),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),
@@ -663,13 +661,15 @@ class _ModernLoginCashierScreenState
 
                 try {
                   // 3. Login ke device
-                  print('Login ke device...');
+                  AppLogger.debug(
+                    'Logging in cashier to device: ${currentDevice.deviceName}',
+                  );
                   await ref
                       .read(cashierLoginToDeviceProvider.notifier)
                       .loginCashierToDevice(currentCashier, currentDevice);
-                  print('Login ke device selesai');
+                  AppLogger.debug('Device login completed');
                   // 4. Check hasil login device
-                  print('Check hasil login device...');
+                  AppLogger.debug('Checking device login result');
                   final loginState = ref.read(cashierLoginToDeviceProvider);
 
                   return loginState.when(
@@ -699,7 +699,11 @@ class _ModernLoginCashierScreenState
                       return false;
                     },
                     error: (error, stack) {
-                      print('Error: $error');
+                      AppLogger.error(
+                        'Device login error',
+                        error: error,
+                        stackTrace: stack,
+                      );
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('Error: ${error.toString()}'),
@@ -715,7 +719,7 @@ class _ModernLoginCashierScreenState
                   );
                 } catch (e) {
                   if (context.mounted) {
-                    print('Terjadi kesalahan: $e');
+                    AppLogger.error('Exception during device login', error: e);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Terjadi kesalahan: $e'),

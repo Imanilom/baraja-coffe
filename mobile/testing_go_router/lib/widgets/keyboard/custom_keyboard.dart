@@ -1,4 +1,5 @@
 import 'package:kasirbaraja/providers/auth_provider.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,7 +51,7 @@ class ModernCustomKeyboard extends ConsumerWidget {
   }
 
   Widget _buildCancelButton(WidgetRef ref, double size, double fontSize) {
-    print('Cancel button pressed');
+    AppLogger.debug('Cancel button pressed');
     return _buildButton(
       onTap: () => ref.read(selectedCashierProvider.notifier).state = null,
       child: Icon(Icons.close_rounded, size: fontSize, color: Colors.white),
@@ -63,7 +64,7 @@ class ModernCustomKeyboard extends ConsumerWidget {
     // print('Digit: $digit');
     return _buildButton(
       onTap: () {
-        print('Pressed digit: $digit');
+        AppLogger.debug('Pressed digit: $digit');
         onDigitPressed(digit);
       },
       child: Text(
@@ -80,7 +81,7 @@ class ModernCustomKeyboard extends ConsumerWidget {
   }
 
   Widget _buildDeleteButton(double size, double fontSize) {
-    print('Delete button pressed');
+    AppLogger.debug('Delete button pressed');
     return _buildButton(
       onTap: onDelete,
       child: Icon(

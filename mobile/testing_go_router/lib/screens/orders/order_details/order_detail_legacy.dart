@@ -16,6 +16,7 @@ import 'package:kasirbaraja/screens/orders/order_details/dialog_order_type.dart'
 import 'package:kasirbaraja/widgets/buttons/vertical_icon_text_button.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/widgets/dialogs/edit_order_item_dialog.dart';
 
 class OrderDetail extends ConsumerWidget {
@@ -816,7 +817,7 @@ class OrderDetail extends ConsumerWidget {
                                                 } else if (orderDetail
                                                         .tableNumber ==
                                                     null) {
-                                                  print(
+                                                  AppLogger.debug(
                                                     'nomor meja tidak boleh kosong',
                                                   );
                                                   ScaffoldMessenger.of(
@@ -924,7 +925,7 @@ class OrderDetail extends ConsumerWidget {
                                                   );
                                                   return;
                                                 }
-                                                print(
+                                                AppLogger.debug(
                                                   'order detail: $orderDetail',
                                                 );
                                                 context.push(

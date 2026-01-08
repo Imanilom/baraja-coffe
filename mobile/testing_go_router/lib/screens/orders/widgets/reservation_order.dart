@@ -1,5 +1,6 @@
 // screens/reservation_screen.dart - Updated with ConsumerWidget and Riverpod
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../models/table.dart';
@@ -66,7 +67,7 @@ class AreasNotifier extends StateNotifier<List<Area>> {
       );
       state = refreshedAreas.where((area) => area.isActive).toList();
     } catch (e) {
-      print('Error refreshing areas availability: $e');
+      AppLogger.error('Error refreshing areas availability', error: e);
     }
   }
 }
@@ -106,7 +107,7 @@ class TablesNotifier extends StateNotifier<List<TableModel>> {
       );
       state = result['tables'];
     } catch (e) {
-      print('Error refreshing tables availability: $e');
+      AppLogger.error('Error refreshing tables availability', error: e);
     }
   }
 
@@ -209,7 +210,7 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
         ref.read(selectedAreaProvider.notifier).state = updatedSelectedArea;
       }
     } catch (e) {
-      print('Error refreshing areas availability: $e');
+      AppLogger.error('Error refreshing areas availability', error: e);
     }
   }
 
@@ -278,7 +279,7 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
 
       ref.read(selectedTableIdsProvider.notifier).state = validTableIds;
     } catch (e) {
-      print('Error refreshing tables availability: $e');
+      AppLogger.error('Error refreshing tables availability', error: e);
     }
   }
 

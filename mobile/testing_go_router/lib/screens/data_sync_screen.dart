@@ -1,5 +1,6 @@
 // lib/screens/data_sync_screen.dart
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:kasirbaraja/services/data_sync_service.dart';
@@ -53,7 +54,7 @@ class _DataSyncScreenState extends ConsumerState<DataSyncScreen>
     });
 
     try {
-      print('waiting ...');
+      AppLogger.debug('Data sync starting...');
       await ref
           .read(dataSyncProvider.notifier)
           .syncData(token: widget.userToken);
@@ -160,7 +161,9 @@ class _DataSyncScreenState extends ConsumerState<DataSyncScreen>
                       width: 100,
                       height: 100,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                        color: Theme.of(
+                          context,
+                        ).primaryColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(50),
                         border: Border.all(
                           color: Theme.of(context).primaryColor,

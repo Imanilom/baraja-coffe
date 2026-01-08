@@ -3,6 +3,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
@@ -148,7 +149,7 @@ class BluetoothPrinterService implements IBluetoothPrinterService {
       );
       return connected;
     } catch (e) {
-      print('Bluetooth connect error: $e');
+      AppLogger.error('Bluetooth connect error', error: e);
       return false;
     }
   }
@@ -158,7 +159,7 @@ class BluetoothPrinterService implements IBluetoothPrinterService {
     try {
       await PrintBluetoothThermal.disconnect;
     } catch (e) {
-      print('Bluetooth disconnect error: $e');
+      AppLogger.error('Bluetooth disconnect error', error: e);
     }
   }
 
@@ -171,7 +172,7 @@ class BluetoothPrinterService implements IBluetoothPrinterService {
       // Return true to indicate success in this adapter stub.
       return true;
     } catch (e) {
-      print('Bluetooth print error: $e');
+      AppLogger.error('Bluetooth print error', error: e);
       return false;
     }
   }
@@ -248,7 +249,7 @@ class PermissionService {
           ].request();
       return perms.values.every((s) => s == PermissionStatus.granted);
     } catch (e) {
-      print('Permission error: $e');
+      AppLogger.error('Permission error', error: e);
       return false;
     }
   }
@@ -373,7 +374,7 @@ class GenericPrinterManagerNotifier
     try {
       return box.values.toList();
     } catch (e) {
-      print('Load saved printers error: $e');
+      AppLogger.error('Load saved printers error', error: e);
       return [];
     }
   }
@@ -590,7 +591,7 @@ class ActivePrinterNotifier extends Notifier<PrinterStatus?> {
       }
       state = null;
     } catch (e) {
-      print('Disconnect error: $e');
+      AppLogger.error('Disconnect error', error: e);
     }
   }
 }

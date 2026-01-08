@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
@@ -143,7 +144,7 @@ class PermissionService {
         (status) => status == PermissionStatus.granted,
       );
     } catch (e) {
-      print('Error requesting permissions: $e');
+      AppLogger.error('Error requesting permissions', error: e);
       return false;
     }
   }
@@ -158,7 +159,7 @@ class PermissionService {
           bluetoothConnect.isGranted &&
           location.isGranted;
     } catch (e) {
-      print('Error checking permissions: $e');
+      AppLogger.error('Error checking permissions', error: e);
       return false;
     }
   }
@@ -177,7 +178,7 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
       _box = ref.watch(printerBoxProvider);
       return _box.values.toList();
     } catch (e) {
-      print('Error loading saved printers: $e');
+      AppLogger.error('Error loading saved printers', error: e);
       return [];
     }
   }
@@ -187,7 +188,7 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
     try {
       return _box.get(address);
     } catch (e) {
-      print('Error getting printer by address: $e');
+      AppLogger.error('Error getting printer by address', error: e);
       return null;
     }
   }
@@ -211,7 +212,7 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
       return Result.success(null);
     } catch (e) {
       final errorMessage = 'Failed to add printer: ${e.toString()}';
-      print(errorMessage);
+      AppLogger.error(errorMessage, error: e);
       return Result.failure(errorMessage);
     }
   }
@@ -229,7 +230,7 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
       return Result.success(null);
     } catch (e) {
       final errorMessage = 'Failed to update printer: ${e.toString()}';
-      print(errorMessage);
+      AppLogger.error(errorMessage, error: e);
       return Result.failure(errorMessage);
     }
   }
@@ -252,7 +253,7 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
       return Result.success(null);
     } catch (e) {
       final errorMessage = 'Failed to remove printer: ${e.toString()}';
-      print(errorMessage);
+      AppLogger.error(errorMessage, error: e);
       return Result.failure(errorMessage);
     }
   }
@@ -280,7 +281,7 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
       return Result.success(null);
     } catch (e) {
       final errorMessage = 'Failed to print: ${e.toString()}';
-      print(errorMessage);
+      AppLogger.error(errorMessage, error: e);
       return Result.failure(errorMessage);
     }
   }
@@ -374,7 +375,7 @@ class PrinterScannerNotifier extends AsyncNotifier<PrinterScanResult> {
       );
     } catch (e) {
       final errorMessage = 'Failed to scan printers: ${e.toString()}';
-      print(errorMessage);
+      AppLogger.error(errorMessage, error: e);
 
       state = AsyncValue.data(
         PrinterScanResult(
@@ -542,7 +543,7 @@ class ActivePrinterConnectionNotifier extends Notifier<PrinterStatus?> {
 
       state = null;
     } catch (e) {
-      print('Error disconnecting: $e');
+      AppLogger.error('Error disconnecting', error: e);
     }
   }
 

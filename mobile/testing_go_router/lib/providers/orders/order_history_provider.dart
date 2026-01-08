@@ -1,6 +1,7 @@
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/repositories/order_history_repository.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final orderHistoryRepositoryProvider = Provider<OrderHistoryRepository>((ref) {
@@ -32,7 +33,7 @@ class OrderHistoryNotifier extends AsyncNotifier<List<OrderDetailModel>> {
 
       return orderHistory;
     } catch (e) {
-      print("Gagal mengambil data order history: ${e.toString()}");
+      AppLogger.error("Gagal mengambil data order history", error: e);
       rethrow;
     }
   }

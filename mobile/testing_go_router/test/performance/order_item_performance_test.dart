@@ -1,5 +1,6 @@
 // test/performance/order_item_performance_test.dart
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/extensions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -37,25 +38,25 @@ void main() {
       utilsStopwatch.stop();
 
       // Print hasil
-      print('\n=== Performance Comparison Results ===');
-      print(
+      AppLogger.info('\n=== Performance Comparison Results ===');
+      AppLogger.info(
         'Extensions approach: ${extensionsStopwatch.elapsedMicroseconds} microseconds',
       );
-      print(
+      AppLogger.info(
         'Utils approach: ${utilsStopwatch.elapsedMicroseconds} microseconds',
       );
-      print(
+      AppLogger.info(
         'Difference: ${(extensionsStopwatch.elapsedMicroseconds - utilsStopwatch.elapsedMicroseconds).abs()} microseconds',
       );
 
       if (extensionsStopwatch.elapsedMicroseconds <
           utilsStopwatch.elapsedMicroseconds) {
-        print('✅ Extensions is faster');
+        AppLogger.info('✅ Extensions is faster');
       } else if (utilsStopwatch.elapsedMicroseconds <
           extensionsStopwatch.elapsedMicroseconds) {
-        print('✅ Utils is faster');
+        AppLogger.info('✅ Utils is faster');
       } else {
-        print('⚖️ Both approaches have similar performance');
+        AppLogger.info('⚖️ Both approaches have similar performance');
       }
     });
 
@@ -82,25 +83,27 @@ void main() {
       utilsStopwatch.stop();
 
       // Print hasil
-      print('\n=== Performance Comparison Results (Except Method) ===');
-      print(
+      AppLogger.info(
+        '\n=== Performance Comparison Results (Except Method) ===',
+      );
+      AppLogger.info(
         'Extensions approach: ${extensionsStopwatch.elapsedMicroseconds} microseconds',
       );
-      print(
+      AppLogger.info(
         'Utils approach: ${utilsStopwatch.elapsedMicroseconds} microseconds',
       );
-      print(
+      AppLogger.info(
         'Difference: ${(extensionsStopwatch.elapsedMicroseconds - utilsStopwatch.elapsedMicroseconds).abs()} microseconds',
       );
 
       if (extensionsStopwatch.elapsedMicroseconds <
           utilsStopwatch.elapsedMicroseconds) {
-        print('✅ Extensions is faster');
+        AppLogger.info('✅ Extensions is faster');
       } else if (utilsStopwatch.elapsedMicroseconds <
           extensionsStopwatch.elapsedMicroseconds) {
-        print('✅ Utils is faster');
+        AppLogger.info('✅ Utils is faster');
       } else {
-        print('⚖️ Both approaches have similar performance');
+        AppLogger.info('⚖️ Both approaches have similar performance');
       }
     });
 
@@ -124,25 +127,27 @@ void main() {
       utilsStopwatch.stop();
 
       // Print hasil
-      print('\n=== Performance Comparison Results (Similarity Check) ===');
-      print(
+      AppLogger.info(
+        '\n=== Performance Comparison Results (Similarity Check) ===',
+      );
+      AppLogger.info(
         'Extensions approach: ${extensionsStopwatch.elapsedMicroseconds} microseconds',
       );
-      print(
+      AppLogger.info(
         'Utils approach: ${utilsStopwatch.elapsedMicroseconds} microseconds',
       );
-      print(
+      AppLogger.info(
         'Difference: ${(extensionsStopwatch.elapsedMicroseconds - utilsStopwatch.elapsedMicroseconds).abs()} microseconds',
       );
 
       if (extensionsStopwatch.elapsedMicroseconds <
           utilsStopwatch.elapsedMicroseconds) {
-        print('✅ Extensions is faster');
+        AppLogger.info('✅ Extensions is faster');
       } else if (utilsStopwatch.elapsedMicroseconds <
           extensionsStopwatch.elapsedMicroseconds) {
-        print('✅ Utils is faster');
+        AppLogger.info('✅ Utils is faster');
       } else {
-        print('⚖️ Both approaches have similar performance');
+        AppLogger.info('⚖️ Both approaches have similar performance');
       }
     });
 

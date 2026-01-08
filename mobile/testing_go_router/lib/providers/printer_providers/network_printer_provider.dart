@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
 
@@ -80,27 +81,29 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
           );
 
       // Enhanced logging dengan detail paper size
-      print('📡 === HASIL PEMINDAIAN PRINTER ===');
+      AppLogger.info('📡 === HASIL PEMINDAIAN PRINTER ===');
       for (int i = 0; i < discoveredDevices.length; i++) {
         final device = discoveredDevices[i];
         if (device.isPotentialPrinter) {
-          print('🖨️ Printer ${i + 1}:');
-          print('   IP: ${device.ipAddress}');
-          print(
+          AppLogger.debug('🖨️ Printer ${i + 1}:');
+          AppLogger.debug('   IP: ${device.ipAddress}');
+          AppLogger.debug(
             '   Manufacturer: ${device.deviceInfo['manufacturer'] ?? 'Unknown'}',
           );
-          print('   Model: ${device.deviceInfo['model'] ?? 'Unknown'}');
-          print(
+          AppLogger.debug(
+            '   Model: ${device.deviceInfo['model'] ?? 'Unknown'}',
+          );
+          AppLogger.debug(
             '   Paper Size: ${device.deviceInfo['paperSize'] ?? 'Not detected'}',
           );
-          print('   Ports: ${device.openPorts}');
-          print(
-            '   Response: ${device.deviceInfo['rawResponse']?.toString().substring(0, device.deviceInfo['rawResponse'].toString().length > 50 ? 50 : device.deviceInfo['rawResponse']?.toString().length ?? 0) ?? 'No response'}...',
+          AppLogger.debug('   Ports: ${device.openPorts}');
+          AppLogger.debug(
+            '   Response: ${device.deviceInfo['rawResponse']?.toString().substring(0, device.deviceInfo['rawResponse'].toString().length > 50 ? 50 : device.deviceInfo['rawResponse'].toString().length ?? 0) ?? 'No response'}...',
           );
-          print('   ---');
+          AppLogger.debug('   ---');
         }
       }
-      print('📡 === END HASIL PEMINDAIAN ===');
+      AppLogger.info('📡 === END HASIL PEMINDAIAN ===');
 
       // Convert discovered devices to printer models
       final foundPrinters =
@@ -109,7 +112,7 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
           ) {
             // Log paper size before conversion
             final paperSize = device.deviceInfo['paperSize'] ?? 'default';
-            print(
+            AppLogger.debug(
               '🔄 Converting ${device.ipAddress} -> Paper size akan: $paperSize',
             );
 
@@ -117,14 +120,16 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
           }).toList();
 
       // Final verification log
-      print('✅ Konversi selesai:');
+      AppLogger.info('✅ Konversi selesai:');
       for (int i = 0; i < foundPrinters.length; i++) {
         final printer = foundPrinters[i];
-        print('   ${i + 1}. ${printer.name}');
-        print('      Paper Size: ${printer.paperSize}');
-        print('      Address: ${printer.displayAddress}');
-        print('      Manufacturer: ${printer.manufacturer ?? 'Unknown'}');
-        print('      ---');
+        AppLogger.debug('   ${i + 1}. ${printer.name}');
+        AppLogger.debug('      Paper Size: ${printer.paperSize}');
+        AppLogger.debug('      Address: ${printer.displayAddress}');
+        AppLogger.debug(
+          '      Manufacturer: ${printer.manufacturer ?? 'Unknown'}',
+        );
+        AppLogger.debug('      ---');
       }
 
       state = state.copyWith(
@@ -135,7 +140,7 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
             'Pemindaian selesai. Ditemukan ${foundPrinters.length} printer.',
       );
     } catch (e) {
-      print('❌ Error dalam pemindaian: $e');
+      AppLogger.error('Error dalam pemindaian', error: e);
       state = state.copyWith(
         isScanning: false,
         error: e.toString(),
@@ -220,7 +225,7 @@ class NetworkPrinterManagerNotifier
       _box = ref.watch(printerBoxProvider);
       _loadNetworkPrinters();
     } catch (e) {
-      print('❌ Error accessing shared Hive box: $e');
+      AppLogger.error('Error accessing shared Hive box', error: e);
       state = [];
     }
   }
@@ -233,7 +238,7 @@ class NetworkPrinterManagerNotifier
           allPrinters.where((p) => p.isNetworkPrinter).toList();
       state = networkPrinters;
     } catch (e) {
-      print('❌ Error loading network printers: $e');
+      AppLogger.error('Error loading network printers', error: e);
       state = [];
     }
   }
@@ -253,9 +258,9 @@ class NetworkPrinterManagerNotifier
       // Trigger update to savedPrintersProvider as well
       ref.invalidate(savedPrintersProvider);
 
-      print('✅ Network printer saved: ${printer.name}');
+      AppLogger.info('✅ Network printer saved: ${printer.name}');
     } catch (e) {
-      print('❌ Error saving network printer: $e');
+      AppLogger.error('Error saving network printer', error: e);
       throw Exception('Gagal menyimpan printer: $e');
     }
   }
@@ -278,9 +283,9 @@ class NetworkPrinterManagerNotifier
       // Trigger update to savedPrintersProvider as well
       ref.invalidate(savedPrintersProvider);
 
-      print('✅ Network printer updated: ${printer.name}');
+      AppLogger.info('✅ Network printer updated: ${printer.name}');
     } catch (e) {
-      print('❌ Error updating network printer: $e');
+      AppLogger.error('Error updating network printer', error: e);
       throw Exception('Gagal mengupdate printer: $e');
     }
   }
@@ -298,9 +303,9 @@ class NetworkPrinterManagerNotifier
       // Trigger update to savedPrintersProvider as well
       ref.invalidate(savedPrintersProvider);
 
-      print('✅ Network printer deleted: $printerAddress');
+      AppLogger.info('✅ Network printer deleted: $printerAddress');
     } catch (e) {
-      print('❌ Error deleting network printer: $e');
+      AppLogger.error('Error deleting network printer', error: e);
       throw Exception('Gagal menghapus printer: $e');
     }
   }
