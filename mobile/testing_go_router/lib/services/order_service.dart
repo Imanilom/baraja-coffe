@@ -285,9 +285,23 @@ class OrderService {
     AppLogger.debug('orderId: $orderId, patchData: $patchData');
 
     try {
+      final order = patchData.order;
+      List<OrderItemModel> itemsToSend = order?.items ?? [];
+
+      // KHUSUS OPEN BILL: Hanya kirim item baru (tanpa orderItemid)
+      // Ini mencegah duplikasi karena backend bersifat "append" untuk Open Bill
+      if (order?.isOpenBill == true) {
+        itemsToSend =
+            itemsToSend
+                .where(
+                  (it) => it.orderItemid == null || it.orderItemid!.isEmpty,
+                )
+                .toList();
+      }
+
       final patchEditData = updateEditOrderRequest(
         patchData.reason ?? 'Update_Order_After_Payment',
-        patchData.order?.items ?? [],
+        itemsToSend,
       );
 
       AppLogger.debug('patchEditData on order service: $patchEditData');
@@ -309,16 +323,25 @@ class OrderService {
     }
   }
 
-  Future<Map<String, dynamic>> closeOpenBill(String orderId) async {
-    final box = Hive.box('userBox');
-    final user = box.get('user') as UserModel;
-    final loginDevice = box.get('device') as DeviceModel;
-
+  Future<Map<String, dynamic>> closeOpenBill(
+    String orderId,
+    String cashierId,
+  ) async {
     try {
       if (orderId.isEmpty) {
         throw Exception("orderId tidak boleh kosong");
       }
-      final res = await _dio.post('/api/open-bill/$orderId/close');
+      final res = await _dio.post(
+        '/api/open-bill/$orderId/close',
+        data: {'cashierId': cashierId},
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        ),
+      );
 
       if (res.data['success'] == true) {
         return res.data;

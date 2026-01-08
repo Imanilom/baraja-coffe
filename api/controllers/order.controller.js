@@ -3234,74 +3234,88 @@ const closeOpenBillHandler = async ({
       }
     }
 
-    // Validasi payment details
-    const validatedPaymentDetails = validateAndNormalizePaymentDetails(
-      paymentDetails,
-      isSplitPayment,
-      'Cashier'
-    );
+    // Validasi payment details (OPTIONAL SEKARANG)
+    // Jika tidak ada paymentDetails, kita anggap ini Close Bill tanpa bayar (Pending)
+    let validatedPaymentDetails = null;
+    let isPendingClose = true;
 
-    if (!validatedPaymentDetails) {
-      throw new Error('Payment details diperlukan untuk menutup open bill');
+    if (paymentDetails) {
+      validatedPaymentDetails = validateAndNormalizePaymentDetails(
+        paymentDetails,
+        isSplitPayment,
+        'Cashier'
+      );
+      if (validatedPaymentDetails) {
+        isPendingClose = false;
+      }
     }
 
-    // Hitung total yang harus dibayar
+    // Jika mau bayar langsung, validasi nominal
+    let totalPayment = 0;
     const totalToPay = order.grandTotal;
 
-    // Verifikasi payment amount
-    let totalPayment = 0;
-    if (Array.isArray(validatedPaymentDetails)) {
-      totalPayment = validatedPaymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-    } else {
-      totalPayment = validatedPaymentDetails.amount || 0;
-    }
+    if (!isPendingClose) {
+      // Verifikasi payment amount
+      if (Array.isArray(validatedPaymentDetails)) {
+        totalPayment = validatedPaymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+      } else {
+        totalPayment = validatedPaymentDetails.amount || 0;
+      }
 
-    if (totalPayment < totalToPay) {
-      throw new Error(`Jumlah pembayaran (${totalPayment}) kurang dari total tagihan (${totalToPay})`);
+      if (totalPayment < totalToPay) {
+        throw new Error(`Jumlah pembayaran (${totalPayment}) kurang dari total tagihan (${totalToPay})`);
+      }
     }
 
     // Update customer info
     if (customerName) order.user = customerName;
     if (customerPhone) order.contact = { phone: customerPhone };
 
-    // Proses pembayaran
-    const paymentResult = await processCashierPayment(
-      orderId,
-      validatedPaymentDetails,
-      {
-        grandTotal: totalToPay,
-        isSplitPayment: isSplitPayment
-      }
-    );
+    // Proses pembayaran (JIKA ADA)
+    if (!isPendingClose) {
+      const paymentResult = await processCashierPayment(
+        orderId,
+        validatedPaymentDetails,
+        {
+          grandTotal: totalToPay,
+          isSplitPayment: isSplitPayment
+        }
+      );
+    }
 
-    // Update order status berdasarkan hasil pembayaran
+    // Update order status
     order.openBillClosedAt = new Date();
     order.openBillStatus = 'closed';
-    order.status = 'Completed';
+    // Jika Pending Close -> Status Waiting (Menunggu Pembayaran)
+    // Jika Lunas -> Status Completed
+    order.status = isPendingClose ? 'Waiting' : 'Completed';
+
     order.cashierNotes = notes || order.cashierNotes;
 
-    // Update payments array
-    if (Array.isArray(validatedPaymentDetails)) {
-      validatedPaymentDetails.forEach((payment, index) => {
+    // Update payments array (HANYA JIKA BAYAR)
+    if (!isPendingClose) {
+      if (Array.isArray(validatedPaymentDetails)) {
+        validatedPaymentDetails.forEach((payment, index) => {
+          order.payments.push({
+            paymentMethod: payment.method || 'Cash',
+            amount: payment.amount || 0,
+            status: 'completed',
+            processedBy: cashierId,
+            processedAt: new Date(),
+            notes: `Split payment ${index + 1} of ${validatedPaymentDetails.length}`
+          });
+        });
+        order.isSplitPayment = true;
+      } else {
         order.payments.push({
-          paymentMethod: payment.method || 'Cash',
-          amount: payment.amount || 0,
+          paymentMethod: validatedPaymentDetails.method || 'Cash',
+          amount: validatedPaymentDetails.amount || 0,
           status: 'completed',
           processedBy: cashierId,
           processedAt: new Date(),
-          notes: `Split payment ${index + 1} of ${validatedPaymentDetails.length}`
+          notes: 'Final payment for open bill'
         });
-      });
-      order.isSplitPayment = true;
-    } else {
-      order.payments.push({
-        paymentMethod: validatedPaymentDetails.method || 'Cash',
-        amount: validatedPaymentDetails.amount || 0,
-        status: 'completed',
-        processedBy: cashierId,
-        processedAt: new Date(),
-        notes: 'Final payment for open bill'
-      });
+      }
     }
 
     // Hitung change jika ada
@@ -3444,6 +3458,8 @@ export const closeOpenBill = async (req, res) => {
       isSplitPayment = false
     } = req.body;
 
+    console.log('DEBUG CLOSE BILL BODY:', JSON.stringify(req.body, null, 2));
+
     if (!cashierId) {
       return res.status(400).json({
         success: false,
@@ -3451,12 +3467,12 @@ export const closeOpenBill = async (req, res) => {
       });
     }
 
-    if (!paymentDetails) {
-      return res.status(400).json({
-        success: false,
-        message: 'paymentDetails diperlukan'
-      });
-    }
+    // if (!paymentDetails) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'paymentDetails diperlukan'
+    //   });
+    // }
 
     console.log('🔒 Processing Open Bill close via dedicated endpoint:', orderId);
 
@@ -3530,7 +3546,8 @@ export const getOpenBillDetails = async (req, res) => {
           notes: item.notes,
           guestName: item.guestName,
           addedAt: item.addedAt,
-          kitchenStatus: item.kitchenStatus
+          kitchenStatus: item.kitchenStatus,
+          orderItemid: item._id?.toString() || ''
         })),
         cancelled: cancelledItems.map(item => ({
           name: item.menuItemData?.name || item.menuItem?.name,
@@ -7865,6 +7882,7 @@ export const getPendingOrders = async (req, res) => {
           quantity: item.quantity,
           isPrinted: item.isPrinted,
           notes: item.notes,
+          orderItemid: item._id?.toString() || ''
         };
       });
 
@@ -8295,6 +8313,7 @@ export const getOrderById = async (req, res) => {
         notes: item.notes,
         outletId: item.outletId || null,
         outletName: item.outletName || null,
+        orderItemid: item._id?.toString() || ''
       };
     });
 
@@ -9988,6 +10007,7 @@ export function toOrderDTO(orderDoc, paymentDocs = []) {
             : [],
         }))
         : [],
+      orderItemid: toStr(it._id ?? ''),
       subtotal: Number(it.subtotal ?? it.total ?? 0),
       quantity: Number(it.quantity ?? 1),
       isPrinted: !!it.isPrinted,

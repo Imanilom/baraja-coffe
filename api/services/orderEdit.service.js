@@ -442,19 +442,37 @@ export async function replaceOrderItemsAndAllocate({
         };
         const beforeItems = orderDoc.items.map(it => it.toObject());
 
-        // 2. normalisasi semua incoming
-        const normalizedIncoming = [];
-        for (const r of items) {
-            console.log('normalizing items', r);
-            const n = await normalizeIncomingItem(r);
-            normalizedIncoming.push(n);
-        }
-
         // 3. gabungkan locked + incoming (replace penuh bagian editable)
-        orderDoc.items = [
-            ...lockedItems,
-            ...normalizedIncoming,
-        ];
+        if (orderDoc.isOpenBill) {
+            // KHUSUS OPEN BILL: Hanya boleh tambah.
+            const newItemList = [];
+            for (const r of items) {
+                // Item tanpa orderItemid dianggap item BARU
+                if (!r.orderItemid) {
+                    const n = await normalizeIncomingItem(r);
+                    newItemList.push(n);
+                }
+            }
+            // Kita HANYA menambahkan yang benar-benar baru ke list yang sudah ada di DB.
+            // PERINGATAN: Jika frontend mengirim kembali item yang sudah didefinisikan di DB
+            // tapi TANPA orderItemid, maka akan terjadi duplikasi. 
+            // Itulah mengapa orderItemid sangat krusial di DTO dan Payload.
+            orderDoc.items = [
+                ...orderDoc.items,
+                ...newItemList,
+            ];
+        } else {
+            // REGULAR ORDER: Logika lama (Locked + All Normalized Incoming)
+            const normalizedIncoming = [];
+            for (const r of items) {
+                const n = await normalizeIncomingItem(r);
+                normalizedIncoming.push(n);
+            }
+            orderDoc.items = [
+                ...lockedItems,
+                ...normalizedIncoming,
+            ];
+        }
 
         // 4. recalc total (pakai rasio pajak lama kayak tadi)
         // 4. Recalculate total + discounts + tax & service dari nol

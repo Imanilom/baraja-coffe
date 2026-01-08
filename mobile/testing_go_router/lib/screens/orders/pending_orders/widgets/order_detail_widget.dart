@@ -65,7 +65,7 @@ class OrderDetailWidget extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  order.orderId!,
+                  order.orderId ?? '-',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -74,7 +74,11 @@ class OrderDetailWidget extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  DateFormat('dd MMM yyyy, HH:mm').format(order.createdAt!),
+                  order.createdAt != null
+                      ? DateFormat(
+                        'dd MMM yyyy, HH:mm',
+                      ).format(order.createdAt!)
+                      : '-',
                   style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],

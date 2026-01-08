@@ -288,6 +288,7 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
   }
 
   bool _sameItem(OrderItemModel a, OrderItemModel b) {
+    if (a.orderItemid != b.orderItemid) return false;
     if (a.menuItem.id != b.menuItem.id) return false;
     if ((a.notes ?? '') != (b.notes ?? '')) return false;
     if (a.orderType != b.orderType) return false;

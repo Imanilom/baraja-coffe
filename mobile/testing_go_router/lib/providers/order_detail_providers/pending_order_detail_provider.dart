@@ -50,8 +50,14 @@ class PendingOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
 
   Future<bool> closeBill(WidgetRef ref, String orderId) async {
     try {
+      final cashier = await HiveService.getCashier();
+
+      if (cashier?.id == null) {
+        throw Exception("Cashier ID not found in local storage");
+      }
+
       final orderService = OrderService();
-      final result = await orderService.closeOpenBill(orderId);
+      final result = await orderService.closeOpenBill(orderId, cashier!.id!);
 
       if (result['success'] == true) {
         // 1. Refresh list pending order
