@@ -12,6 +12,8 @@ pub mod product;
 pub mod supplier;
 pub mod marketlist;
 pub mod recipe;
+pub mod report;
+
 
 pub use auth::*;
 pub use menu::*;
