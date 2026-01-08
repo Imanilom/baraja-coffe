@@ -5,6 +5,7 @@ import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 
@@ -116,7 +117,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withOpacity(0.1),
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Icon(
@@ -179,7 +180,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50).withOpacity(0.1),
+                        color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Icon(
@@ -538,7 +539,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
       decoration: BoxDecoration(
         color:
             isSelected
-                ? const Color(0xFF4CAF50).withOpacity(0.1)
+                ? const Color(0xFF4CAF50).withValues(alpha: 0.1)
                 : Colors.white,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
@@ -764,7 +765,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
       orderType: selectedOrderType,
     );
 
-    print('OrderItem orderType: ${edited.orderType}');
+    AppLogger.debug('OrderItem orderType: ${edited.orderType}');
 
     widget.onAddOrder(edited);
     widget.onClose();
@@ -891,7 +892,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
                 setState(() {
                   selectedOrderType = newSelection.first;
                 });
-                print('Selected Order Type: $selectedOrderType');
+                AppLogger.debug('Selected Order Type: $selectedOrderType');
               },
               showSelectedIcon: false,
             ),

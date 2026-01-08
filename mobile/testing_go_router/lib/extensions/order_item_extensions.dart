@@ -3,6 +3,7 @@ import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:collection/collection.dart';
 
 extension OrderItemListExtensions on List<OrderItemModel> {
@@ -35,7 +36,9 @@ extension OrderItemListExtensions on List<OrderItemModel> {
   /// Debug helper untuk semua items
   void debugPrintAllItems() {
     for (int i = 0; i < length; i++) {
-      print('Item $i: ${this[i].menuItem.name} - ${this[i].menuItem.id}');
+      AppLogger.debug(
+        'Item $i: ${this[i].menuItem.name} - ${this[i].menuItem.id}',
+      );
     }
   }
 }
@@ -90,26 +93,28 @@ extension OrderItemModelExtensions on OrderItemModel {
 
   /// Debug helper untuk mencetak detail item ini
   void debugPrint() {
-    print('OrderItem: ${menuItem.name} (${menuItem.id})');
-    print('Toppings: ${selectedToppings.map((e) => e.name).join(", ")}');
-    print('Addons: ${selectedAddons.map((e) => e.name).join(", ")}');
-    print('Notes: $notes');
-    print('Quantity: $quantity');
+    AppLogger.debug('OrderItem: ${menuItem.name} (${menuItem.id})');
+    AppLogger.debug(
+      'Toppings: ${selectedToppings.map((e) => e.name).join(", ")}',
+    );
+    AppLogger.debug('Addons: ${selectedAddons.map((e) => e.name).join(", ")}');
+    AppLogger.debug('Notes: $notes');
+    AppLogger.debug('Quantity: $quantity');
   }
 
   /// Debug helper untuk membandingkan dengan item lain
   void debugCompareWith(OrderItemModel other) {
-    print('Comparing items:');
-    print('  This: ${menuItem.name} (${menuItem.id})');
-    print('  Other: ${other.menuItem.name} (${other.menuItem.id})');
-    print('  Menu ID equal: ${menuItem.id == other.menuItem.id}');
-    print(
+    AppLogger.debug('Comparing items:');
+    AppLogger.debug('  This: ${menuItem.name} (${menuItem.id})');
+    AppLogger.debug('  Other: ${other.menuItem.name} (${other.menuItem.id})');
+    AppLogger.debug('  Menu ID equal: ${menuItem.id == other.menuItem.id}');
+    AppLogger.debug(
       '  Toppings equal: ${_areToppingsEqual(selectedToppings, other.selectedToppings)}',
     );
-    print(
+    AppLogger.debug(
       '  Addons equal: ${_areAddonsEqual(selectedAddons, other.selectedAddons)}',
     );
-    print('  Notes equal: ${_areNotesEqual(notes, other.notes)}');
-    print('  Overall similar: ${isSimilarTo(other)}');
+    AppLogger.debug('  Notes equal: ${_areNotesEqual(notes, other.notes)}');
+    AppLogger.debug('  Overall similar: ${isSimilarTo(other)}');
   }
 }

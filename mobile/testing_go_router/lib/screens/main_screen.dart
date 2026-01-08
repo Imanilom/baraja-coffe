@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_ce/hive.dart';
@@ -10,7 +11,9 @@ import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
+import 'package:kasirbaraja/providers/promotion_providers/auto_promo_provider.dart';
 import 'package:kasirbaraja/providers/tax_and_service_provider.dart';
+import 'package:kasirbaraja/repositories/auto_promo_repository.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/repositories/payment_method_repository.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
@@ -221,7 +224,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     context: context,
                     ref: ref,
                     icon: Icons.pending_actions,
-                    title: 'Pending Order',
+                    title: 'Open Bill',
                     isSelected: currentPageIndex == 1,
                     onTap: () {
                       if (currentPageIndex != 1) {
@@ -306,7 +309,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               title: 'Settings',
               onTap: () {
                 context.pushNamed('settings');
-                print('tombol settings sudah ditekan');
+                AppLogger.debug('Settings button pressed');
               },
             ),
             _buildDrawerItem(
@@ -415,7 +418,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                   borderRadius: BorderRadius.circular(32),
                   side: const BorderSide(color: Color(0xFF4CAF50)),
                 ),
-                backgroundColor: const Color(0xFF4CAF50).withOpacity(0.1),
+                backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.1),
               ),
               onPressed: () {
                 context.pushNamed('promotions');
@@ -451,7 +454,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: isSelected ? const Color(0xFF4CAF50).withOpacity(0.1) : null,
+        color:
+            isSelected ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : null,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -629,13 +633,14 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       // Jalankan sinkronisasi yang kamu perlukan
       // NOTE: ganti/ambah sesuai kebutuhanmu (payment types, categories, dsb)
 
-      // print('hasil update data: ${reusltitem.length} items');
       // refresh ulang menu item dan reservation menu item
       // Contoh kalau mau paralel:
       await Future.wait([
         MenuItemRepository().getMenuItem(),
         TaxAndServiceRepository().getTaxAndServices(),
         PaymentMethodRepository().getPaymentMethods(),
+        AutoPromoRepository().getAutoPromos(),
+        AutoPromoRepository().getLocalPromoGroups(),
       ]);
 
       // (Opsional) refresh/invalidasi provider agar UI ambil data terbaru
@@ -643,6 +648,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       ref.invalidate(paymentTypesProvider);
       ref.invalidate(taxProvider);
       ref.invalidate(reservationMenuItemProvider);
+      ref.invalidate(autopromoProvider);
+      ref.invalidate(promoGroupsProvider);
 
       // Tutup snackbar loading
       loading.close();

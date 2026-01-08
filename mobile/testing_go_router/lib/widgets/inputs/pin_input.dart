@@ -168,7 +168,7 @@ class _ModernPinInputState extends ConsumerState<ModernPinInput>
                                                   ? [
                                                     BoxShadow(
                                                       color: Colors.blue
-                                                          .withOpacity(0.3),
+                                                          .withValues(alpha: 0.3),
                                                       blurRadius: 6,
                                                       offset: const Offset(
                                                         0,

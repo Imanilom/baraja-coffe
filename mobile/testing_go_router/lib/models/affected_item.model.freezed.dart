@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AffectedItemModel {
 
-@HiveField(0) String get menuItem;@HiveField(1) String get menuItemName;@HiveField(2) int get quantity;@HiveField(3) int get originalSubtotal;@HiveField(4) int get discountAmount;@HiveField(5) int get discountedSubtotal;@HiveField(6) int? get discountPercentage;@HiveField(7)@JsonKey(name: '_id') String? get id;
+@HiveField(0) String get menuItem;@HiveField(1) String get menuItemName;@HiveField(2) int? get quantity;@HiveField(3) int? get originalSubtotal;@HiveField(4) int? get discountAmount;@HiveField(5) int? get discountedSubtotal;@HiveField(6) int? get discountPercentage;@HiveField(7)@JsonKey(name: '_id') String? get id;
 /// Create a copy of AffectedItemModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $AffectedItemModelCopyWith<$Res>  {
   factory $AffectedItemModelCopyWith(AffectedItemModel value, $Res Function(AffectedItemModel) _then) = _$AffectedItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) String menuItem,@HiveField(1) String menuItemName,@HiveField(2) int quantity,@HiveField(3) int originalSubtotal,@HiveField(4) int discountAmount,@HiveField(5) int discountedSubtotal,@HiveField(6) int? discountPercentage,@HiveField(7)@JsonKey(name: '_id') String? id
+@HiveField(0) String menuItem,@HiveField(1) String menuItemName,@HiveField(2) int? quantity,@HiveField(3) int? originalSubtotal,@HiveField(4) int? discountAmount,@HiveField(5) int? discountedSubtotal,@HiveField(6) int? discountPercentage,@HiveField(7)@JsonKey(name: '_id') String? id
 });
 
 
@@ -65,15 +65,15 @@ class _$AffectedItemModelCopyWithImpl<$Res>
 
 /// Create a copy of AffectedItemModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? menuItem = null,Object? menuItemName = null,Object? quantity = null,Object? originalSubtotal = null,Object? discountAmount = null,Object? discountedSubtotal = null,Object? discountPercentage = freezed,Object? id = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? menuItem = null,Object? menuItemName = null,Object? quantity = freezed,Object? originalSubtotal = freezed,Object? discountAmount = freezed,Object? discountedSubtotal = freezed,Object? discountPercentage = freezed,Object? id = freezed,}) {
   return _then(_self.copyWith(
 menuItem: null == menuItem ? _self.menuItem : menuItem // ignore: cast_nullable_to_non_nullable
 as String,menuItemName: null == menuItemName ? _self.menuItemName : menuItemName // ignore: cast_nullable_to_non_nullable
-as String,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
-as int,originalSubtotal: null == originalSubtotal ? _self.originalSubtotal : originalSubtotal // ignore: cast_nullable_to_non_nullable
-as int,discountAmount: null == discountAmount ? _self.discountAmount : discountAmount // ignore: cast_nullable_to_non_nullable
-as int,discountedSubtotal: null == discountedSubtotal ? _self.discountedSubtotal : discountedSubtotal // ignore: cast_nullable_to_non_nullable
-as int,discountPercentage: freezed == discountPercentage ? _self.discountPercentage : discountPercentage // ignore: cast_nullable_to_non_nullable
+as String,quantity: freezed == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
+as int?,originalSubtotal: freezed == originalSubtotal ? _self.originalSubtotal : originalSubtotal // ignore: cast_nullable_to_non_nullable
+as int?,discountAmount: freezed == discountAmount ? _self.discountAmount : discountAmount // ignore: cast_nullable_to_non_nullable
+as int?,discountedSubtotal: freezed == discountedSubtotal ? _self.discountedSubtotal : discountedSubtotal // ignore: cast_nullable_to_non_nullable
+as int?,discountPercentage: freezed == discountPercentage ? _self.discountPercentage : discountPercentage // ignore: cast_nullable_to_non_nullable
 as int?,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
@@ -160,7 +160,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  String menuItem, @HiveField(1)  String menuItemName, @HiveField(2)  int quantity, @HiveField(3)  int originalSubtotal, @HiveField(4)  int discountAmount, @HiveField(5)  int discountedSubtotal, @HiveField(6)  int? discountPercentage, @HiveField(7)@JsonKey(name: '_id')  String? id)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  String menuItem, @HiveField(1)  String menuItemName, @HiveField(2)  int? quantity, @HiveField(3)  int? originalSubtotal, @HiveField(4)  int? discountAmount, @HiveField(5)  int? discountedSubtotal, @HiveField(6)  int? discountPercentage, @HiveField(7)@JsonKey(name: '_id')  String? id)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AffectedItemModel() when $default != null:
 return $default(_that.menuItem,_that.menuItemName,_that.quantity,_that.originalSubtotal,_that.discountAmount,_that.discountedSubtotal,_that.discountPercentage,_that.id);case _:
@@ -181,7 +181,7 @@ return $default(_that.menuItem,_that.menuItemName,_that.quantity,_that.originalS
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  String menuItem, @HiveField(1)  String menuItemName, @HiveField(2)  int quantity, @HiveField(3)  int originalSubtotal, @HiveField(4)  int discountAmount, @HiveField(5)  int discountedSubtotal, @HiveField(6)  int? discountPercentage, @HiveField(7)@JsonKey(name: '_id')  String? id)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  String menuItem, @HiveField(1)  String menuItemName, @HiveField(2)  int? quantity, @HiveField(3)  int? originalSubtotal, @HiveField(4)  int? discountAmount, @HiveField(5)  int? discountedSubtotal, @HiveField(6)  int? discountPercentage, @HiveField(7)@JsonKey(name: '_id')  String? id)  $default,) {final _that = this;
 switch (_that) {
 case _AffectedItemModel():
 return $default(_that.menuItem,_that.menuItemName,_that.quantity,_that.originalSubtotal,_that.discountAmount,_that.discountedSubtotal,_that.discountPercentage,_that.id);case _:
@@ -201,7 +201,7 @@ return $default(_that.menuItem,_that.menuItemName,_that.quantity,_that.originalS
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  String menuItem, @HiveField(1)  String menuItemName, @HiveField(2)  int quantity, @HiveField(3)  int originalSubtotal, @HiveField(4)  int discountAmount, @HiveField(5)  int discountedSubtotal, @HiveField(6)  int? discountPercentage, @HiveField(7)@JsonKey(name: '_id')  String? id)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  String menuItem, @HiveField(1)  String menuItemName, @HiveField(2)  int? quantity, @HiveField(3)  int? originalSubtotal, @HiveField(4)  int? discountAmount, @HiveField(5)  int? discountedSubtotal, @HiveField(6)  int? discountPercentage, @HiveField(7)@JsonKey(name: '_id')  String? id)?  $default,) {final _that = this;
 switch (_that) {
 case _AffectedItemModel() when $default != null:
 return $default(_that.menuItem,_that.menuItemName,_that.quantity,_that.originalSubtotal,_that.discountAmount,_that.discountedSubtotal,_that.discountPercentage,_that.id);case _:
@@ -216,15 +216,15 @@ return $default(_that.menuItem,_that.menuItemName,_that.quantity,_that.originalS
 @JsonSerializable()
 
 class _AffectedItemModel implements AffectedItemModel {
-   _AffectedItemModel({@HiveField(0) required this.menuItem, @HiveField(1) required this.menuItemName, @HiveField(2) required this.quantity, @HiveField(3) required this.originalSubtotal, @HiveField(4) required this.discountAmount, @HiveField(5) required this.discountedSubtotal, @HiveField(6) this.discountPercentage = 0, @HiveField(7)@JsonKey(name: '_id') this.id = null});
+   _AffectedItemModel({@HiveField(0) required this.menuItem, @HiveField(1) required this.menuItemName, @HiveField(2) this.quantity = 0, @HiveField(3) this.originalSubtotal = 0, @HiveField(4) this.discountAmount = 0, @HiveField(5) this.discountedSubtotal = 0, @HiveField(6) this.discountPercentage = 0, @HiveField(7)@JsonKey(name: '_id') this.id = null});
   factory _AffectedItemModel.fromJson(Map<String, dynamic> json) => _$AffectedItemModelFromJson(json);
 
 @override@HiveField(0) final  String menuItem;
 @override@HiveField(1) final  String menuItemName;
-@override@HiveField(2) final  int quantity;
-@override@HiveField(3) final  int originalSubtotal;
-@override@HiveField(4) final  int discountAmount;
-@override@HiveField(5) final  int discountedSubtotal;
+@override@JsonKey()@HiveField(2) final  int? quantity;
+@override@JsonKey()@HiveField(3) final  int? originalSubtotal;
+@override@JsonKey()@HiveField(4) final  int? discountAmount;
+@override@JsonKey()@HiveField(5) final  int? discountedSubtotal;
 @override@JsonKey()@HiveField(6) final  int? discountPercentage;
 @override@HiveField(7)@JsonKey(name: '_id') final  String? id;
 
@@ -261,7 +261,7 @@ abstract mixin class _$AffectedItemModelCopyWith<$Res> implements $AffectedItemM
   factory _$AffectedItemModelCopyWith(_AffectedItemModel value, $Res Function(_AffectedItemModel) _then) = __$AffectedItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) String menuItem,@HiveField(1) String menuItemName,@HiveField(2) int quantity,@HiveField(3) int originalSubtotal,@HiveField(4) int discountAmount,@HiveField(5) int discountedSubtotal,@HiveField(6) int? discountPercentage,@HiveField(7)@JsonKey(name: '_id') String? id
+@HiveField(0) String menuItem,@HiveField(1) String menuItemName,@HiveField(2) int? quantity,@HiveField(3) int? originalSubtotal,@HiveField(4) int? discountAmount,@HiveField(5) int? discountedSubtotal,@HiveField(6) int? discountPercentage,@HiveField(7)@JsonKey(name: '_id') String? id
 });
 
 
@@ -278,15 +278,15 @@ class __$AffectedItemModelCopyWithImpl<$Res>
 
 /// Create a copy of AffectedItemModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? menuItem = null,Object? menuItemName = null,Object? quantity = null,Object? originalSubtotal = null,Object? discountAmount = null,Object? discountedSubtotal = null,Object? discountPercentage = freezed,Object? id = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? menuItem = null,Object? menuItemName = null,Object? quantity = freezed,Object? originalSubtotal = freezed,Object? discountAmount = freezed,Object? discountedSubtotal = freezed,Object? discountPercentage = freezed,Object? id = freezed,}) {
   return _then(_AffectedItemModel(
 menuItem: null == menuItem ? _self.menuItem : menuItem // ignore: cast_nullable_to_non_nullable
 as String,menuItemName: null == menuItemName ? _self.menuItemName : menuItemName // ignore: cast_nullable_to_non_nullable
-as String,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
-as int,originalSubtotal: null == originalSubtotal ? _self.originalSubtotal : originalSubtotal // ignore: cast_nullable_to_non_nullable
-as int,discountAmount: null == discountAmount ? _self.discountAmount : discountAmount // ignore: cast_nullable_to_non_nullable
-as int,discountedSubtotal: null == discountedSubtotal ? _self.discountedSubtotal : discountedSubtotal // ignore: cast_nullable_to_non_nullable
-as int,discountPercentage: freezed == discountPercentage ? _self.discountPercentage : discountPercentage // ignore: cast_nullable_to_non_nullable
+as String,quantity: freezed == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
+as int?,originalSubtotal: freezed == originalSubtotal ? _self.originalSubtotal : originalSubtotal // ignore: cast_nullable_to_non_nullable
+as int?,discountAmount: freezed == discountAmount ? _self.discountAmount : discountAmount // ignore: cast_nullable_to_non_nullable
+as int?,discountedSubtotal: freezed == discountedSubtotal ? _self.discountedSubtotal : discountedSubtotal // ignore: cast_nullable_to_non_nullable
+as int?,discountPercentage: freezed == discountPercentage ? _self.discountPercentage : discountPercentage // ignore: cast_nullable_to_non_nullable
 as int?,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,
   ));

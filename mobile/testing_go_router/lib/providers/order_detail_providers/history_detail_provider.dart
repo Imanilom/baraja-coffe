@@ -1,4 +1,5 @@
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 
@@ -28,7 +29,7 @@ class HistoryDetailProvider extends StateNotifier<OrderDetailModel?> {
 
   // Hitung total harga dari daftar pesanan
   int get subTotalPrice {
-    print('menghitung history subtotal');
+    AppLogger.debug('menghitung history subtotal');
     if (state != null) {
       return state!.items.fold(0, (sum, item) => sum + item.subtotal);
     } else {

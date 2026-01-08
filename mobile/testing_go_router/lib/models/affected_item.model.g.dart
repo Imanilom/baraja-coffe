@@ -19,10 +19,10 @@ class AffectedItemModelAdapter extends TypeAdapter<AffectedItemModel> {
     return AffectedItemModel(
       menuItem: fields[0] as String,
       menuItemName: fields[1] as String,
-      quantity: (fields[2] as num).toInt(),
-      originalSubtotal: (fields[3] as num).toInt(),
-      discountAmount: (fields[4] as num).toInt(),
-      discountedSubtotal: (fields[5] as num).toInt(),
+      quantity: fields[2] == null ? 0 : (fields[2] as num?)?.toInt(),
+      originalSubtotal: fields[3] == null ? 0 : (fields[3] as num?)?.toInt(),
+      discountAmount: fields[4] == null ? 0 : (fields[4] as num?)?.toInt(),
+      discountedSubtotal: fields[5] == null ? 0 : (fields[5] as num?)?.toInt(),
       discountPercentage: fields[6] == null ? 0 : (fields[6] as num?)?.toInt(),
       id: fields[7] == null ? null : fields[7] as String?,
     );
@@ -69,10 +69,10 @@ _AffectedItemModel _$AffectedItemModelFromJson(Map<String, dynamic> json) =>
     _AffectedItemModel(
       menuItem: json['menuItem'] as String,
       menuItemName: json['menuItemName'] as String,
-      quantity: (json['quantity'] as num).toInt(),
-      originalSubtotal: (json['originalSubtotal'] as num).toInt(),
-      discountAmount: (json['discountAmount'] as num).toInt(),
-      discountedSubtotal: (json['discountedSubtotal'] as num).toInt(),
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+      originalSubtotal: (json['originalSubtotal'] as num?)?.toInt() ?? 0,
+      discountAmount: (json['discountAmount'] as num?)?.toInt() ?? 0,
+      discountedSubtotal: (json['discountedSubtotal'] as num?)?.toInt() ?? 0,
       discountPercentage: (json['discountPercentage'] as num?)?.toInt() ?? 0,
       id: json['_id'] as String? ?? null,
     );

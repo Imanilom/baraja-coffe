@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$OrderItemModel {
 
-@HiveField(0) MenuItemModel get menuItem;@HiveField(1) List<ToppingModel> get selectedToppings;@HiveField(2) List<AddonModel> get selectedAddons;@HiveField(3) int get quantity;@HiveField(4) String? get notes;@HiveField(5) int get subtotal;@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType get orderType;@HiveField(7) String? get orderItemid;@HiveField(8) bool get isPrinted;@HiveField(9) int get printedQuantity;@HiveField(10) List<String> get printBatchIds;
+@HiveField(0) MenuItemModel get menuItem;@HiveField(1) List<ToppingModel> get selectedToppings;@HiveField(2) List<AddonModel> get selectedAddons;@HiveField(3) int get quantity;@HiveField(4) String? get notes;@HiveField(5) int get subtotal;@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType get orderType;@HiveField(7) String? get orderItemid;@HiveField(8) bool get isPrinted;@HiveField(9) int get printedQuantity;@HiveField(10) List<String> get printBatchIds;@HiveField(11) String? get reservedPromoId;
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $OrderItemModelCopyWith<OrderItemModel> get copyWith => _$OrderItemModelCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is OrderItemModel&&(identical(other.menuItem, menuItem) || other.menuItem == menuItem)&&const DeepCollectionEquality().equals(other.selectedToppings, selectedToppings)&&const DeepCollectionEquality().equals(other.selectedAddons, selectedAddons)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.subtotal, subtotal) || other.subtotal == subtotal)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.orderItemid, orderItemid) || other.orderItemid == orderItemid)&&(identical(other.isPrinted, isPrinted) || other.isPrinted == isPrinted)&&(identical(other.printedQuantity, printedQuantity) || other.printedQuantity == printedQuantity)&&const DeepCollectionEquality().equals(other.printBatchIds, printBatchIds));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is OrderItemModel&&(identical(other.menuItem, menuItem) || other.menuItem == menuItem)&&const DeepCollectionEquality().equals(other.selectedToppings, selectedToppings)&&const DeepCollectionEquality().equals(other.selectedAddons, selectedAddons)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.subtotal, subtotal) || other.subtotal == subtotal)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.orderItemid, orderItemid) || other.orderItemid == orderItemid)&&(identical(other.isPrinted, isPrinted) || other.isPrinted == isPrinted)&&(identical(other.printedQuantity, printedQuantity) || other.printedQuantity == printedQuantity)&&const DeepCollectionEquality().equals(other.printBatchIds, printBatchIds)&&(identical(other.reservedPromoId, reservedPromoId) || other.reservedPromoId == reservedPromoId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,menuItem,const DeepCollectionEquality().hash(selectedToppings),const DeepCollectionEquality().hash(selectedAddons),quantity,notes,subtotal,orderType,orderItemid,isPrinted,printedQuantity,const DeepCollectionEquality().hash(printBatchIds));
+int get hashCode => Object.hash(runtimeType,menuItem,const DeepCollectionEquality().hash(selectedToppings),const DeepCollectionEquality().hash(selectedAddons),quantity,notes,subtotal,orderType,orderItemid,isPrinted,printedQuantity,const DeepCollectionEquality().hash(printBatchIds),reservedPromoId);
 
 @override
 String toString() {
-  return 'OrderItemModel(menuItem: $menuItem, selectedToppings: $selectedToppings, selectedAddons: $selectedAddons, quantity: $quantity, notes: $notes, subtotal: $subtotal, orderType: $orderType, orderItemid: $orderItemid, isPrinted: $isPrinted, printedQuantity: $printedQuantity, printBatchIds: $printBatchIds)';
+  return 'OrderItemModel(menuItem: $menuItem, selectedToppings: $selectedToppings, selectedAddons: $selectedAddons, quantity: $quantity, notes: $notes, subtotal: $subtotal, orderType: $orderType, orderItemid: $orderItemid, isPrinted: $isPrinted, printedQuantity: $printedQuantity, printBatchIds: $printBatchIds, reservedPromoId: $reservedPromoId)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $OrderItemModelCopyWith<$Res>  {
   factory $OrderItemModelCopyWith(OrderItemModel value, $Res Function(OrderItemModel) _then) = _$OrderItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(7) String? orderItemid,@HiveField(8) bool isPrinted,@HiveField(9) int printedQuantity,@HiveField(10) List<String> printBatchIds
+@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(7) String? orderItemid,@HiveField(8) bool isPrinted,@HiveField(9) int printedQuantity,@HiveField(10) List<String> printBatchIds,@HiveField(11) String? reservedPromoId
 });
 
 
@@ -65,7 +65,7 @@ class _$OrderItemModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,Object? subtotal = null,Object? orderType = null,Object? orderItemid = freezed,Object? isPrinted = null,Object? printedQuantity = null,Object? printBatchIds = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,Object? subtotal = null,Object? orderType = null,Object? orderItemid = freezed,Object? isPrinted = null,Object? printedQuantity = null,Object? printBatchIds = null,Object? reservedPromoId = freezed,}) {
   return _then(_self.copyWith(
 menuItem: null == menuItem ? _self.menuItem : menuItem // ignore: cast_nullable_to_non_nullable
 as MenuItemModel,selectedToppings: null == selectedToppings ? _self.selectedToppings : selectedToppings // ignore: cast_nullable_to_non_nullable
@@ -78,7 +78,8 @@ as OrderType,orderItemid: freezed == orderItemid ? _self.orderItemid : orderItem
 as String?,isPrinted: null == isPrinted ? _self.isPrinted : isPrinted // ignore: cast_nullable_to_non_nullable
 as bool,printedQuantity: null == printedQuantity ? _self.printedQuantity : printedQuantity // ignore: cast_nullable_to_non_nullable
 as int,printBatchIds: null == printBatchIds ? _self.printBatchIds : printBatchIds // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as List<String>,reservedPromoId: freezed == reservedPromoId ? _self.reservedPromoId : reservedPromoId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 /// Create a copy of OrderItemModel
@@ -172,10 +173,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  MenuItemModel menuItem, @HiveField(1)  List<ToppingModel> selectedToppings, @HiveField(2)  List<AddonModel> selectedAddons, @HiveField(3)  int quantity, @HiveField(4)  String? notes, @HiveField(5)  int subtotal, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(7)  String? orderItemid, @HiveField(8)  bool isPrinted, @HiveField(9)  int printedQuantity, @HiveField(10)  List<String> printBatchIds)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  MenuItemModel menuItem, @HiveField(1)  List<ToppingModel> selectedToppings, @HiveField(2)  List<AddonModel> selectedAddons, @HiveField(3)  int quantity, @HiveField(4)  String? notes, @HiveField(5)  int subtotal, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(7)  String? orderItemid, @HiveField(8)  bool isPrinted, @HiveField(9)  int printedQuantity, @HiveField(10)  List<String> printBatchIds, @HiveField(11)  String? reservedPromoId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _OrderItemModel() when $default != null:
-return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that.quantity,_that.notes,_that.subtotal,_that.orderType,_that.orderItemid,_that.isPrinted,_that.printedQuantity,_that.printBatchIds);case _:
+return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that.quantity,_that.notes,_that.subtotal,_that.orderType,_that.orderItemid,_that.isPrinted,_that.printedQuantity,_that.printBatchIds,_that.reservedPromoId);case _:
   return orElse();
 
 }
@@ -193,10 +194,10 @@ return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  MenuItemModel menuItem, @HiveField(1)  List<ToppingModel> selectedToppings, @HiveField(2)  List<AddonModel> selectedAddons, @HiveField(3)  int quantity, @HiveField(4)  String? notes, @HiveField(5)  int subtotal, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(7)  String? orderItemid, @HiveField(8)  bool isPrinted, @HiveField(9)  int printedQuantity, @HiveField(10)  List<String> printBatchIds)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  MenuItemModel menuItem, @HiveField(1)  List<ToppingModel> selectedToppings, @HiveField(2)  List<AddonModel> selectedAddons, @HiveField(3)  int quantity, @HiveField(4)  String? notes, @HiveField(5)  int subtotal, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(7)  String? orderItemid, @HiveField(8)  bool isPrinted, @HiveField(9)  int printedQuantity, @HiveField(10)  List<String> printBatchIds, @HiveField(11)  String? reservedPromoId)  $default,) {final _that = this;
 switch (_that) {
 case _OrderItemModel():
-return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that.quantity,_that.notes,_that.subtotal,_that.orderType,_that.orderItemid,_that.isPrinted,_that.printedQuantity,_that.printBatchIds);case _:
+return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that.quantity,_that.notes,_that.subtotal,_that.orderType,_that.orderItemid,_that.isPrinted,_that.printedQuantity,_that.printBatchIds,_that.reservedPromoId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -213,10 +214,10 @@ return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  MenuItemModel menuItem, @HiveField(1)  List<ToppingModel> selectedToppings, @HiveField(2)  List<AddonModel> selectedAddons, @HiveField(3)  int quantity, @HiveField(4)  String? notes, @HiveField(5)  int subtotal, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(7)  String? orderItemid, @HiveField(8)  bool isPrinted, @HiveField(9)  int printedQuantity, @HiveField(10)  List<String> printBatchIds)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  MenuItemModel menuItem, @HiveField(1)  List<ToppingModel> selectedToppings, @HiveField(2)  List<AddonModel> selectedAddons, @HiveField(3)  int quantity, @HiveField(4)  String? notes, @HiveField(5)  int subtotal, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson)  OrderType orderType, @HiveField(7)  String? orderItemid, @HiveField(8)  bool isPrinted, @HiveField(9)  int printedQuantity, @HiveField(10)  List<String> printBatchIds, @HiveField(11)  String? reservedPromoId)?  $default,) {final _that = this;
 switch (_that) {
 case _OrderItemModel() when $default != null:
-return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that.quantity,_that.notes,_that.subtotal,_that.orderType,_that.orderItemid,_that.isPrinted,_that.printedQuantity,_that.printBatchIds);case _:
+return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that.quantity,_that.notes,_that.subtotal,_that.orderType,_that.orderItemid,_that.isPrinted,_that.printedQuantity,_that.printBatchIds,_that.reservedPromoId);case _:
   return null;
 
 }
@@ -228,7 +229,7 @@ return $default(_that.menuItem,_that.selectedToppings,_that.selectedAddons,_that
 @JsonSerializable()
 
 class _OrderItemModel extends OrderItemModel {
-   _OrderItemModel({@HiveField(0) required this.menuItem, @HiveField(1) final  List<ToppingModel> selectedToppings = const [], @HiveField(2) final  List<AddonModel> selectedAddons = const [], @HiveField(3) this.quantity = 1, @HiveField(4) this.notes = "", @HiveField(5) this.subtotal = 0, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) this.orderType = OrderType.dineIn, @HiveField(7) this.orderItemid = null, @HiveField(8) this.isPrinted = false, @HiveField(9) this.printedQuantity = 0, @HiveField(10) final  List<String> printBatchIds = const []}): _selectedToppings = selectedToppings,_selectedAddons = selectedAddons,_printBatchIds = printBatchIds,super._();
+   _OrderItemModel({@HiveField(0) required this.menuItem, @HiveField(1) final  List<ToppingModel> selectedToppings = const [], @HiveField(2) final  List<AddonModel> selectedAddons = const [], @HiveField(3) this.quantity = 1, @HiveField(4) this.notes = "", @HiveField(5) this.subtotal = 0, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) this.orderType = OrderType.dineIn, @HiveField(7) this.orderItemid = null, @HiveField(8) this.isPrinted = false, @HiveField(9) this.printedQuantity = 0, @HiveField(10) final  List<String> printBatchIds = const [], @HiveField(11) this.reservedPromoId = null}): _selectedToppings = selectedToppings,_selectedAddons = selectedAddons,_printBatchIds = printBatchIds,super._();
   factory _OrderItemModel.fromJson(Map<String, dynamic> json) => _$OrderItemModelFromJson(json);
 
 @override@HiveField(0) final  MenuItemModel menuItem;
@@ -260,6 +261,7 @@ class _OrderItemModel extends OrderItemModel {
   return EqualUnmodifiableListView(_printBatchIds);
 }
 
+@override@JsonKey()@HiveField(11) final  String? reservedPromoId;
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
@@ -274,16 +276,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OrderItemModel&&(identical(other.menuItem, menuItem) || other.menuItem == menuItem)&&const DeepCollectionEquality().equals(other._selectedToppings, _selectedToppings)&&const DeepCollectionEquality().equals(other._selectedAddons, _selectedAddons)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.subtotal, subtotal) || other.subtotal == subtotal)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.orderItemid, orderItemid) || other.orderItemid == orderItemid)&&(identical(other.isPrinted, isPrinted) || other.isPrinted == isPrinted)&&(identical(other.printedQuantity, printedQuantity) || other.printedQuantity == printedQuantity)&&const DeepCollectionEquality().equals(other._printBatchIds, _printBatchIds));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OrderItemModel&&(identical(other.menuItem, menuItem) || other.menuItem == menuItem)&&const DeepCollectionEquality().equals(other._selectedToppings, _selectedToppings)&&const DeepCollectionEquality().equals(other._selectedAddons, _selectedAddons)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.subtotal, subtotal) || other.subtotal == subtotal)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.orderItemid, orderItemid) || other.orderItemid == orderItemid)&&(identical(other.isPrinted, isPrinted) || other.isPrinted == isPrinted)&&(identical(other.printedQuantity, printedQuantity) || other.printedQuantity == printedQuantity)&&const DeepCollectionEquality().equals(other._printBatchIds, _printBatchIds)&&(identical(other.reservedPromoId, reservedPromoId) || other.reservedPromoId == reservedPromoId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,menuItem,const DeepCollectionEquality().hash(_selectedToppings),const DeepCollectionEquality().hash(_selectedAddons),quantity,notes,subtotal,orderType,orderItemid,isPrinted,printedQuantity,const DeepCollectionEquality().hash(_printBatchIds));
+int get hashCode => Object.hash(runtimeType,menuItem,const DeepCollectionEquality().hash(_selectedToppings),const DeepCollectionEquality().hash(_selectedAddons),quantity,notes,subtotal,orderType,orderItemid,isPrinted,printedQuantity,const DeepCollectionEquality().hash(_printBatchIds),reservedPromoId);
 
 @override
 String toString() {
-  return 'OrderItemModel(menuItem: $menuItem, selectedToppings: $selectedToppings, selectedAddons: $selectedAddons, quantity: $quantity, notes: $notes, subtotal: $subtotal, orderType: $orderType, orderItemid: $orderItemid, isPrinted: $isPrinted, printedQuantity: $printedQuantity, printBatchIds: $printBatchIds)';
+  return 'OrderItemModel(menuItem: $menuItem, selectedToppings: $selectedToppings, selectedAddons: $selectedAddons, quantity: $quantity, notes: $notes, subtotal: $subtotal, orderType: $orderType, orderItemid: $orderItemid, isPrinted: $isPrinted, printedQuantity: $printedQuantity, printBatchIds: $printBatchIds, reservedPromoId: $reservedPromoId)';
 }
 
 
@@ -294,7 +296,7 @@ abstract mixin class _$OrderItemModelCopyWith<$Res> implements $OrderItemModelCo
   factory _$OrderItemModelCopyWith(_OrderItemModel value, $Res Function(_OrderItemModel) _then) = __$OrderItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(7) String? orderItemid,@HiveField(8) bool isPrinted,@HiveField(9) int printedQuantity,@HiveField(10) List<String> printBatchIds
+@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(7) String? orderItemid,@HiveField(8) bool isPrinted,@HiveField(9) int printedQuantity,@HiveField(10) List<String> printBatchIds,@HiveField(11) String? reservedPromoId
 });
 
 
@@ -311,7 +313,7 @@ class __$OrderItemModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,Object? subtotal = null,Object? orderType = null,Object? orderItemid = freezed,Object? isPrinted = null,Object? printedQuantity = null,Object? printBatchIds = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,Object? subtotal = null,Object? orderType = null,Object? orderItemid = freezed,Object? isPrinted = null,Object? printedQuantity = null,Object? printBatchIds = null,Object? reservedPromoId = freezed,}) {
   return _then(_OrderItemModel(
 menuItem: null == menuItem ? _self.menuItem : menuItem // ignore: cast_nullable_to_non_nullable
 as MenuItemModel,selectedToppings: null == selectedToppings ? _self._selectedToppings : selectedToppings // ignore: cast_nullable_to_non_nullable
@@ -324,7 +326,8 @@ as OrderType,orderItemid: freezed == orderItemid ? _self.orderItemid : orderItem
 as String?,isPrinted: null == isPrinted ? _self.isPrinted : isPrinted // ignore: cast_nullable_to_non_nullable
 as bool,printedQuantity: null == printedQuantity ? _self.printedQuantity : printedQuantity // ignore: cast_nullable_to_non_nullable
 as int,printBatchIds: null == printBatchIds ? _self._printBatchIds : printBatchIds // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as List<String>,reservedPromoId: freezed == reservedPromoId ? _self.reservedPromoId : reservedPromoId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

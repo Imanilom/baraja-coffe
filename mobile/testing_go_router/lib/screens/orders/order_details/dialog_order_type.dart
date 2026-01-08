@@ -94,7 +94,7 @@ class OrderTypeSelectionDialog extends ConsumerWidget {
           ),
           color:
               isSelected
-                  ? Theme.of(context).primaryColor.withOpacity(0.1)
+                  ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
                   : Colors.transparent,
         ),
         child: Row(

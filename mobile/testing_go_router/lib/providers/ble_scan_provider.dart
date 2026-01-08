@@ -39,7 +39,6 @@
 //         }
 //       },
 //       onError: (e) {
-//         print("BLE scan error: $e");
 //       },
 //     );
 //   }

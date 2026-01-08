@@ -1,4 +1,5 @@
 import 'package:kasirbaraja/services/api_response_handler.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 
@@ -21,9 +22,8 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
-      print('Connecting to: ${AppConfig.baseUrl}/api/auth/signin');
-      print('username: $username');
-      print('password: $password');
+      AppLogger.info('Connecting to: ${AppConfig.baseUrl}/api/auth/signin');
+      AppLogger.debug('username: $username');
 
       Response response = await _dio.post(
         '/api/auth/signin',
@@ -37,10 +37,10 @@ class AuthService {
         data: {"identifier": username, "password": password},
       );
 
-      print('response awal Login');
+      AppLogger.info('response awal Login');
       return response.data;
     } on DioException catch (e) {
-      print('error login: $e');
+      AppLogger.error('error login', error: e);
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -55,7 +55,7 @@ class AuthService {
       );
 
       final result = Map<String, dynamic>.from(res.data);
-      print('hasil dari get device $result');
+      AppLogger.debug('hasil dari get device');
       return result;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);
@@ -93,7 +93,7 @@ class AuthService {
     try {
       final body = <String, dynamic>{'cashierId': cashierId};
       // if (role != null && role.isNotEmpty) body['role'] = role;
-      print("body login cashier to device: $body");
+      AppLogger.debug("body login cashier to device: $body");
       final res = await _dio.post(
         '/api/cashierauth/devices/$deviceId/login-cashier',
         data: body,
@@ -103,9 +103,8 @@ class AuthService {
       if (!res.data['success']) {
         throw Exception(res.data['message']);
       }
-      print("result login cashier to device: ${res.data}");
+      AppLogger.debug("result login cashier to device: ${res.data}");
       final result = Map<String, dynamic>.from(res.data);
-      print("result login cashier to device: $result");
 
       return result;
     } on DioException catch (e) {
@@ -128,7 +127,7 @@ class AuthService {
         throw Exception(res.data['message']);
       }
 
-      print('result logout cashier from device: ${res.data}');
+      AppLogger.info('result logout cashier from device: ${res.data}');
       return res.data;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);

@@ -570,20 +570,23 @@ export async function replaceOrderItemsAndAllocate({
 
         // 6. alokasikan ke payment (PAKAI FUNGSI YANG SUDAH ADA)
         console.log('allocateDeltaToPayments');
-        const effects = await allocateDeltaToPayments({
-            orderDoc,
-            grandDelta: delta.grandDelta,
-            session,
-            revisionId: revision[0]._id,
-            reason,
-        });
+        //jika isopenbill true maka tidak perlu alokasikan
+        if (orderDoc.isOpenBill != true) {
+            const effects = await allocateDeltaToPayments({
+                orderDoc,
+                grandDelta: delta.grandDelta,
+                session,
+                revisionId: revision[0]._id,
+                reason,
+            });
 
-        // 7. update revision dengan effects
-        await OrderRevision.updateOne(
-            { _id: revision[0]._id },
-            { $set: { effects } },
-            { session },
-        );
+            // 7. update revision dengan effects
+            await OrderRevision.updateOne(
+                { _id: revision[0]._id },
+                { $set: { effects } },
+                { session },
+            );
+        };
 
         // 8. simpan order
         if (orderDoc.status.toLowerCase() == 'cancled') {

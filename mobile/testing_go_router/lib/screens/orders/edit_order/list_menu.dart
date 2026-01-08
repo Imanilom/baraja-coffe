@@ -5,7 +5,7 @@ import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/order_editor_provider.dart';
 import 'package:kasirbaraja/widgets/cards/event_item_card.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
 import 'package:kasirbaraja/widgets/dialogs/add_custom_amount_dialog.dart';
@@ -61,8 +61,6 @@ class _LisMenuState extends ConsumerState<ListMenu> {
       return;
     }
 
-    final notifier = ref.read(onlineOrderEditorProvider.notifier);
-
     final List<AddonModel> selectedAddons =
         menuItem.addons!
             .map((addon) {
@@ -99,7 +97,7 @@ class _LisMenuState extends ConsumerState<ListMenu> {
           (context) => AddOrderItemDialog(
             orderItem: orderItem,
             onAddOrder: (addOrderItem) {
-              notifier.addItem(addOrderItem);
+              ref.read(orderEditorProvider.notifier).addItem(addOrderItem);
             },
             onClose: () => Navigator.pop(context),
           ),

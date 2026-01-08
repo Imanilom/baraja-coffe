@@ -1,5 +1,6 @@
 import 'package:kasirbaraja/services/api_response_handler.dart';
 import 'package:dio/dio.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 
 class TaxAndServiceService {
@@ -12,11 +13,11 @@ class TaxAndServiceService {
         options: Options(headers: {'ngrok-skip-browser-warning': true}),
       );
 
-      print('response tax and service: ${response.data}');
+      AppLogger.debug('response tax and service: ${response.data}');
 
       return response.data;
     } on DioException catch (e) {
-      print('error fetch tax and service: ${e.response?.data}');
+      AppLogger.error('error fetch tax and service', error: e.response?.data);
       throw ApiResponseHandler.handleError(e);
     }
   }

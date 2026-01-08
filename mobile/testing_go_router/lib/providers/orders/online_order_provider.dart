@@ -3,6 +3,7 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/repositories/online_order_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:kasirbaraja/models/payments/process_payment_request.dart';
@@ -244,7 +245,7 @@ class ProcessPaymentRequestNotifier
     state = state!.copyWith(
       selectedPaymentId: [...state!.selectedPaymentId!, paymentId],
     );
-    print('Payment selected $paymentId');
+    AppLogger.debug('Payment selected: $paymentId');
   }
 
   void selectedPaymentType(String? orderId, String paymentType) {

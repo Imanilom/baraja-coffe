@@ -18,6 +18,8 @@ abstract class AppliedPromosModel with _$AppliedPromosModel {
     @HiveField(4) @Default([]) List<AffectedItemModel> affectedItems,
     @HiveField(5) @Default([]) List<FreeItemModel> freeItems,
     @HiveField(6) @Default(null) @JsonKey(name: '_id') String? id,
+    @HiveField(7) @Default(1) int? appliedCount,
+    @HiveField(8) @Default(1) int? bundleSets,
   }) = _AppliedPromosModel;
 
   factory AppliedPromosModel.fromJson(Map<String, dynamic> json) =>

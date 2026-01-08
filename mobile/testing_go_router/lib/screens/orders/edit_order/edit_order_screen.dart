@@ -1,8 +1,9 @@
 //edit_order_screen.dart
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/order_editor_provider.dart';
 import 'package:kasirbaraja/screens/orders/edit_order/list_menu.dart';
 import 'package:kasirbaraja/screens/orders/edit_order/order_detail_edit.dart';
 
@@ -19,10 +20,11 @@ class _EditOrderScreenState extends ConsumerState<EditOrderScreen> {
   void initState() {
     super.initState();
     final orderDetail = widget.orderDetail;
-    print('Edit Order Detail Arguments: $orderDetail');
+    AppLogger.debug('Edit Order Detail: ${orderDetail.orderId}');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(onlineOrderEditorProvider.notifier).clearAll();
-      ref.read(onlineOrderEditorProvider.notifier).load(orderDetail);
+      ref.watch(orderEditorProvider);
+      final notifier = ref.read(orderEditorProvider.notifier);
+      notifier.load(orderDetail);
     });
   }
 

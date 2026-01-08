@@ -2,6 +2,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/services/tax_and_service_service.dart';
 
 class TaxAndServiceRepository {
@@ -17,7 +18,9 @@ class TaxAndServiceRepository {
       if (_box.isEmpty) {
         final taxAndServicesResponse =
             await _taxAndServiceService.fetchTaxAndServices();
-        print('fetched tax and services: ${taxAndServicesResponse['data']}');
+        AppLogger.debug(
+          'fetched tax and services: ${taxAndServicesResponse['data']}',
+        );
         final taxAndServicesList =
             (taxAndServicesResponse['data'] as List)
                 .map((json) => TaxAndServiceModel.fromJson(json))
@@ -30,7 +33,7 @@ class TaxAndServiceRepository {
 
       return getTaxOnly();
     } catch (e) {
-      print("Failed to fetch tax and services: ${e.toString()}");
+      AppLogger.error('Failed to fetch tax and services', error: e);
       rethrow;
     }
   }
@@ -83,7 +86,7 @@ class TaxAndServiceRepository {
       final activeTaxes = await getActiveTaxesForOutlet(outletId);
 
       if (activeTaxes.isEmpty) {
-        print('No active taxes found for outlet: $outletId');
+        AppLogger.debug('No active taxes found for outlet: $outletId');
         return 0;
       }
 
@@ -96,14 +99,16 @@ class TaxAndServiceRepository {
       // Hitung tax amount dan bulatkan
       final taxAmount = (subtotal * totalTaxPercentage / 100).round();
 
-      print('Tax calculation:');
-      print('- Subtotal: Rp $subtotal');
-      print('- Total tax percentage: $totalTaxPercentage%');
-      print('- Tax amount: Rp $taxAmount');
+      AppLogger.debug(
+        'Tax calculation:\n'
+        '- Subtotal: Rp $subtotal\n'
+        '- Total tax percentage: $totalTaxPercentage%\n'
+        '- Tax amount: Rp $taxAmount',
+      );
 
       return taxAmount;
     } catch (e) {
-      print('Error calculating tax: $e');
+      AppLogger.error('Error calculating tax', error: e);
       return 0;
     }
   }
@@ -114,7 +119,9 @@ class TaxAndServiceRepository {
       final activeServices = await getActiveServicesForOutlet(outletId);
 
       if (activeServices.isEmpty) {
-        print('No active service charges found for outlet: $outletId');
+        AppLogger.debug(
+          'No active service charges found for outlet: $outletId',
+        );
         return 0;
       }
 
@@ -127,14 +134,16 @@ class TaxAndServiceRepository {
       // Hitung service amount dan bulatkan
       final serviceAmount = (subtotal * totalServicePercentage / 100).round();
 
-      print('Service charge calculation:');
-      print('- Subtotal: Rp $subtotal');
-      print('- Total service percentage: $totalServicePercentage%');
-      print('- Service amount: Rp $serviceAmount');
+      AppLogger.debug(
+        'Service charge calculation:\n'
+        '- Subtotal: Rp $subtotal\n'
+        '- Total service percentage: $totalServicePercentage%\n'
+        '- Service amount: Rp $serviceAmount',
+      );
 
       return serviceAmount;
     } catch (e) {
-      print('Error calculating service charge: $e');
+      AppLogger.error('Error calculating service charge', error: e);
       return 0;
     }
   }
@@ -182,7 +191,7 @@ class TaxAndServiceRepository {
         totalTaxPercentage: totalTaxPercentage,
       );
     } catch (e) {
-      print('Error getting tax breakdown: $e');
+      AppLogger.error('Error getting tax breakdown', error: e);
       return TaxBreakdownResult(
         taxes: [],
         totalTaxAmount: 0,
@@ -234,7 +243,7 @@ class TaxAndServiceRepository {
         totalServicePercentage: totalServicePercentage,
       );
     } catch (e) {
-      print('Error getting service breakdown: $e');
+      AppLogger.error('Error getting service breakdown', error: e);
       return ServiceBreakdownResult(
         services: [],
         totalServiceAmount: 0,
@@ -247,7 +256,7 @@ class TaxAndServiceRepository {
   Future<OrderCalculationResult> calculateOrderTotals(int subtotal) async {
     try {
       final outletId = await _outletId;
-      print('Calculating order totals for outlet: $outletId');
+      AppLogger.debug('Calculating order totals for outlet: $outletId');
 
       final taxAmount = await calculateTotalTax(subtotal, outletId);
       final serviceAmount = await calculateServiceCharge(subtotal, outletId);
@@ -256,11 +265,13 @@ class TaxAndServiceRepository {
 
       final grandTotal = subtotal + taxAmount + serviceAmount;
 
-      print('Order calculation summary:');
-      print('- Subtotal: Rp $subtotal');
-      print('- Tax: Rp $taxAmount');
-      print('- Service: Rp $serviceAmount');
-      print('- Grand Total: Rp $grandTotal');
+      AppLogger.debug(
+        'Order calculation summary:\n'
+        '- Subtotal: Rp $subtotal\n'
+        '- Tax: Rp $taxAmount\n'
+        '- Service: Rp $serviceAmount\n'
+        '- Grand Total: Rp $grandTotal',
+      );
 
       return OrderCalculationResult(
         subtotal: subtotal,
@@ -271,7 +282,7 @@ class TaxAndServiceRepository {
         serviceBreakdown: serviceBreakdown,
       );
     } catch (e) {
-      print('Error calculating order totals: $e');
+      AppLogger.error('Error calculating order totals', error: e);
       // Return safe defaults in case of error
       return OrderCalculationResult(
         subtotal: subtotal,
@@ -292,35 +303,39 @@ class TaxAndServiceRepository {
     }
   }
 
-  /// Test method untuk debugging tax calculation
   Future<void> debugTaxCalculation() async {
     final outletId = await _outletId;
-    print('\n=== DEBUG TAX CALCULATION ===');
-    print('Outlet ID: $outletId');
+    String debugMsg =
+        '\n=== DEBUG TAX CALCULATION ===\n'
+        'Outlet ID: $outletId\n';
 
     final allTaxAndServices = getAllTaxAndServices();
-    print('Total tax and services in Hive: ${allTaxAndServices.length}');
+    debugMsg += 'Total tax and services in Hive: ${allTaxAndServices.length}\n';
 
     final activeTaxes = await getActiveTaxesForOutlet(outletId);
-    print('Active taxes for outlet: ${activeTaxes.length}');
+    debugMsg += 'Active taxes for outlet: ${activeTaxes.length}\n';
     for (var tax in activeTaxes) {
-      print('- ${tax.name}: ${tax.percentage}% (${tax.type})');
+      debugMsg += '- ${tax.name}: ${tax.percentage}% (${tax.type})\n';
     }
 
     final activeServices = await getActiveServicesForOutlet(outletId);
-    print('Active services for outlet: ${activeServices.length}');
+    debugMsg += 'Active services for outlet: ${activeServices.length}\n';
     for (var service in activeServices) {
-      print('- ${service.name}: ${service.percentage}% (${service.type})');
+      debugMsg +=
+          '- ${service.name}: ${service.percentage}% (${service.type})\n';
     }
 
     // Test calculation dengan sample subtotal
     const testSubtotal = 100000;
     final result = await calculateOrderTotals(testSubtotal);
-    print('Sample calculation (Rp $testSubtotal):');
-    print('- Tax: Rp ${result.taxAmount}');
-    print('- Service: Rp ${result.serviceAmount}');
-    print('- Total: Rp ${result.grandTotal}');
-    print('=== END DEBUG ===\n');
+    debugMsg +=
+        'Sample calculation (Rp $testSubtotal):\n'
+        '- Tax: Rp ${result.taxAmount}\n'
+        '- Service: Rp ${result.serviceAmount}\n'
+        '- Total: Rp ${result.grandTotal}\n'
+        '=== END DEBUG ===\n';
+
+    AppLogger.debug(debugMsg);
   }
 
   // Existing methods

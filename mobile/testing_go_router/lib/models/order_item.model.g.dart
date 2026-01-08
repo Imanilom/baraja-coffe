@@ -31,13 +31,14 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       printedQuantity: fields[9] == null ? 0 : (fields[9] as num).toInt(),
       printBatchIds:
           fields[10] == null ? [] : (fields[10] as List).cast<String>(),
+      reservedPromoId: fields[11] == null ? null : fields[11] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderItemModel obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.menuItem)
       ..writeByte(1)
@@ -59,7 +60,9 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       ..writeByte(9)
       ..write(obj.printedQuantity)
       ..writeByte(10)
-      ..write(obj.printBatchIds);
+      ..write(obj.printBatchIds)
+      ..writeByte(11)
+      ..write(obj.reservedPromoId);
   }
 
   @override
@@ -107,6 +110,7 @@ _OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      reservedPromoId: json['reservedPromoId'] as String? ?? null,
     );
 
 Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
@@ -122,4 +126,5 @@ Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
       'isPrinted': instance.isPrinted,
       'printedQuantity': instance.printedQuantity,
       'printBatchIds': instance.printBatchIds,
+      'reservedPromoId': instance.reservedPromoId,
     };

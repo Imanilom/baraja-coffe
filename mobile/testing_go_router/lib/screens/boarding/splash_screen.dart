@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 
 class SplashScreen extends ConsumerWidget {
   const SplashScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    print(
-      'progres telah melewati splash screen ini menandakan aplikasi telah dimulai dari splash screen',
-    );
+    AppLogger.debug('App started from splash screen');
     ref.listen<AsyncValue<AuthStatus>>(tryAuthProvider, (prev, next) {
       next.when(
         data: (s) {

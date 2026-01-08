@@ -149,7 +149,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
@@ -311,7 +311,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -326,7 +326,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: color, size: 24),
@@ -374,7 +374,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
@@ -483,7 +483,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -511,7 +511,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
@@ -616,7 +616,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -736,7 +736,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
@@ -1028,7 +1028,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
@@ -1200,7 +1200,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
@@ -1340,7 +1340,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
                             ),
                             belowBarData: BarAreaData(
                               show: true,
-                              color: Colors.indigo[600]!.withOpacity(0.1),
+                              color: Colors.indigo[600]!.withValues(alpha: 0.1),
                             ),
                           ),
                         ],
@@ -1416,7 +1416,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
@@ -1548,7 +1548,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: getRankColor(rank).withOpacity(0.2),
+              color: getRankColor(rank).withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Center(
@@ -1584,7 +1584,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: getCategoryColor(category).withOpacity(0.1),
+                        color: getCategoryColor(category).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -1642,7 +1642,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -1755,7 +1755,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -1877,7 +1877,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -2014,7 +2014,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -2167,8 +2167,8 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
                               show: true,
                               gradient: LinearGradient(
                                 colors: [
-                                  Colors.indigo[100]!.withOpacity(0.3),
-                                  Colors.indigo[50]!.withOpacity(0.1),
+                                  Colors.indigo[100]!.withValues(alpha: 0.3),
+                                  Colors.indigo[50]!.withValues(alpha: 0.1),
                                 ],
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,

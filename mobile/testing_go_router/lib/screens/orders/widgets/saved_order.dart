@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/saved_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/saved_order_provider.dart';
@@ -10,7 +11,7 @@ class SavedOrder extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final savedOrderDetail = ref.watch(savedOrderProvider);
 
-    print('savedOrderDetail: $savedOrderDetail');
+    AppLogger.debug('savedOrderDetail count: ${savedOrderDetail.length}');
 
     return savedOrderDetail.isEmpty
         ? const Center(child: Text('No saved orders available'))

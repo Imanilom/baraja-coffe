@@ -47,7 +47,7 @@ class OrderListWidget extends ConsumerWidget {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -84,8 +84,8 @@ class OrderListWidget extends ConsumerWidget {
   }) {
     final statusColor = PaymentStatusUtils.getColor(order.paymentStatus!);
     final backgroundColor =
-        isSelected ? Colors.blue.withOpacity(0.08) : Colors.white;
-    final borderColor = isSelected ? Colors.blue : Colors.grey.withOpacity(0.2);
+        isSelected ? Colors.blue.withValues(alpha: 0.08) : Colors.white;
+    final borderColor = isSelected ? Colors.blue : Colors.grey.withValues(alpha: 0.2);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -98,8 +98,8 @@ class OrderListWidget extends ConsumerWidget {
           BoxShadow(
             color:
                 isSelected
-                    ? Colors.blue.withOpacity(0.15)
-                    : Colors.black.withOpacity(0.04),
+                    ? Colors.blue.withValues(alpha: 0.15)
+                    : Colors.black.withValues(alpha: 0.04),
             blurRadius: isSelected ? 12 : 6,
             offset: const Offset(0, 4),
             spreadRadius: isSelected ? 1 : 0,
@@ -116,8 +116,8 @@ class OrderListWidget extends ConsumerWidget {
             ref.read(selectedPaymentProvider.notifier).state = null;
           },
           borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.blue.withOpacity(0.1),
-          highlightColor: Colors.blue.withOpacity(0.05),
+          splashColor: Colors.blue.withValues(alpha: 0.1),
+          highlightColor: Colors.blue.withValues(alpha: 0.05),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -134,14 +134,14 @@ class OrderListWidget extends ConsumerWidget {
                         height: 48,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [statusColor, statusColor.withOpacity(0.7)],
+                            colors: [statusColor, statusColor.withValues(alpha: 0.7)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: statusColor.withOpacity(0.3),
+                              color: statusColor.withValues(alpha: 0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -216,7 +216,7 @@ class OrderListWidget extends ConsumerWidget {
                           color:
                               isSelected
                                   ? Colors.blue
-                                  : Colors.grey.withOpacity(0.4),
+                                  : Colors.grey.withValues(alpha: 0.4),
                           width: 2,
                         ),
                       ),
@@ -244,9 +244,9 @@ class OrderListWidget extends ConsumerWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.blue.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -312,14 +312,14 @@ class OrderListWidget extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [statusColor, statusColor.withOpacity(0.8)],
+                          colors: [statusColor, statusColor.withValues(alpha: 0.8)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: statusColor.withOpacity(0.3),
+                            color: statusColor.withValues(alpha: 0.3),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),

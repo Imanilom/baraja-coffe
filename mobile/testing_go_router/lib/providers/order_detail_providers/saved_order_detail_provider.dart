@@ -14,9 +14,9 @@ class SavedOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   //memindahkan state saved order detail ke order detail provider
   void moveToOrderDetail(OrderDetailModel orderDetail, WidgetRef ref) {
     if (state!.items.isNotEmpty) {
-      ref
-          .read(orderDetailProvider.notifier)
-          .addOrderFromSavedOrderDetail(orderDetail);
+      // ref
+      //     .read(orderDetailProvider.notifier)
+      //     .addOrderFromSavedOrderDetail(orderDetail);
       state = null;
     }
   }

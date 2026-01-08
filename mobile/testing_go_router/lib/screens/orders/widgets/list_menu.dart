@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
@@ -6,6 +7,7 @@ import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/providers/promotion_providers/auto_promo_provider.dart';
 import 'package:kasirbaraja/widgets/cards/event_item_card.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
 import 'package:kasirbaraja/widgets/dialogs/add_custom_amount_dialog.dart';
@@ -158,7 +160,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
             )
             .toList();
 
-    print('selectedAddons: $selectedAddons');
+    AppLogger.debug('selectedAddons: $selectedAddons');
 
     final orderItem = OrderItemModel(
       menuItem: menuItem,
@@ -209,9 +211,12 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final selectedCategory = ref.watch(categoryProvider);
     // final event = ref.watch(localEventProvider);
     final menu = ref.watch(reservationMenuItemProvider);
+    final promoGroup = ref.watch(promoGroupsProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
-
+    final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
+    AppLogger.debug('Promo Groups count: ${promoGroup.valueOrNull?.length}');
     const categories = [
+      'promo',
       'All',
       'makanan',
       'minuman',
@@ -266,10 +271,15 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
-                      onTap:
-                          () =>
-                              ref.read(categoryProvider.notifier).state =
-                                  category,
+                      onTap: () {
+                        ref.read(categoryProvider.notifier).state = category;
+
+                        if (category == 'promo') {
+                          // paksa refetch realtime
+                          ref.invalidate(autopromoProvider);
+                          ref.invalidate(promoGroupsProvider);
+                        }
+                      },
                     );
                   }).toList(),
             ),
@@ -325,177 +335,139 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                 // Menu Grid
                 Expanded(
                   child:
-                  // selectedCategory == 'Event'
-                  //     ? event.when(
-                  //       loading:
-                  //           () => const Center(
-                  //             child: CircularProgressIndicator(),
-                  //           ),
-                  //       error:
-                  //           (error, stack) =>
-                  //               Center(child: Text('Error: $error')),
-                  //       data:
-                  //           (data) =>
-                  //               data.isEmpty
-                  //                   ? const Center(
-                  //                     child: Text(
-                  //                       'Tidak ada menu ditemukan',
-                  //                     ),
-                  //                   )
-                  //                   : GridView.builder(
-                  //                     gridDelegate:
-                  //                         const SliverGridDelegateWithFixedCrossAxisCount(
-                  //                           crossAxisCount: 2,
-                  //                           mainAxisSpacing: 8,
-                  //                           crossAxisSpacing: 8,
-                  //                           childAspectRatio: 1.5,
-                  //                         ),
-                  //                     padding: const EdgeInsets.all(8),
-                  //                     itemCount: data.length,
-                  //                     itemBuilder:
-                  //                         (context, index) => Container(
-                  //                           decoration: BoxDecoration(
-                  //                             color: Colors.white,
-                  //                             borderRadius:
-                  //                                 BorderRadius.circular(8),
-                  //                           ),
-                  //                           child: Padding(
-                  //                             padding: const EdgeInsets.all(
-                  //                               8.0,
-                  //                             ),
-                  //                             child: Column(
-                  //                               children: [
-                  //                                 Expanded(
-                  //                                   flex: 4,
-                  //                                   child: ClipRRect(
-                  //                                     borderRadius:
-                  //                                         BorderRadius.circular(
-                  //                                           8,
-                  //                                         ),
-                  //                                     child: Image.network(
-                  //                                       data[index]
-                  //                                               .imageUrl ??
-                  //                                           '',
-                  //                                       fit: BoxFit.cover,
-                  //                                       width:
-                  //                                           double.infinity,
-                  //                                       height:
-                  //                                           double.infinity,
-                  //                                       errorBuilder: (
-                  //                                         context,
-                  //                                         error,
-                  //                                         stackTrace,
-                  //                                       ) {
-                  //                                         return Container(
-                  //                                           color:
-                  //                                               Colors
-                  //                                                   .grey[100],
-                  //                                           child: Center(
-                  //                                             child: Icon(
-                  //                                               Icons
-                  //                                                   .restaurant_menu,
-                  //                                               color:
-                  //                                                   Colors
-                  //                                                       .grey[400],
-                  //                                               size: 32,
-                  //                                             ),
-                  //                                           ),
-                  //                                         );
-                  //                                       },
-                  //                                     ),
-                  //                                   ),
-                  //                                 ),
-                  //                                 Expanded(
-                  //                                   flex: 2,
-                  //                                   child: Center(
-                  //                                     child: Text(
-                  //                                       data[index].name,
-                  //                                       style:
-                  //                                           const TextStyle(
-                  //                                             fontSize: 12,
-                  //                                             fontWeight:
-                  //                                                 FontWeight
-                  //                                                     .bold,
-                  //                                           ),
-                  //                                       textAlign:
-                  //                                           TextAlign
-                  //                                               .center,
-                  //                                     ),
-                  //                                   ),
-                  //                                 ),
-                  //                               ],
-                  //                             ),
-                  //                           ),
-                  //                         ),
-                  //                   ),
-                  //     )
-                  //     :
-                  menu.when(
-                    loading:
-                        () => const Center(child: CircularProgressIndicator()),
-                    error:
-                        (error, stack) => Center(child: Text('Error: $error')),
-                    data:
-                        (data) =>
-                            data.isEmpty
-                                ? const Center(
-                                  child: Text('Tidak ada menu ditemukan'),
-                                )
-                                : GridView.builder(
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount:
-                                            selectedCategory == 'event' ? 2 : 4,
-                                        mainAxisSpacing:
-                                            selectedCategory == 'event' ? 8 : 4,
-                                        crossAxisSpacing:
-                                            selectedCategory == 'event' ? 8 : 4,
-                                        childAspectRatio:
-                                            selectedCategory == 'event'
-                                                ? 1.5
-                                                : 1,
-                                      ),
-                                  padding: const EdgeInsets.all(8),
-                                  itemCount: data.length + 1,
-                                  itemBuilder: (context, index) {
-                                    if (index == 0) {
-                                      return _buildCustomAmountButton();
-                                    }
-
-                                    final menuIndex = index - 1;
-                                    final menuItem = data[menuIndex];
-
-                                    // cek apakah menu ini sedang di-disable
-                                    final disabledIds = ref.watch(
-                                      disabledMenuIdsProvider,
-                                    );
-                                    final isOutOfStock =
-                                        (menuItem.stock?.manualStock ?? 0) <= 0;
-                                    final isDisabled =
-                                        disabledIds.contains(menuItem.id) ||
-                                        isOutOfStock;
-
-                                    if (selectedCategory == 'event') {
-                                      return EventItemCard(
-                                        menuItem: menuItem,
-                                        onTap:
-                                            () => _handleAddToOrder(menuItem),
-                                      );
-                                    }
-
-                                    return MenuItemCard(
-                                      menuItem: menuItem,
-                                      isDisabled: isDisabled,
-                                      onTap: () => _handleAddToOrder(menuItem),
-                                      onLongPress:
-                                          () => _showMenuActionSheet(
-                                            menuItem,
-                                            isDisabled,
+                      selectedCategory == 'promo'
+                          ? promoGroup.when(
+                            data:
+                                (data) =>
+                                    data.isEmpty
+                                        ? const Center(
+                                          child: Text(
+                                            'Tidak ada promo ditemukan',
                                           ),
-                                    );
-                                  },
+                                        )
+                                        : GridView.builder(
+                                          padding: const EdgeInsets.all(8),
+                                          gridDelegate:
+                                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                                crossAxisCount: 2,
+                                                mainAxisSpacing: 8,
+                                                crossAxisSpacing: 8,
+                                                childAspectRatio: 1.6,
+                                              ),
+                                          itemCount: data.length,
+                                          itemBuilder: (context, index) {
+                                            final g = data[index];
+                                            return _PromoGroupCard(
+                                              title: g.name,
+                                              subtitle: g.promoType,
+                                              promoType: g.promoType,
+                                              onTap: () async {
+                                                orderDetailNotifier
+                                                    .initializeOrder(
+                                                      orderType:
+                                                          OrderType.dineIn,
+                                                    );
+
+                                                await orderDetailNotifier
+                                                    .applyPromoGroup(g);
+                                              },
+                                            );
+                                          },
+                                        ),
+                            error:
+                                (error, stack) =>
+                                    Center(child: Text('Error: $error')),
+                            loading:
+                                () => const Center(
+                                  child: CircularProgressIndicator(),
                                 ),
-                  ),
+                          )
+                          : menu.when(
+                            loading:
+                                () => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                            error:
+                                (error, stack) =>
+                                    Center(child: Text('Error: $error')),
+                            data:
+                                (data) =>
+                                    data.isEmpty
+                                        ? const Center(
+                                          child: Text(
+                                            'Tidak ada menu ditemukan',
+                                          ),
+                                        )
+                                        : GridView.builder(
+                                          gridDelegate:
+                                              SliverGridDelegateWithFixedCrossAxisCount(
+                                                crossAxisCount:
+                                                    selectedCategory == 'event'
+                                                        ? 2
+                                                        : 4,
+                                                mainAxisSpacing:
+                                                    selectedCategory == 'event'
+                                                        ? 8
+                                                        : 4,
+                                                crossAxisSpacing:
+                                                    selectedCategory == 'event'
+                                                        ? 8
+                                                        : 4,
+                                                childAspectRatio:
+                                                    selectedCategory == 'event'
+                                                        ? 1.5
+                                                        : 1,
+                                              ),
+                                          padding: const EdgeInsets.all(8),
+                                          itemCount: data.length + 1,
+                                          itemBuilder: (context, index) {
+                                            if (index == 0) {
+                                              return _buildCustomAmountButton();
+                                            }
+
+                                            final menuIndex = index - 1;
+                                            final menuItem = data[menuIndex];
+
+                                            // cek apakah menu ini sedang di-disable
+                                            final disabledIds = ref.watch(
+                                              disabledMenuIdsProvider,
+                                            );
+                                            final isOutOfStock =
+                                                (menuItem.stock?.manualStock ??
+                                                    0) <=
+                                                0;
+                                            final isDisabled =
+                                                disabledIds.contains(
+                                                  menuItem.id,
+                                                ) ||
+                                                isOutOfStock;
+
+                                            if (selectedCategory == 'event') {
+                                              return EventItemCard(
+                                                menuItem: menuItem,
+                                                onTap:
+                                                    () => _handleAddToOrder(
+                                                      menuItem,
+                                                    ),
+                                              );
+                                            }
+
+                                            return MenuItemCard(
+                                              menuItem: menuItem,
+                                              isDisabled: isDisabled,
+                                              onTap:
+                                                  () => _handleAddToOrder(
+                                                    menuItem,
+                                                  ),
+                                              onLongPress:
+                                                  () => _showMenuActionSheet(
+                                                    menuItem,
+                                                    isDisabled,
+                                                  ),
+                                            );
+                                          },
+                                        ),
+                          ),
                 ),
               ],
             ),
@@ -561,6 +533,84 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PromoGroupCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String promoType;
+  final VoidCallback onTap;
+
+  const _PromoGroupCard({
+    required this.title,
+    required this.subtitle,
+    required this.promoType,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isBundle = promoType == 'bundling';
+    final icon =
+        isBundle ? Icons.all_inbox_rounded : Icons.card_giftcard_rounded;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200, width: 1),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    isBundle ? 'Bundling' : 'Buy X Get Y',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                const Icon(Icons.add_circle_outline, size: 20),
+              ],
             ),
           ],
         ),

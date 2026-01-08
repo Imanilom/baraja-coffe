@@ -1,5 +1,6 @@
 // lib/services/data_sync_service.dart
 import 'package:dio/dio.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/repositories/auth_repository.dart';
@@ -138,11 +139,16 @@ class DataSyncService {
         ),
       );
 
-      print('Event data count: ${HiveService.eventBox.length}');
-      print('Event data count: ${HiveService.eventBox.length}');
-      print('MenuItem data count: ${HiveService.menuItemsBox.length}');
-      print('TaxAndService data count: ${HiveService.taxAndServiceBox.length}');
-      print('PaymentType data count: ${HiveService.paymentMethodBox.length}');
+      AppLogger.debug('Event data count: ${HiveService.eventBox.length}');
+      AppLogger.debug(
+        'MenuItem data count: ${HiveService.menuItemsBox.length}',
+      );
+      AppLogger.debug(
+        'TaxAndService data count: ${HiveService.taxAndServiceBox.length}',
+      );
+      AppLogger.debug(
+        'PaymentType data count: ${HiveService.paymentMethodBox.length}',
+      );
     } catch (e) {
       onProgress(
         DataSyncProgress(

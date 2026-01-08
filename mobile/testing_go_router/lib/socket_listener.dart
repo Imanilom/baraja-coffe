@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class SocketListener {
@@ -16,18 +16,21 @@ class SocketListener {
 
     // Listen event order baru
     socket.on('order_created', (data) {
-      print('🛎️ Order Baru: ${data['id']}');
+      AppLogger.info('🛎️ Order Baru: ${data['id']}');
 
       // muncul snack bar
+      // Note: This won't work because data is not a BuildContext
+      /*
       ScaffoldMessenger.of(data).showSnackBar(
         SnackBar(
           content: Text('Order Baru: ${data['id']}'),
           duration: Duration(seconds: 2),
         ),
       );
+      */
     });
 
-    socket.onConnect((_) => print('Terhubung ke server'));
-    socket.onDisconnect((_) => print('Terputus dari server'));
+    socket.onConnect((_) => AppLogger.info('Terhubung ke server'));
+    socket.onDisconnect((_) => AppLogger.info('Terputus dari server'));
   }
 }

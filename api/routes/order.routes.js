@@ -27,6 +27,14 @@ import {
   deleteOrderItemAtOrder,
   getOrderByIdAfterItemDelete,
   patchEditOrder,
+  addItemToOpenBill,
+  getActiveOpenBills,
+  getOpenBillDetails,
+  cancelOpenBillItem,
+  updateOpenBill,
+  transferOpenBill,
+  closeOpenBill,
+  getOpenBillSummary
 } from '../controllers/order.controller.js';
 
 import {
@@ -73,6 +81,16 @@ const router = express.Router();
 router.post('/order', createOrder);
 
 router.post("/unified-order", createUnifiedOrder);
+
+router.get('/open-bills/active', getActiveOpenBills);
+router.get('/open-bill/:orderId', getOpenBillDetails);
+router.post('/open-bill/:orderId/close', closeOpenBill);
+router.post('/open-bill/:orderId/add-item', addItemToOpenBill);
+router.delete('/open-bill/:orderId/item/:itemIndex', cancelOpenBillItem);
+router.patch('/open-bill/:orderId', updateOpenBill);
+router.post('/open-bill/:orderId/transfer', transferOpenBill);
+router.get('/open-bills/summary', getOpenBillSummary);
+
 // TODO: Start route untuk melakukan charge from aplication
 
 router.post('/orderApp', createAppOrder);

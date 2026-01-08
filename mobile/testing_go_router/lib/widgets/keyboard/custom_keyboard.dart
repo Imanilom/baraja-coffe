@@ -1,4 +1,5 @@
 import 'package:kasirbaraja/providers/auth_provider.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,12 +51,12 @@ class ModernCustomKeyboard extends ConsumerWidget {
   }
 
   Widget _buildCancelButton(WidgetRef ref, double size, double fontSize) {
-    print('Cancel button pressed');
+    AppLogger.debug('Cancel button pressed');
     return _buildButton(
       onTap: () => ref.read(selectedCashierProvider.notifier).state = null,
       child: Icon(Icons.close_rounded, size: fontSize, color: Colors.white),
       backgroundColor: const Color(0xFFEF4444),
-      shadowColor: const Color(0xFFEF4444).withOpacity(0.3),
+      shadowColor: const Color(0xFFEF4444).withValues(alpha: 0.3),
     );
   }
 
@@ -63,7 +64,7 @@ class ModernCustomKeyboard extends ConsumerWidget {
     // print('Digit: $digit');
     return _buildButton(
       onTap: () {
-        print('Pressed digit: $digit');
+        AppLogger.debug('Pressed digit: $digit');
         onDigitPressed(digit);
       },
       child: Text(
@@ -74,13 +75,13 @@ class ModernCustomKeyboard extends ConsumerWidget {
           color: Colors.black,
         ),
       ),
-      backgroundColor: Colors.white.withOpacity(0.1),
-      shadowColor: Colors.white.withOpacity(0.1),
+      backgroundColor: Colors.white.withValues(alpha: 0.1),
+      shadowColor: Colors.white.withValues(alpha: 0.1),
     );
   }
 
   Widget _buildDeleteButton(double size, double fontSize) {
-    print('Delete button pressed');
+    AppLogger.debug('Delete button pressed');
     return _buildButton(
       onTap: onDelete,
       child: Icon(
@@ -89,7 +90,7 @@ class ModernCustomKeyboard extends ConsumerWidget {
         color: Colors.white,
       ),
       backgroundColor: const Color(0xFFF59E0B),
-      shadowColor: const Color(0xFFF59E0B).withOpacity(0.3),
+      shadowColor: const Color(0xFFF59E0B).withValues(alpha: 0.3),
     );
   }
 
@@ -117,7 +118,7 @@ class ModernCustomKeyboard extends ConsumerWidget {
                 offset: const Offset(0, 4),
               ),
               BoxShadow(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 blurRadius: 1,
                 offset: const Offset(0, 1),
               ),
