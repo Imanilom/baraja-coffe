@@ -1,4 +1,22 @@
 services:
+  # MongoDB - Local instance for development/testing
+  mongodb:
+    image: mongo:6
+    container_name: baraja_mongodb
+    networks:
+      - baraja-network
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: always
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   redis:
     image: redis:7-alpine
     container_name: baraja_redis
@@ -26,12 +44,18 @@ services:
       - /app/node_modules
     restart: always
     depends_on:
+      mongodb:
+        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
+      # MongoDB - Use local MongoDB container with prod database
+      - MONGO=mongodb://baraja_mongodb:27017/prod
+      # Redis
       - REDIS_URL=redis://baraja_redis:6379
       - REDIS_HOST=baraja_redis
       - REDIS_PORT=6379
+      # Server
       - HOST=0.0.0.0
       - PORT=3000
       - NODE_ENV=development
@@ -44,3 +68,6 @@ services:
 networks:
   baraja-network:
     driver: bridge
+
+volumes:
+  mongodb_data:

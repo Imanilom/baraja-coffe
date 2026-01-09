@@ -112,10 +112,4 @@ pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .nest("/api/products", product_routes())
         .nest("/api/suppliers", supplier_routes())
         .nest("/api/marketlist", marketlist_routes(state.clone()))
-        .nest("/api/report", report_routes())
-}
-
-/// Create report routes
-fn report_routes() -> Router<Arc<AppState>> {
-    crate::routes::report::report_routes()
 }

@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"deviceUserId":{"$numberInt":"1"}},"name":"deviceUserId_1","background":true,"unique":true}],"uuid":"0eae99cbbcdc44b4bbc7750966b327a3","collectionName":"fingerprints","type":"collection"}
