@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { FaChevronLeft, FaChevronRight, FaPencilAlt, FaReceipt, FaTrashAlt } from "react-icons/fa";
 import Select from "react-select";
-import CategoryTabs from "./filters/categorytabs";
+import CategoryTabs from "./categorytabs";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import MenuSkeleton from "./skeleton";
-import ConfirmationModalActive from "./confirmationModalAction";
+import MenuSkeleton from "../../skeleton";
+import ConfirmationModalActive from "../dialog/confirmationModalAction";
 import axios from "axios";
-import Paginated from "../../components/paginated";
-import ConfirmModal from "../../components/modal/confirmmodal";
+import Paginated from "../../../../components/paginated";
+import ConfirmModal from "../../../../components/modal/confirmmodal";
 
 export default function MenuTable({
     categoryOptions,
@@ -37,7 +37,8 @@ export default function MenuTable({
     currentPage,
     loading,
     fetchData,
-    onDeleteSuccess // Tambahkan prop ini
+    onDeleteSuccess,
+    onStatusUpdate // Tambahkan prop untuk status update
 }) {
 
     const location = useLocation();
@@ -121,22 +122,25 @@ export default function MenuTable({
         }
     };
 
+    // Handler untuk update status
     const handleUpdate = async (itemId, newStatus) => {
         try {
-            setTimeout(async () => {
-                try {
-                    await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
-                    navigate(window.location.pathname === "/admin/menu" ? "/admin/menu" : "/admin/event", {
-                        state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
-                    });
-                    fetchData();
-                } catch (error) {
-                    console.error("Error updating menu:", error);
-                }
-            }, 2000);
+            await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
+
+            // Refresh data
+            await fetchData();
+
+            // Trigger success message di parent component
+            if (onStatusUpdate) {
+                onStatusUpdate(`Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}`);
+            }
         } catch (error) {
-            console.error("Gagal update status:", error);
-            alert("Terjadi kesalahan saat update status");
+            console.error("Error updating menu:", error);
+
+            // Trigger error message di parent component
+            if (onStatusUpdate) {
+                onStatusUpdate(null, 'Gagal mengubah status menu. Silakan coba lagi.');
+            }
         }
     };
 

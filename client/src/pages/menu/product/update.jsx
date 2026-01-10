@@ -6,15 +6,15 @@ import {
   ref,
   uploadBytesResumable,
 } from 'firebase/storage';
-import { app } from '../../firebase';
+import { app } from '../../../firebase';
 import { Link, useLocation } from "react-router-dom";
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaGift, FaPizzaSlice, FaChevronDown, FaInfoCircle } from "react-icons/fa";
 import { useNavigate, useParams } from "react-router-dom";
-import ToppingForm from "./varianmodal";
-import AddonForm from "./opsimodal";
-import ConfirmationModal from "./confirmmodal";
+import ToppingForm from "./component/topping";
+import AddonForm from "./component/varian";
+import ConfirmationModal from "./dialog/confirmmodal";
 import Select from "react-select";
-import Header from "../admin/header";
+import Header from "../../admin/header";
 import { useSelector } from "react-redux";
 
 const UpdateMenu = () => {
@@ -415,7 +415,7 @@ const UpdateMenu = () => {
       await axios.put(`/api/menu/menu-items/${id}`, payload, {
         headers: { Authorization: `Bearer ${currentUser.token}` },
       });
-      navigate(`/admin/menu?page=${returnPage}`, { state: { success: "Menu berhasil diperbarui" } });
+      navigate(`/admin/menu?page=${returnPage}`, { state: { success: `Menu ${formData.name} berhasil diperbarui` } });
     } catch (error) {
       console.error("Error updating menu item:", error);
     }

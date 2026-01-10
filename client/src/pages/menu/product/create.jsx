@@ -12,9 +12,9 @@ import axios from "axios";
 import { Link, useLocation } from "react-router-dom";
 import { FaChevronRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import ConfirmationModal from "./confirmmodal";
-import ToppingForm from "./varianmodal";
-import AddonForm from "./opsimodal";
+import ConfirmationModal from "./dialog/confirmmodal";
+import ToppingForm from "./component/topping";
+import AddonForm from "./component/varian";
 
 const CreateMenu = () => {
   const location = useLocation();

@@ -3,10 +3,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from 'axios';
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash, FaChevronRight, FaPlus } from 'react-icons/fa';
 import Paginated from '../../../components/paginated';
+import MessageAlert from '../../../components/messageAlert';
 
 const CategoryIndex = () => {
   const location = useLocation();
-  const message = location.state?.successMessage;
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -25,6 +26,11 @@ const CategoryIndex = () => {
   const ITEMS_PER_PAGE = 10;
   const [limit] = useState(250);
   const [offset, setOffset] = useState(0);
+
+  // State untuk alert message
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertType, setAlertType] = useState("success");
+  const [alertKey, setAlertKey] = useState(0);
 
   // ✅ FIX: Sesuaikan dengan backend response baru
   const fetchData = async (type) => {
@@ -92,6 +98,19 @@ const CategoryIndex = () => {
     fetchData();
   }, []);
 
+  // Check for success/error message from location state
+  useEffect(() => {
+    if (location.state?.success) {
+      setAlertMessage(location.state.success);
+      setAlertType("success");
+      setAlertKey(prev => prev + 1);
+    } else if (location.state?.error) {
+      setAlertMessage(location.state.error);
+      setAlertType("error");
+      setAlertKey(prev => prev + 1);
+    }
+  }, [location.state]);
+
   const formatDateTime = (datetime) => {
     const date = new Date(datetime);
     const pad = (n) => n.toString().padStart(2, "0");
@@ -128,15 +147,29 @@ const CategoryIndex = () => {
   const handleConfirmDelete = async () => {
     try {
       await axios.delete(`/api/menu/categories/${selectedCategoryId}`);
+
+      // Update state
       setCategories((prev) => prev.filter((c) => c._id !== selectedCategoryId));
       setFilteredCategories((prev) => prev.filter((c) => c._id !== selectedCategoryId));
+
+      // Show success message
+      setAlertMessage(`Kategori "${selectedCategoryName}" berhasil dihapus`);
+      setAlertType("success");
+      setAlertKey(prev => prev + 1);
+
+      // Refresh data
+      fetchData();
     } catch (err) {
-      alert('Failed to delete category');
       console.error('Error deleting category:', err);
+
+      // Show error message
+      setAlertMessage('Gagal menghapus kategori. Silakan coba lagi.');
+      setAlertType("error");
+      setAlertKey(prev => prev + 1);
     } finally {
       setShowModal(false);
       setSelectedCategoryId(null);
-      fetchData();
+      setSelectedCategoryName(null);
     }
   };
 
@@ -226,6 +259,12 @@ const CategoryIndex = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-8">
+      {/* Alert Message */}
+      <MessageAlert
+        key={alertKey}
+        type={alertType}
+        message={alertMessage}
+      />
 
       {/* Main Content */}
       <div className="mx-auto px-6 py-6">
@@ -258,6 +297,7 @@ const CategoryIndex = () => {
           {/* Action Button */}
           <Link
             to="/admin/category-create"
+            state={{ returnTab: 'category' }}
             className="bg-[#005429] text-white px-5 py-2.5 rounded-lg inline-flex items-center gap-2 font-medium hover:bg-[#003d1f] transition-colors shadow-sm"
           >
             <FaPlus size={14} />
@@ -316,6 +356,7 @@ const CategoryIndex = () => {
                           <div className="flex justify-end items-center gap-2">
                             <Link
                               to={`/admin/category-update/${category._id}`}
+                              state={{ returnTab: 'category' }}
                               className="p-2.5 bg-[#005429] text-white rounded-lg hover:bg-[#003d1f] transition-colors"
                               title="Edit"
                             >

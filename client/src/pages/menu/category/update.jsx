@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import Select from 'react-select';
 import { ArrowLeft, Save, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -43,6 +43,7 @@ const UpdateCategory = () => {
 
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -62,23 +63,42 @@ const UpdateCategory = () => {
         const fetchCategory = async () => {
             try {
                 setLoading(true);
-                const response = await axios.get(`/api/menu/categories/${id}`);
-                const category = response.data.data;
+                setError(null);
 
-                console.log(category);
+                const response = await axios.get(`/api/menu/categories/${id}`);
+
+                // ✅ Handle berbagai format response
+                let category;
+
+                if (response.data.data) {
+                    // Format: { success: true, data: {...} }
+                    category = response.data.data;
+                } else if (response.data._id) {
+                    // Format: { _id, name, ... } (langsung object)
+                    category = response.data;
+                } else {
+                    throw new Error('Format response tidak valid');
+                }
+
+                console.log('Fetched category:', category);
 
                 setName(category.name || '');
                 setDescription(category.description || '');
                 setType(category.type || '');
             } catch (error) {
                 console.error("Error fetching category:", error);
-                setError('Gagal memuat data kategori');
+                const errorMsg = error.response?.data?.message ||
+                    error.response?.data?.error ||
+                    'Gagal memuat data kategori';
+                setError(errorMsg);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchCategory();
+        if (id) {
+            fetchCategory();
+        }
     }, [id]);
 
     const handleSubmit = async (e) => {
@@ -86,6 +106,7 @@ const UpdateCategory = () => {
         setSubmitting(true);
         setError(null);
 
+        // Validasi
         if (!name.trim()) {
             setError('Nama kategori harus diisi');
             setSubmitting(false);
@@ -105,19 +126,63 @@ const UpdateCategory = () => {
                 type,
             };
 
-            await axios.put(`/api/menu/categories/${id}`, updatedCategory);
+            console.log('🚀 [UPDATE] Sending request to:', `/api/menu/categories/${id}`);
+            console.log('📦 [UPDATE] Payload:', updatedCategory);
 
-            navigate('/admin/categories', {
-                state: { message: 'Kategori berhasil diperbarui!' }
+            const response = await axios.put(`/api/menu/categories/${id}`, updatedCategory);
+
+            console.log('✅ [UPDATE] Response Status:', response.status);
+            console.log('📥 [UPDATE] Response Data:', response.data);
+            console.log('📊 [UPDATE] Full Response:', response);
+
+            // ✅ Jika sampai sini berarti request berhasil (tidak throw error)
+            // Response status 200-299 dianggap success oleh axios
+
+            // Ambil returnTab dari location.state (default 'category')
+            const returnTab = location.state?.returnTab || 'category';
+
+            console.log('🎯 [NAVIGATE] Redirecting to /admin/menu with returnTab:', returnTab);
+
+            // Navigate dengan success message dan returnTab
+            navigate('/admin/menu', {
+                state: {
+                    success: 'Kategori berhasil diperbarui!',
+                    returnTab: returnTab
+                }
             });
+
+            console.log('✨ [SUCCESS] Navigation completed');
+
         } catch (err) {
-            const errorMessage = err.response?.data?.error ||
-                err.response?.data?.details ||
-                'Gagal memperbarui kategori';
-            setError(errorMessage);
-            console.error('Error updating category:', err);
+            console.error('❌ [ERROR] Update failed');
+            console.error('🔴 [ERROR] Error object:', err);
+            console.error('🔴 [ERROR] Error message:', err.message);
+            console.error('🔴 [ERROR] Error response:', err.response);
+            console.error('🔴 [ERROR] Error request:', err.request);
+
+            // ✅ Cek apakah ini error dari axios atau error lainnya
+            if (err.response) {
+                // Server responded with error status (4xx, 5xx)
+                console.error('🔴 [ERROR] Server Error - Status:', err.response.status);
+                console.error('🔴 [ERROR] Server Error - Data:', err.response.data);
+
+                const errorMessage = err.response?.data?.error ||
+                    err.response?.data?.message ||
+                    err.response?.data?.details ||
+                    `Gagal memperbarui kategori (Status: ${err.response.status})`;
+                setError(errorMessage);
+            } else if (err.request) {
+                // Request was made but no response
+                console.error('🔴 [ERROR] No response from server');
+                setError('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+            } else {
+                // Something else happened
+                console.error('🔴 [ERROR] Unexpected error');
+                setError(err.message || 'Terjadi kesalahan tidak terduga');
+            }
         } finally {
             setSubmitting(false);
+            console.log('🏁 [FINALLY] Submit process completed');
         }
     };
 
@@ -132,13 +197,42 @@ const UpdateCategory = () => {
         );
     }
 
+    // ✅ Error state yang lebih baik
+    if (error && !name) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+                <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
+                    <div className="bg-red-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                        <AlertCircle className="w-8 h-8 text-red-600" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-2">Gagal Memuat Data</h3>
+                    <p className="text-gray-600 mb-6">{error}</p>
+                    <div className="flex gap-3 justify-center">
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="bg-green-900 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-green-800 transition-colors"
+                        >
+                            Coba Lagi
+                        </button>
+                        <button
+                            onClick={() => navigate('/admin/menu?menu=category')}
+                            className="border border-gray-300 text-gray-700 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                        >
+                            Kembali
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
                     <button
-                        onClick={() => navigate('/admin/categories')}
+                        onClick={() => navigate('/admin/menu?menu=category')}
                         className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4 group"
                     >
                         <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
@@ -223,7 +317,7 @@ const UpdateCategory = () => {
                         <div className="mt-8 pt-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3 sm:justify-end">
                             <button
                                 type="button"
-                                onClick={() => navigate('/admin/categories')}
+                                onClick={() => navigate('/admin/menu?menu=category')}
                                 className="w-full sm:w-auto px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-20"
                             >
                                 Batal

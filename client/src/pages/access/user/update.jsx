@@ -69,6 +69,7 @@ const UpdateUser = () => {
     const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
     const [pin, setPin] = useState("");
+    const [cashierType, setCashierType] = useState("");
     const [formErrors, setFormErrors] = useState({});
     const [submitAction, setSubmitAction] = useState("exit");
     const [alertMsg, setAlertMsg] = useState("");
@@ -89,6 +90,16 @@ const UpdateUser = () => {
             label: "Customer",
             roles: ["customer"]
         },
+    ];
+
+    const cashierTypeOptions = [
+        { value: "bar-1-amphi", label: "Bar 1 Amphi" },
+        { value: "bar-2-amphi", label: "Bar 2 Amphi" },
+        { value: "bar-3-amphi", label: "Bar 3 Amphi" },
+        { value: "bar-tp", label: "Bar TP" },
+        { value: "bar-dp", label: "Bar DP" },
+        { value: "drive-thru", label: "Drive Thru" },
+        { value: "event", label: "Event" },
     ];
 
     // Tentukan tab berdasarkan role user yang sedang di-edit
@@ -146,6 +157,7 @@ const UpdateUser = () => {
             setUsername(u.username || "");
             setEmail(u.email || "");
             setPhone(u.phone || "");
+            setCashierType(u.cashierType || "");
 
             // ✅ Handle role sebagai object atau string
             const roleId = typeof u.role === 'object' ? u.role._id : u.role;
@@ -215,6 +227,11 @@ const UpdateUser = () => {
         if (!email) errors.email = "Email wajib diisi.";
         if (!phone) errors.phone = "Nomor telepon wajib diisi.";
 
+        // Validasi cashier type untuk tab cashier
+        if (activeTab === "cashier" && !cashierType) {
+            errors.cashierType = "Tipe kasir wajib diisi.";
+        }
+
         // Validasi password/PIN jika diisi
         if (activeTab === "cashier" && pin && pin.length !== 4) {
             errors.pin = "PIN harus 4 digit.";
@@ -236,7 +253,8 @@ const UpdateUser = () => {
             email,
             phone,
             role: employeeType,
-            outlets: selectedOutlets
+            outlets: selectedOutlets,
+            cashierType: activeTab === "cashier" ? cashierType : null
         };
 
         // Hanya kirim password jika diisi
@@ -404,6 +422,27 @@ const UpdateUser = () => {
                             )}
                         </div>
 
+                        {/* Cashier Type - hanya muncul di tab cashier */}
+                        {activeTab === "cashier" && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Tipe Kasir <span className="text-red-500">*</span>
+                                </label>
+                                <Select
+                                    options={cashierTypeOptions}
+                                    value={cashierTypeOptions.find((opt) => opt.value === cashierType)}
+                                    onChange={(opt) => setCashierType(opt.value)}
+                                    placeholder="Pilih tipe kasir..."
+                                    styles={customSelectStyles}
+                                />
+                                {formErrors.cashierType && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                        {formErrors.cashierType}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         {/* Password atau PIN berdasarkan tab */}
                         {activeTab === "cashier" ? (
                             <div>
@@ -463,7 +502,6 @@ const UpdateUser = () => {
 
                     {/* Outlet pilihan */}
                     {activeTab !== "customer" && (
-
                         <div>
                             <label className="block text-sm font-semibold mb-2">
                                 Outlet <span className="text-red-500">*</span>

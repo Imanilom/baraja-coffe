@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { FaPlus } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import MessageAlertMenu from "../../components/messageAlert";
-import MenuTable from "./table";
+import MessageAlert from "../../../components/messageAlert";
+import MenuTable from "./component/table";
 
 const Menu = () => {
     const customStyles = {
@@ -53,8 +53,9 @@ const Menu = () => {
     const [loading, setLoading] = useState(true);
 
     // State untuk alert message
-    const [alertMessage, setAlertMessage] = useState(null);
-    const [alertType, setAlertType] = useState('success');
+    const [alertMessage, setAlertMessage] = useState("");
+    const [alertType, setAlertType] = useState("success");
+    const [alertKey, setAlertKey] = useState(0); // Key untuk force re-render alert
 
     // State filter
     const [selectedOutlet, setSelectedOutlet] = useState("");
@@ -72,21 +73,13 @@ const Menu = () => {
         setLoading(true);
         try {
             const menuResponse = await axios.get('/api/menu/all-menu-items-backoffice');
-            // setMenuItems(menuResponse.data.data.filter((menu) => menu.mainCategory !== "event"));
             setMenuItems(menuResponse.data.data);
 
             const outletsResponse = await axios.get('/api/outlet');
             setOutlets(outletsResponse.data.data);
 
             const categoryResponse = await axios.get('/api/menu/categories');
-            // const excludedCategories = ["Event", "Ruangan", "Sparkling"];
-
-            setCategory(
-                // categoryResponse.data.data.filter((cat) =>
-                //     !excludedCategories.includes(cat.name) &&
-                //     !excludedCategories.includes(cat.parentCategory)
-                categoryResponse.data.data
-            );
+            setCategory(categoryResponse.data.data);
 
             setError(null);
         } catch (err) {
@@ -108,20 +101,17 @@ const Menu = () => {
     useEffect(() => {
         if (location.state?.success) {
             setAlertMessage(location.state.success);
-            setAlertType('success');
-            // Clear state tapi pertahankan search params
-            window.history.replaceState({}, document.title);
+            setAlertType("success");
+            setAlertKey(prev => prev + 1); // Force re-render
         } else if (location.state?.error) {
             setAlertMessage(location.state.error);
-            setAlertType('error');
-            // Clear state tapi pertahankan search params
-            window.history.replaceState({}, document.title);
+            setAlertType("error");
+            setAlertKey(prev => prev + 1); // Force re-render
         }
     }, [location.state]);
 
     // Update URL ketika page berubah
     const handlePageChange = (newPage) => {
-        // Jika newPage adalah function, eksekusi dulu dengan currentPage
         const pageNumber = typeof newPage === 'function' ? newPage(currentPage) : newPage;
         setSearchParams({ page: pageNumber.toString() });
     };
@@ -205,11 +195,13 @@ const Menu = () => {
 
             // Show success message
             setAlertMessage(`${checkedItems.length} menu berhasil dihapus`);
-            setAlertType('success');
+            setAlertType("success");
+            setAlertKey(prev => prev + 1);
         } catch (error) {
             console.error("Gagal menghapus:", error);
             setAlertMessage('Gagal menghapus menu. Silakan coba lagi.');
-            setAlertType('error');
+            setAlertType("error");
+            setAlertKey(prev => prev + 1);
         }
     };
 
@@ -217,10 +209,25 @@ const Menu = () => {
     const handleDeleteSuccess = (successMsg, errorMsg) => {
         if (successMsg) {
             setAlertMessage(successMsg);
-            setAlertType('success');
+            setAlertType("success");
+            setAlertKey(prev => prev + 1);
         } else if (errorMsg) {
             setAlertMessage(errorMsg);
-            setAlertType('error');
+            setAlertType("error");
+            setAlertKey(prev => prev + 1);
+        }
+    };
+
+    // Handler untuk update status dari table
+    const handleStatusUpdate = (successMsg, errorMsg) => {
+        if (successMsg) {
+            setAlertMessage(successMsg);
+            setAlertType("success");
+            setAlertKey(prev => prev + 1);
+        } else if (errorMsg) {
+            setAlertMessage(errorMsg);
+            setAlertType("error");
+            setAlertKey(prev => prev + 1);
         }
     };
 
@@ -244,6 +251,13 @@ const Menu = () => {
 
     return (
         <div className="w-full">
+            {/* Alert Message - menggunakan key untuk force re-render */}
+            <MessageAlert
+                key={alertKey}
+                type={alertType}
+                message={alertMessage}
+            />
+
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     Menu
@@ -251,35 +265,13 @@ const Menu = () => {
                 <div className="flex items-center gap-3">
                     <Link
                         to="/admin/menu-create"
-                        state={{ returnPage: currentPage }} // Kirim page saat ini
+                        state={{ returnPage: currentPage, returnTab: 'menu' }}
                         className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
                     >
                         <FaPlus /> Tambah
                     </Link>
                 </div>
             </div>
-
-            {/* Alert Message */}
-            {alertMessage && (
-                <div className="px-6 mb-4">
-                    <div className={`p-4 rounded-lg ${alertType === 'success'
-                        ? 'bg-green-100 border border-green-400 text-green-700'
-                        : 'bg-red-100 border border-red-400 text-red-700'
-                        }`}>
-                        <div className="flex items-center justify-between">
-                            <span>{alertMessage}</span>
-                            <button
-                                onClick={() => setAlertMessage(null)}
-                                className="text-xl font-bold ml-4"
-                            >
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <MessageAlertMenu />
 
             <MenuTable
                 categoryOptions={categoryOptions}
@@ -312,6 +304,7 @@ const Menu = () => {
                 loading={loading}
                 fetchData={fetchData}
                 onDeleteSuccess={handleDeleteSuccess}
+                onStatusUpdate={handleStatusUpdate}
             />
         </div>
     );

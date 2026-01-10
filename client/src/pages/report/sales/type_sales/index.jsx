@@ -278,7 +278,7 @@ const TypeSales = () => {
     };
 
     // Show loading state
-    if (loading && !dateRange) {
+    if (loading) {
         return <TypeSalesSkeleton />;
     }
 
