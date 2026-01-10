@@ -19,9 +19,11 @@ export async function createOrderHandler({
   requiresDelivery,
   recipientData,
   paymentDetails,
-  appliedPromos = []
+  appliedPromos = [],
+  session: externalSession = null, // ✅ Accept external session
+  idempotencyKey = null // ✅ Accept idempotencyKey
 }) {
-  let session = null;
+  let session = externalSession;
 
   const useTransaction = (source === 'Web' || source === 'App') &&
     (orderData.loyaltyPointsToRedeem > 0 || orderData.customerId);
@@ -41,7 +43,7 @@ export async function createOrderHandler({
       promoTypes: appliedPromos?.map(p => p.promoType) || []
     });
 
-    if (shouldUseTransaction) {
+    if (shouldUseTransaction && !session) {
       session = await mongoose.startSession();
     }
 
@@ -56,7 +58,8 @@ export async function createOrderHandler({
       recipientData,
       paymentDetails,
       appliedPromos,
-      useTransaction: shouldUseTransaction
+      useTransaction: shouldUseTransaction,
+      idempotencyKey // ✅ Pass idempotencyKey
     });
 
     // Verifikasi order tersimpan di database
@@ -165,7 +168,6 @@ export async function createOrderHandler({
       source,
       orderType: orderData?.orderType,
       hasCustomAmountItems: orderData?.customAmountItems?.length > 0,
-      promoSelectionsCount: promoSelections?.length || 0,
       outletId: orderData?.outletId,
       tableNumber: orderData?.tableNumber,
       isSplitPayment: orderData?.isSplitPayment
@@ -193,7 +195,8 @@ export async function createOrderHandler({
 
     throw err;
   } finally {
-    if (session) {
+    // Only end session if we created it (no external session passed)
+    if (session && !externalSession) {
       try {
         await session.endSession();
         console.log('MongoDB session ended');
@@ -216,7 +219,8 @@ async function createOrderWithSimpleTransaction({
   recipientData,
   paymentDetails,
   appliedPromos = [],  // ✅ RENAME parameter
-  useTransaction
+  useTransaction,
+  idempotencyKey = null // ✅ Accept idempotencyKey
 }) {
   console.log('Order Handler - Starting Order Creation:', {
     orderId,
@@ -330,7 +334,7 @@ async function createOrderWithSimpleTransaction({
     let paymentMethodData = 'Cash';
 
     if (source === 'Cashier') {
-      initialStatus = isOpenBill ? 'Pending' : 'Waiting';
+      initialStatus = isOpenBill ? 'Waiting' : 'Waiting'; // ✅ Open bill needs "Waiting" status for workstation
 
       if (Array.isArray(orderPaymentDetails) && orderPaymentDetails.length > 0) {
         paymentMethodData = orderPaymentDetails[0].method || 'Multiple';
@@ -475,6 +479,7 @@ async function createOrderWithSimpleTransaction({
       },
       createdAt: new Date(),
       updatedAt: new Date(),
+      idempotencyKey, // ✅ Save idempotencyKey
     };
 
     // Tambahkan customer data jika ada

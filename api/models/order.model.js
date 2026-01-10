@@ -233,6 +233,8 @@ const SelectedPromoSchema = new mongoose.Schema({
 // Model Order
 const OrderSchema = new mongoose.Schema({
   order_id: { type: String, required: true, unique: true },
+  // ✅ IDEMPOTENCY: Kunci unik untuk mencegah double order
+  idempotencyKey: { type: String, index: true, unique: true, sparse: true },
   user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   user: { type: String, required: true, default: 'Guest' },
   cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -307,7 +309,7 @@ const OrderSchema = new mongoose.Schema({
 
   // ========== PAYMENT ==========
   payments: [SplitPaymentSchema],
-  
+
   // Field legacy untuk kompatibilitas
   paymentMethod: {
     type: String,
@@ -611,12 +613,12 @@ OrderSchema.virtual('openBillDuration').get(function () {
   if (!this.isOpenBill || !this.openBillStartedAt) {
     return null;
   }
-  
+
   const endTime = this.openBillClosedAt || new Date();
   const diffMs = endTime - this.openBillStartedAt;
   const hours = Math.floor(diffMs / (1000 * 60 * 60));
   const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   return { hours, minutes, totalMinutes: Math.floor(diffMs / (1000 * 60)) };
 });
 
@@ -656,11 +658,11 @@ OrderSchema.methods.addItemToOpenBill = async function (itemData, cashierId) {
   try {
     const MenuItem = mongoose.model('MenuItem');
     const menuItem = await MenuItem.findById(itemData.menuItemId);
-    
+
     if (!menuItem) {
       throw new Error('Menu item tidak ditemukan');
     }
-    
+
     // Cek stok
     const primaryWarehouseId = menuItem.primaryWarehouseId;
     if (primaryWarehouseId) {
@@ -669,10 +671,10 @@ OrderSchema.methods.addItemToOpenBill = async function (itemData, cashierId) {
         throw new Error(`Stok tidak cukup untuk ${menuItem.name}. Stok tersedia: ${currentStock}`);
       }
     }
-    
+
     // Hitung subtotal
     let subtotal = menuItem.price * itemData.quantity;
-    
+
     // Tambah addons
     if (itemData.addons && itemData.addons.length > 0) {
       itemData.addons.forEach(addon => {
@@ -685,7 +687,7 @@ OrderSchema.methods.addItemToOpenBill = async function (itemData, cashierId) {
         }
       });
     }
-    
+
     // Tambah toppings
     if (itemData.toppings && itemData.toppings.length > 0) {
       itemData.toppings.forEach(topping => {
@@ -695,7 +697,7 @@ OrderSchema.methods.addItemToOpenBill = async function (itemData, cashierId) {
         }
       });
     }
-    
+
     // Buat order item
     const orderItem = {
       menuItem: itemData.menuItemId,
@@ -721,32 +723,32 @@ OrderSchema.methods.addItemToOpenBill = async function (itemData, cashierId) {
       isPrinted: false,
       outletId: this.outletId
     };
-    
+
     // Tambahkan item
     this.items.push(orderItem);
-    
+
     // Update totals
     this.totalBeforeDiscount += subtotal;
     this.totalAfterDiscount = this.totalBeforeDiscount;
     this.taxAmount = this.totalBeforeDiscount * (this.taxPercentage / 100);
     this.grandTotal = this.totalBeforeDiscount + this.taxAmount + this.serviceCharge;
-    
+
     this.lastItemAddedAt = new Date();
-    
+
     // Kurangi stok
     if (primaryWarehouseId) {
       const newStock = currentStock - itemData.quantity;
       await menuItem.updateStockForWarehouse(primaryWarehouseId, newStock);
     }
-    
+
     await this.save();
-    
+
     return {
       success: true,
       item: orderItem,
       newTotal: this.grandTotal
     };
-    
+
   } catch (error) {
     throw error;
   }
@@ -758,20 +760,20 @@ OrderSchema.methods.cancelOpenBillItem = async function (itemIndex, cashierId, r
     if (itemIndex < 0 || itemIndex >= this.items.length) {
       throw new Error('Item index tidak valid');
     }
-    
+
     const item = this.items[itemIndex];
-    
+
     // Mark item as cancelled
     item.isCancelled = true;
     item.cancelledAt = new Date();
     item.cancelledBy = cashierId;
     item.cancellationReason = reason;
-    
+
     // Kembalikan stok
     if (item.menuItem) {
       const MenuItem = mongoose.model('MenuItem');
       const menuItem = await MenuItem.findById(item.menuItem);
-      
+
       if (menuItem && menuItem.primaryWarehouseId) {
         const currentStock = menuItem.getStockForWarehouse(menuItem.primaryWarehouseId);
         await menuItem.updateStockForWarehouse(
@@ -780,25 +782,25 @@ OrderSchema.methods.cancelOpenBillItem = async function (itemIndex, cashierId, r
         );
       }
     }
-    
+
     // Recalculate totals (exclude cancelled items)
     this.totalBeforeDiscount = this.items.reduce((total, item) => {
       if (item.isCancelled) return total;
       return total + (item.subtotal || 0);
     }, 0);
-    
+
     this.totalAfterDiscount = this.totalBeforeDiscount;
     this.taxAmount = this.totalBeforeDiscount * (this.taxPercentage / 100);
     this.grandTotal = this.totalBeforeDiscount + this.taxAmount + this.serviceCharge;
-    
+
     await this.save();
-    
+
     return {
       success: true,
       cancelledItem: item,
       newTotal: this.grandTotal
     };
-    
+
   } catch (error) {
     throw error;
   }
@@ -864,13 +866,16 @@ OrderSchema.pre('save', async function (next) {
     }
 
     // Untuk open bill: calculate tax dan grand total
-    if (this.isOpenBill) {
+    // ✅ FIX: Skip recalculation jika bill sedang di-close
+    const isClosingBill = this.isModified('openBillStatus') && this.openBillStatus === 'closed';
+
+    if (this.isOpenBill && !isClosingBill) {
       // Exclude cancelled items dari perhitungan
       const activeItemsTotal = this.items.reduce((total, item) => {
         if (item.isCancelled) return total;
         return total + (item.subtotal || 0);
       }, 0);
-      
+
       this.totalBeforeDiscount = activeItemsTotal;
       this.totalAfterDiscount = activeItemsTotal;
       this.taxAmount = activeItemsTotal * (this.taxPercentage / 100);
@@ -891,16 +896,17 @@ OrderSchema.pre('save', async function (next) {
       // Tentukan status split payment
       if (totalPaid === 0) {
         this.splitPaymentStatus = 'not_started';
-        this.isSplitPayment = false;
+        // ✅ REMOVED: Auto-calculation of isSplitPayment
+        // Let controllers set this explicitly
       } else if (totalPaid < grandTotal) {
         this.splitPaymentStatus = 'partial';
-        this.isSplitPayment = this.payments.length > 1;
+        // ✅ REMOVED: this.isSplitPayment = this.payments.length > 1;
       } else if (totalPaid === grandTotal) {
         this.splitPaymentStatus = 'completed';
-        this.isSplitPayment = this.payments.length > 1;
+        // ✅ REMOVED: this.isSplitPayment = this.payments.length > 1;
       } else {
         this.splitPaymentStatus = 'overpaid';
-        this.isSplitPayment = this.payments.length > 1;
+        // ✅ REMOVED: this.isSplitPayment = this.payments.length > 1;
         // Hitung change untuk overpayment
         this.change = totalPaid - grandTotal;
       }
@@ -984,10 +990,10 @@ OrderSchema.statics.getActiveOpenBills = async function (outletId, filters = {})
     openBillStatus: 'active',
     status: { $in: ['Pending', 'OnProcess'] }
   };
-  
+
   if (filters.tableNumber) query.tableNumber = filters.tableNumber;
   if (filters.cashierId) query.cashierId = filters.cashierId;
-  
+
   return this.find(query)
     .sort({ openBillStartedAt: -1 })
     .populate('cashierId', 'name email')
@@ -1000,9 +1006,9 @@ OrderSchema.statics.getOpenBillById = async function (orderId, outletId = null) 
     order_id: orderId,
     isOpenBill: true
   };
-  
+
   if (outletId) query.outletId = outletId;
-  
+
   return this.findOne(query)
     .populate('cashierId', 'name email')
     .populate('items.menuItem', 'name price')

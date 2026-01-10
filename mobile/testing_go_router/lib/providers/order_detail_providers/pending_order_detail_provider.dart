@@ -48,6 +48,12 @@ class PendingOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
     return false;
   }
 
+  /// ❌ DEPRECATED: Close bill now uses PaymentScreen for payment selection
+  /// This method is no longer used. Close bill button now navigates to PaymentScreen
+  /// with isCloseBill flag, where payment details are collected before submission.
+  ///
+  /// See: order_detail_widget.dart line ~226 for new implementation
+  @Deprecated('Use PaymentScreen with isCloseBill flag instead')
   Future<bool> closeBill(WidgetRef ref, String orderId) async {
     try {
       final cashier = await HiveService.getCashier();
@@ -56,32 +62,27 @@ class PendingOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
         throw Exception("Cashier ID not found in local storage");
       }
 
+      // ❌ This call is now invalid - closeOpenBill requires payment details
+      // Keeping for backward compatibility but will throw error
       final orderService = OrderService();
-      final result = await orderService.closeOpenBill(orderId, cashier!.id!);
 
-      if (result['success'] == true) {
-        // 1. Refresh list pending order
-        ref.invalidate(pendingOrderProvider);
+      // This will fail because closeOpenBill now requires paymentDetails
+      throw Exception(
+        'Close bill without payment is no longer supported. '
+        'Please use PaymentScreen to select payment method first.',
+      );
 
-        // 2. Refresh data detail yang sedang aktif
-        final updatedOrder = await orderService.fetchOrderDetail(orderId);
-        state = updatedOrder;
-
-        // 3. Print struk (Belum Lunas)
-        final printers = ref.read(savedPrintersProvider);
-        if (printers.isNotEmpty) {
-          await PrinterService.printDocuments(
-            orderDetail: updatedOrder,
-            printType: 'customer',
-            printers: printers,
-          ).catchError((e) {
-            AppLogger.error('Gagal mencetak struk close bill', error: e);
-          });
-        }
-
-        return true;
-      }
-      return false;
+      // Old code commented out:
+      // final result = await orderService.closeOpenBill(orderId, cashier!.id!);
+      //
+      // if (result['success'] == true) {
+      //   ref.invalidate(pendingOrderProvider);
+      //   final updatedOrder = await orderService.fetchOrderDetail(orderId);
+      //   state = updatedOrder;
+      //   // ... print receipt ...
+      //   return true;
+      // }
+      // return false;
     } catch (e) {
       AppLogger.error('Error closing bill', error: e);
       rethrow;

@@ -29,6 +29,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   final Ref ref;
 
   bool _isCalculating = false;
+  String? _idempotencyKey; // Idempotency key state
 
   // ============================================================================
   // ORDER INITIALIZATION
@@ -44,6 +45,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       items: [],
       selectedPromoIds: [],
     );
+    _idempotencyKey = null; // Reset key
   }
 
   /// Load existing order
@@ -56,6 +58,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   /// Clear current order
   void clearOrder() {
     state = null;
+    _idempotencyKey = null; // Reset key
     debugPrint('Order cleared');
   }
 
@@ -152,6 +155,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
 
     debugPrint('Item added: ${orderItem.menuItem.name} x${orderItem.quantity}');
+    _idempotencyKey = null; // Cart changed
     _recalculateAll();
   }
 
@@ -174,6 +178,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
 
     state = state!.copyWith(items: updated);
+    _idempotencyKey = null; // Cart changed
     _recalculateAll();
   }
 
@@ -188,6 +193,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       state = state!.copyWith(items: updatedItems);
 
       debugPrint('Item removed: ${menuItem.menuItem.name}');
+      debugPrint('Item removed: ${menuItem.menuItem.name}');
+      _idempotencyKey = null; // Cart changed
       _recalculateAll();
     }
   }
@@ -206,6 +213,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
           }).toList(),
     );
 
+    _idempotencyKey = null; // Cart changed
     _recalculateAll();
   }
 
@@ -236,6 +244,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
 
     state = state!.copyWith(items: updatedItems);
+    _idempotencyKey = null; // Cart changed
     _recalculateAll();
   }
 
@@ -250,6 +259,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     final updatedCustomAmounts = [...currentCustomAmounts, customAmountItem];
 
     state = state!.copyWith(customAmountItems: updatedCustomAmounts);
+    _idempotencyKey = null; // Cart changed
     _recalculateAll();
 
     debugPrint('Custom amount added: ${customAmountItem.name}');
@@ -263,6 +273,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         currentCustomAmounts.where((item) => item != customAmountItem).toList();
 
     state = state!.copyWith(customAmountItems: updatedCustomAmounts);
+    _idempotencyKey = null; // Cart changed
     _recalculateAll();
 
     debugPrint('Custom amount removed');
@@ -394,6 +405,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
     // Update state SEKALI dengan semua perubahan
     state = state!.copyWith(items: updatedItems, selectedPromoIds: newIds);
+    _idempotencyKey = null; // Cart changed
 
     debugPrint(
       '✅ State updated: ${updatedItems.length} items, ${newIds.length} promos',
@@ -453,7 +465,12 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   void addPayment(PaymentModel payment) {
     if (state == null) return;
     final current = state!.payments;
-    state = state!.copyWith(payments: [...current, payment]);
+    final updatedPayments = [...current, payment];
+    state = state!.copyWith(
+      payments: updatedPayments,
+      isSplitPayment:
+          updatedPayments.length >= 2, // ✅ Auto-set split payment flag
+    );
   }
 
   void updatePaymentAmount(int paymentAmount) {
@@ -667,16 +684,28 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       // Ensure latest calculation
       await _recalculateAll();
 
+      // Generate idempotency key if not exists (new intent)
+      _idempotencyKey ??= const Uuid().v4();
+      debugPrint('Using Idempotency Key: $_idempotencyKey');
+
       final payload = state!;
-      final order = await OrderService().createOrder(payload);
+      final order = await OrderService().createOrder(
+        payload,
+        idempotencyKey: _idempotencyKey,
+      );
 
       addOrderIdToOrderDetail(order['orderId']);
       addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
 
       debugPrint('Order submitted successfully: ${order['orderId']}');
+
+      // Success! Reset key for next independent action
+      _idempotencyKey = null;
+
       return order.isNotEmpty;
     } catch (e) {
       debugPrint('Error submitting order: $e');
+      // Do NOT reset key here, so retry uses same key
       rethrow;
     }
   }
