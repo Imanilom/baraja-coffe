@@ -95,7 +95,9 @@ class PaymentSuccessScreen extends ConsumerWidget {
 
         // Success Title
         Text(
-          'Pembayaran Berhasil!',
+          arguments['isCloseBill'] == true
+              ? 'Bill Berhasil Ditutup!'
+              : 'Pembayaran Berhasil!',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.bold,
             color: Colors.grey[800],
@@ -107,7 +109,9 @@ class PaymentSuccessScreen extends ConsumerWidget {
 
         // Subtitle
         Text(
-          'Terima kasih atas transaksi Anda',
+          arguments['isCloseBill'] == true
+              ? 'Open bill telah ditutup dan dibayar'
+              : 'Terima kasih atas transaksi Anda',
           style: Theme.of(
             context,
           ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
@@ -169,7 +173,9 @@ class PaymentSuccessScreen extends ConsumerWidget {
 
               // Success Title
               Text(
-                'Pembayaran Berhasil!',
+                arguments['isCloseBill'] == true
+                    ? 'Bill Berhasil Ditutup!'
+                    : 'Pembayaran Berhasil!',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.grey[800],
@@ -181,7 +187,9 @@ class PaymentSuccessScreen extends ConsumerWidget {
 
               // Subtitle
               Text(
-                'Terima kasih atas transaksi Anda',
+                arguments['isCloseBill'] == true
+                    ? 'Open bill telah ditutup dan dibayar'
+                    : 'Terima kasih atas transaksi Anda',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),

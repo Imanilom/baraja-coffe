@@ -465,7 +465,7 @@ function parseIndonesianDate(dateString) {
  * This ensures GRO orders are printed without delay.
  */
 async function broadcastGROOrderToWorkstations({
-    orderId, tableNumber, orderItems, orderType, outlet, customerName, isReservation, service
+    orderId, tableNumber, orderItems, orderType, outlet, customerName, isReservation, service, isOpenBill
 }) {
     try {
         if (!orderItems || orderItems.length === 0) {
@@ -581,6 +581,7 @@ async function broadcastGROOrderToWorkstations({
                 targetDevice: device.deviceName,
                 isReservation: isReservation || false,
                 isGROOrder: true,
+                isOpenBill: isOpenBill || false,
                 timestamp: new Date()
             };
 
@@ -1322,7 +1323,8 @@ export const createAppOrder = async (req, res) => {
                     outlet: outlet || newOrder.outlet,
                     customerName: finalUserName,
                     isReservation: orderType === 'reservation',
-                    service: newOrder.type || 'Dine-In'
+                    service: newOrder.type || 'Dine-In',
+                    isOpenBill: isOpenBill || false
                 });
             }
 

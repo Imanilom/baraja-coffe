@@ -18,7 +18,10 @@ import 'package:kasirbaraja/utils/payment_details_utils.dart';
 class OrderService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
 
-  Future<Map<String, dynamic>> createOrder(OrderDetailModel orderDetail) async {
+  Future<Map<String, dynamic>> createOrder(
+    OrderDetailModel orderDetail, {
+    String? idempotencyKey,
+  }) async {
     try {
       AppLogger.debug('order request: ${createOrderRequest(orderDetail)}');
       AppLogger.debug('log order: ${logOrder(orderDetail)}');
@@ -34,6 +37,7 @@ class OrderService {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'ngrok-skip-browser-warning': 'true',
+            if (idempotencyKey != null) 'x-idempotency-key': idempotencyKey,
           },
         ),
       );
@@ -276,6 +280,7 @@ class OrderService {
   //patchOrder,
   Future<Map<String, dynamic>> patchOrderEdit({
     required EditOrderItemModel patchData,
+    String? idempotencyKey,
   }) async {
     final orderId = patchData.order?.id ?? '';
     if (orderId.isEmpty) {
@@ -309,6 +314,11 @@ class OrderService {
       final res = await _dio.patch(
         '/api/orders/$orderId/edit',
         data: patchEditData,
+        options: Options(
+          headers: {
+            if (idempotencyKey != null) 'x-idempotency-key': idempotencyKey,
+          },
+        ),
       );
 
       if (res.data['success'] == true) {
@@ -323,17 +333,37 @@ class OrderService {
     }
   }
 
-  Future<Map<String, dynamic>> closeOpenBill(
-    String orderId,
-    String cashierId,
-  ) async {
+  Future<Map<String, dynamic>> closeOpenBill({
+    required String orderId,
+    required String cashierId,
+    required dynamic paymentDetails, // Can be single object or array
+    bool isSplitPayment = false,
+    String? customerName,
+    String? customerPhone,
+    String? notes,
+  }) async {
     try {
       if (orderId.isEmpty) {
         throw Exception("orderId tidak boleh kosong");
       }
+
+      final requestData = {
+        'cashierId': cashierId,
+        'paymentDetails': paymentDetails,
+        'isSplitPayment': isSplitPayment,
+        if (customerName != null) 'customerName': customerName,
+        if (customerPhone != null) 'customerPhone': customerPhone,
+        if (notes != null) 'notes': notes,
+      };
+
+      // 🐛 DEBUG: Log request data
+      print('📤 Close Bill Request:');
+      print('URL: /api/open-bill/$orderId/close');
+      print('Data: $requestData');
+
       final res = await _dio.post(
         '/api/open-bill/$orderId/close',
-        data: {'cashierId': cashierId},
+        data: requestData,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -348,7 +378,26 @@ class OrderService {
       } else {
         throw Exception('Failed to close open bill: ${res.data['message']}');
       }
+    } on DioException catch (e) {
+      // 🐛 DEBUG: Log detailed error
+      print('❌ Close Bill Error:');
+      print('Status Code: ${e.response?.statusCode}');
+      print('Response Data: ${e.response?.data}');
+      print('Error Message: ${e.message}');
+
+      // Extract backend error message if available
+      String errorMsg = 'Failed to close open bill';
+      if (e.response?.data != null) {
+        if (e.response!.data is Map) {
+          errorMsg =
+              e.response!.data['message'] ??
+              e.response!.data['error'] ??
+              errorMsg;
+        }
+      }
+      throw Exception('$errorMsg: ${e.toString()}');
     } catch (e) {
+      print('❌ Unexpected Error: $e');
       throw Exception('Failed to close open bill: $e');
     }
   }

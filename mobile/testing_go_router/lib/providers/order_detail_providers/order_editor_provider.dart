@@ -13,6 +13,7 @@ import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:collection/collection.dart';
+import 'package:uuid/uuid.dart';
 
 // =====================================================
 // NOTIFIER EDIT ORDER ITEM
@@ -33,6 +34,7 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
   final Ref ref;
   final TaxAndServiceRepository _taxSvc;
   bool _isCalculating = false;
+  String? _idempotencyKey; // Idempotency key state
 
   /// dipanggil waktu masuk halaman edit
   Future<void> load(OrderDetailModel order) async {
@@ -99,6 +101,7 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
       reason: null,
       error: null,
     );
+    _idempotencyKey = null; // New order loaded
   }
 
   List<ToppingModel> _resolveSelectedToppings(
@@ -192,6 +195,7 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
     }
 
     state = state.copyWith(order: order.copyWith(items: items));
+    _idempotencyKey = null; // Cart changed
     _recalc();
   }
 
@@ -202,6 +206,7 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
       final updatedItems = [...state.order!.items];
       updatedItems.removeAt(index);
       state = state.copyWith(order: state.order!.copyWith(items: updatedItems));
+      _idempotencyKey = null; // Cart changed
       AppLogger.info('Item order berhasil dihapus.');
     } else {
       AppLogger.warning('Item tidak ditemukan, tidak ada yang dihapus.');
@@ -227,6 +232,7 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
     }
 
     state = state.copyWith(order: order.copyWith(items: items));
+    _idempotencyKey = null; // Cart changed
     _recalc();
   }
 
@@ -327,7 +333,14 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
     debugPrint('submitEditedOrder: $editedOrder');
 
     try {
-      final result = await OrderService().patchOrderEdit(patchData: state);
+      // Generate idempotency key if not exists (new intent)
+      _idempotencyKey ??= const Uuid().v4();
+      AppLogger.debug('Using Idempotency Key for Edit: $_idempotencyKey');
+
+      final result = await OrderService().patchOrderEdit(
+        patchData: state,
+        idempotencyKey: _idempotencyKey,
+      );
       // Simulasikan delay agar user merasa diproses
       await Future.delayed(const Duration(seconds: 1));
 
@@ -337,6 +350,7 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
           isSubmitting: false,
           originalItems: const [],
         );
+        _idempotencyKey = null; // Reset on success
         return true;
       }
 

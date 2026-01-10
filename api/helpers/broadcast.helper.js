@@ -361,7 +361,8 @@ export const broadcastCashOrderToKitchen = async (params) => {
         // 🔧 NEW: Device-based routing parameters
         sourceCashierArea: sourceCashierArea,
         isReservation: orderData.orderType === 'reservation',
-        isGROOrder: orderData.source === 'Gro'
+        isGROOrder: orderData.source === 'Gro',
+        isOpenBill: orderData.isOpenBill || false
       });
 
       console.log(`✅ Order ${orderId} broadcasted via socketManagement${sourceCashierArea ? ` (cashier area: ${sourceCashierArea})` : ''}`);
@@ -394,6 +395,7 @@ export const broadcastCashOrderToKitchen = async (params) => {
         source: orderData.source || 'Cashier',
         name: orderData.customer_name || orderData.name || 'Guest',
         service: orderData.service || 'Dine-In',
+        isOpenBill: orderData.isOpenBill || false,
         timestamp: new Date()
       };
 
