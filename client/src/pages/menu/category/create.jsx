@@ -84,7 +84,7 @@ const AddCategory = () => {
 
       const response = await axios.post('/api/menu/categories', newCategory);
 
-      navigate('/admin/categories', {
+      navigate('/admin/menu?menu=category', {
         state: { message: 'Kategori berhasil ditambahkan!' }
       });
     } catch (err) {
@@ -104,7 +104,7 @@ const AddCategory = () => {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/admin/categories')}
+            onClick={() => navigate('/admin/menu?menu=category')}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4 group"
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
@@ -189,7 +189,7 @@ const AddCategory = () => {
             <div className="mt-8 pt-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3 sm:justify-end">
               <button
                 type="button"
-                onClick={() => navigate('/admin/categories')}
+                onClick={() => navigate('/admin/menu?menu=category')}
                 className="w-full sm:w-auto px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-20"
               >
                 Batal

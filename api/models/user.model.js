@@ -38,7 +38,7 @@ const UserSchema = new mongoose.Schema({
 
   cashierType: {
     type: String,
-    enum: [null, 'bar-1-amphi', 'bar-2-amphi', 'bar-3-amphi', 'bar-tp', 'bar-dp', 'drive-thru'],
+    enum: [null, 'bar-1-amphi', 'bar-2-amphi', 'bar-3-amphi', 'bar-tp', 'bar-dp', 'drive-thru', 'event'],
     required: false,
     default: null
   },

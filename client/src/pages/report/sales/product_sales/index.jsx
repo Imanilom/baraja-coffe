@@ -368,6 +368,7 @@ const ProductSales = () => {
                             <tr className="text-left text-[13px]">
                                 <th className="px-4 py-3 font-normal">No</th>
                                 <th className="px-4 py-3 font-normal">Nama Produk</th>
+                                <th className="px-4 py-3 font-normal">Kategori</th>
                                 <th className="px-4 py-3 font-normal text-right">Qty Terjual</th>
                                 <th className="px-4 py-3 font-normal text-right">Total Penjualan</th>
                                 <th className="px-4 py-3 font-normal text-right">Rata-rata</th>
@@ -382,6 +383,9 @@ const ProductSales = () => {
                                         </td>
                                         <td className="px-4 py-3">
                                             <p className="font-medium text-gray-700">{product.productName}</p>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <p className="font-medium text-gray-700">{product.category}</p>
                                         </td>
                                         <td className="px-4 py-3 text-right">{product.quantity?.toLocaleString()}</td>
                                         <td className="px-4 py-3 text-right font-medium">{formatCurrency(product.subtotal)}</td>

@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"outlet":{"$numberInt":"1"}},"name":"outlet_1","background":true,"unique":true}],"uuid":"801742e5e4844a3597e61d6e21dc9fa9","collectionName":"devicequotas","type":"collection"}

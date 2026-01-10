@@ -39,6 +39,7 @@ export const exportProductSalesExcel = async ({
     const columns = [
         "No",
         "Nama Produk",
+        "Kategori",
         "Qty Terjual",
         "Total Penjualan",
         "Rata-rata"
@@ -68,6 +69,7 @@ export const exportProductSalesExcel = async ({
         const rowData = [
             index + 1,
             item.productName || "-",
+            item.category,
             item.quantity,
             item.subtotal,
             item.average
@@ -100,6 +102,7 @@ export const exportProductSalesExcel = async ({
     // =====================
     if (grandTotal) {
         const grandRow = [
+            "",
             "",
             "GRAND TOTAL",
             grandTotal.quantity,
@@ -178,6 +181,7 @@ export const exportProductSalesExcel = async ({
     const columnWidths = [
         8,   // No
         40,  // Nama Produk
+        40,  // Kategori
         15,  // Qty Terjual
         20,  // Total Penjualan
         18   // Rata-rata

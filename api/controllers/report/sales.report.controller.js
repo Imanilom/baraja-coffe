@@ -479,6 +479,363 @@ class DailyProfitController {
    * Get product sales report yang aman terhadap deleted items - DUKUNG SPLIT PAYMENT
    */
 
+  // async getProductSalesReport(req, res) {
+  //   try {
+  //     const productSearch = req.query.product || '';
+
+  //     // Build match stage untuk filter
+  //     const matchStage = {
+  //       status: 'Completed'
+  //     };
+
+  //     // Filter by outlet
+  //     if (req.query.outlet) {
+  //       try {
+  //         const mongoose = require('mongoose');
+  //         matchStage.outlet = mongoose.Types.ObjectId(req.query.outlet);
+  //       } catch (err) {
+  //         matchStage.outlet = req.query.outlet;
+  //       }
+  //     }
+
+  //     // Filter by date range
+  //     if (req.query.startDate || req.query.endDate) {
+  //       matchStage.createdAt = {};
+
+  //       if (req.query.startDate) {
+  //         const startDateStr = req.query.startDate;
+  //         const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
+  //         matchStage.createdAt.$gte = startDate;
+  //       }
+
+  //       if (req.query.endDate) {
+  //         const endDateStr = req.query.endDate;
+  //         const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
+  //         matchStage.createdAt.$lte = endDate;
+  //       }
+  //     }
+
+  //     console.log('Match Stage:', JSON.stringify(matchStage, null, 2));
+
+  //     // ✅ Pipeline untuk items regular + customAmountItems dengan addon separation
+  //     const pipeline = [
+  //       // Stage 1: Filter orders
+  //       {
+  //         $match: matchStage
+  //       },
+
+  //       // Stage 2: Project untuk combine items + customAmountItems
+  //       {
+  //         $project: {
+  //           outlet: 1,
+  //           createdAt: 1,
+  //           allItems: {
+  //             $concatArrays: [
+  //               // Regular items - tandai dengan type: 'regular'
+  //               {
+  //                 $map: {
+  //                   input: { $ifNull: ['$items', []] },
+  //                   as: 'item',
+  //                   in: {
+  //                     type: 'regular',
+  //                     menuItem: '$$item.menuItem',
+  //                     menuItemData: '$$item.menuItemData',
+  //                     quantity: '$$item.quantity',
+  //                     subtotal: '$$item.subtotal',
+  //                     addons: '$$item.addons'
+  //                   }
+  //                 }
+  //               },
+  //               // Custom amount items - tandai dengan type: 'custom'
+  //               {
+  //                 $map: {
+  //                   input: { $ifNull: ['$customAmountItems', []] },
+  //                   as: 'custom',
+  //                   in: {
+  //                     type: 'custom',
+  //                     quantity: 1,
+  //                     subtotal: '$$custom.amount',
+  //                     name: '$$custom.name',
+  //                     addons: []
+  //                   }
+  //                 }
+  //               }
+  //             ]
+  //           }
+  //         }
+  //       },
+
+  //       // Stage 3: Unwind allItems
+  //       {
+  //         $unwind: {
+  //           path: '$allItems',
+  //           preserveNullAndEmptyArrays: false
+  //         }
+  //       },
+
+  //       // Stage 4: Lookup menuItem (hanya untuk regular items)
+  //       {
+  //         $lookup: {
+  //           from: 'menuitems',
+  //           let: { itemType: '$allItems.type', menuItemId: '$allItems.menuItem' },
+  //           pipeline: [
+  //             {
+  //               $match: {
+  //                 $expr: {
+  //                   $and: [
+  //                     { $eq: ['$$itemType', 'regular'] },
+  //                     { $eq: ['$_id', '$$menuItemId'] }
+  //                   ]
+  //                 }
+  //               }
+  //             }
+  //           ],
+  //           as: 'menuItemInfo'
+  //         }
+  //       },
+
+  //       // Stage 5: Unwind menuItemInfo
+  //       {
+  //         $unwind: {
+  //           path: '$menuItemInfo',
+  //           preserveNullAndEmptyArrays: true
+  //         }
+  //       },
+
+  //       // Stage 6: Add computed fields dengan addon variant
+  //       {
+  //         $addFields: {
+  //           // Base product name
+  //           baseProductName: {
+  //             $cond: [
+  //               { $eq: ['$allItems.type', 'custom'] },
+  //               { $ifNull: ['$allItems.name', 'Custom Item'] },
+  //               {
+  //                 $cond: [
+  //                   { $ne: ['$menuItemInfo.name', null] },
+  //                   '$menuItemInfo.name',
+  //                   {
+  //                     $cond: [
+  //                       { $ne: ['$allItems.menuItemData.name', null] },
+  //                       '$allItems.menuItemData.name',
+  //                       'Unknown Product'
+  //                     ]
+  //                   }
+  //                 ]
+  //               }
+  //             ]
+  //           },
+  //           // Extract addon variant (Hot/Iced/etc)
+  //           addonVariant: {
+  //             $cond: [
+  //               {
+  //                 $and: [
+  //                   { $isArray: '$allItems.addons' },
+  //                   { $gt: [{ $size: { $ifNull: ['$allItems.addons', []] } }, 0] }
+  //                 ]
+  //               },
+  //               {
+  //                 $reduce: {
+  //                   input: { $ifNull: ['$allItems.addons', []] },
+  //                   initialValue: '',
+  //                   in: {
+  //                     $concat: [
+  //                       '$$value',
+  //                       {
+  //                         $cond: [
+  //                           { $eq: ['$$value', ''] },
+  //                           '',
+  //                           ' - '
+  //                         ]
+  //                       },
+  //                       {
+  //                         $reduce: {
+  //                           input: { $ifNull: ['$$this.options', []] },
+  //                           initialValue: '',
+  //                           in: {
+  //                             $concat: [
+  //                               '$$value',
+  //                               {
+  //                                 $cond: [
+  //                                   { $eq: ['$$value', ''] },
+  //                                   '',
+  //                                   ', '
+  //                                 ]
+  //                               },
+  //                               { $ifNull: ['$$this.label', ''] }
+  //                             ]
+  //                           }
+  //                         }
+  //                       }
+  //                     ]
+  //                   }
+  //                 }
+  //               },
+  //               ''
+  //             ]
+  //           },
+  //           itemQuantity: { $ifNull: ['$allItems.quantity', 0] },
+  //           itemSubtotal: { $ifNull: ['$allItems.subtotal', 0] }
+  //         }
+  //       },
+
+  //       // Stage 7: Create full product name with variant
+  //       {
+  //         $addFields: {
+  //           computedProductName: {
+  //             $cond: [
+  //               { $eq: ['$addonVariant', ''] },
+  //               '$baseProductName',
+  //               { $concat: ['$baseProductName', ' (', '$addonVariant', ')'] }
+  //             ]
+  //           }
+  //         }
+  //       }
+  //     ];
+
+  //     // Add product search filter if exists
+  //     if (productSearch) {
+  //       pipeline.push({
+  //         $match: {
+  //           computedProductName: { $regex: productSearch, $options: 'i' }
+  //         }
+  //       });
+  //     }
+
+  //     // Add grouping and calculation stages
+  //     pipeline.push(
+  //       // Group by product name WITH variant
+  //       {
+  //         $group: {
+  //           _id: '$computedProductName',
+  //           quantity: { $sum: '$itemQuantity' },
+  //           subtotal: { $sum: '$itemSubtotal' }
+  //         }
+  //       },
+
+  //       // Project final structure
+  //       {
+  //         $project: {
+  //           _id: 0,
+  //           productName: '$_id',
+  //           quantity: 1,
+  //           subtotal: 1,
+  //           average: {
+  //             $cond: {
+  //               if: { $gt: ['$quantity', 0] },
+  //               then: { $divide: ['$subtotal', '$quantity'] },
+  //               else: 0
+  //             }
+  //           }
+  //         }
+  //       },
+
+  //       // Sort by product name
+  //       {
+  //         $sort: { productName: 1 }
+  //       }
+  //     );
+
+  //     console.log('Executing aggregation pipeline...');
+
+  //     // Execute pipeline
+  //     const productData = await Order.aggregate(pipeline)
+  //       .allowDiskUse(true)
+  //       .exec();
+
+  //     // ✅ Grand Total - items.subtotal + customAmountItems.amount
+  //     const grandTotalPipeline = [
+  //       { $match: matchStage },
+  //       {
+  //         $project: {
+  //           allItems: {
+  //             $concatArrays: [
+  //               {
+  //                 $map: {
+  //                   input: { $ifNull: ['$items', []] },
+  //                   as: 'item',
+  //                   in: {
+  //                     quantity: '$$item.quantity',
+  //                     subtotal: '$$item.subtotal'
+  //                   }
+  //                 }
+  //               },
+  //               {
+  //                 $map: {
+  //                   input: { $ifNull: ['$customAmountItems', []] },
+  //                   as: 'custom',
+  //                   in: {
+  //                     quantity: 1,
+  //                     subtotal: '$$custom.amount'
+  //                   }
+  //                 }
+  //               }
+  //             ]
+  //           }
+  //         }
+  //       },
+  //       { $unwind: '$allItems' },
+  //       {
+  //         $group: {
+  //           _id: null,
+  //           totalQuantity: { $sum: { $ifNull: ['$allItems.quantity', 0] } },
+  //           totalSubtotal: { $sum: { $ifNull: ['$allItems.subtotal', 0] } },
+  //           totalItems: { $sum: 1 }
+  //         }
+  //       }
+  //     ];
+
+  //     const grandTotalResult = await Order.aggregate(grandTotalPipeline);
+
+  //     // Count unique orders
+  //     const orderCountResult = await Order.countDocuments(matchStage);
+
+  //     const grandTotal = grandTotalResult.length > 0 ? {
+  //       quantity: grandTotalResult[0].totalQuantity || 0,
+  //       subtotal: grandTotalResult[0].totalSubtotal || 0,
+  //       average: grandTotalResult[0].totalQuantity > 0
+  //         ? grandTotalResult[0].totalSubtotal / grandTotalResult[0].totalQuantity
+  //         : 0
+  //     } : {
+  //       quantity: 0,
+  //       subtotal: 0,
+  //       average: 0
+  //     };
+
+  //     // Response
+  //     const response = {
+  //       success: true,
+  //       data: productData,
+  //       grandTotal: grandTotal,
+  //       metadata: {
+  //         filters: {
+  //           outlet: req.query.outlet || 'all',
+  //           dateRange: req.query.startDate && req.query.endDate
+  //             ? `${req.query.startDate} to ${req.query.endDate}`
+  //             : 'all',
+  //           product: productSearch || 'all'
+  //         },
+  //         totalOrders: orderCountResult,
+  //         totalProducts: productData.length,
+  //         processedAt: new Date().toISOString()
+  //       }
+  //     };
+
+  //     res.status(200).json(response);
+
+  //   } catch (error) {
+  //     console.error('Get product sales report error:', error);
+  //     console.error('Error stack:', error.stack);
+
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to fetch product sales report',
+  //       error: error.message,
+  //       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  //     });
+  //   }
+  // }
+
   async getProductSalesReport(req, res) {
     try {
       const productSearch = req.query.product || '';
@@ -556,7 +913,8 @@ class DailyProfitController {
                       quantity: 1,
                       subtotal: '$$custom.amount',
                       name: '$$custom.name',
-                      addons: []
+                      addons: [],
+                      menuItemData: null // Custom items tidak punya menuItemData
                     }
                   }
                 }
@@ -602,7 +960,39 @@ class DailyProfitController {
           }
         },
 
-        // Stage 6: Add computed fields dengan addon variant
+        // ✅ Stage 6: Lookup category dari menuItemInfo.category (jika ObjectId)
+        {
+          $lookup: {
+            from: 'categories', // Sesuaikan dengan nama collection kategori Anda
+            let: {
+              categoryFromLookup: '$menuItemInfo.category',
+              categoryFromData: '$allItems.menuItemData.category'
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ['$_id', '$$categoryFromLookup'] },
+                      { $eq: ['$_id', '$$categoryFromData'] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: 'categoryInfo'
+          }
+        },
+
+        // ✅ Stage 7: Unwind categoryInfo
+        {
+          $unwind: {
+            path: '$categoryInfo',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+
+        // Stage 8: Add computed fields dengan addon variant dan kategori
         {
           $addFields: {
             // Base product name
@@ -619,6 +1009,33 @@ class DailyProfitController {
                         { $ne: ['$allItems.menuItemData.name', null] },
                         '$allItems.menuItemData.name',
                         'Unknown Product'
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            // ✅ Extract category name dari categoryInfo
+            category: {
+              $cond: [
+                { $eq: ['$allItems.type', 'custom'] },
+                'Custom Items', // Kategori default untuk custom items
+                {
+                  $cond: [
+                    { $ne: ['$categoryInfo.name', null] },
+                    '$categoryInfo.name', // Ambil name dari hasil lookup
+                    {
+                      $cond: [
+                        // Check jika category adalah string (bukan ObjectId)
+                        { $eq: [{ $type: '$menuItemInfo.category' }, 'string'] },
+                        '$menuItemInfo.category',
+                        {
+                          $cond: [
+                            { $eq: [{ $type: '$allItems.menuItemData.category' }, 'string'] },
+                            '$allItems.menuItemData.category',
+                            'Uncategorized'
+                          ]
+                        }
                       ]
                     }
                   ]
@@ -679,7 +1096,7 @@ class DailyProfitController {
           }
         },
 
-        // Stage 7: Create full product name with variant
+        // Stage 9: Create full product name with variant
         {
           $addFields: {
             computedProductName: {
@@ -708,6 +1125,7 @@ class DailyProfitController {
         {
           $group: {
             _id: '$computedProductName',
+            category: { $first: '$category' }, // ✅ Ambil kategori pertama (sudah dalam bentuk string)
             quantity: { $sum: '$itemQuantity' },
             subtotal: { $sum: '$itemSubtotal' }
           }
@@ -718,6 +1136,7 @@ class DailyProfitController {
           $project: {
             _id: 0,
             productName: '$_id',
+            category: 1, // ✅ Include kategori di output
             quantity: 1,
             subtotal: 1,
             average: {
@@ -730,9 +1149,9 @@ class DailyProfitController {
           }
         },
 
-        // Sort by product name
+        // Sort by category first, then product name
         {
-          $sort: { productName: 1 }
+          $sort: { category: 1, productName: 1 }
         }
       );
 

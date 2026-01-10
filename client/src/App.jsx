@@ -13,8 +13,8 @@ import AdminLayout from "./pages/admin/index"; // Gunakan Layout Admin
 import AdminDashboard from "./pages/admin/index";
 import OutletManagementPage from "./pages/outlet/index";
 import Menumanagement from "./pages/menu/index";
-import Menucreate from "./pages/menu/create";
-import MenuUpdate from "./pages/menu/update";
+import Menucreate from "./pages/menu/product/create";
+import MenuUpdate from "./pages/menu/product/update";
 import AddCategory from "./pages/menu/category/create";
 import Vouchermanagement from "./pages/promotion/voucher/index";
 import CreateVoucher from "./pages/promotion/voucher/create";
@@ -51,7 +51,6 @@ import LoyaltyIndex from "./pages/promotion/loyaltyprograms/index";
 import CreateLoyaltyProgram from "./pages/promotion/loyaltyprograms/create";
 import EditLoyaltyProgram from "./pages/promotion/loyaltyprograms/update";
 
-import ViewMenu from "./pages/menu/view";
 import ProductSales from "./pages/report/sales/product_sales";
 import CategorySales from "./pages/report/sales/category_sales";
 import OutletSales from "./pages/report/sales/outlet_sales";
@@ -63,8 +62,6 @@ import TypeSales from "./pages/report/sales/type_sales";
 import CustomerSales from "./pages/report/sales/customer_sales";
 import DeviceSales from "./pages/report/sales/device_sales";
 import DigitalPayment from "./pages/report/sales/digital_payment";
-import CreateAddOns from "./pages/menu/add_ons/create";
-import AddOns from "./pages/menu/add_ons";
 import Dashboard from "./pages/dashboard";
 import CreateOutlet from "./pages/outlet/create";
 import TaxManagementPage from "./pages/tax";
@@ -89,9 +86,6 @@ import TaxRevenueManagement from "./pages/report/profit/tax_revenue";
 import DiscountManagement from "./pages/report/profit/discount";
 import DailyProfitManagement from "./pages/report/profit/daily-profit";
 import ProfitByProductManagement from "./pages/report/profit/profit_by_product";
-import ManageStock from "./pages/menu/managestock";
-import ModifierManagement from "./pages/menu/modifier";
-import PriceSellingStatusManagement from "./pages/menu/pricesellingstatus";
 import SupplierManagement from "./pages/purchase/supplier";
 import PurchaseOrderManagement from "./pages/purchase/purchaseorder";
 import ShoppingList from "./pages/purchase/shoppinglist";
@@ -99,7 +93,6 @@ import Table from "./pages/table/tablemanagement";
 import UpdateCategory from "./pages/menu/category/update";
 import EmployeeManagement from "./pages/employee";
 import CustomerManagement from "./pages/customer";
-import CreateModifier from "./pages/menu/modifier/create";
 import CreateTax from "./pages/tax/create_tax";
 import CreateSupplier from "./pages/purchase/supplier/create";
 import OutletCardManagement from "./pages/inventory/outletcard";
@@ -131,7 +124,6 @@ import UpdatePromoPage from "./pages/promotion/promo/update";
 import PointManagement from "./pages/promotion/points";
 import UpdateAutoPromo from "./pages/promotion/autopromo/update";
 import ReceiptMenu from "./pages/menu/receipt";
-import AddSubCategory from "./pages/menu/category_sub/create";
 import CreateTable from "./pages/table/tableplan/create";
 import EventManagement from "./pages/event";
 import CreateEvent from "./pages/event/create";
@@ -163,9 +155,6 @@ import AssetManagement from "./pages/aset";
 import CreateDevice from "./pages/device/maindevice/create";
 import ReservationPage from "./pages/reservation";
 import TypeTransaction from "./pages/report/sales/status_transaction";
-import TicketManagement from "./pages/ticket";
-import CreateTicket from "./pages/ticket/create";
-import UpdateTicket from "./pages/ticket/update";
 import StockReconciliation from "./pages/stock_reconciliation";
 
 // HRD Routes
@@ -200,17 +189,9 @@ export default function App() {
                 <Route path="menu-receipt/:id" element={<ReceiptMenu />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
-                <Route path="modifier-create" element={<CreateModifier />} />
-                <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
-                <Route path="add-ons" element={<AddOns />} />
-                <Route path="modifier" element={<ModifierManagement />} />
-                <Route path="addons-create" element={<CreateAddOns />} />
                 <Route path="category-create" element={<AddCategory />} />
                 <Route path="category-update/:id" element={<UpdateCategory />} />
-                <Route path="subcategory-create" element={<AddSubCategory />} />
-                <Route path="manage-stock/:id" element={<ManageStock />} />
-                <Route path="manage-price-and-selling-status/:id" element={<PriceSellingStatusManagement />} />
 
                 {/* Menu On Device */}
                 <Route path="menu-on-device" element={<DeviceMenuManager />} />
@@ -343,11 +324,6 @@ export default function App() {
                 <Route path="event/create-event" element={<CreateEvent />} />
                 <Route path="event/edit-event/:id" element={<UpdateEvent />} />
                 <Route path="event/report" element={<ReportEvent />} />
-
-                {/* Ticket */}
-                <Route path="ticket" element={<TicketManagement />} />
-                <Route path="ticket/create-ticket" element={<CreateTicket />} />
-                <Route path="ticket/edit-ticket/:id" element={<UpdateTicket />} />
 
                 {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />

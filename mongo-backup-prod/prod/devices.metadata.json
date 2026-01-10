@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"outlet":{"$numberInt":"1"},"deviceId":{"$numberInt":"1"}},"name":"outlet_1_deviceId_1","background":true,"unique":true}],"uuid":"2de4f5ee28d242c18863711f128e94f8","collectionName":"devices","type":"collection"}

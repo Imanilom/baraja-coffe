@@ -4,7 +4,7 @@ import axios from "axios";
 import ExportInventory from "../exportInventory";
 import UpdateStockForm from "./update";
 import { useSelector } from "react-redux";
-import CategoryTabs from "../../menu/filters/categorytabs";
+import CategoryTabs from "../../menu/product/component/categorytabs";
 import Paginated from "../../../components/paginated";
 
 const CurrentStockManagement = () => {

@@ -9,7 +9,7 @@ import {
 } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import MessageAlert from "../../../components/messageAlert";
-import CreateUserSkeleton from "./create_user_skeleton"; // Import skeleton
+import CreateUserSkeleton from "./create_user_skeleton";
 
 const CreateUser = () => {
     const customSelectStyles = {
@@ -64,6 +64,7 @@ const CreateUser = () => {
     const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
     const [pin, setPin] = useState("");
+    const [cashierType, setCashierType] = useState("");
     const [formErrors, setFormErrors] = useState({});
     const [submitAction, setSubmitAction] = useState("stay");
     const [alertMsg, setAlertMsg] = useState("");
@@ -87,22 +88,29 @@ const CreateUser = () => {
         },
     ];
 
+    const cashierTypeOptions = [
+        { value: "bar-1-amphi", label: "Bar 1 Amphi" },
+        { value: "bar-2-amphi", label: "Bar 2 Amphi" },
+        { value: "bar-3-amphi", label: "Bar 3 Amphi" },
+        { value: "bar-tp", label: "Bar TP" },
+        { value: "bar-dp", label: "Bar DP" },
+        { value: "drive-thru", label: "Drive Thru" },
+        { value: "event", label: "Event" },
+    ];
+
     const fetchRoles = async () => {
         setLoading(true);
         try {
             const res = await axios.get("/api/roles");
 
-            // Filter roles berdasarkan tab aktif
             let filtered = res.data;
             const currentTab = tabs.find(t => t.id === activeTab);
 
             if (currentTab.roles) {
-                // Jika ada roles yang specific (untuk cashier tab)
                 filtered = res.data.filter(role =>
                     currentTab.roles.some(r => r.toLowerCase() === role.name.toLowerCase())
                 );
             } else if (currentTab.exclude) {
-                // Jika ada exclude (untuk staff tab)
                 filtered = res.data.filter(role =>
                     !currentTab.exclude.some(r => r.toLowerCase() === role.name.toLowerCase())
                 );
@@ -143,13 +151,12 @@ const CreateUser = () => {
         fetchOutlets();
     }, []);
 
-    // Refetch roles ketika tab berubah
     useEffect(() => {
         fetchRoles();
-        // Reset selected role dan password/pin ketika pindah tab
         setEmployeeType("");
         setPassword("");
         setPin("");
+        setCashierType("");
     }, [activeTab]);
 
     const filteredOutlets = outlets.filter((o) =>
@@ -169,8 +176,8 @@ const CreateUser = () => {
         if (!email) errors.email = "Email wajib diisi.";
         if (!phone) errors.phone = "Nomor telepon wajib diisi.";
 
-        // Validasi berbeda untuk Staff vs Cashier
         if (activeTab === "cashier") {
+            if (!cashierType) errors.cashierType = "Tipe kasir wajib diisi.";
             if (!pin || pin.length !== 4) errors.pin = "PIN wajib 4 digit.";
         } else {
             if (!password) errors.password = "Password wajib diisi.";
@@ -193,8 +200,9 @@ const CreateUser = () => {
                 username,
                 email,
                 phone,
-                password: activeTab === "cashier" ? pin : password, // kirim pin atau password
+                password: activeTab === "cashier" ? pin : password,
                 role: employeeType,
+                cashierType: activeTab === "cashier" ? cashierType : null,
                 outlets: selectedOutlets,
             });
 
@@ -203,7 +211,6 @@ const CreateUser = () => {
                     state: { success: "User berhasil dibuat!" },
                 });
             } else {
-                // Reset form
                 setUsername("");
                 setEmail("");
                 setPhone("");
@@ -211,6 +218,7 @@ const CreateUser = () => {
                 setSelectedOutlets([]);
                 setPassword("");
                 setPin("");
+                setCashierType("");
                 setAlertMsg("User berhasil dibuat!");
             }
         } catch (err) {
@@ -225,13 +233,11 @@ const CreateUser = () => {
         <div className="text-gray-700">
             <MessageAlert message={alertMsg} type="success" />
 
-            {/* Form Container */}
             <form
                 className="max-w-5xl mx-auto mt-6 mb-12 bg-white shadow rounded-lg overflow-hidden"
                 autoComplete="off"
                 onSubmit={handleSubmit}
             >
-                {/* Breadcrumb + Actions */}
                 <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
                     <div className="flex items-center text-sm text-gray-500 space-x-2">
                         <FaIdBadge />
@@ -265,7 +271,6 @@ const CreateUser = () => {
                     </div>
                 </div>
 
-                {/* Tab Navigation */}
                 <div className="px-6 pt-4">
                     <div className="border-b border-gray-200">
                         <div className="flex gap-1">
@@ -286,12 +291,9 @@ const CreateUser = () => {
                     </div>
                 </div>
 
-                {/* Content */}
                 <div className="p-6 space-y-6">
-                    {/* Input fields */}
                     <div className="grid grid-cols-1 gap-6">
                         <div className="space-y-4">
-                            {/* Username */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Username <span className="text-red-500">*</span>
@@ -310,7 +312,6 @@ const CreateUser = () => {
                                 )}
                             </div>
 
-                            {/* Email */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Email <span className="text-red-500">*</span>
@@ -329,7 +330,6 @@ const CreateUser = () => {
                                 )}
                             </div>
 
-                            {/* Telepon */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Nomor Telepon <span className="text-red-500">*</span>
@@ -351,7 +351,6 @@ const CreateUser = () => {
                                 )}
                             </div>
 
-                            {/* Role select - filtered based on active tab */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Role <span className="text-red-500">*</span>
@@ -370,7 +369,27 @@ const CreateUser = () => {
                                 )}
                             </div>
 
-                            {/* Password atau PIN berdasarkan tab */}
+                            {/* Cashier Type - hanya muncul di tab cashier */}
+                            {activeTab === "cashier" && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Tipe Kasir <span className="text-red-500">*</span>
+                                    </label>
+                                    <Select
+                                        options={cashierTypeOptions}
+                                        value={cashierTypeOptions.find((opt) => opt.value === cashierType)}
+                                        onChange={(opt) => setCashierType(opt.value)}
+                                        placeholder="Pilih tipe kasir..."
+                                        styles={customSelectStyles}
+                                    />
+                                    {formErrors.cashierType && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            {formErrors.cashierType}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
                             {activeTab === "cashier" ? (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -383,7 +402,6 @@ const CreateUser = () => {
                                             value={pin}
                                             maxLength={4}
                                             onChange={(e) => {
-                                                // Hanya izinkan angka
                                                 const onlyNums = e.target.value.replace(/\D/g, "");
                                                 setPin(onlyNums);
                                             }}
@@ -434,7 +452,6 @@ const CreateUser = () => {
                         </div>
                     </div>
 
-                    {/* Outlet pilihan */}
                     <div>
                         <label className="block text-sm font-semibold mb-2">
                             Outlet <span className="text-red-500">*</span>
