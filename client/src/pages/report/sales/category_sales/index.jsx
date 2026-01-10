@@ -61,6 +61,7 @@ const CategorySales = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [selectedType, setSelectedType] = useState(""); // ✅ State untuk filter type
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [grandTotal, setGrandTotal] = useState({ quantity: 0, subtotal: 0 });
@@ -82,12 +83,21 @@ const CategorySales = () => {
         return outlet ? outlet.name : "Semua Outlet";
     }, [selectedOutlet, outlets]);
 
+    // ✅ Options untuk filter type
+    const typeOptions = [
+        { value: "", label: "Semua Type" },
+        { value: "food", label: "Food" },
+        { value: "beverage", label: "Beverage" },
+        { value: "other", label: "Other" }
+    ];
+
     // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
         const outletParam = searchParams.get('outletId');
         const searchParam = searchParams.get('search');
+        const typeParam = searchParams.get('type'); // ✅ Ambil type dari URL
 
         if (startDateParam && endDateParam) {
             setDateRange({
@@ -102,7 +112,7 @@ const CategorySales = () => {
             };
             setDateRange(newDateRange);
 
-            updateURLParams(newDateRange, outletParam || "", searchParam || "");
+            updateURLParams(newDateRange, outletParam || "", searchParam || "", typeParam || "");
         }
 
         if (outletParam) {
@@ -112,10 +122,14 @@ const CategorySales = () => {
         if (searchParam) {
             setSearchTerm(searchParam);
         }
+
+        if (typeParam) {
+            setSelectedType(typeParam);
+        }
     }, []);
 
     // Update URL when filters change
-    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch) => {
+    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch, newType) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
@@ -131,6 +145,10 @@ const CategorySales = () => {
 
         if (newSearch) {
             params.set('search', newSearch);
+        }
+
+        if (newType) {
+            params.set('type', newType);
         }
 
         setSearchParams(params);
@@ -206,22 +224,57 @@ const CategorySales = () => {
         fetchData();
     }, [dateRange, selectedOutlet, searchTerm]);
 
+    // ✅ Filter data berdasarkan type (client-side filtering)
+    const filteredData = useMemo(() => {
+        if (!selectedType) return groupedArray;
+
+        return groupedArray.filter(item => {
+            // Filter berdasarkan type dari category
+            return item.type === selectedType;
+        });
+    }, [groupedArray, selectedType]);
+
+    // ✅ Recalculate grandTotal based on filteredData
+    const recalculatedGrandTotal = useMemo(() => {
+        if (!selectedType) return grandTotal;
+
+        return filteredData.reduce((acc, item) => {
+            return {
+                quantity: acc.quantity + (item.quantity || 0),
+                subtotal: acc.subtotal + (item.subtotal || 0),
+                average: 0 // will calculate below
+            };
+        }, { quantity: 0, subtotal: 0, average: 0 });
+    }, [filteredData, selectedType, grandTotal]);
+
+    // Calculate average for recalculated grand total
+    if (recalculatedGrandTotal.quantity > 0) {
+        recalculatedGrandTotal.average = recalculatedGrandTotal.subtotal / recalculatedGrandTotal.quantity;
+    }
+
     // Handler functions
     const handleDateRangeChange = (newValue) => {
         setDateRange(newValue);
-        updateURLParams(newValue, selectedOutlet, searchTerm);
+        updateURLParams(newValue, selectedOutlet, searchTerm, selectedType);
     };
 
     const handleOutletChange = (selected) => {
         const newOutlet = selected?.value || "";
         setSelectedOutlet(newOutlet);
-        updateURLParams(dateRange, newOutlet, searchTerm);
+        updateURLParams(dateRange, newOutlet, searchTerm, selectedType);
     };
 
     const handleSearchChange = (e) => {
         const newSearch = e.target.value;
         setSearchTerm(newSearch);
-        updateURLParams(dateRange, selectedOutlet, newSearch);
+        updateURLParams(dateRange, selectedOutlet, newSearch, selectedType);
+    };
+
+    // ✅ Handler untuk filter type
+    const handleTypeChange = (selected) => {
+        const newType = selected?.value || "";
+        setSelectedType(newType);
+        updateURLParams(dateRange, selectedOutlet, searchTerm, newType);
     };
 
     const options = useMemo(() => [
@@ -249,12 +302,17 @@ const CategorySales = () => {
         const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
         const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
 
+        const typeLabel = selectedType
+            ? typeOptions.find(opt => opt.value === selectedType)?.label
+            : "Semua Type";
+
         exportCategorySalesExcel({
-            data: groupedArray,
-            grandTotal,
+            data: filteredData,
+            grandTotal: recalculatedGrandTotal,
             fileName: `Laporan_Penjualan_Kategori_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
             headerInfo: [
                 ["Outlet", outletName],
+                ["Type", typeLabel],
                 ["Periode", dateRangeText],
                 ["Tanggal Export", dayjs().format('DD/MM/YYYY HH:mm:ss')]
             ]
@@ -299,7 +357,7 @@ const CategorySales = () => {
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={isExporting || groupedArray.length === 0}
+                    disabled={isExporting || filteredData.length === 0}
                     className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isExporting ? (
@@ -332,8 +390,8 @@ const CategorySales = () => {
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 w-2/5">
-                        <div className="flex flex-col col-span-3 w-2/5">
+                    <div className="flex justify-end gap-2 w-3/5">
+                        <div className="flex flex-col col-span-3 w-1/4">
                             <input
                                 type="text"
                                 placeholder="Kategori"
@@ -343,7 +401,25 @@ const CategorySales = () => {
                             />
                         </div>
 
-                        <div className="flex flex-col col-span-3">
+                        {/* ✅ Filter Type */}
+                        <div className="flex flex-col col-span-3 w-1/4">
+                            <Select
+                                options={typeOptions}
+                                value={
+                                    selectedType
+                                        ? typeOptions.find((opt) => opt.value === selectedType)
+                                        : typeOptions[0]
+                                }
+                                onChange={handleTypeChange}
+                                placeholder="Pilih type..."
+                                className="text-[13px]"
+                                classNamePrefix="react-select"
+                                styles={customStyles}
+                                isSearchable
+                            />
+                        </div>
+
+                        <div className="flex flex-col col-span-3 w-1/4">
                             <Select
                                 options={options}
                                 value={
@@ -368,6 +444,7 @@ const CategorySales = () => {
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
                                 <th className="px-4 py-3 font-normal">Kategori</th>
+                                <th className="px-4 py-3 font-normal">Type</th>
                                 <th className="px-4 py-3 font-normal text-right">Terjual</th>
                                 <th className="px-4 py-3 font-normal text-right">Penjualan Bersih</th>
                                 <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
@@ -376,14 +453,14 @@ const CategorySales = () => {
                         {loading ? (
                             <tbody>
                                 <tr>
-                                    <td colSpan={4} className="text-center py-8">
+                                    <td colSpan={5} className="text-center py-8">
                                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900 mx-auto"></div>
                                     </td>
                                 </tr>
                             </tbody>
-                        ) : groupedArray.length > 0 ? (
+                        ) : filteredData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {groupedArray.map((group, index) => {
+                                {filteredData.map((group, index) => {
                                     const average = group.average !== undefined
                                         ? group.average
                                         : (group.quantity > 0 && group.subtotal > 0
@@ -397,6 +474,15 @@ const CategorySales = () => {
                                         >
                                             <td className="px-4 py-3 font-medium">
                                                 {group.category || 'Tanpa Kategori'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {group.type ? (
+                                                    <span className="inline-block px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                                                        {group.type}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400">-</span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-right tabular-nums">
                                                 {group.quantity?.toLocaleString('id-ID') || '0'}
@@ -414,7 +500,7 @@ const CategorySales = () => {
                         ) : (
                             <tbody>
                                 <tr>
-                                    <td colSpan={4} className="py-12 text-center w-full">
+                                    <td colSpan={5} className="py-12 text-center w-full">
                                         <div className="flex flex-col items-center justify-center h-64 text-gray-400">
                                             <svg className="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -432,23 +518,20 @@ const CategorySales = () => {
                         )}
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="px-4 py-2">Grand Total</td>
+                                <td className="px-4 py-2" colSpan={2}>Grand Total</td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {grandTotal.quantity.toLocaleString('id-ID')}
+                                        {recalculatedGrandTotal.quantity.toLocaleString('id-ID')}
                                     </p>
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(grandTotal.subtotal)}
+                                        {formatCurrency(recalculatedGrandTotal.subtotal)}
                                     </p>
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(
-                                            grandTotal.average ||
-                                            (grandTotal.quantity > 0 ? grandTotal.subtotal / grandTotal.quantity : 0)
-                                        )}
+                                        {formatCurrency(recalculatedGrandTotal.average)}
                                     </p>
                                 </td>
                             </tr>

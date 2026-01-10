@@ -75,26 +75,79 @@ export const assignMenuItemsToCategory = async (req, res) => {
 
 
 // Controller untuk mengambil daftar kategori
+// export const getCategories = async (req, res) => {
+//   try {
+//     const allowedTypes = ['food', 'beverage', 'instan', 'event'];
+
+//     // Ambil kategori yang bertipe tertentu atau tidak memiliki tipe
+//     const categories = await Category.find({
+//       $or: [
+//         { type: { $in: allowedTypes } },
+//         { type: { $exists: false } }, // field tidak ada
+//         { type: null } // field ada tapi null
+//       ]
+//     });
+
+//     res.status(200).json({ success: true, data: categories });
+//   } catch (error) {
+//     console.error('Error fetching categories:', error);
+//     res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
+//   }
+// };
+
 export const getCategories = async (req, res) => {
   try {
     const allowedTypes = ['food', 'beverage', 'instan', 'event'];
 
-    // Ambil kategori yang bertipe tertentu atau tidak memiliki tipe
-    const categories = await Category.find({
-      $or: [
-        { type: { $in: allowedTypes } },
-        { type: { $exists: false } }, // field tidak ada
-        { type: null } // field ada tapi null
-      ]
-    });
+    // Agregasi untuk mendapatkan kategori dengan jumlah produk
+    const categories = await Category.aggregate([
+      {
+        // Filter kategori berdasarkan tipe
+        $match: {
+          $or: [
+            { type: { $in: allowedTypes } },
+            { type: { $exists: false } },
+            { type: null }
+          ]
+        }
+      },
+      {
+        // Lookup ke collection MenuItem untuk menghitung produk
+        $lookup: {
+          from: 'menuitems', // nama collection MenuItem (biasanya lowercase + plural)
+          localField: '_id',
+          foreignField: 'category', // sesuaikan dengan field di MenuItem yang merujuk ke Category
+          as: 'products'
+        }
+      },
+      {
+        // Tambahkan field productCount
+        $addFields: {
+          productCount: { $size: '$products' }
+        }
+      },
+      {
+        // Hapus array products untuk menghemat bandwidth
+        $project: {
+          products: 0
+        }
+      },
+      {
+        // Urutkan berdasarkan nama A-Z
+        $sort: { name: 1 }
+      }
+    ]);
 
     res.status(200).json({ success: true, data: categories });
   } catch (error) {
     console.error('Error fetching categories:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch categories',
+      error: error.message
+    });
   }
 };
-
 
 // Controller untuk memfilter menu berdasarkan kategori
 export const filterMenuByCategory = async (req, res) => {
@@ -208,7 +261,7 @@ export const getCategoryById = async (req, res) => {
   }
 };
 
-// ✅ PUT: Update kategori
+// ✅ PUT: Update kategori (DEFENSIVE VERSION)
 export const updateCategory = async (req, res) => {
   try {
     const { name, description, type, parentCategory } = req.body;
@@ -216,7 +269,10 @@ export const updateCategory = async (req, res) => {
     if (parentCategory && parentCategory !== req.body.parentCategory) {
       const parentExists = await Category.findById(parentCategory);
       if (!parentExists) {
-        return res.status(400).json({ error: 'Parent kategori tidak ditemukan.' });
+        return res.status(400).json({
+          success: false,
+          error: 'Parent kategori tidak ditemukan.'
+        });
       }
     }
 
@@ -228,92 +284,135 @@ export const updateCategory = async (req, res) => {
         type,
         parentCategory,
         lastUpdated: Date.now(),
-        lastUpdatedBy: req.user?._id,
+        // ✅ FIXED: Cek dulu apakah req.user ada
+        lastUpdatedBy: req.user?._id || null,
       },
       { new: true, runValidators: true }
     );
 
     if (!updated) {
+      // ✅ FIXED: Cek req.user sebelum logging
+      if (req.user) {
+        await logActivity({
+          userId: req.user._id,
+          identifier: req.user.email || req.user.username,
+          action: "UPDATE",
+          module: "Category",
+          description: `Update gagal: kategori tidak ditemukan (ID: ${req.params.id})`,
+          status: "FAILED",
+          req,
+        });
+      }
+      return res.status(404).json({
+        success: false,
+        error: 'Kategori tidak ditemukan.'
+      });
+    }
+
+    // ✅ FIXED: Log hanya jika user authenticated
+    if (req.user) {
       await logActivity({
         userId: req.user._id,
         identifier: req.user.email || req.user.username,
         action: "UPDATE",
         module: "Category",
-        description: `Update gagal: kategori tidak ditemukan (ID: ${req.params.id})`,
+        description: `Update kategori: ${updated.name}`,
+        metadata: { categoryId: updated._id },
+        req,
+      });
+    }
+
+    // ✅ Return konsisten
+    res.status(200).json({
+      success: true,
+      message: 'Kategori berhasil diperbarui',
+      data: updated
+    });
+  } catch (err) {
+    // ✅ FIXED: Safe logging
+    if (req.user) {
+      await logActivity({
+        userId: req.user._id,
+        identifier: req.user.email || req.user.username,
+        action: "UPDATE",
+        module: "Category",
+        description: `Gagal update kategori (ID: ${req.params.id})`,
         status: "FAILED",
         req,
       });
-      return res.status(404).json({ error: 'Kategori tidak ditemukan.' });
     }
 
-    // ✅ Log update
-    await logActivity({
-      userId: req.user._id,
-      identifier: req.user.email || req.user.username,
-      action: "UPDATE",
-      module: "Category",
-      description: `Update kategori: ${updated.name}`,
-      metadata: { categoryId: updated._id },
-      req,
+    console.error('❌ Update Category Error:', err);
+    res.status(400).json({
+      success: false,
+      error: 'Gagal mengupdate kategori.',
+      details: err.message
     });
-
-    res.status(200).json(updated);
-  } catch (err) {
-    await logActivity({
-      userId: req.user?._id,
-      identifier: req.user?.email || req.user?.username,
-      action: "UPDATE",
-      module: "Category",
-      description: `Gagal update kategori (ID: ${req.params.id})`,
-      status: "FAILED",
-      req,
-    });
-
-    res.status(400).json({ error: 'Gagal mengupdate kategori.', details: err.message });
   }
 };
 
-// ✅ DELETE: Hapus kategori
+// ✅ DELETE: Hapus kategori (DEFENSIVE VERSION)
 export const deleteCategory = async (req, res) => {
   try {
     const deleted = await Category.findByIdAndDelete(req.params.id);
 
     if (!deleted) {
+      // ✅ FIXED: Safe logging
+      if (req.user) {
+        await logActivity({
+          userId: req.user._id,
+          identifier: req.user.email || req.user.username,
+          action: "DELETE",
+          module: "Category",
+          description: `Delete gagal: kategori tidak ditemukan (ID: ${req.params.id})`,
+          status: "FAILED",
+          req,
+        });
+      }
+      return res.status(404).json({
+        success: false,
+        error: 'Kategori tidak ditemukan.'
+      });
+    }
+
+    // ✅ FIXED: Log hanya jika user authenticated
+    if (req.user) {
       await logActivity({
         userId: req.user._id,
         identifier: req.user.email || req.user.username,
         action: "DELETE",
         module: "Category",
-        description: `Delete gagal: kategori tidak ditemukan (ID: ${req.params.id})`,
+        description: `Menghapus kategori: ${deleted.name}`,
+        metadata: { categoryId: deleted._id },
+        req,
+      });
+    }
+
+    // ✅ Return konsisten
+    res.status(200).json({
+      success: true,
+      message: 'Kategori berhasil dihapus.',
+      data: deleted
+    });
+  } catch (err) {
+    // ✅ FIXED: Safe logging
+    if (req.user) {
+      await logActivity({
+        userId: req.user._id,
+        identifier: req.user.email || req.user.username,
+        action: "DELETE",
+        module: "Category",
+        description: `Gagal menghapus kategori (ID: ${req.params.id})`,
         status: "FAILED",
         req,
       });
-      return res.status(404).json({ error: 'Kategori tidak ditemukan.' });
     }
 
-    // ✅ Log delete
-    await logActivity({
-      userId: req.user._id,
-      identifier: req.user.email || req.user.username,
-      action: "DELETE",
-      module: "Category",
-      description: `Menghapus kategori: ${deleted.name}`,
-      metadata: { categoryId: deleted._id },
-      req,
+    console.error('❌ Delete Category Error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Gagal menghapus kategori.',
+      details: err.message
     });
-
-    res.status(200).json({ message: 'Kategori berhasil dihapus.' });
-  } catch (err) {
-    await logActivity({
-      userId: req.user?._id,
-      identifier: req.user?.email || req.user?.username,
-      action: "DELETE",
-      module: "Category",
-      description: `Gagal menghapus kategori (ID: ${req.params.id})`,
-      status: "FAILED",
-      req,
-    });
-
-    res.status(500).json({ error: 'Gagal menghapus kategori.', details: err.message });
   }
 };

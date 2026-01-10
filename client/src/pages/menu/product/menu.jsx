@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { FaPlus } from 'react-icons/fa';
 import axios from "axios";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import MessageAlert from "../../../components/messageAlert";
 import MenuTable from "./component/table";
 
@@ -40,87 +40,67 @@ const Menu = () => {
         }),
     };
 
-    const location = useLocation();
-    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [menuItems, setMenuItems] = useState([]);
     const [category, setCategory] = useState([]);
     const [outlets, setOutlets] = useState([]);
+    const [recipes, setRecipes] = useState([]);
     const [error, setError] = useState(null);
     const [checkedItems, setCheckedItems] = useState([]);
     const [checkAll, setCheckAll] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [recipes, setRecipes] = useState([]);
-    const [loadingRecipes, setLoadingRecipes] = useState(true);
 
-    // State untuk alert message
     const [alertMessage, setAlertMessage] = useState("");
     const [alertType, setAlertType] = useState("success");
     const [alertKey, setAlertKey] = useState(0);
 
-    // State filter
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
     const [selectedStatus, setSelectedStatus] = useState("");
     const [selectedWorkstation, setSelectedWorkstation] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
-    const [recipeFilter, setRecipeFilter] = useState('all'); // 'all', 'hasRecipe', 'noRecipe'
+    const [recipeFilter, setRecipeFilter] = useState('all');
 
     const itemsPerPage = 10;
-
-    // Pagination - selalu sinkron dengan URL
     const currentPage = parseInt(searchParams.get('page')) || 1;
 
-    // Fetch recipes data
-    useEffect(() => {
-        const fetchRecipes = async () => {
-            try {
-                setLoadingRecipes(true);
-                const response = await axios.get('/api/product/recipes');
-
-                if (Array.isArray(response.data)) {
-                    setRecipes(response.data);
-                } else if (response.data && Array.isArray(response.data.data)) {
-                    setRecipes(response.data.data);
-                } else {
-                    console.warn("Recipe data is not an array:", response.data);
-                    setRecipes([]);
-                }
-            } catch (error) {
-                console.error("Error fetching recipes:", error);
-                setRecipes([]);
-            } finally {
-                setLoadingRecipes(false);
-            }
-        };
-
-        fetchRecipes();
-    }, []);
-
-    // Function to check if menu has recipe
-    const hasRecipe = (menuId) => {
-        if (!Array.isArray(recipes)) {
-            return false;
+    // Memoized recipe map untuk performa lebih baik
+    const recipeMap = useMemo(() => {
+        const map = new Set();
+        if (Array.isArray(recipes)) {
+            recipes.forEach(recipe => {
+                const menuId = recipe.menuItemId?._id || recipe.menuItemId;
+                if (menuId) map.add(menuId.toString());
+            });
         }
-        // Cek berbagai kemungkinan struktur ID
-        return recipes.some(recipe => {
-            const recipeMenuId = recipe.menuItemId?._id || recipe.menuItemId;
-            return recipeMenuId === menuId;
-        });
-    };
+        return map;
+    }, [recipes]);
 
-    const fetchData = async () => {
+    // Optimized hasRecipe function
+    const hasRecipe = useCallback((menuId) => {
+        return recipeMap.has(menuId?.toString());
+    }, [recipeMap]);
+
+    // Fetch all data in parallel
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const menuResponse = await axios.get('/api/menu/all-menu-items-backoffice');
-            setMenuItems(menuResponse.data.data);
+            const [menuResponse, outletsResponse, categoryResponse, recipesResponse] = await Promise.all([
+                axios.get('/api/menu/all-menu-items-backoffice'),
+                axios.get('/api/outlet'),
+                axios.get('/api/menu/categories'),
+                axios.get('/api/product/recipes')
+            ]);
 
-            const outletsResponse = await axios.get('/api/outlet');
-            setOutlets(outletsResponse.data.data);
+            setMenuItems(menuResponse.data.data || []);
+            setOutlets(outletsResponse.data.data || []);
+            setCategory(categoryResponse.data.data || []);
 
-            const categoryResponse = await axios.get('/api/menu/categories');
-            setCategory(categoryResponse.data.data);
+            const recipeData = Array.isArray(recipesResponse.data)
+                ? recipesResponse.data
+                : recipesResponse.data?.data || [];
+            setRecipes(recipeData);
 
             setError(null);
         } catch (err) {
@@ -129,57 +109,42 @@ const Menu = () => {
             setMenuItems([]);
             setOutlets([]);
             setCategory([]);
+            setRecipes([]);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
-    // Check for success/error message from location state
-    useEffect(() => {
-        if (location.state?.success) {
-            setAlertMessage(location.state.success);
-            setAlertType("success");
-            setAlertKey(prev => prev + 1);
-        } else if (location.state?.error) {
-            setAlertMessage(location.state.error);
-            setAlertType("error");
-            setAlertKey(prev => prev + 1);
-        }
-    }, [location.state]);
-
-    // Update URL ketika page berubah
-    const handlePageChange = (newPage) => {
+    const handlePageChange = useCallback((newPage) => {
         const pageNumber = typeof newPage === 'function' ? newPage(currentPage) : newPage;
         setSearchParams({ page: pageNumber.toString() });
-    };
+    }, [currentPage, setSearchParams]);
 
-    // Reset ke page 1 ketika filter berubah (skip pada initial render)
+    // Reset to page 1 when filters change
     const [isInitialRender, setIsInitialRender] = useState(true);
-
     useEffect(() => {
         if (isInitialRender) {
             setIsInitialRender(false);
             return;
         }
-
         if (currentPage !== 1) {
             setSearchParams({ page: '1' });
         }
     }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery, selectedWorkstation, recipeFilter]);
 
-    const outletOptions = [
+    const outletOptions = useMemo(() => [
         { value: '', label: 'Outlet' },
         ...outlets.map(outlet => ({ value: outlet.name, label: outlet.name }))
-    ];
+    ], [outlets]);
 
-    const categoryOptions = [
+    const categoryOptions = useMemo(() => [
         { value: '', label: 'Semua Kategori' },
-        ...category.map(category => ({ value: category.name, label: category.name }))
-    ];
+        ...category.map(cat => ({ value: cat.name, label: cat.name }))
+    ], [category]);
 
     const statusOptions = [
         { value: '', label: 'Status' },
@@ -193,46 +158,45 @@ const Menu = () => {
         { value: 'kitchen', label: 'Dapur' },
     ];
 
-    // Filter menu items berdasarkan semua filter termasuk recipe filter
-    const filteredMenuItems = menuItems.filter((item) => {
-        const matchOutlet =
-            selectedOutlet === '' ||
-            item.availableAt.some(outlet => outlet.name === selectedOutlet);
-        const matchCategory = selectedCategory === '' || item.category?.name === selectedCategory;
-        const matchStatus = selectedStatus === '' || item.isActive === selectedStatus;
-        const matchWorkstation = selectedWorkstation === '' || item.workstation === selectedWorkstation;
+    // Optimized filtering with useMemo
+    const filteredMenuItems = useMemo(() => {
+        return menuItems.filter((item) => {
+            const matchOutlet = !selectedOutlet ||
+                item.availableAt?.some(outlet => outlet.name === selectedOutlet);
+            const matchCategory = !selectedCategory || item.category?.name === selectedCategory;
+            const matchStatus = selectedStatus === '' || item.isActive === selectedStatus;
+            const matchWorkstation = !selectedWorkstation || item.workstation === selectedWorkstation;
 
-        const matchSearch =
-            searchQuery === '' ||
-            item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.barcode?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchSearch = !searchQuery ||
+                item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.barcode?.toLowerCase().includes(searchQuery.toLowerCase());
 
-        // Filter berdasarkan recipe - gunakan item._id atau item.id
-        const itemId = item._id || item.id;
-        const matchRecipe =
-            recipeFilter === 'all' ? true :
-                recipeFilter === 'hasRecipe' ? hasRecipe(itemId) :
-                    recipeFilter === 'noRecipe' ? !hasRecipe(itemId) : true;
+            const itemId = item.id || item._id;
+            const matchRecipe = recipeFilter === 'all' ||
+                (recipeFilter === 'hasRecipe' ? hasRecipe(itemId) : !hasRecipe(itemId));
 
-        return matchOutlet && matchCategory && matchStatus && matchSearch && matchWorkstation && matchRecipe;
-    });
+            return matchOutlet && matchCategory && matchStatus && matchSearch && matchWorkstation && matchRecipe;
+        });
+    }, [menuItems, selectedOutlet, selectedCategory, selectedStatus, selectedWorkstation, searchQuery, recipeFilter, hasRecipe]);
 
     const totalPages = Math.ceil(filteredMenuItems.length / itemsPerPage);
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filteredMenuItems.slice(indexOfFirstItem, indexOfLastItem);
+    const currentItems = useMemo(() => {
+        const indexOfLastItem = currentPage * itemsPerPage;
+        const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+        return filteredMenuItems.slice(indexOfFirstItem, indexOfLastItem);
+    }, [filteredMenuItems, currentPage, itemsPerPage]);
 
-    const formatCurrency = (amount) => {
+    const formatCurrency = useCallback((amount) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
         }).format(amount);
-    };
+    }, []);
 
-    const handleDeleteSelected = async () => {
+    const handleDeleteSelected = useCallback(async () => {
         try {
             await axios.delete("/api/menu/menu-items", {
                 data: { id: checkedItems }
@@ -241,7 +205,6 @@ const Menu = () => {
             setCheckAll(false);
             await fetchData();
 
-            // Show success message
             setAlertMessage(`${checkedItems.length} menu berhasil dihapus`);
             setAlertType("success");
             setAlertKey(prev => prev + 1);
@@ -251,10 +214,9 @@ const Menu = () => {
             setAlertType("error");
             setAlertKey(prev => prev + 1);
         }
-    };
+    }, [checkedItems, fetchData]);
 
-    // Handler untuk delete dari table
-    const handleDeleteSuccess = (successMsg, errorMsg) => {
+    const handleDeleteSuccess = useCallback((successMsg, errorMsg) => {
         if (successMsg) {
             setAlertMessage(successMsg);
             setAlertType("success");
@@ -264,10 +226,9 @@ const Menu = () => {
             setAlertType("error");
             setAlertKey(prev => prev + 1);
         }
-    };
+    }, []);
 
-    // Handler untuk update status dari table
-    const handleStatusUpdate = (successMsg, errorMsg) => {
+    const handleStatusUpdate = useCallback((successMsg, errorMsg) => {
         if (successMsg) {
             setAlertMessage(successMsg);
             setAlertType("success");
@@ -277,9 +238,8 @@ const Menu = () => {
             setAlertType("error");
             setAlertKey(prev => prev + 1);
         }
-    };
+    }, []);
 
-    // Error State
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -299,7 +259,6 @@ const Menu = () => {
 
     return (
         <div className="w-full">
-            {/* Alert Message */}
             <MessageAlert
                 key={alertKey}
                 type={alertType}
@@ -344,16 +303,14 @@ const Menu = () => {
                 formatCurrency={formatCurrency}
                 setCurrentPage={handlePageChange}
                 totalPages={totalPages}
-                menuItems={menuItems}
                 itemsPerPage={itemsPerPage}
                 handleDeleteSelected={handleDeleteSelected}
                 customStyles={customStyles}
                 currentPage={currentPage}
-                loading={loading || loadingRecipes}
+                loading={loading}
                 fetchData={fetchData}
                 onDeleteSuccess={handleDeleteSuccess}
                 onStatusUpdate={handleStatusUpdate}
-                recipes={recipes}
                 hasRecipe={hasRecipe}
                 recipeFilter={recipeFilter}
                 setRecipeFilter={setRecipeFilter}

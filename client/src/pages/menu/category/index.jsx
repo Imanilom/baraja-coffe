@@ -4,28 +4,21 @@ import axios from 'axios';
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash, FaChevronRight, FaPlus } from 'react-icons/fa';
 import Paginated from '../../../components/paginated';
 import MessageAlert from '../../../components/messageAlert';
+import ConfirmModal from "../../../components/modal/confirmmodal";
+import CategorySkeleton from "./component/skeleton/skeleton";
 
 const CategoryIndex = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState(null);
-  const ensureArray = (data) => Array.isArray(data) ? data : [];
   const [tempSearch, setTempSearch] = useState("");
   const [categories, setCategories] = useState([]);
-  const [categoryCounts, setCategoryCounts] = useState({});
-  const [menuItems, setMenuItems] = useState([]);
-  const [totalItems, setTotalItems] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedType, setSelectedType] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
-  const [limit] = useState(250);
-  const [offset, setOffset] = useState(0);
 
   // State untuk alert message
   const [alertMessage, setAlertMessage] = useState("");
@@ -45,13 +38,8 @@ const CategoryIndex = () => {
       setCategories(categoriesData);
       setFilteredCategories(categoriesData);
 
-      // Fetch menu items
-      const menuResponse = await axios.get('/api/menu/all-menu-items-backoffice');
-      setMenuItems(menuResponse.data.data || []);
-
     } catch (err) {
       setError('Failed to fetch categories');
-      setMenuItems([]);
       setCategories([]);
       setFilteredCategories([]); // ✅ PENTING: Set ini juga!
       console.error('Error fetching categories:', err);
@@ -59,40 +47,6 @@ const CategoryIndex = () => {
       setLoading(false);
     }
   };
-
-  // ✅ FIX: Tambahkan pengecekan untuk menuItems
-  useEffect(() => {
-    const counts = {};
-
-    if (!Array.isArray(menuItems)) {
-      setCategoryCounts({});
-      return;
-    }
-
-    menuItems.forEach((menu) => {
-      if (!menu) return; // Skip jika menu null/undefined
-
-      if (Array.isArray(menu.category)) {
-        menu.category.forEach((cat) => {
-          const name = typeof cat === 'string' ? cat : cat?.name;
-          const key = (name || '').toLowerCase().trim();
-          if (key) {
-            counts[key] = (counts[key] || 0) + 1;
-          }
-        });
-      } else if (menu.category) {
-        const name =
-          typeof menu.category === 'string'
-            ? menu.category
-            : menu.category?.name;
-        const key = (name || '').toLowerCase().trim();
-        if (key) {
-          counts[key] = (counts[key] || 0) + 1;
-        }
-      }
-    });
-    setCategoryCounts(counts);
-  }, [menuItems]);
 
   useEffect(() => {
     fetchData();
@@ -133,14 +87,7 @@ const CategoryIndex = () => {
       (category?.name || '').toLowerCase().includes(tempSearch.toLowerCase())
     );
 
-    // ✅ Urutkan berdasarkan abjad (A-Z)
-    const sorted = filtered.sort((a, b) => {
-      const nameA = (a?.name || '').toLowerCase();
-      const nameB = (b?.name || '').toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
-
-    setFilteredCategories(sorted);
+    setFilteredCategories(filtered);
     setCurrentPage(1);
   }, [tempSearch, categories]);
 
@@ -187,16 +134,7 @@ const CategoryIndex = () => {
   // ✅ FIX: Guard untuk totalPages
   const totalPages = Math.ceil((filteredCategories?.length || 0) / ITEMS_PER_PAGE);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#005429] border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Memuat data...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <CategorySkeleton />
 
   if (error) {
     return (
@@ -219,43 +157,6 @@ const CategoryIndex = () => {
       </div>
     );
   }
-
-  const ConfirmModal = ({ isOpen, onClose, onConfirm, title = 'Konfirmasi', message = 'Apakah Anda yakin?' }) => {
-    if (!isOpen) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-          <div className="flex items-start mb-5">
-            <div className="flex-shrink-0 bg-red-100 text-red-600 rounded-full p-3">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <div className="ml-4 flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">{title}</h3>
-              <p className="text-sm text-gray-600">{message}</p>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-3 mt-6">
-            <button
-              onClick={onClose}
-              className="px-5 py-2.5 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Batal
-            </button>
-            <button
-              onClick={onConfirm}
-              className="px-5 py-2.5 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
-            >
-              Hapus
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-8">
@@ -332,7 +233,6 @@ const CategoryIndex = () => {
                     if (!category || !category.name) return null;
 
                     const key = category.name.toLowerCase().trim();
-                    const count = categoryCounts[key] || 0;
 
                     return (
                       <tr key={category._id || Math.random()} className="hover:bg-gray-50 transition-colors">
@@ -349,7 +249,7 @@ const CategoryIndex = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {count} produk
+                            {category.productCount} produk
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">

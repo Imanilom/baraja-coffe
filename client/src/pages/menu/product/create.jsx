@@ -1,14 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Select from 'react-select';
 import axios from "axios";
-// Firebase imports - COMMENTED OUT
-// import {
-//   getDownloadURL,
-//   getStorage,
-//   ref,
-//   uploadBytesResumable,
-// } from 'firebase/storage';
-// import { app } from '../../firebase';
 import { Link, useLocation } from "react-router-dom";
 import { FaChevronRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
@@ -21,22 +13,12 @@ const CreateMenu = () => {
 
   // Ambil returnPage dari state yang dikirim dari halaman menu
   const returnPage = location.state?.returnPage || 1;
-
-  const [allCategories, setAllCategories] = useState([]);
   const [categories, setCategories] = useState([]);
-  // const [subCategories, setSubCategories] = useState([]);
-
   const MainCategories = ['makanan', 'minuman', 'instan', 'dessert', 'snack', 'event', 'bazar'];
   const [isModalOpen, setIsModalOpen] = useState(false);
-
   const [outlets, setOutlets] = useState([]);
   const [isChecked, setIsChecked] = useState(false);
-
   const [selectedMainCategory, setSelectedMainCategory] = useState("");
-  const [searchTermMainCategories, setSearchTermMainCategories] = useState("");
-  const [searchTermCategories, setSearchTermCategories] = useState("");
-  const [searchTermSub, setSearchTermSub] = useState("");
-
   const fileRef = useRef(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -117,25 +99,6 @@ const CreateMenu = () => {
       reader.onerror = (err) => reject(err);
     });
   };
-
-  // ===== FIREBASE UPLOAD - COMMENTED OUT =====
-  // const uploadToFirebase = (file) => {
-  //   return new Promise((resolve, reject) => {
-  //     const storage = getStorage(app);
-  //     const fileRef = ref(storage, `menu/${Date.now()}-${file.name}`);
-  //     const uploadTask = uploadBytesResumable(fileRef, file);
-
-  //     uploadTask.on(
-  //       "state_changed",
-  //       null,
-  //       (err) => reject(err),
-  //       async () => {
-  //         const url = await getDownloadURL(uploadTask.snapshot.ref);
-  //         resolve(url);
-  //       }
-  //     );
-  //   });
-  // };
 
   // ===== NEW: UPLOAD KE PHP SERVER =====
   const uploadToPHP = async (file) => {
@@ -223,9 +186,7 @@ const CreateMenu = () => {
     try {
       const res = await axios.get("/api/menu/categories");
       const data = res.data.data;
-      setAllCategories(data);
-      const main = data.filter((cat) => !cat.parentCategory);
-      setCategories(main);
+      setCategories(data);
     } catch (error) {
       console.error("Gagal fetch categories:", error);
     } finally {
@@ -388,7 +349,6 @@ const CreateMenu = () => {
                   }
                   onChange={(selectedOption) => {
                     setSelectedMainCategory(selectedOption.value);
-                    setSearchTermMainCategories(selectedOption.value);
                   }}
                   styles={customSelectStyles}
                   placeholder="Pilih kategori utama..."
@@ -413,45 +373,16 @@ const CreateMenu = () => {
                       : null
                   }
                   onChange={(selected) => {
-                    setSearchTermCategories(selected.label);
                     setFormData((prev) => ({
                       ...prev,
                       category: selected.value,
                     }));
-                    // const sub = allCategories.filter(
-                    //   (cat) => cat.parentCategory === selected.value
-                    // );
-                    // setSubCategories(sub);
                   }}
                   styles={customSelectStyles}
                   placeholder="Pilih kategori..."
                   className="mb-2"
                 />
               </div>
-
-              {/* {subCategories.length > 0 && (
-                <div>
-                  <label className="my-2.5 text-xs block font-medium">
-                    SUB KATEGORI
-                  </label>
-                  <Select
-                    options={subCategories.map((sub) => ({
-                      label: sub.name,
-                      value: sub._id,
-                    }))}
-                    onChange={(selected) => {
-                      setSearchTermSub(selected.label);
-                      setFormData((prev) => ({
-                        ...prev,
-                        subCategory: selected.value,
-                      }));
-                    }}
-                    placeholder="Pilih sub kategori..."
-                    className="mb-2"
-                    styles={customSelectStyles}
-                  />
-                </div>
-              )} */}
 
               <div>
                 <label className="my-2.5 text-xs block font-medium">HARGA</label>
