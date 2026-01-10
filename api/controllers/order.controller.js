@@ -100,7 +100,7 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
  * This ensures cashier orders are printed without delay.
  */
 async function broadcastCashierOrderToWorkstation({
-  orderId, tableNumber, orderItems, orderType, outlet, customerName, isReservation, service
+  orderId, tableNumber, orderItems, orderType, outlet, customerName, isReservation, service, isOpenBill
 }) {
   try {
     if (!orderItems || orderItems.length === 0) {
@@ -176,6 +176,7 @@ async function broadcastCashierOrderToWorkstation({
         targetDevice: device.deviceName,
         isReservation: isReservation || false,
         isCashierOrder: true,
+        isOpenBill: isOpenBill || false,
         timestamp: new Date()
       };
 
@@ -958,7 +959,8 @@ export const createAppOrder = async (req, res) => {
         outlet: outlet || newOrder.outlet,
         customerName: finalUserName,
         isReservation: orderType === 'reservation',
-        service: newOrder.type || 'Dine-In'
+        service: newOrder.type || 'Dine-In',
+        isOpenBill: isOpenBill || false
       });
     }
 
@@ -10316,7 +10318,8 @@ export async function patchEditOrder(req, res) {
         outlet: result.order.outlet,
         customerName: result.order.user || 'Guest',
         isReservation: result.order.orderType?.toLowerCase() === 'reservation',
-        service: result.order.type || 'Dine-In'
+        service: result.order.type || 'Dine-In',
+        isOpenBill: result.order.isOpenBill || false
       });
     }
 
