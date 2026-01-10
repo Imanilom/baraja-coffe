@@ -32,6 +32,7 @@ abstract class OrderItemModel with _$OrderItemModel {
     @HiveField(8) @Default(false) bool isPrinted,
     @HiveField(9) @Default(0) int printedQuantity,
     @HiveField(10) @Default([]) List<String> printBatchIds,
+    @HiveField(11) @Default(null) String? reservedPromoId,
   }) = _OrderItemModel;
 
   OrderItemModel._();

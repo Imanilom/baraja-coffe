@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/order_editor_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
+import 'package:kasirbaraja/providers/orders/pending_order_provider.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/widgets/dialogs/edit_order_item_dialog.dart';
 
@@ -11,8 +14,8 @@ class OrderDetailEdit extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const onNull = 'Pilih Pesanan';
-    final editState = ref.watch(onlineOrderEditorProvider);
-    final notifier = ref.read(onlineOrderEditorProvider.notifier);
+    final editState = ref.watch(orderEditorProvider);
+    final notifier = ref.read(orderEditorProvider.notifier);
 
     final order = editState.order;
     final items = order?.items ?? const [];
@@ -68,6 +71,9 @@ class OrderDetailEdit extends ConsumerWidget {
                         physics: const BouncingScrollPhysics(),
                         itemBuilder: (context, index) {
                           final orderItem = items[index];
+                          final isLocked =
+                              orderItem.orderItemid != null &&
+                              orderItem.orderItemid!.isNotEmpty;
                           return ListTile(
                             horizontalTitleGap: 4,
                             visualDensity: const VisualDensity(
@@ -82,16 +88,40 @@ class OrderDetailEdit extends ConsumerWidget {
                             leading: CircleAvatar(
                               child: Text(orderItem.quantity.toString()),
                             ),
-                            title: Text(orderItem.menuItem.name ?? '-'),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    orderItem.menuItem.name ?? '-',
+                                    style: TextStyle(
+                                      color:
+                                          isLocked ? Colors.grey : Colors.black,
+                                    ),
+                                  ),
+                                ),
+                                if (isLocked)
+                                  const Icon(
+                                    Icons.lock,
+                                    size: 16,
+                                    color: Colors.grey,
+                                  ),
+                              ],
+                            ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   'workstation: ${orderItem.menuItem.workstation ?? '-'}',
+                                  style: TextStyle(
+                                    color: isLocked ? Colors.grey : null,
+                                  ),
                                 ),
                                 if (orderItem.selectedToppings.isNotEmpty)
                                   Text(
                                     'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',
+                                    style: TextStyle(
+                                      color: isLocked ? Colors.grey : null,
+                                    ),
                                   ),
                                 if (orderItem.selectedAddons.isNotEmpty)
                                   if (orderItem.selectedAddons.first.options !=
@@ -103,39 +133,52 @@ class OrderDetailEdit extends ConsumerWidget {
                                           .isNotEmpty)
                                     Text(
                                       'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
+                                      style: TextStyle(
+                                        color: isLocked ? Colors.grey : null,
+                                      ),
                                     ),
                                 if ((orderItem.notes ?? '').isNotEmpty)
                                   Text(
                                     'Catatan: ${orderItem.notes}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontStyle: FontStyle.italic,
-                                      color: Colors.grey,
+                                      color:
+                                          isLocked ? Colors.grey : Colors.grey,
                                     ),
                                   ),
                               ],
                             ),
-                            trailing: Text(formatRupiah(orderItem.subtotal)),
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder:
-                                    (context) => EditOrderItemDialog(
-                                      orderItem: orderItem,
-                                      onEditOrder: (editedOrderItem) {
-                                        notifier.editOrderItem(
-                                          orderItem,
-                                          editedOrderItem,
-                                        );
-                                      },
-                                      onDeleteOrderItem: () {
-                                        notifier.removeItem(orderItem);
-                                      },
-                                      onClose: () => Navigator.pop(context),
-                                    ),
-                              );
-                            },
+                            trailing: Text(
+                              formatRupiah(orderItem.subtotal),
+                              style: TextStyle(
+                                color: isLocked ? Colors.grey : null,
+                              ),
+                            ),
+                            onTap:
+                                isLocked
+                                    ? null
+                                    : () {
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder:
+                                            (context) => EditOrderItemDialog(
+                                              orderItem: orderItem,
+                                              onEditOrder: (editedOrderItem) {
+                                                notifier.editOrderItem(
+                                                  orderItem,
+                                                  editedOrderItem,
+                                                );
+                                              },
+                                              onDeleteOrderItem: () {
+                                                notifier.removeItem(orderItem);
+                                              },
+                                              onClose:
+                                                  () => Navigator.pop(context),
+                                            ),
+                                      );
+                                    },
                           );
                         },
                       ),
@@ -220,10 +263,24 @@ class OrderDetailEdit extends ConsumerWidget {
                                     ),
                                   );
                                   Navigator.pop(context);
-                                  ref.invalidate(onlineOrderProvider);
-                                  ref
-                                      .read(onlineOrderDetailProvider.notifier)
-                                      .clearOnlineOrderDetail();
+
+                                  final orderSource = order?.source;
+
+                                  if (orderSource == 'Cashier') {
+                                    ref.invalidate(pendingOrderProvider);
+                                    ref
+                                        .read(
+                                          pendingOrderDetailProvider.notifier,
+                                        )
+                                        .clearPendingOrderDetail();
+                                  } else {
+                                    ref.invalidate(onlineOrderProvider);
+                                    ref
+                                        .read(
+                                          onlineOrderDetailProvider.notifier,
+                                        )
+                                        .clearOnlineOrderDetail();
+                                  }
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(

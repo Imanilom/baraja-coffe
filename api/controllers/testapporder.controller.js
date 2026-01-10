@@ -644,6 +644,9 @@ export const createAppOrder = async (req, res) => {
                 dpBankInfo,
                 // ✅ FIX: Custom DP Amount from frontend
                 customDpAmount,
+                // ✅ FIX: Tax data from frontend
+                taxDetails,
+                totalTax,
             } = req.body;
             console.log('🚀 Optimized createAppOrder:', {
                 isGroMode,
@@ -997,12 +1000,19 @@ export const createAppOrder = async (req, res) => {
             // Tax and service calculation - ✅ FIX: Tax is calculated on DISCOUNTED price
             let taxServiceCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
             if (totalAfterDiscount > 0) {
-                taxServiceCalculation = await calculateTaxAndServiceCached(
-                    totalAfterDiscount,  // ✅ Tax on discounted price
-                    outlet || "67cbc9560f025d897d69f889",
-                    orderType === 'reservation',
-                    isOpenBill
-                );
+                // ✅ FIX: Respect frontend "disable tax" toggle (totalTax 0 and empty details)
+                const isTaxDisabled = (totalTax === 0 && (!taxDetails || taxDetails.length === 0));
+
+                if (!isTaxDisabled) {
+                    taxServiceCalculation = await calculateTaxAndServiceCached(
+                        totalAfterDiscount,  // ✅ Tax on discounted price
+                        outlet || "67cbc9560f025d897d69f889",
+                        orderType === 'reservation',
+                        isOpenBill
+                    );
+                } else {
+                    console.log('ℹ️ Tax explicitly disabled by frontend (GRO toggle) in Optimized Controller');
+                }
             }
             // Apply voucher discount on top of menu discount
             // ✅ FIX: Don't redeclare totalAfterDiscount, just apply voucher on it

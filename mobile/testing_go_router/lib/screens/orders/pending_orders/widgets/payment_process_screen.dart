@@ -9,6 +9,7 @@ import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 
 class PaymentProcessScreen extends ConsumerStatefulWidget {
   final PaymentModel payment;
@@ -426,7 +427,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1),
+              color: Colors.red.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -552,7 +553,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                   isActive
                       ? [
                         BoxShadow(
-                          color: Colors.orange.withOpacity(0.3),
+                          color: Colors.orange.withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
@@ -658,7 +659,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.orange.withOpacity(0.1) : Colors.white,
+        color: isSelected ? Colors.orange.withValues(alpha: 0.1) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isSelected ? Colors.orange : Colors.grey.shade300,
@@ -668,8 +669,8 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           BoxShadow(
             color:
                 isSelected
-                    ? Colors.orange.withOpacity(0.2)
-                    : Colors.black.withOpacity(0.04),
+                    ? Colors.orange.withValues(alpha: 0.2)
+                    : Colors.black.withValues(alpha: 0.04),
             blurRadius: isSelected ? 12 : 6,
             offset: const Offset(0, 4),
           ),
@@ -837,7 +838,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.orange.withOpacity(0.1) : Colors.white,
+        color: isSelected ? Colors.orange.withValues(alpha: 0.1) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isSelected ? Colors.orange : Colors.grey.shade300,
@@ -847,8 +848,8 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           BoxShadow(
             color:
                 isSelected
-                    ? Colors.orange.withOpacity(0.2)
-                    : Colors.black.withOpacity(0.04),
+                    ? Colors.orange.withValues(alpha: 0.2)
+                    : Colors.black.withValues(alpha: 0.04),
             blurRadius: isSelected ? 12 : 6,
             offset: const Offset(0, 4),
           ),
@@ -915,7 +916,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
+                            color: Colors.green.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
@@ -989,12 +990,12 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.orange.withOpacity(0.1),
-                  Colors.orange.withOpacity(0.05),
+                  Colors.orange.withValues(alpha: 0.1),
+                  Colors.orange.withValues(alpha: 0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
             ),
             child: Column(
               children: [
@@ -1019,7 +1020,10 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Container(height: 1, color: Colors.orange.withOpacity(0.2)),
+                Container(
+                  height: 1,
+                  color: Colors.orange.withValues(alpha: 0.2),
+                ),
                 const SizedBox(height: 16),
                 _buildSummaryRow('Tagihan', _getPaymentTitle(widget.payment)),
                 const SizedBox(height: 8),
@@ -1235,7 +1239,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           .read(processPaymentRequestProvider.notifier)
           .addCashierId(cashierbox!.id ?? cashierId);
       final requestData = ref.watch(processPaymentRequestProvider);
-      print('req data: $requestData');
+      AppLogger.debug('req data: $requestData');
       final result = await ref
           .read(paymentProcessProvider.notifier)
           .processPayment(ref, requestData!);
@@ -1356,9 +1360,11 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: Colors.green.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                      border: Border.all(
+                        color: Colors.green.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Column(
                       children: [

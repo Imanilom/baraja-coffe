@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -6,6 +7,7 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
@@ -62,12 +64,15 @@ class PrinterService {
         printer.port!, // Default port for network printers
         timeout: const Duration(seconds: 10),
       );
-      print(
+      AppLogger.info(
         '✅ Berhasil terhubung ke network printer ${printer.name} (${printer.address}:${printer.port})',
       );
       return socket;
     } catch (e) {
-      print('❌ Gagal terhubung ke network printer ${printer.name}: $e');
+      AppLogger.error(
+        '❌ Gagal terhubung ke network printer ${printer.name}',
+        error: e,
+      );
       return null;
     }
   }
@@ -75,9 +80,9 @@ class PrinterService {
   static Future<void> disconnectNetworkPrinter(Socket? socket) async {
     try {
       await socket?.close();
-      print('✅ Koneksi network printer ditutup');
+      AppLogger.info('✅ Koneksi network printer ditutup');
     } catch (e) {
-      print('❌ Error saat menutup koneksi network printer: $e');
+      AppLogger.error('❌ Error saat menutup koneksi network printer', error: e);
     }
   }
 
@@ -110,7 +115,7 @@ class PrinterService {
   }) async {
     final jobs = _createPrintJobs(printType);
 
-    // print('dokumen print ${orderDetail.items.toList()}');
+    // AppLogger.debug('dokumen print ${orderDetail.items.toList()}');
 
     for (final job in jobs) {
       // if (printers.any((element) => element.connectionType == 'bluetooth')) {
@@ -180,7 +185,7 @@ class PrinterService {
     // 1️⃣ Ambil daftar item yang punya delta quantity (belum tercetak)
     final deltas = _selectDeltasForJob(orderDetail, jobType);
     if (deltas.isEmpty) {
-      print('⚠️ Tidak ada delta item untuk $jobType');
+      AppLogger.warning('⚠️ Tidak ada delta item untuk $jobType');
       return;
     }
 
@@ -210,15 +215,17 @@ class PrinterService {
         }).toList();
 
     if (supportedPrinters.isEmpty) {
-      print('⚠️ Tidak ada printer yang mendukung $jobType');
+      AppLogger.warning('⚠️ Tidak ada printer yang mendukung $jobType');
       return;
     }
 
-    print('📤 Mencetak $jobType di ${supportedPrinters.length} printer');
+    AppLogger.info(
+      '📤 Mencetak $jobType di ${supportedPrinters.length} printer',
+    );
 
     // var anySuccess = false;
     for (final printer in supportedPrinters) {
-      print(
+      AppLogger.debug(
         '📤 Mencetak printer coba: $jobType di ${printer.connectionType} (${printer.address})',
       );
       await _printSingleJob(
@@ -254,7 +261,9 @@ class PrinterService {
     required String batchLabel,
   }) async {
     try {
-      print('📤 Mencetak $jobType di ${printer.name} (${printer.address})');
+      AppLogger.info(
+        '📤 Mencetak $jobType di ${printer.name} (${printer.address})',
+      );
 
       final bytes = await _generateBytesForJob(
         orderDetail: orderDetail,
@@ -273,7 +282,7 @@ class PrinterService {
             bytes,
           ).then((_) => true).catchError((_) => false);
           if (result) {
-            print('Salinan $i+1 dari $copies untuk $jobType dicetak.');
+            AppLogger.info('Salinan $i+1 dari $copies untuk $jobType dicetak.');
           }
         }
       }
@@ -287,7 +296,7 @@ class PrinterService {
       }
       return true;
     } catch (e) {
-      print('❌ Gagal mencetak $jobType di ${printer.name}: $e');
+      AppLogger.error('❌ Gagal mencetak $jobType di ${printer.name}', error: e);
       return false;
     } finally {
       if (printer.connectionType == 'bluetooth') {
@@ -364,7 +373,7 @@ class PrinterService {
       // 1. Buat generator
       final profile = await CapabilityProfile.load();
       PaperSize paperSize;
-      print('Paper Size: ${printer.paperSize}');
+      AppLogger.debug('Paper Size: ${printer.paperSize}');
       if (printer.paperSize == 'mm58') {
         paperSize = PaperSize.mm58;
       } else if (printer.paperSize == 'mm80') {
@@ -455,7 +464,7 @@ class PrinterService {
 
       return result;
     } catch (e) {
-      print('Print error: $e');
+      AppLogger.error('Print error', error: e);
       return false;
     } finally {
       //delay
@@ -607,7 +616,7 @@ class PrinterService {
 
       return result;
     } catch (e) {
-      print('Print error: $e');
+      AppLogger.error('Print error', error: e);
       return false;
     }
   }
@@ -632,10 +641,10 @@ class PrinterService {
       final grayscaleImage = img.grayscale(resizedImage);
 
       bytes.addAll(generator.image(grayscaleImage));
-      debugPrint('Logo image loaded and processed successfully.');
+      AppLogger.debug('Logo image loaded and processed successfully.');
       bytes.addAll(generator.feed(1));
     } catch (e) {
-      debugPrint('Error loading logo image: $e');
+      AppLogger.error('Error loading logo image', error: e);
       // Fallback: kalau gambar gagal, cetak nama toko saja
       bytes.addAll(
         generator.text(
@@ -652,80 +661,6 @@ class PrinterService {
 
     return bytes;
   }
-
-  // static Future<List<int>> generateLogoBytes(
-  //   Generator generator,
-  //   String imagePath,
-  //   PaperSize paperSize,
-  // ) async {
-  //   final List<int> out = <int>[];
-
-  //   try {
-  //     // 1) Load asset PNG
-  //     final bd = await rootBundle.load(imagePath);
-  //     final bytes = bd.buffer.asUint8List();
-
-  //     // 2) Decode (image v3)
-  //     final img.Image src = img.decodeImage(bytes)!;
-
-  //     // 3) Hitung lebar aman untuk print-head (58mm ≈ 384px, 80mm ≈ 576px)
-  //     final head = paperSize == PaperSize.mm80 ? 576 : 384;
-  //     final target = (head * 0.85).floor(); // beri margin
-
-  //     // 4) Resize & grayscale
-  //     final img.Image resized = img.copyResize(
-  //       src,
-  //       width: src.width > target ? target : src.width,
-  //     );
-  //     final img.Image gray = img.grayscale(resized);
-
-  //     // 5) BUNGKUS ULANG ke buffer growable (hindari “Cannot add to a fixed-length list”)
-  //     print(
-  //       'Gray info: ${gray.width}x${gray.height}, channels: ${gray.numChannels}',
-  //     );
-  //     final Uint8List growableBytes = Uint8List.fromList(gray.toUint8List());
-  //     final img.Image safe = img.Image.fromBytes(
-  //       width: gray.width,
-  //       height: gray.height,
-  //       bytes: growableBytes.buffer,
-  //       numChannels: gray.numChannels,
-  //     );
-
-  //     print(
-  //       'Safe info: ${safe.width}x${safe.height}, channels: ${safe.numChannels}',
-  //     );
-
-  //     // 6) Raster mode = paling kompatibel lintas printer
-  //     out.addAll(
-  //       generator.imageRaster(
-  //         safe,
-  //         align: PosAlign.center,
-  //         highDensityHorizontal: true,
-  //         highDensityVertical: true,
-  //       ),
-  //     );
-
-  //     print('Logo image loaded and processed successfully.');
-
-  //     out.addAll(generator.feed(1));
-  //   } catch (e) {
-  //     debugPrint('Gagal render logo: $e');
-  //     // Fallback teks jika logo gagal
-  //     out.addAll(
-  //       generator.text(
-  //         'Baraja Amphitheater',
-  //         styles: const PosStyles(
-  //           align: PosAlign.center,
-  //           bold: true,
-  //           height: PosTextSize.size2,
-  //         ),
-  //       ),
-  //     );
-  //     out.addAll(generator.feed(1));
-  //   }
-
-  //   return out;
-  // },
 
   static Future<List<int>> generateBasicLogoBytes(
     Generator generator,
@@ -802,7 +737,7 @@ class PrinterService {
 
       out.addAll(generator.feed(1)); // nudge head maju
     } catch (e, st) {
-      debugPrint('Gagal render logo: $e\n$st');
+      AppLogger.error('Gagal render logo', error: e, stackTrace: st);
 
       // Fallback: teks saja
       out.addAll(
@@ -879,7 +814,7 @@ class PrinterService {
       out.addAll(generator.image(processedImage, align: PosAlign.center));
       out.addAll(generator.feed(1));
     } catch (e, st) {
-      debugPrint('Gagal render logo: $e\n$st');
+      AppLogger.error('Gagal render logo', error: e, stackTrace: st);
       out.addAll(
         generator.text(
           'Baraja Amphitheater',
@@ -959,7 +894,7 @@ class PrinterService {
 
       return bytes;
     } catch (e) {
-      print('Error optimized logo: $e');
+      AppLogger.error('Error optimized logo', error: e);
       return [];
     }
   }
@@ -1330,12 +1265,32 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: formatPrice(orderDetail.totalAfterDiscount).toString(),
+          text: formatPrice(orderDetail.totalBeforeDiscount).toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
       ]),
     );
+    if (orderDetail.discounts != null &&
+        orderDetail.discounts?.totalDiscount != 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text:
+                orderDetail.appliedPromos?.map((x) => x.promoName).join(', ') ??
+                '',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text:
+                "- ${formatPrice(orderDetail.discounts?.totalDiscount ?? 0).toString()}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
     bytes.addAll(
       generator.row([
         PosColumn(
@@ -1367,9 +1322,9 @@ class PrinterService {
       ]),
     );
     bytes.addAll(generator.hr(ch: '='));
-    print('bersiap untuk menulis pembayaran');
+    AppLogger.debug('bersiap untuk menulis pembayaran');
     if (isOrderDetailSplitPayment(orderDetail)) {
-      print('isSplitPayment: ${orderDetail.isSplitPayment}');
+      AppLogger.debug('isSplitPayment: ${orderDetail.isSplitPayment}');
       bytes.addAll(generator.feed(1));
       for (var payment in orderDetail.payments) {
         bytes.addAll(
@@ -1412,7 +1367,7 @@ class PrinterService {
         bytes.addAll(generator.feed(1));
       }
     } else {
-      print('brarti tidak ada order detail');
+      AppLogger.debug('brarti tidak ada order detail');
       bytes.addAll(
         generator.row([
           PosColumn(
@@ -1465,9 +1420,12 @@ class PrinterService {
     bytes.addAll(generator.hr(ch: '='));
 
     //footer
-    await generateFooterBytes(generator, paperSize).then((footerBytes) {
-      bytes.addAll(footerBytes);
-    });
+    final footerBytes = await generateFooterBytes(
+      generator,
+      paperSize,
+      orderDetail,
+    );
+    bytes.addAll(footerBytes);
 
     //feed and cut
     // bytes.addAll(generator.feed(2));
@@ -1740,7 +1698,7 @@ class PrinterService {
     );
 
     bytes.addAll(generator.hr());
-    print('print kitchen ${orderDetail.items}');
+    AppLogger.debug('print kitchen ${orderDetail.items}');
 
     // final orderdetail =
     //     orderDetail.items
@@ -1751,7 +1709,7 @@ class PrinterService {
             orderDetail.items
                 .where((it) => it.menuItem.workstation == 'kitchen')
                 .toList());
-    print('print kitchen $orderdetail');
+    AppLogger.debug('print kitchen $orderdetail');
     for (var item in orderdetail) {
       bytes.addAll(
         generator.row([
@@ -2061,13 +2019,23 @@ class PrinterService {
   static Future<List<int>> generateFooterBytes(
     Generator generator,
     PaperSize paperSize,
+    OrderDetailModel orderDetail,
   ) async {
     final List<int> bytes = [];
     // Footer
+    final bool isLunas =
+        orderDetail.paymentStatus != null &&
+        orderDetail.paymentStatus!.toLowerCase() == 'settlement';
+
     bytes.addAll(
       generator.text(
-        '** LUNAS **',
-        styles: const PosStyles(align: PosAlign.center),
+        isLunas ? '** LUNAS **' : '** BELUM LUNAS **',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
       ),
     );
     bytes.addAll(generator.feed(1));
@@ -2166,7 +2134,7 @@ class PrinterService {
 
   //membuat method untuk mengtahui orderdetail split payment atau tidak
   static bool isOrderDetailSplitPayment(OrderDetailModel orderDetail) {
-    print(orderDetail.payments);
+    AppLogger.debug(orderDetail.payments);
     if (orderDetail.payments.isEmpty) return false;
 
     return true; //orderdetail
@@ -2210,7 +2178,7 @@ class ThermalPrinter {
     final List<int> bytes = [];
 
     try {
-      debugPrint('🔄 Loading & processing image...');
+      AppLogger.debug('🔄 Loading & processing image...');
 
       // Load asset
       final ByteData byteData = await rootBundle.load(imagePath);
@@ -2226,15 +2194,15 @@ class ThermalPrinter {
         throw Exception('Failed to process image');
       }
 
-      debugPrint('✅ Image processed, generating bytes...');
+      AppLogger.debug('✅ Image processed, generating bytes...');
 
       // Generate bytes
       bytes.addAll(generator.image(processedImage, align: PosAlign.center));
       bytes.addAll(generator.feed(1));
 
-      debugPrint('✅ Done: ${bytes.length} bytes');
+      AppLogger.debug('✅ Done: ${bytes.length} bytes');
     } catch (e, st) {
-      debugPrint('❌ Error: $e\n$st');
+      AppLogger.error('❌ Error', error: e, stackTrace: st);
       // Fallback
       bytes.addAll(
         generator.text(
@@ -2335,7 +2303,7 @@ class ThermalPrinter {
       bytes.addAll(generator.image(grayscale, align: PosAlign.center));
       bytes.addAll(generator.feed(1));
     } catch (e, st) {
-      debugPrint('❌ Error: $e /n$st');
+      AppLogger.error('❌ Error', error: e, stackTrace: st);
       bytes.addAll(
         generator.text(
           'Baraja Amphitheater',
@@ -2365,7 +2333,7 @@ class ThermalPrinter {
     try {
       // Load & cache image sekali saja
       if (_cachedLogo == null) {
-        debugPrint('🔄 First time load, caching image...');
+        AppLogger.debug('🔄 First time load, caching image...');
 
         final ByteData byteData = await rootBundle.load(imagePath);
         final Uint8List imageBytes = byteData.buffer.asUint8List();
@@ -2383,7 +2351,7 @@ class ThermalPrinter {
         );
 
         _cachedLogo = img.grayscale(resized);
-        debugPrint('✅ Image cached');
+        AppLogger.debug('✅ Image cached');
       }
 
       // Gunakan cached image
@@ -2448,7 +2416,9 @@ class ThermalPrinters {
         throw Exception('Failed to decode image');
       }
 
-      debugPrint('📐 Original: ${decodedImage.width}x${decodedImage.height}');
+      AppLogger.debug(
+        '📐 Original: ${decodedImage.width}x${decodedImage.height}',
+      );
 
       // Resize
       final maxWidth = (paperSize == PaperSize.mm80) ? 384 : 256;
@@ -2466,20 +2436,20 @@ class ThermalPrinters {
       // Grayscale
       final grayscale = img.grayscale(resized);
 
-      debugPrint('📐 Processed: ${grayscale.width}x${grayscale.height}');
+      AppLogger.debug('📐 Processed: ${grayscale.width}x${grayscale.height}');
 
       // ⭐ KUNCI UTAMA: Clone ke growable buffer
       final img.Image growableImage = _makeGrowableBuffer(grayscale);
 
-      debugPrint('✅ Growable buffer created');
+      AppLogger.debug('✅ Growable buffer created');
 
       // Generate bytes
       bytes.addAll(generator.image(growableImage, align: PosAlign.center));
       bytes.addAll(generator.feed(1));
 
-      debugPrint('✅ Done: ${bytes.length} bytes');
+      AppLogger.debug('✅ Done: ${bytes.length} bytes');
     } catch (e, st) {
-      debugPrint('❌ Error: $e\n$st');
+      AppLogger.error('❌ Error', error: e, stackTrace: st);
       // Fallback
       bytes.addAll(
         generator.text(
@@ -2580,7 +2550,7 @@ class ThermalPrinters {
       bytes.addAll(generator.image(reDecoded, align: PosAlign.center));
       bytes.addAll(generator.feed(1));
     } catch (e) {
-      debugPrint('❌ Error: $e');
+      AppLogger.error('❌ Error', error: e);
       bytes.addAll(
         generator.text(
           'Baraja Amphitheater',
@@ -2643,7 +2613,7 @@ class ThermalPrinters {
       bytes.addAll(generator.image(safeImage, align: PosAlign.center));
       bytes.addAll(generator.feed(1));
     } catch (e) {
-      debugPrint('❌ Error: $e');
+      AppLogger.error('❌ Error', error: e);
       bytes.addAll(
         generator.text(
           'Baraja Amphitheater',

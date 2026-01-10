@@ -20,24 +20,22 @@ class AutoPromoModelAdapter extends TypeAdapter<AutoPromoModel> {
       id: fields[0] as String,
       name: fields[1] as String,
       promoType: fields[2] as String,
-      discount: fields[3] == null ? 0 : (fields[3] as num?)?.toInt(),
-      bundlePrice: fields[4] == null ? 0 : (fields[4] as num?)?.toInt(),
-      conditions: fields[5] == null ? null : fields[5] as Conditions?,
-      activeHours: fields[6] == null ? null : fields[6] as ActiveHours?,
-      outlet: fields[7] as Outlet,
-      createdBy: fields[8] as String,
-      validFrom: fields[9] as DateTime,
-      validTo: fields[10] as DateTime,
-      isActive: fields[11] == null ? false : fields[11] as bool?,
-      createdAt: fields[12] as DateTime,
-      updatedAt: fields[13] as DateTime,
+      discount: fields[3] == null ? 0 : (fields[3] as num).toInt(),
+      bundlePrice: (fields[4] as num?)?.toInt(),
+      conditions: fields[5] as PromoConditionsModel,
+      activeHours: fields[6] as ActiveHoursModel,
+      validFrom: fields[7] as DateTime,
+      validTo: fields[8] as DateTime,
+      isActive: fields[9] == null ? false : fields[9] as bool,
+      consumerType: fields[10] as String?,
+      outlet: fields[11] as OutletModel?,
     );
   }
 
   @override
   void write(BinaryWriter writer, AutoPromoModel obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -53,19 +51,15 @@ class AutoPromoModelAdapter extends TypeAdapter<AutoPromoModel> {
       ..writeByte(6)
       ..write(obj.activeHours)
       ..writeByte(7)
-      ..write(obj.outlet)
-      ..writeByte(8)
-      ..write(obj.createdBy)
-      ..writeByte(9)
       ..write(obj.validFrom)
-      ..writeByte(10)
+      ..writeByte(8)
       ..write(obj.validTo)
-      ..writeByte(11)
+      ..writeByte(9)
       ..write(obj.isActive)
-      ..writeByte(12)
-      ..write(obj.createdAt)
-      ..writeByte(13)
-      ..write(obj.updatedAt);
+      ..writeByte(10)
+      ..write(obj.consumerType)
+      ..writeByte(11)
+      ..write(obj.outlet);
   }
 
   @override
@@ -79,38 +73,40 @@ class AutoPromoModelAdapter extends TypeAdapter<AutoPromoModel> {
           typeId == other.typeId;
 }
 
-class ConditionsAdapter extends TypeAdapter<Conditions> {
+class PromoConditionsModelAdapter extends TypeAdapter<PromoConditionsModel> {
   @override
   final typeId = 12;
 
   @override
-  Conditions read(BinaryReader reader) {
+  PromoConditionsModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return Conditions(
-      bundleProducts:
-          fields[0] == null ? [] : (fields[0] as List?)?.cast<BundleProduct>(),
+    return PromoConditionsModel(
       products:
+          fields[0] == null
+              ? []
+              : (fields[0] as List).cast<PromoProductModel>(),
+      bundleProducts:
           fields[1] == null
               ? []
-              : (fields[1] as List?)?.cast<ProductCondition>(),
-      minQuantity: fields[2] == null ? 0 : (fields[2] as num?)?.toInt(),
-      minTotal: fields[3] == null ? 0 : (fields[3] as num?)?.toInt(),
-      buyProduct: fields[4] as ProductCondition?,
-      getProduct: fields[5] as ProductCondition?,
+              : (fields[1] as List).cast<BundleProductModel>(),
+      minQuantity: (fields[2] as num?)?.toInt(),
+      minTotal: (fields[3] as num?)?.toInt(),
+      buyProduct: fields[4] as PromoProductModel?,
+      getProduct: fields[5] as PromoProductModel?,
     );
   }
 
   @override
-  void write(BinaryWriter writer, Conditions obj) {
+  void write(BinaryWriter writer, PromoConditionsModel obj) {
     writer
       ..writeByte(6)
       ..writeByte(0)
-      ..write(obj.bundleProducts)
-      ..writeByte(1)
       ..write(obj.products)
+      ..writeByte(1)
+      ..write(obj.bundleProducts)
       ..writeByte(2)
       ..write(obj.minQuantity)
       ..writeByte(3)
@@ -127,38 +123,38 @@ class ConditionsAdapter extends TypeAdapter<Conditions> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ConditionsAdapter &&
+      other is PromoConditionsModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
 
-class BundleProductAdapter extends TypeAdapter<BundleProduct> {
+class BundleProductModelAdapter extends TypeAdapter<BundleProductModel> {
   @override
   final typeId = 27;
 
   @override
-  BundleProduct read(BinaryReader reader) {
+  BundleProductModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return BundleProduct(
-      product: fields[0] as ProductCondition,
-      quantity: fields[1] == null ? 1 : (fields[1] as num?)?.toInt(),
-      id: fields[2] as String?,
+    return BundleProductModel(
+      id: fields[0] as String?,
+      product: fields[1] as PromoProductModel,
+      quantity: (fields[2] as num).toInt(),
     );
   }
 
   @override
-  void write(BinaryWriter writer, BundleProduct obj) {
+  void write(BinaryWriter writer, BundleProductModel obj) {
     writer
       ..writeByte(3)
       ..writeByte(0)
-      ..write(obj.product)
+      ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.quantity)
+      ..write(obj.product)
       ..writeByte(2)
-      ..write(obj.id);
+      ..write(obj.quantity);
   }
 
   @override
@@ -167,26 +163,29 @@ class BundleProductAdapter extends TypeAdapter<BundleProduct> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is BundleProductAdapter &&
+      other is BundleProductModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
 
-class ProductConditionAdapter extends TypeAdapter<ProductCondition> {
+class PromoProductModelAdapter extends TypeAdapter<PromoProductModel> {
   @override
   final typeId = 30;
 
   @override
-  ProductCondition read(BinaryReader reader) {
+  PromoProductModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return ProductCondition(id: fields[0] as String, name: fields[1] as String);
+    return PromoProductModel(
+      id: fields[0] as String,
+      name: fields[1] as String,
+    );
   }
 
   @override
-  void write(BinaryWriter writer, ProductCondition obj) {
+  void write(BinaryWriter writer, PromoProductModel obj) {
     writer
       ..writeByte(2)
       ..writeByte(0)
@@ -201,29 +200,30 @@ class ProductConditionAdapter extends TypeAdapter<ProductCondition> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ProductConditionAdapter &&
+      other is PromoProductModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
 
-class ActiveHoursAdapter extends TypeAdapter<ActiveHours> {
+class ActiveHoursModelAdapter extends TypeAdapter<ActiveHoursModel> {
   @override
   final typeId = 31;
 
   @override
-  ActiveHours read(BinaryReader reader) {
+  ActiveHoursModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return ActiveHours(
-      isEnabled: fields[0] == null ? false : fields[0] as bool?,
-      schedule: fields[1] == null ? [] : (fields[1] as List?)?.cast<Schedule>(),
+    return ActiveHoursModel(
+      isEnabled: fields[0] == null ? false : fields[0] as bool,
+      schedule:
+          fields[1] == null ? [] : (fields[1] as List).cast<ScheduleModel>(),
     );
   }
 
   @override
-  void write(BinaryWriter writer, ActiveHours obj) {
+  void write(BinaryWriter writer, ActiveHoursModel obj) {
     writer
       ..writeByte(2)
       ..writeByte(0)
@@ -238,41 +238,41 @@ class ActiveHoursAdapter extends TypeAdapter<ActiveHours> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ActiveHoursAdapter &&
+      other is ActiveHoursModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
 
-class ScheduleAdapter extends TypeAdapter<Schedule> {
+class ScheduleModelAdapter extends TypeAdapter<ScheduleModel> {
   @override
   final typeId = 32;
 
   @override
-  Schedule read(BinaryReader reader) {
+  ScheduleModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return Schedule(
-      dayOfWeek: (fields[0] as num).toInt(),
-      startTime: fields[1] as String,
-      endTime: fields[2] as String,
-      id: fields[3] as String?,
+    return ScheduleModel(
+      id: fields[0] as String?,
+      dayOfWeek: (fields[1] as num).toInt(),
+      startTime: fields[2] as String,
+      endTime: fields[3] as String,
     );
   }
 
   @override
-  void write(BinaryWriter writer, Schedule obj) {
+  void write(BinaryWriter writer, ScheduleModel obj) {
     writer
       ..writeByte(4)
       ..writeByte(0)
-      ..write(obj.dayOfWeek)
+      ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.startTime)
+      ..write(obj.dayOfWeek)
       ..writeByte(2)
-      ..write(obj.endTime)
+      ..write(obj.startTime)
       ..writeByte(3)
-      ..write(obj.id);
+      ..write(obj.endTime);
   }
 
   @override
@@ -281,26 +281,26 @@ class ScheduleAdapter extends TypeAdapter<Schedule> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ScheduleAdapter &&
+      other is ScheduleModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
 
-class OutletAdapter extends TypeAdapter<Outlet> {
+class OutletModelAdapter extends TypeAdapter<OutletModel> {
   @override
   final typeId = 33;
 
   @override
-  Outlet read(BinaryReader reader) {
+  OutletModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return Outlet(id: fields[0] as String, name: fields[1] as String);
+    return OutletModel(id: fields[0] as String, name: fields[1] as String);
   }
 
   @override
-  void write(BinaryWriter writer, Outlet obj) {
+  void write(BinaryWriter writer, OutletModel obj) {
     writer
       ..writeByte(2)
       ..writeByte(0)
@@ -315,7 +315,7 @@ class OutletAdapter extends TypeAdapter<Outlet> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is OutletAdapter &&
+      other is OutletModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
@@ -330,24 +330,21 @@ _AutoPromoModel _$AutoPromoModelFromJson(Map<String, dynamic> json) =>
       name: json['name'] as String,
       promoType: json['promoType'] as String,
       discount: (json['discount'] as num?)?.toInt() ?? 0,
-      bundlePrice: (json['bundlePrice'] as num?)?.toInt() ?? 0,
-      conditions:
-          json['conditions'] == null
-              ? null
-              : Conditions.fromJson(json['conditions'] as Map<String, dynamic>),
-      activeHours:
-          json['activeHours'] == null
-              ? null
-              : ActiveHours.fromJson(
-                json['activeHours'] as Map<String, dynamic>,
-              ),
-      outlet: Outlet.fromJson(json['outlet'] as Map<String, dynamic>),
-      createdBy: json['createdBy'] as String,
+      bundlePrice: (json['bundlePrice'] as num?)?.toInt(),
+      conditions: PromoConditionsModel.fromJson(
+        json['conditions'] as Map<String, dynamic>,
+      ),
+      activeHours: ActiveHoursModel.fromJson(
+        json['activeHours'] as Map<String, dynamic>,
+      ),
       validFrom: DateTime.parse(json['validFrom'] as String),
       validTo: DateTime.parse(json['validTo'] as String),
       isActive: json['isActive'] as bool? ?? false,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      consumerType: json['consumerType'] as String?,
+      outlet:
+          json['outlet'] == null
+              ? null
+              : OutletModel.fromJson(json['outlet'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$AutoPromoModelToJson(_AutoPromoModel instance) =>
@@ -359,107 +356,109 @@ Map<String, dynamic> _$AutoPromoModelToJson(_AutoPromoModel instance) =>
       'bundlePrice': instance.bundlePrice,
       'conditions': instance.conditions,
       'activeHours': instance.activeHours,
-      'outlet': instance.outlet,
-      'createdBy': instance.createdBy,
       'validFrom': instance.validFrom.toIso8601String(),
       'validTo': instance.validTo.toIso8601String(),
       'isActive': instance.isActive,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'updatedAt': instance.updatedAt.toIso8601String(),
+      'consumerType': instance.consumerType,
+      'outlet': instance.outlet,
     };
 
-_Conditions _$ConditionsFromJson(Map<String, dynamic> json) => _Conditions(
-  bundleProducts:
-      (json['bundleProducts'] as List<dynamic>?)
-          ?.map((e) => BundleProduct.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
+_PromoConditionsModel _$PromoConditionsModelFromJson(
+  Map<String, dynamic> json,
+) => _PromoConditionsModel(
   products:
       (json['products'] as List<dynamic>?)
-          ?.map((e) => ProductCondition.fromJson(e as Map<String, dynamic>))
+          ?.map((e) => PromoProductModel.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const [],
-  minQuantity: (json['minQuantity'] as num?)?.toInt() ?? 0,
-  minTotal: (json['minTotal'] as num?)?.toInt() ?? 0,
+  bundleProducts:
+      (json['bundleProducts'] as List<dynamic>?)
+          ?.map((e) => BundleProductModel.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  minQuantity: (json['minQuantity'] as num?)?.toInt(),
+  minTotal: (json['minTotal'] as num?)?.toInt(),
   buyProduct:
       json['buyProduct'] == null
           ? null
-          : ProductCondition.fromJson(
+          : PromoProductModel.fromJson(
             json['buyProduct'] as Map<String, dynamic>,
           ),
   getProduct:
       json['getProduct'] == null
           ? null
-          : ProductCondition.fromJson(
+          : PromoProductModel.fromJson(
             json['getProduct'] as Map<String, dynamic>,
           ),
 );
 
-Map<String, dynamic> _$ConditionsToJson(_Conditions instance) =>
-    <String, dynamic>{
-      'bundleProducts': instance.bundleProducts,
-      'products': instance.products,
-      'minQuantity': instance.minQuantity,
-      'minTotal': instance.minTotal,
-      'buyProduct': instance.buyProduct,
-      'getProduct': instance.getProduct,
-    };
+Map<String, dynamic> _$PromoConditionsModelToJson(
+  _PromoConditionsModel instance,
+) => <String, dynamic>{
+  'products': instance.products,
+  'bundleProducts': instance.bundleProducts,
+  'minQuantity': instance.minQuantity,
+  'minTotal': instance.minTotal,
+  'buyProduct': instance.buyProduct,
+  'getProduct': instance.getProduct,
+};
 
-_BundleProduct _$BundleProductFromJson(Map<String, dynamic> json) =>
-    _BundleProduct(
-      product: ProductCondition.fromJson(
+_BundleProductModel _$BundleProductModelFromJson(Map<String, dynamic> json) =>
+    _BundleProductModel(
+      id: json['_id'] as String?,
+      product: PromoProductModel.fromJson(
         json['product'] as Map<String, dynamic>,
       ),
-      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
-      id: json['_id'] as String?,
+      quantity: (json['quantity'] as num).toInt(),
     );
 
-Map<String, dynamic> _$BundleProductToJson(_BundleProduct instance) =>
+Map<String, dynamic> _$BundleProductModelToJson(_BundleProductModel instance) =>
     <String, dynamic>{
+      '_id': instance.id,
       'product': instance.product,
       'quantity': instance.quantity,
-      '_id': instance.id,
     };
 
-_ProductCondition _$ProductConditionFromJson(Map<String, dynamic> json) =>
-    _ProductCondition(id: json['_id'] as String, name: json['name'] as String);
+_PromoProductModel _$PromoProductModelFromJson(Map<String, dynamic> json) =>
+    _PromoProductModel(id: json['_id'] as String, name: json['name'] as String);
 
-Map<String, dynamic> _$ProductConditionToJson(_ProductCondition instance) =>
+Map<String, dynamic> _$PromoProductModelToJson(_PromoProductModel instance) =>
     <String, dynamic>{'_id': instance.id, 'name': instance.name};
 
-_ActiveHours _$ActiveHoursFromJson(Map<String, dynamic> json) => _ActiveHours(
-  isEnabled: json['isEnabled'] as bool? ?? false,
-  schedule:
-      (json['schedule'] as List<dynamic>?)
-          ?.map((e) => Schedule.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
-);
+_ActiveHoursModel _$ActiveHoursModelFromJson(Map<String, dynamic> json) =>
+    _ActiveHoursModel(
+      isEnabled: json['isEnabled'] as bool? ?? false,
+      schedule:
+          (json['schedule'] as List<dynamic>?)
+              ?.map((e) => ScheduleModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+    );
 
-Map<String, dynamic> _$ActiveHoursToJson(_ActiveHours instance) =>
+Map<String, dynamic> _$ActiveHoursModelToJson(_ActiveHoursModel instance) =>
     <String, dynamic>{
       'isEnabled': instance.isEnabled,
       'schedule': instance.schedule,
     };
 
-_Schedule _$ScheduleFromJson(Map<String, dynamic> json) => _Schedule(
-  dayOfWeek: (json['dayOfWeek'] as num).toInt(),
-  startTime: json['startTime'] as String,
-  endTime: json['endTime'] as String,
-  id: json['_id'] as String?,
-);
+_ScheduleModel _$ScheduleModelFromJson(Map<String, dynamic> json) =>
+    _ScheduleModel(
+      id: json['_id'] as String?,
+      dayOfWeek: (json['dayOfWeek'] as num).toInt(),
+      startTime: json['startTime'] as String,
+      endTime: json['endTime'] as String,
+    );
 
-Map<String, dynamic> _$ScheduleToJson(_Schedule instance) => <String, dynamic>{
-  'dayOfWeek': instance.dayOfWeek,
-  'startTime': instance.startTime,
-  'endTime': instance.endTime,
-  '_id': instance.id,
-};
+Map<String, dynamic> _$ScheduleModelToJson(_ScheduleModel instance) =>
+    <String, dynamic>{
+      '_id': instance.id,
+      'dayOfWeek': instance.dayOfWeek,
+      'startTime': instance.startTime,
+      'endTime': instance.endTime,
+    };
 
-_Outlet _$OutletFromJson(Map<String, dynamic> json) =>
-    _Outlet(id: json['_id'] as String, name: json['name'] as String);
+_OutletModel _$OutletModelFromJson(Map<String, dynamic> json) =>
+    _OutletModel(id: json['_id'] as String, name: json['name'] as String);
 
-Map<String, dynamic> _$OutletToJson(_Outlet instance) => <String, dynamic>{
-  '_id': instance.id,
-  'name': instance.name,
-};
+Map<String, dynamic> _$OutletModelToJson(_OutletModel instance) =>
+    <String, dynamic>{'_id': instance.id, 'name': instance.name};

@@ -4,6 +4,7 @@ import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/repositories/payment_method_repository.dart';
 import 'package:kasirbaraja/models/payments/process_payment_request.dart';
 
@@ -285,14 +286,14 @@ class PaymentProcessNotifier extends StateNotifier<PaymentProcessState> {
 
       final apiService = ref.read(onlineOrderService);
       final response = await apiService.processPaymentOrder(request);
-      print('Payment Response: ${response.data?.isFullyPaid}');
+      AppLogger.debug('Payment Response: ${response.data?.isFullyPaid}');
       setProcessing(false);
       final result = {
         "success": response.success,
         "orderStatus": response.data?.orderStatus,
         "isFullyPaid": response.data?.isFullyPaid,
       };
-      print('Result Tuple: $result');
+      AppLogger.debug('Result Tuple: $result');
       return response; // Success
     } catch (e) {
       setProcessing(false);

@@ -107,7 +107,7 @@ class _DateSelectorState extends State<DateSelector> {
             decoration: BoxDecoration(
               color:
                   isPast
-                      ? Colors.grey.withOpacity(0.2)
+                      ? Colors.grey.withValues(alpha: 0.2)
                       : isSelected
                       ? Color(0xFF007339)
                       : (isToday ? Color(0xFF007339) : null),
@@ -123,7 +123,7 @@ class _DateSelectorState extends State<DateSelector> {
                 style: TextStyle(
                   color:
                       isPast
-                          ? Colors.grey.withOpacity(0.5)
+                          ? Colors.grey.withValues(alpha: 0.5)
                           : isSelected
                           ? Colors.white
                           : Colors.black,
@@ -160,7 +160,7 @@ class _DateSelectorState extends State<DateSelector> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),

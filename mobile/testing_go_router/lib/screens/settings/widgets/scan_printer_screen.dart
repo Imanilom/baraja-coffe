@@ -89,7 +89,7 @@ class _ScanPrinterScreenState extends ConsumerState<ScanPrinterScreen> {
           return Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: Colors.blue.withOpacity(0.1),
+            color: Colors.blue.withValues(alpha: 0.1),
             child: Row(
               children: [
                 const SizedBox(
@@ -115,7 +115,7 @@ class _ScanPrinterScreenState extends ConsumerState<ScanPrinterScreen> {
           return Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: Colors.red.withOpacity(0.1),
+            color: Colors.red.withValues(alpha: 0.1),
             child: Row(
               children: [
                 const Icon(Icons.error, color: Colors.red, size: 20),
@@ -140,7 +140,7 @@ class _ScanPrinterScreenState extends ConsumerState<ScanPrinterScreen> {
           return Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            color: Colors.green.withOpacity(0.1),
+            color: Colors.green.withValues(alpha: 0.1),
             child: Row(
               children: [
                 const Icon(Icons.check_circle, color: Colors.green, size: 20),
@@ -195,9 +195,9 @@ class _ScanPrinterScreenState extends ConsumerState<ScanPrinterScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: Colors.green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -301,8 +301,8 @@ class _ScanPrinterScreenState extends ConsumerState<ScanPrinterScreen> {
                   decoration: BoxDecoration(
                     color:
                         isAlreadySaved
-                            ? Colors.green.withOpacity(0.1)
-                            : Colors.blue.withOpacity(0.1),
+                            ? Colors.green.withValues(alpha: 0.1)
+                            : Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -325,7 +325,7 @@ class _ScanPrinterScreenState extends ConsumerState<ScanPrinterScreen> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
+                      color: Colors.orange.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -524,9 +524,9 @@ class _ScanPrinterScreenState extends ConsumerState<ScanPrinterScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: Colors.green.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
                     ),
                     child: const Row(
                       children: [

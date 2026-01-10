@@ -78,7 +78,7 @@
 //                       borderRadius: BorderRadius.circular(20),
 //                       boxShadow: [
 //                         BoxShadow(
-//                           color: const Color(0xFF667EEA).withOpacity(0.3),
+//                           color: const Color(0xFF667EEA).withValues(alpha: 0.3),
 //                           blurRadius: 20,
 //                           offset: const Offset(0, 10),
 //                         ),
@@ -119,7 +119,7 @@
 //                         borderRadius: BorderRadius.circular(16),
 //                         boxShadow: [
 //                           BoxShadow(
-//                             color: Colors.black.withOpacity(0.05),
+//                             color: Colors.black.withValues(alpha: 0.05),
 //                             blurRadius: 10,
 //                             offset: const Offset(0, 2),
 //                           ),
@@ -182,7 +182,7 @@
 //                   borderRadius: BorderRadius.circular(16),
 //                   boxShadow: [
 //                     BoxShadow(
-//                       color: Colors.black.withOpacity(0.05),
+//                       color: Colors.black.withValues(alpha: 0.05),
 //                       blurRadius: 10,
 //                       offset: const Offset(0, 2),
 //                     ),
@@ -289,7 +289,6 @@
 //                       margin: const EdgeInsets.only(bottom: 10),
 //                       child: GestureDetector(
 //                         onTap: () {
-//                           print('Selected method: ${method.type}');
 //                           notifier.clearSelection();
 //                           notifier.selectMethod(method);
 //                         },

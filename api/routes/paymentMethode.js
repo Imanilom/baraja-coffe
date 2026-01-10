@@ -195,6 +195,28 @@ router.get('/payment-methods', (req, res) => {
             isPtBank: true, // ✅ Flag untuk identifikasi bank milik PT
             groOnly: true,  // ✅ Hanya tampil di GRO mode
         },
+        {
+            name: 'BNI (PT SCN)',
+            icon: 'bni.png',
+            color: '#00665E',
+            payment_method: 'cash', // ✅ Uses Cash flow (no Midtrans)
+            payment_method_name: 'Bank Transfer PT',
+            isBank: true,
+            bank_code: 'bni_pt',
+            isPtBank: true, // ✅ Flag untuk identifikasi bank milik PT
+            groOnly: true,  // ✅ Hanya tampil di GRO mode
+        },
+        {
+            name: 'BRI (PT SCN)',
+            icon: 'bri.png',
+            color: '#00529C',
+            payment_method: 'cash', // ✅ Uses Cash flow (no Midtrans)
+            payment_method_name: 'Bank Transfer PT',
+            isBank: true,
+            bank_code: 'bri_pt',
+            isPtBank: true, // ✅ Flag untuk identifikasi bank milik PT
+            groOnly: true,  // ✅ Hanya tampil di GRO mode
+        },
     ];
 
     res.json(paymentMethods);

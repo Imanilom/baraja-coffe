@@ -6,6 +6,7 @@ import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 import 'package:collection/collection.dart';
 
@@ -14,16 +15,16 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
 
   /// this method does nothing. Otherwise, it creates a ,new `OrderDetailModel`
   void initializeOrder({required OrderType orderType}) {
-    print('memeriksa apakah order sudah ada...');
+    AppLogger.debug('memeriksa apakah order sudah ada...');
     if (state != null) return;
-    print('Initialize order');
+    AppLogger.debug('Initialize order');
     state = OrderDetailModel(orderType: orderType, items: []);
   }
 
   //update total price
   void updateTotalPrice() {
     if (state != null) {
-      print('Menghitung total harga...');
+      AppLogger.debug('Menghitung total harga...');
       final totalPrice =
           state!.totalAfterDiscount + state!.totalTax + state!.totalServiceFee;
       state = state!.copyWith(grandTotal: totalPrice);
@@ -32,7 +33,7 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
 
   void updateSubTotalPrice() {
     if (state != null) {
-      print('Menghitung total harga...');
+      AppLogger.debug('Menghitung total harga...');
       final totalBeforeDiscount = state!.items.fold(
         0,
         (sum, item) => sum + item.countSubTotalPrice(),
@@ -49,13 +50,13 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   // membuat tax
   void updateTax() {
     if (state != null) {
-      print('Menghitung pajak...');
+      AppLogger.debug('Menghitung pajak...');
       final tax = state!.items.fold(
         0,
         (sum, item) => sum + (item.subtotal * 0.1).toInt(), // 10% tax
       );
       state = state!.copyWith(totalTax: tax);
-      print('Tax: $tax');
+      AppLogger.debug('Tax: $tax');
     }
   }
 
@@ -68,13 +69,13 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   void updateOrderType(OrderType orderType) {
     if (state != null) {
       state = state!.copyWith(orderType: orderType);
-      print('Order Type: $orderType');
+      AppLogger.debug('Order Type: $orderType');
     }
   }
 
   // Set payment method
   void updatePaymentMethod(String paymentMethod, String? paymentType) {
-    print('Payment Method: $paymentMethod');
+    AppLogger.debug('Payment Method: $paymentMethod');
     if (state != null) {
       state = state!.copyWith(paymentMethod: paymentMethod);
       if (paymentType != null) {
@@ -84,7 +85,7 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
           ],
         );
       }
-      print(state);
+      AppLogger.debug(state);
     }
   }
 
@@ -105,16 +106,16 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
 
   // Tambahkan menu ke daftar pesanan
   void addItemToOrder(OrderItemModel orderItem) {
-    print('memeriksa apakah menu item sudah ada....');
+    AppLogger.debug('memeriksa apakah menu item sudah ada....');
     // const existingOrderItemIndex = -1;
     for (var item in state!.items) {
-      print(
+      AppLogger.debug(
         'Comparing item id: ${item.menuItem.id} vs ${orderItem.menuItem.id}',
       );
-      print(
+      AppLogger.debug(
         'Toppings equal: ${areToppingsEqual(item.selectedToppings, orderItem.selectedToppings)}',
       );
-      print(
+      AppLogger.debug(
         'Addons equal: ${areAddonsEqual(item.selectedAddons, orderItem.selectedAddons)}',
       );
     }
@@ -126,7 +127,7 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
     ); //letak errornya disiini
     // print('mendapatkan index: $existingOrderItemIndex');
     if (existingOrderItemIndex != -1) {
-      print('menu item sudah ada, mencoba menambahkan quantity...');
+      AppLogger.debug('menu item sudah ada, mencoba menambahkan quantity...');
       // Jika menu item sudah ada, tambahkan quantity-nya
       final updatedItem = state!.items[existingOrderItemIndex].copyWith(
         quantity:
@@ -136,8 +137,8 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
       updatedItems[existingOrderItemIndex] = updatedItem;
       state = state!.copyWith(items: updatedItems);
     } else {
-      print('menu item belum ada, menambahkannya ke daftar...');
-      print('data orderitem : $orderItem');
+      AppLogger.debug('menu item belum ada, menambahkannya ke daftar...');
+      AppLogger.debug('data orderitem : $orderItem');
       //simpan orderItem ke dalam daftar pesanan
       state = state!.copyWith(items: [...state!.items, orderItem]);
     }
@@ -153,7 +154,7 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
     updateSubTotalPrice();
     updateTax();
     updateTotalPrice();
-    print('Item order berhasil ditambahkan.');
+    AppLogger.info('Item order berhasil ditambahkan.');
   }
 
   static const listEquality = DeepCollectionEquality.unordered();
@@ -200,9 +201,9 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
 
       state = state!.copyWith(items: updatedItems);
 
-      print('Item order berhasil dihapus.');
+      AppLogger.info('Item order berhasil dihapus.');
     } else {
-      print('Item tidak ditemukan, tidak ada yang dihapus.');
+      AppLogger.warning('Item tidak ditemukan, tidak ada yang dihapus.');
     }
   }
 
@@ -221,11 +222,11 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   }
 
   void editOrderItem(OrderItemModel oldOrderItem, OrderItemModel newOrderItem) {
-    print('mengubah item order...');
+    AppLogger.debug('mengubah item order...');
     final indexOldItem = state!.items.indexOf(oldOrderItem);
 
     if (indexOldItem != -1) {
-      print('item order ditemukan, mengganti item...');
+      AppLogger.debug('item order ditemukan, mengganti item...');
 
       final existingOrderItemIndex = state!.items.indexWhere(
         (item) =>
@@ -241,7 +242,7 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
 
       if (existingOrderItemIndex != -1 &&
           existingOrderItemIndex != indexOldItem) {
-        print('item order ada yang sama, menambahkan quantity...');
+        AppLogger.debug('item order ada yang sama, menambahkan quantity...');
 
         final updatedItem = updatedItems[existingOrderItemIndex].copyWith(
           quantity:
@@ -252,7 +253,7 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
         updatedItems[existingOrderItemIndex] = updatedItem;
         updatedItems.removeAt(indexOldItem); // hapus item lama
       } else {
-        print('tidak ada item yang sama, mengganti item...');
+        AppLogger.debug('tidak ada item yang sama, mengganti item...');
         updatedItems[indexOldItem] = newOrderItem;
       }
 

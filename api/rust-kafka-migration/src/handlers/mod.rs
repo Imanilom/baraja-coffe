@@ -9,7 +9,11 @@ pub mod voucher;
 
 pub mod category;
 pub mod product;
+pub mod supplier;
+pub mod marketlist;
 pub mod recipe;
+pub mod report;
+
 
 pub use auth::*;
 pub use menu::*;
@@ -19,6 +23,7 @@ pub use order::*;
 pub use promo::*;
 pub use tax::*;
 pub use voucher::*;
-pub use category::*;
 pub use product::*;
+pub use supplier::*;
+pub use marketlist::*;
 pub use recipe::*;

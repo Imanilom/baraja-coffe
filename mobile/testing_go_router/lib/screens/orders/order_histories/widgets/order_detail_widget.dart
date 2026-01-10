@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
@@ -48,6 +49,8 @@ class OrderDetailWidget extends ConsumerWidget {
           const SizedBox(height: 8),
           _buildItemsList(selectedOrder),
           const SizedBox(height: 8),
+          _buildPromoDetails(selectedOrder),
+          const SizedBox(height: 8),
           _buildPricingDetails(selectedOrder),
         ],
       ),
@@ -90,7 +93,7 @@ class OrderDetailWidget extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -315,6 +318,32 @@ class OrderDetailWidget extends ConsumerWidget {
     );
   }
 
+  Widget _buildPromoDetails(OrderDetailModel order) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Promo Details',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          //text kumpulan nama promo,
+          Text(
+            'Promo: ${order.appliedPromos?.map((e) => e.promoName).join(', ')}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPricingDetails(OrderDetailModel order) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -332,6 +361,13 @@ class OrderDetailWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _buildPriceRow('Subtotal', order.totalBeforeDiscount),
+          //discount,
+          if (order.discounts == null || order.discounts?.totalDiscount != 0)
+            _buildPriceRow(
+              'Discount',
+              order.discounts?.totalDiscount ?? 0,
+              isDiscount: true,
+            ),
           _buildPriceRow('Tax', order.totalTax),
           // _buildPriceRow('Discount', -order.discounts),
           const Divider(),
@@ -351,6 +387,7 @@ class OrderDetailWidget extends ConsumerWidget {
     int amount, {
     bool isBold = false,
     Color? color,
+    bool? isDiscount,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -365,7 +402,9 @@ class OrderDetailWidget extends ConsumerWidget {
             ),
           ),
           Text(
-            formatRupiah(amount),
+            isDiscount == true
+                ? '- ${formatRupiah(amount)}'
+                : formatRupiah(amount),
             style: TextStyle(
               color: color ?? Colors.black,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,

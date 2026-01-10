@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -42,11 +43,11 @@ class MenuItemRepository {
 
           if (localItem == null) {
             // Item baru - tambahkan
-            debugPrint("Menambah item baru: ${apiItem.name}");
+            AppLogger.debug("Adding new item: ${apiItem.name}");
             await productBox.put(apiItem.id, apiItem);
           } else if (_hasDataChanged(localItem, apiItem)) {
             // Item sudah ada tapi data berubah - update
-            debugPrint("Mengupdate item: ${apiItem.name}");
+            AppLogger.debug("Updating item: ${apiItem.name}");
             await productBox.put(apiItem.id, apiItem);
           }
         }
@@ -58,8 +59,8 @@ class MenuItemRepository {
                 .toList();
 
         if (idsToDelete.isNotEmpty) {
-          debugPrint(
-            "Menghapus ${idsToDelete.length} item yang sudah tidak ada",
+          AppLogger.debug(
+            "Deleting ${idsToDelete.length} items that no longer exist",
           );
           await productBox.deleteAll(idsToDelete);
         }
@@ -72,8 +73,8 @@ class MenuItemRepository {
         return sortedLocalData;
       } else {
         // Jika Hive kosong, simpan semua data yang sudah diurutkan
-        debugPrint(
-          "Data menu yang diambil di api: ${menuItemsResponse['data'].length}",
+        AppLogger.debug(
+          "Menu data fetched from API: ${menuItemsResponse['data'].length}",
         );
         await productBox.putAll({
           for (var item in menuItemsList) item.id: item,
@@ -81,12 +82,12 @@ class MenuItemRepository {
         return menuItemsList; // Sudah diurutkan di atas
       }
     } catch (e) {
-      debugPrint("Gagal mengambil data menu: ${e.toString()}");
+      AppLogger.error("Failed to fetch menu data", error: e);
 
       // Fallback: return data lokal jika ada error (dengan sorting)
       var productBox = Hive.box<MenuItemModel>('menuItemsBox');
       if (productBox.isNotEmpty) {
-        debugPrint("Menggunakan data lokal karena error");
+        AppLogger.info("Using local data due to error");
         final localData = productBox.values.toList();
         localData.sort(
           (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
@@ -103,7 +104,7 @@ class MenuItemRepository {
     try {
       final stockResponse = await _menuItemService.fetchMenuItemStock();
 
-      debugPrint("Data stock yg diambil: ${stockResponse['data'].length}");
+      AppLogger.debug("Stock data fetched: ${stockResponse['data'].length}");
       // masukan kedalam data menu item
       // var productBox = Hive.box<MenuItemModel>('menuItemsBox');
       // if (productBox.isNotEmpty) {
@@ -126,7 +127,7 @@ class MenuItemRepository {
 
       return stockResponse;
     } catch (e) {
-      debugPrint("Gagal mengambil data stock: ${e.toString()}");
+      AppLogger.error("Failed to fetch stock data", error: e);
       rethrow;
     }
   }
@@ -140,7 +141,9 @@ class MenuItemRepository {
       (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
     );
 
-    debugPrint("get local data menu: ${localData.first.stock}");
+    AppLogger.debug(
+      "Get local menu data, sample stock: ${localData.first.stock}",
+    );
     return localData;
   }
 

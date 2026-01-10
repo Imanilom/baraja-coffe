@@ -1,5 +1,6 @@
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/try/try_order_detail.model.dart';
 
@@ -25,7 +26,7 @@ class PendingOrderRepository {
 
       return pendingOrders;
     } catch (e) {
-      print("Gagal mengambil data pending orders: ${e.toString()}");
+      AppLogger.error("Failed to fetch pending orders", error: e);
       rethrow;
     }
   }
@@ -34,7 +35,7 @@ class PendingOrderRepository {
     try {
       final result = await _orderService.confirmPendingOrder(ref, orderDetail);
     } catch (e) {
-      print('Gagal konfirmasi order: ${e.toString()}');
+      AppLogger.error('Order confirmation failed', error: e);
       rethrow;
     }
   }

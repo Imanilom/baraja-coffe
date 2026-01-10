@@ -18,15 +18,15 @@ pub struct Promo {
     #[serde(rename = "createdBy", skip_serializing_if = "Option::is_none")]
     pub created_by: Option<ObjectId>,
     #[serde(rename = "validFrom")]
-    pub valid_from: DateTime<Utc>,
+    pub valid_from: mongodb::bson::DateTime,
     #[serde(rename = "validTo")]
-    pub valid_to: DateTime<Utc>,
+    pub valid_to: mongodb::bson::DateTime,
     #[serde(rename = "isActive", default = "default_true")]
     pub is_active: bool,
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_true() -> bool { true }
@@ -57,9 +57,9 @@ pub struct AutoPromo {
     pub created_by: ObjectId,
     
     #[serde(rename = "validFrom")]
-    pub valid_from: DateTime<Utc>,
+    pub valid_from: mongodb::bson::DateTime,
     #[serde(rename = "validTo")]
-    pub valid_to: DateTime<Utc>,
+    pub valid_to: mongodb::bson::DateTime,
     
     #[serde(rename = "activeHours", default)]
     pub active_hours: ActiveHours,
@@ -68,9 +68,9 @@ pub struct AutoPromo {
     pub is_active: bool,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }
 
 fn default_consumer_type() -> String { "all".to_string() }
@@ -112,6 +112,7 @@ pub struct Schedule {
     #[serde(rename = "dayOfWeek", skip_serializing_if = "Option::is_none")]
     pub day_of_week: Option<i32>,
     #[serde(rename = "startTime", skip_serializing_if = "Option::is_none")]
+    pub start_time: Option<String>,
     #[serde(rename = "endTime", skip_serializing_if = "Option::is_none")]
     pub end_time: Option<String>,
 }
@@ -121,8 +122,8 @@ impl AutoPromo {
         if !self.is_active {
             return false;
         }
-        let now = Utc::now();
-        if now < self.valid_from || now > self.valid_to {
+        let now = mongodb::bson::DateTime::now().to_chrono();
+        if now < self.valid_from.to_chrono() || now > self.valid_to.to_chrono() {
             return false;
         }
         if self.active_hours.is_enabled {
@@ -131,7 +132,7 @@ impl AutoPromo {
         true
     }
 
-    pub fn is_within_active_hours(&self, now: &DateTime<Utc>) -> bool {
+    pub fn is_within_active_hours(&self, now: &chrono::DateTime<chrono::Utc>) -> bool {
         if !self.active_hours.is_enabled {
             return true;
         }
@@ -146,9 +147,9 @@ impl AutoPromo {
             
             if end < start {
                 // Crosses midnight
-                return current_time >= start || current_time <= end;
+                return current_time.as_str() >= start || current_time.as_str() <= end;
             } else {
-                return current_time >= start && current_time <= end;
+                return current_time.as_str() >= start && current_time.as_str() <= end;
             }
         }
         
@@ -171,3 +172,21 @@ impl AutoPromo {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct PromoResult {
+    #[serde(rename = "totalDiscount")]
+    pub total_discount: f64,
+    #[serde(rename = "appliedPromos")]
+    pub applied_promos: Vec<AppliedPromoDetails>,
+    #[serde(rename = "bundleSets")]
+    pub bundle_sets: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppliedPromoDetails {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "promoType")]
+    pub promo_type: String,
+    pub amount: f64,
+}

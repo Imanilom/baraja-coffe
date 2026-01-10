@@ -11,6 +11,7 @@ import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/notification_service.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/providers/router_provider.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 
 Future<void> _safe(String label, Future<void> Function() run) async {
   try {
@@ -39,7 +40,7 @@ Future<void> main() async {
 
       await _safe('hive', () async {
         await HiveService.init();
-        print('init hive');
+        AppLogger.info('Hive initialized successfully');
       });
 
       await _safe('intl', () async {

@@ -33,8 +33,8 @@ pub struct ProductMovement {
     #[serde(rename = "handledBy", skip_serializing_if = "Option::is_none")]
     pub handled_by: Option<String>,
     
-    #[serde(default = "Utc::now")]
-    pub date: DateTime<Utc>,
+    #[serde(default = "mongodb::bson::DateTime::now")]
+    pub date: mongodb::bson::DateTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,8 +63,8 @@ pub struct ProductStock {
     pub version: i32,
     
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<mongodb::bson::DateTime>,
     
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<mongodb::bson::DateTime>,
 }

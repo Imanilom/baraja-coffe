@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 //hapus aja semua ini udh ga kepake karna gagal / fail
@@ -9,12 +10,12 @@ void main() {
     // final socket = io.io(AppConfig.baseUrl);
 
     // 2. Tunggu koneksi
-    print('tunggu koneksi...');
+    AppLogger.debug('tunggu koneksi...');
     await Future.delayed(Duration(seconds: 1));
 
     // 3. Listen event 'order_created'
     socket.on('order_created', (data) {
-      print('Dapat order baru: $data');
+      AppLogger.debug('Dapat order baru: $data');
       expect(data['id'], isNotNull); // Pastikan data ada ID
     });
 

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 import 'package:kasirbaraja/models/report/analytic_report.model.dart';
 import 'package:kasirbaraja/models/report/order_detail_report.model.dart';
@@ -17,7 +18,7 @@ class SalesReportService {
     String? paymentMethod,
     String? orderType,
   ) async {
-    print('Fetching sales report for outletId: $outletId');
+    AppLogger.info('Fetching sales report for outletId: $outletId');
     try {
       final queryParams = <String, dynamic>{};
 
@@ -51,7 +52,7 @@ class SalesReportService {
 
       final summary = SalesSummary.fromJson(response.data);
 
-      print('summary: ${response.data}');
+      AppLogger.debug('summary: ${response.data}');
       return summary;
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -70,7 +71,7 @@ class SalesReportService {
     int page = 1,
     int limit = 20,
   }) async {
-    print('Fetching order detail report for outletId: $outletId');
+    AppLogger.info('Fetching order detail report for outletId: $outletId');
     try {
       final queryParams = <String, dynamic>{'page': page, 'limit': limit};
 
@@ -118,7 +119,7 @@ class SalesReportService {
     String? paymentMethod,
     String? orderType,
   }) async {
-    print('Fetching sales analysis report for outletId: $outletId');
+    AppLogger.info('Fetching sales analysis report for outletId: $outletId');
     try {
       final queryParams = <String, dynamic>{};
 
@@ -164,7 +165,7 @@ class SalesReportService {
     DateTime? endDate,
     String? cashierId,
   }) async {
-    print('Fetching performance report for outletId: $outletId');
+    AppLogger.info('Fetching performance report for outletId: $outletId');
     try {
       final queryParams = <String, dynamic>{};
 
@@ -176,7 +177,7 @@ class SalesReportService {
       }
       queryParams['outletId'] = outletId;
 
-      print('cashier Id: $cashierId');
+      AppLogger.debug('cashier Id: $cashierId');
       if (cashierId != null && cashierId.isNotEmpty) {
         queryParams['cashierId'] = cashierId;
       }

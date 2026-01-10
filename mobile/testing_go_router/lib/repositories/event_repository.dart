@@ -1,5 +1,6 @@
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/event.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/services/event_service.dart';
 
 class EventRepository {
@@ -21,7 +22,7 @@ class EventRepository {
 
       // Simpan atau perbarui data di Hive
       for (var event in eventsList) {
-        print('Saving event: ${event.name}');
+        AppLogger.debug('Saving event: ${event.name}');
         await eventBox.put(event.id, event);
       }
 
@@ -33,7 +34,7 @@ class EventRepository {
         await eventBox.delete(id);
       }
 
-      print('Events synced: ${eventsList.length}');
+      AppLogger.info('Events synced: ${eventsList.length}');
 
       return eventsList;
     } catch (e) {

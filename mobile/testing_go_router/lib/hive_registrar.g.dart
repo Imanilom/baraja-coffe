@@ -28,6 +28,7 @@ import 'package:kasirbaraja/models/payments/payment_action.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/va_number.model.dart';
+import 'package:kasirbaraja/models/promo_group.model.dart';
 import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/tax_service_detail.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
@@ -35,16 +36,15 @@ import 'package:kasirbaraja/models/user.model.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
-    registerAdapter(ActiveHoursAdapter());
+    registerAdapter(ActiveHoursModelAdapter());
     registerAdapter(AddonModelAdapter());
     registerAdapter(AddonOptionModelAdapter());
     registerAdapter(AffectedItemModelAdapter());
     registerAdapter(AppliedPromosModelAdapter());
     registerAdapter(AutoPromoModelAdapter());
     registerAdapter(BluetoothPrinterModelAdapter());
-    registerAdapter(BundleProductAdapter());
+    registerAdapter(BundleProductModelAdapter());
     registerAdapter(CashierModelAdapter());
-    registerAdapter(ConditionsAdapter());
     registerAdapter(CustomAmountItemsModelAdapter());
     registerAdapter(DeviceModelAdapter());
     registerAdapter(DiscountModelAdapter());
@@ -57,14 +57,17 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
-    registerAdapter(OutletAdapter());
     registerAdapter(OutletInfoModelAdapter());
+    registerAdapter(OutletModelAdapter());
     registerAdapter(PaymentActionModelAdapter());
     registerAdapter(PaymentMethodModelAdapter());
     registerAdapter(PaymentModelAdapter());
     registerAdapter(PaymentTypeModelAdapter());
-    registerAdapter(ProductConditionAdapter());
-    registerAdapter(ScheduleAdapter());
+    registerAdapter(PromoConditionsModelAdapter());
+    registerAdapter(PromoGroupLineModelAdapter());
+    registerAdapter(PromoGroupModelAdapter());
+    registerAdapter(PromoProductModelAdapter());
+    registerAdapter(ScheduleModelAdapter());
     registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(TaxServiceDetailModelAdapter());
     registerAdapter(ToppingModelAdapter());
@@ -75,16 +78,15 @@ extension HiveRegistrar on HiveInterface {
 
 extension IsolatedHiveRegistrar on IsolatedHiveInterface {
   void registerAdapters() {
-    registerAdapter(ActiveHoursAdapter());
+    registerAdapter(ActiveHoursModelAdapter());
     registerAdapter(AddonModelAdapter());
     registerAdapter(AddonOptionModelAdapter());
     registerAdapter(AffectedItemModelAdapter());
     registerAdapter(AppliedPromosModelAdapter());
     registerAdapter(AutoPromoModelAdapter());
     registerAdapter(BluetoothPrinterModelAdapter());
-    registerAdapter(BundleProductAdapter());
+    registerAdapter(BundleProductModelAdapter());
     registerAdapter(CashierModelAdapter());
-    registerAdapter(ConditionsAdapter());
     registerAdapter(CustomAmountItemsModelAdapter());
     registerAdapter(DeviceModelAdapter());
     registerAdapter(DiscountModelAdapter());
@@ -97,14 +99,17 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
-    registerAdapter(OutletAdapter());
     registerAdapter(OutletInfoModelAdapter());
+    registerAdapter(OutletModelAdapter());
     registerAdapter(PaymentActionModelAdapter());
     registerAdapter(PaymentMethodModelAdapter());
     registerAdapter(PaymentModelAdapter());
     registerAdapter(PaymentTypeModelAdapter());
-    registerAdapter(ProductConditionAdapter());
-    registerAdapter(ScheduleAdapter());
+    registerAdapter(PromoConditionsModelAdapter());
+    registerAdapter(PromoGroupLineModelAdapter());
+    registerAdapter(PromoGroupModelAdapter());
+    registerAdapter(PromoProductModelAdapter());
+    registerAdapter(ScheduleModelAdapter());
     registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(TaxServiceDetailModelAdapter());
     registerAdapter(ToppingModelAdapter());

@@ -53,3 +53,7 @@ final currentMenuSettingsProvider =
     StateNotifierProvider<CurrentMenuSettingsProvider, int>((ref) {
       return CurrentMenuSettingsProvider();
     });
+
+final openBillLoadingProvider = StateProvider<bool>((ref) => false);
+
+final openBillSuccessProvider = StateProvider<bool>((ref) => false);

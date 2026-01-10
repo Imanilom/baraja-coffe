@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +9,7 @@ import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
 import 'package:image/image.dart' as img;
+import 'package:kasirbaraja/utils/app_logger.dart';
 
 class ScanNetworkPrinterScreen extends ConsumerStatefulWidget {
   const ScanNetworkPrinterScreen({super.key});
@@ -727,7 +727,7 @@ class _ScanNetworkPrinterScreenState
   Future<List<int>> _generateTestPrintBytes(
     BluetoothPrinterModel printer,
   ) async {
-    print('paper size generated: ${printer.paperSize}');
+    AppLogger.debug('paper size generated: ${printer.paperSize}');
     PaperSize paperSize = PaperSize.mm80;
     final profile = await CapabilityProfile.load();
     final generator = Generator(paperSize, profile);

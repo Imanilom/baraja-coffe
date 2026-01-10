@@ -204,7 +204,7 @@ class _PrinterHomeScreenState extends ConsumerState<PrinterHomeScreen>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: _getConnectionColor(printer).withOpacity(0.1),
+                    color: _getConnectionColor(printer).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(

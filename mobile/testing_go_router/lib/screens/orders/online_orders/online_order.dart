@@ -44,7 +44,7 @@ class OnlineOrderScreen extends ConsumerWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -175,12 +175,12 @@ Widget _buildStatisticsRow(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       gradient: LinearGradient(
-        colors: [Colors.blue.withOpacity(0.08), Colors.blue.withOpacity(0.04)],
+        colors: [Colors.blue.withValues(alpha: 0.08), Colors.blue.withValues(alpha: 0.04)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.blue.withOpacity(0.2)),
+      border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
     ),
     child: Row(
       children: [
@@ -222,14 +222,14 @@ Widget _buildStatisticsRow(
         ),
 
         // Divider
-        Container(width: 1, height: 40, color: Colors.blue.withOpacity(0.2)),
+        Container(width: 1, height: 40, color: Colors.blue.withValues(alpha: 0.2)),
 
         // Scan Qr code button,
         Padding(
           padding: const EdgeInsets.only(left: 16),
           child: IconButton(
             style: IconButton.styleFrom(
-              backgroundColor: Colors.blue.withOpacity(0.1),
+              backgroundColor: Colors.blue.withValues(alpha: 0.1),
               padding: const EdgeInsets.all(12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -410,8 +410,8 @@ Widget _buildEmptyOrdersState() {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.blue.withOpacity(0.1),
-                  Colors.blue.withOpacity(0.05),
+                  Colors.blue.withValues(alpha: 0.1),
+                  Colors.blue.withValues(alpha: 0.05),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -445,12 +445,12 @@ Widget _buildEmptyOrdersState() {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.blue.withOpacity(0.1),
-                  Colors.blue.withOpacity(0.05),
+                  Colors.blue.withValues(alpha: 0.1),
+                  Colors.blue.withValues(alpha: 0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.blue.withOpacity(0.2)),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -490,8 +490,8 @@ Widget _buildLoadingState() {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors.blue.withOpacity(0.1),
-                Colors.blue.withOpacity(0.05),
+                Colors.blue.withValues(alpha: 0.1),
+                Colors.blue.withValues(alpha: 0.05),
               ],
             ),
             shape: BoxShape.circle,
@@ -533,7 +533,7 @@ Widget _buildErrorState(dynamic error, WidgetRef ref) {
           width: 80,
           height: 80,
           decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.1),
+            color: Colors.red.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: const Icon(

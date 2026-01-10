@@ -347,7 +347,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             elevation: 3,
                                             shadowColor: const Color(
                                               0xFF4CAF50,
-                                            ).withOpacity(0.3),
+                                            ).withValues(alpha: 0.3),
                                           ),
                                           child:
                                               _isLoading

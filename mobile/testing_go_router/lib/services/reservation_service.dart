@@ -1,5 +1,5 @@
-// services/reservation_service.dart
 import 'dart:convert';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -40,7 +40,7 @@ class ReservationService {
         throw Exception('Failed to load areas: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching areas: $e');
+      AppLogger.error('Error fetching areas', error: e);
       throw Exception('Error fetching areas: $e');
     }
   }
@@ -87,7 +87,7 @@ class ReservationService {
         throw Exception('Failed to load tables: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching area tables: $e');
+      AppLogger.error('Error fetching area tables', error: e);
       throw Exception('Error fetching area tables: $e');
     }
   }
@@ -146,7 +146,7 @@ class ReservationService {
         };
       }
     } catch (e) {
-      print('Error checking availability: $e');
+      AppLogger.error('Error checking availability', error: e);
       return {
         'available': false,
         'message': 'Error checking availability: $e',
@@ -197,7 +197,7 @@ class ReservationService {
         throw Exception(errorData['message'] ?? 'Failed to create reservation');
       }
     } catch (e) {
-      print('Error creating reservation: $e');
+      AppLogger.error('Error creating reservation', error: e);
       throw Exception('Error creating reservation: $e');
     }
   }
@@ -221,7 +221,7 @@ class ReservationService {
         throw Exception('Failed to load area stats: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching area stats: $e');
+      AppLogger.error('Error fetching area stats', error: e);
       throw Exception('Error fetching area stats: $e');
     }
   }

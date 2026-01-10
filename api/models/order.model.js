@@ -89,7 +89,6 @@ const OrderItemSchema = new mongoose.Schema({
     ref: 'MenuItem',
     required: false
   },
-  // DATA DENORMALIZED UNTUK BACKUP - MENCEGAH ERROR SAAT MENU DIHAPUS
   menuItemData: {
     name: { type: String, default: '' },
     price: { type: Number, default: 0 },
@@ -158,7 +157,11 @@ const OrderItemSchema = new mongoose.Schema({
   },
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
   outletName: { type: String },
-  // Hapus payment_id dari OrderItem karena sekarang payment di level order
+  // Field untuk track jika item dibatalkan dalam open bill
+  isCancelled: { type: Boolean, default: false },
+  cancelledAt: { type: Date },
+  cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  cancellationReason: { type: String }
 });
 
 // Schema untuk selected promo bundles
@@ -180,6 +183,52 @@ const SelectedPromoBundleSchema = new mongoose.Schema({
     discountedSubtotal: Number
   }]
 });
+
+const SelectedPromoSchema = new mongoose.Schema({
+  promoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AutoPromo',
+    required: true
+  },
+  promoName: { type: String, required: true },
+  promoType: {
+    type: String,
+    required: true,
+    enum: ['bundling', 'buy_x_get_y', 'product_specific']
+  },
+  // Untuk bundling
+  bundleSets: { type: Number, min: 1 },
+  // Untuk semua jenis
+  appliedDiscount: { type: Number, default: 0 },
+  affectedItems: [{
+    menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: String,
+    quantity: Number,
+    originalSubtotal: Number,
+    discountAmount: Number,
+    discountedSubtotal: Number,
+    discountType: String,
+    discountValue: Number
+  }],
+  // Untuk Buy X Get Y
+  freeItems: [{
+    menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: String,
+    quantity: Number,
+    price: Number,
+    isFree: { type: Boolean, default: true }
+  }],
+  // Metadata
+  selectedAt: {
+    type: Date,
+    default: () => new Date()
+  },
+  selectedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }
+});
+
 
 // Model Order
 const OrderSchema = new mongoose.Schema({
@@ -209,6 +258,7 @@ const OrderSchema = new mongoose.Schema({
 
   // ✅ BARU: Field untuk selected promo bundles dari user
   selectedPromoBundles: [SelectedPromoBundleSchema],
+  selectedPromos: [SelectedPromoSchema],
 
   status: {
     type: String,
@@ -216,14 +266,68 @@ const OrderSchema = new mongoose.Schema({
     default: 'Pending'
   },
 
-  // MODIFIKASI: Payment diubah menjadi array untuk split payment
-  payments: [SplitPaymentSchema],
+  // ========== OPEN BILL FIELDS ==========
+  isOpenBill: {
+    type: Boolean,
+    default: false
+  },
+  openBillStartedAt: {
+    type: Date,
+    default: null
+  },
+  openBillClosedAt: {
+    type: Date,
+    default: null
+  },
+  openBillStatus: {
+    type: String,
+    enum: ['active', 'closed', 'pending_payment'],
+    default: 'active'
+  },
+  customersCount: {
+    type: Number,
+    default: 1
+  },
+  cashierNotes: {
+    type: String,
+    default: ''
+  },
+  serviceCharge: {
+    type: Number,
+    default: 0
+  },
+  taxPercentage: {
+    type: Number,
+    default: 10
+  },
+  taxAmount: {
+    type: Number,
+    default: 0
+  },
 
-  // Field legacy untuk kompatibilitas (opsional)
+  // ========== PAYMENT ==========
+  payments: [SplitPaymentSchema],
+  
+  // Field legacy untuk kompatibilitas
   paymentMethod: {
     type: String,
     enum: ['Cash', 'cash', 'Card', 'QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
   },
+
+  // ========== PARTIAL PAYMENTS TRACKING ==========
+  partialPayments: [{
+    amount: Number,
+    method: String,
+    paymentTime: {
+      type: Date,
+      default: () => getWIBNow()
+    },
+    receivedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    notes: String
+  }],
 
   orderType: {
     type: String,
@@ -238,13 +342,14 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  isOpenBill: {
-    type: Boolean,
-    default: function () {
-      return this.orderType === 'Dine-In' || this.orderType === 'Reservation';
-    }
-  },
   originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
+
+  // ========== TABLE MANAGEMENT ==========
+  tableStatus: {
+    type: String,
+    enum: ['occupied', 'available', 'reserved', 'cleaning'],
+    default: 'occupied'
+  },
 
   // Diskon & Promo
   discounts: {
@@ -482,12 +587,37 @@ OrderSchema.virtual('remainingBalance').get(function () {
   return Math.max(0, grandTotal - totalPaid);
 });
 
-// Virtual untuk totalPrice dari items
+// Virtual untuk totalPrice dari items (exclude cancelled items)
 OrderSchema.virtual('totalPrice').get(function () {
   if (!this.items || !Array.isArray(this.items)) {
     return 0;
   }
-  return this.items.reduce((total, item) => total + (item.subtotal || 0), 0);
+  return this.items.reduce((total, item) => {
+    if (item.isCancelled) return total;
+    return total + (item.subtotal || 0);
+  }, 0);
+});
+
+// Virtual untuk active items count (exclude cancelled)
+OrderSchema.virtual('activeItemsCount').get(function () {
+  if (!this.items || !Array.isArray(this.items)) {
+    return 0;
+  }
+  return this.items.filter(item => !item.isCancelled).length;
+});
+
+// Virtual untuk open bill duration
+OrderSchema.virtual('openBillDuration').get(function () {
+  if (!this.isOpenBill || !this.openBillStartedAt) {
+    return null;
+  }
+  
+  const endTime = this.openBillClosedAt || new Date();
+  const diffMs = endTime - this.openBillStartedAt;
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  return { hours, minutes, totalMinutes: Math.floor(diffMs / (1000 * 60)) };
 });
 
 // Method untuk format WIB
@@ -519,6 +649,159 @@ OrderSchema.methods.getWIBDate = function () {
     month: '2-digit',
     day: '2-digit'
   });
+};
+
+// Method untuk menambahkan item ke open bill
+OrderSchema.methods.addItemToOpenBill = async function (itemData, cashierId) {
+  try {
+    const MenuItem = mongoose.model('MenuItem');
+    const menuItem = await MenuItem.findById(itemData.menuItemId);
+    
+    if (!menuItem) {
+      throw new Error('Menu item tidak ditemukan');
+    }
+    
+    // Cek stok
+    const primaryWarehouseId = menuItem.primaryWarehouseId;
+    if (primaryWarehouseId) {
+      const currentStock = menuItem.getStockForWarehouse(primaryWarehouseId);
+      if (currentStock < itemData.quantity) {
+        throw new Error(`Stok tidak cukup untuk ${menuItem.name}. Stok tersedia: ${currentStock}`);
+      }
+    }
+    
+    // Hitung subtotal
+    let subtotal = menuItem.price * itemData.quantity;
+    
+    // Tambah addons
+    if (itemData.addons && itemData.addons.length > 0) {
+      itemData.addons.forEach(addon => {
+        const menuAddon = menuItem.addons.find(a => a.name === addon.name);
+        if (menuAddon) {
+          const option = menuAddon.options.find(o => o.label === addon.selectedOption);
+          if (option) {
+            subtotal += option.price * itemData.quantity;
+          }
+        }
+      });
+    }
+    
+    // Tambah toppings
+    if (itemData.toppings && itemData.toppings.length > 0) {
+      itemData.toppings.forEach(topping => {
+        const menuTopping = menuItem.toppings.find(t => t.name === topping.name);
+        if (menuTopping) {
+          subtotal += menuTopping.price * itemData.quantity;
+        }
+      });
+    }
+    
+    // Buat order item
+    const orderItem = {
+      menuItem: itemData.menuItemId,
+      menuItemData: {
+        name: menuItem.name,
+        price: menuItem.price,
+        category: menuItem.category || menuItem.mainCategory,
+        sku: menuItem.sku || '',
+        selectedAddons: itemData.addons || [],
+        selectedToppings: itemData.toppings || [],
+        isActive: menuItem.isActive
+      },
+      quantity: itemData.quantity,
+      subtotal: subtotal,
+      addons: itemData.addons || [],
+      toppings: itemData.toppings || [],
+      notes: itemData.notes || '',
+      guestName: itemData.guestName || '',
+      dineType: itemData.dineType || 'Dine-In',
+      batchNumber: this.currentBatch,
+      addedAt: new Date(),
+      kitchenStatus: 'pending',
+      isPrinted: false,
+      outletId: this.outletId
+    };
+    
+    // Tambahkan item
+    this.items.push(orderItem);
+    
+    // Update totals
+    this.totalBeforeDiscount += subtotal;
+    this.totalAfterDiscount = this.totalBeforeDiscount;
+    this.taxAmount = this.totalBeforeDiscount * (this.taxPercentage / 100);
+    this.grandTotal = this.totalBeforeDiscount + this.taxAmount + this.serviceCharge;
+    
+    this.lastItemAddedAt = new Date();
+    
+    // Kurangi stok
+    if (primaryWarehouseId) {
+      const newStock = currentStock - itemData.quantity;
+      await menuItem.updateStockForWarehouse(primaryWarehouseId, newStock);
+    }
+    
+    await this.save();
+    
+    return {
+      success: true,
+      item: orderItem,
+      newTotal: this.grandTotal
+    };
+    
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Method untuk cancel item dalam open bill
+OrderSchema.methods.cancelOpenBillItem = async function (itemIndex, cashierId, reason = '') {
+  try {
+    if (itemIndex < 0 || itemIndex >= this.items.length) {
+      throw new Error('Item index tidak valid');
+    }
+    
+    const item = this.items[itemIndex];
+    
+    // Mark item as cancelled
+    item.isCancelled = true;
+    item.cancelledAt = new Date();
+    item.cancelledBy = cashierId;
+    item.cancellationReason = reason;
+    
+    // Kembalikan stok
+    if (item.menuItem) {
+      const MenuItem = mongoose.model('MenuItem');
+      const menuItem = await MenuItem.findById(item.menuItem);
+      
+      if (menuItem && menuItem.primaryWarehouseId) {
+        const currentStock = menuItem.getStockForWarehouse(menuItem.primaryWarehouseId);
+        await menuItem.updateStockForWarehouse(
+          menuItem.primaryWarehouseId,
+          currentStock + item.quantity
+        );
+      }
+    }
+    
+    // Recalculate totals (exclude cancelled items)
+    this.totalBeforeDiscount = this.items.reduce((total, item) => {
+      if (item.isCancelled) return total;
+      return total + (item.subtotal || 0);
+    }, 0);
+    
+    this.totalAfterDiscount = this.totalBeforeDiscount;
+    this.taxAmount = this.totalBeforeDiscount * (this.taxPercentage / 100);
+    this.grandTotal = this.totalBeforeDiscount + this.taxAmount + this.serviceCharge;
+    
+    await this.save();
+    
+    return {
+      success: true,
+      cancelledItem: item,
+      newTotal: this.grandTotal
+    };
+    
+  } catch (error) {
+    throw error;
+  }
 };
 
 // MIDDLEWARE UTAMA: Backup data menu item secara otomatis dan update payment status
@@ -580,6 +863,20 @@ OrderSchema.pre('save', async function (next) {
       this.totalCustomAmount = 0;
     }
 
+    // Untuk open bill: calculate tax dan grand total
+    if (this.isOpenBill) {
+      // Exclude cancelled items dari perhitungan
+      const activeItemsTotal = this.items.reduce((total, item) => {
+        if (item.isCancelled) return total;
+        return total + (item.subtotal || 0);
+      }, 0);
+      
+      this.totalBeforeDiscount = activeItemsTotal;
+      this.totalAfterDiscount = activeItemsTotal;
+      this.taxAmount = activeItemsTotal * (this.taxPercentage / 100);
+      this.grandTotal = activeItemsTotal + this.taxAmount + this.serviceCharge;
+    }
+
     // Update split payment status
     if (this.payments && Array.isArray(this.payments)) {
       const totalPaid = this.payments.reduce((total, payment) => {
@@ -628,54 +925,6 @@ OrderSchema.pre('save', async function (next) {
     next();
   }
 });
-
-OrderSchema.pre('save', function (next) {
-  const nowWIB = getWIBNow();
-
-  // Update updatedAtWIB
-  this.updatedAtWIB = nowWIB;
-
-  // Ensure createdAtWIB is set
-  if (!this.createdAtWIB && this.isNew) {
-    this.createdAtWIB = nowWIB;
-  }
-
-  // Convert all Date fields that should be in WIB
-  if (this.lastItemAddedAt && !(this.lastItemAddedAt instanceof Date)) {
-    this.lastItemAddedAt = toWIB(new Date(this.lastItemAddedAt));
-  }
-
-  // For items array
-  if (this.items && Array.isArray(this.items)) {
-    this.items.forEach(item => {
-      if (item.addedAt && !(item.addedAt instanceof Date)) {
-        item.addedAt = toWIB(new Date(item.addedAt));
-      }
-      if (item.printedAt && !(item.printedAt instanceof Date)) {
-        item.printedAt = toWIB(new Date(item.printedAt));
-      }
-    });
-  }
-
-  next();
-});
-
-// Indeks untuk performa
-OrderSchema.index({ status: 1, createdAt: -1 });
-OrderSchema.index({ isOpenBill: 1, originalReservationId: 1 });
-OrderSchema.index({ reservation: 1 });
-OrderSchema.index({ createdAtWIB: -1 });
-OrderSchema.index({ stockRolledBack: 1, status: 1 });
-OrderSchema.index({ tableReleased: 1, orderType: 1 });
-OrderSchema.index({ 'payments.status': 1 }); // Index untuk query payment status
-OrderSchema.index({ splitPaymentStatus: 1 }); // Index untuk query split payment
-OrderSchema.index({ 'selectedPromoBundles.promoId': 1 }); // Index untuk query selected bundles
-
-// ✅ NEW: Compound indexes for GRO Dashboard performance
-// Query: Order.find({ outlet, status: $in, orderType: $in, tableNumber: $exists, createdAt: $gte/$lt })
-OrderSchema.index({ outlet: 1, orderType: 1, status: 1, createdAt: -1 }); // Main GRO query
-OrderSchema.index({ outlet: 1, orderType: 1, tableNumber: 1, status: 1 }); // Table availability query
-OrderSchema.index({ order_id: 1 }); // For Payment lookup by order_id
 
 // Middleware untuk auto-sync table status
 OrderSchema.post('save', async function (doc, next) {
@@ -726,5 +975,38 @@ OrderSchema.post('findOneAndUpdate', async function (result, next) {
     next();
   }
 });
+
+// Static method untuk mendapatkan active open bills
+OrderSchema.statics.getActiveOpenBills = async function (outletId, filters = {}) {
+  const query = {
+    outletId,
+    isOpenBill: true,
+    openBillStatus: 'active',
+    status: { $in: ['Pending', 'OnProcess'] }
+  };
+  
+  if (filters.tableNumber) query.tableNumber = filters.tableNumber;
+  if (filters.cashierId) query.cashierId = filters.cashierId;
+  
+  return this.find(query)
+    .sort({ openBillStartedAt: -1 })
+    .populate('cashierId', 'name email')
+    .lean();
+};
+
+// Static method untuk mendapatkan open bill by ID
+OrderSchema.statics.getOpenBillById = async function (orderId, outletId = null) {
+  const query = {
+    order_id: orderId,
+    isOpenBill: true
+  };
+  
+  if (outletId) query.outletId = outletId;
+  
+  return this.findOne(query)
+    .populate('cashierId', 'name email')
+    .populate('items.menuItem', 'name price')
+    .lean();
+};
 
 export const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);

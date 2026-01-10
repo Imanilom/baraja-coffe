@@ -1,14 +1,14 @@
 import 'package:flutter/cupertino.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/extentions/order_item_extensions.dart';
+import 'package:kasirbaraja/extensions/order_item_extensions.dart';
 import 'package:kasirbaraja/features/promos/promo_engine.dart';
+import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
-import 'package:kasirbaraja/models/payments/payment_model.dart';
+import 'package:kasirbaraja/models/promo_group.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/promotion_providers/auto_promo_provider.dart';
-import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -17,7 +17,6 @@ import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-//menu item model
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:collection/collection.dart';
 import 'package:uuid/uuid.dart';
@@ -31,30 +30,47 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   bool _isCalculating = false;
 
-  /// this method does nothing. Otherwise, it creates a ,new `OrderDetailModel`
+  // ============================================================================
+  // ORDER INITIALIZATION
+  // ============================================================================
+
+  /// Initialize new order
   void initializeOrder({required OrderType orderType}) {
-    print('memeriksa apakah order sudah ada...');
+    debugPrint('Initialize order with type: $orderType');
     if (state != null) return;
-    print('Initialize order');
-    state = OrderDetailModel(orderType: orderType, items: []);
+
+    state = OrderDetailModel(
+      orderType: orderType,
+      items: [],
+      selectedPromoIds: [],
+    );
   }
 
-  void addOrderFromSavedOrderDetail(OrderDetailModel orderDetail) {
+  /// Load existing order
+  void loadOrder(OrderDetailModel orderDetail) {
     clearOrder();
     state = orderDetail;
+    debugPrint('Order loaded: ${orderDetail.orderId}');
   }
 
-  // Set order type (dine-in, take away, delivery)
+  /// Clear current order
+  void clearOrder() {
+    state = null;
+    debugPrint('Order cleared');
+  }
+
+  // ============================================================================
+  // ORDER PROPERTIES UPDATE
+  // ============================================================================
+
   void updateOrderType(OrderType orderType) {
     if (state != null) {
       state = state!.copyWith(orderType: orderType);
-      print('Order Type: $orderType');
+      debugPrint('Order type updated: $orderType');
     }
   }
 
-  // Set payment method
   void updatePaymentMethod(String paymentMethod, String? paymentType) {
-    print('Payment Method: $paymentMethod');
     if (state != null) {
       state = state!.copyWith(paymentMethod: paymentMethod);
       if (paymentType != null) {
@@ -64,19 +80,13 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
           ],
         );
       }
-      print(state);
     }
   }
 
-  //update paymentType
   void updatePaymentType(String paymentType) {
     if (state != null) {
       state = state!.copyWith(paymentType: paymentType);
     }
-  }
-
-  void updatePayment(OrderDetailModel updatedOrder) {
-    state = updatedOrder;
   }
 
   void updateIsOpenBill(bool isOpenBill) {
@@ -85,7 +95,6 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
   }
 
-  // Set customer name, phone number, dan table number
   void updateCustomerDetails({
     String? customerName,
     String? phoneNumber,
@@ -94,81 +103,63 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     if (state != null) {
       state = state!.copyWith(
         user: customerName ?? state!.user,
-        // phoneNumber: phoneNumber ?? state!.phoneNumber,
         tableNumber: tableNumber ?? state!.tableNumber,
       );
     }
   }
 
-  /// Fungsi reusable untuk mencari index item yang sama
-  /// berdasarkan menuItem id, toppings, addons, dan notes
-  int findExistingOrderItemIndex(OrderItemModel targetItem) {
-    if (state == null) return -1;
-
-    return state!.items.indexWhere(
-      (item) =>
-          item.menuItem.id == targetItem.menuItem.id &&
-          areToppingsEqual(
-            item.selectedToppings,
-            targetItem.selectedToppings,
-          ) &&
-          areAddonsEqual(item.selectedAddons, targetItem.selectedAddons) &&
-          areNotesEqual(item.notes, targetItem.notes),
-    );
-  }
-
-  /// Fungsi reusable untuk mencari index item yang sama
-  /// tetapi mengecualikan index tertentu (berguna untuk edit)
-  int findExistingOrderItemIndexExcept(
-    OrderItemModel targetItem,
-    int excludeIndex,
-  ) {
-    if (state == null) return -1;
-
-    for (int i = 0; i < state!.items.length; i++) {
-      if (i == excludeIndex) continue; // skip index yang dikecualikan
-
-      final item = state!.items[i];
-      if (item.menuItem.id == targetItem.menuItem.id &&
-          areToppingsEqual(
-            item.selectedToppings,
-            targetItem.selectedToppings,
-          ) &&
-          areAddonsEqual(item.selectedAddons, targetItem.selectedAddons) &&
-          areNotesEqual(item.notes, targetItem.notes)) {
-        return i;
-      }
+  void updateOrderId() {
+    if (state != null) {
+      state = state!.copyWith(orderId: const Uuid().v1());
     }
-
-    return -1;
   }
 
-  // Tambahkan menu ke daftar pesanan
-  void addItemToOrder(OrderItemModel orderItem) {
-    // Menggunakan fungsi reusable
-    // final existingOrderItemIndex = findExistingOrderItemIndex(orderItem);
-    final existingOrderItemIndex = state!.items.findSimilarItemIndex(orderItem);
+  void addOrderIdToOrderDetail(String orderId) {
+    if (state != null) {
+      state = state!.copyWith(orderId: orderId);
+      debugPrint('Order ID added: $orderId');
+    }
+  }
 
-    if (existingOrderItemIndex != -1) {
-      // Jika menu item sudah ada, tambahkan quantity-nya
-      final updatedItem = state!.items[existingOrderItemIndex].copyWith(
-        quantity:
-            state!.items[existingOrderItemIndex].quantity + orderItem.quantity,
+  void addPaymentStatusToOrderDetail(String paymentStatus) {
+    if (state != null) {
+      state = state!.copyWith(paymentStatus: paymentStatus);
+      debugPrint('Payment status added: $paymentStatus');
+    }
+  }
+
+  // ============================================================================
+  // ITEM MANAGEMENT
+  // ============================================================================
+
+  /// Add single item to order
+  void addItemToOrder(OrderItemModel orderItem) {
+    if (state == null) return;
+
+    final existingIndex = state!.items.findSimilarItemIndex(orderItem);
+
+    if (existingIndex != -1) {
+      // Merge dengan item yang sama
+      final updatedItem = state!.items[existingIndex].copyWith(
+        quantity: state!.items[existingIndex].quantity + orderItem.quantity,
       );
       final updatedItems = [...state!.items];
-      updatedItems[existingOrderItemIndex] = updatedItem;
+      updatedItems[existingIndex] = updatedItem;
       state = state!.copyWith(items: updatedItems);
     } else {
-      //simpan orderItem ke dalam daftar pesanan
+      // Add item baru
       state = state!.copyWith(items: [...state!.items, orderItem]);
     }
 
+    debugPrint('Item added: ${orderItem.menuItem.name} x${orderItem.quantity}');
     _recalculateAll();
-    print('Item order berhasil ditambahkan.');
   }
 
+  /// Add multiple items to order (untuk promo group)
   void addItemsToOrder(List<OrderItemModel> items) {
-    print('Menambahkan beberapa item ke order...${items.length}');
+    if (state == null) return;
+
+    debugPrint('Adding ${items.length} items to order...');
     var updated = [...state!.items];
 
     for (final orderItem in items) {
@@ -186,386 +177,283 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     _recalculateAll();
   }
 
-  static const listEquality = DeepCollectionEquality.unordered();
-
-  bool areToppingsEqual(
-    List<ToppingModel> toppings1,
-    List<ToppingModel> toppings2,
-  ) {
-    return listEquality.equals(
-      toppings1.map((e) => e.id).toList(),
-      toppings2.map((e) => e.id).toList(),
-    );
-  }
-
-  bool areAddonsEqual(List<AddonModel> addons1, List<AddonModel> addons2) {
-    if (addons1.length != addons2.length) return false;
-
-    for (var i = 0; i < addons1.length; i++) {
-      final ids1 = addons1[i].options!.map((e) => e.id).toList()..sort();
-      final ids2 = addons2[i].options!.map((e) => e.id).toList()..sort();
-
-      if (!listEquality.equals(ids1, ids2)) return false;
-    }
-
-    return true;
-  }
-
-  // apakah note pada order item sama
-  bool areNotesEqual(String? note1, String? note2) {
-    return note1 == note2;
-  }
-
+  /// Remove item from order
   void removeItem(OrderItemModel menuItem) {
+    if (state == null) return;
+
     final index = state!.items.indexOf(menuItem);
-
     if (index != -1) {
-      final updatedItems = [...state!.items]; // clone list
+      final updatedItems = [...state!.items];
       updatedItems.removeAt(index);
-
       state = state!.copyWith(items: updatedItems);
 
-      print('Item order berhasil dihapus.');
-    } else {
-      print('Item tidak ditemukan, tidak ada yang dihapus.');
+      debugPrint('Item removed: ${menuItem.menuItem.name}');
+      _recalculateAll();
     }
+  }
+
+  /// Update item quantity
+  void updateItemQuantity(String menuItemId, int quantity) {
+    if (state == null) return;
+
+    state = state!.copyWith(
+      items:
+          state!.items.map((item) {
+            if (item.menuItem.id == menuItemId) {
+              return item.copyWith(quantity: quantity);
+            }
+            return item;
+          }).toList(),
+    );
 
     _recalculateAll();
   }
 
-  void updateItemQuantity(String menuItemId, int quantity) {
-    if (state != null) {
-      state = state!.copyWith(
-        items:
-            state!.items.map((item) {
-              if (item.menuItem.id == menuItemId) {
-                return item.copyWith(quantity: quantity);
-              }
-              return item;
-            }).toList(),
-      );
-      _recalculateAll();
-    }
-  }
-
+  /// Edit existing order item
   void editOrderItem(OrderItemModel oldOrderItem, OrderItemModel newOrderItem) {
-    print('mengubah item order...');
+    if (state == null) return;
+
     final indexOldItem = state!.items.indexOf(oldOrderItem);
+    if (indexOldItem == -1) return;
 
-    if (indexOldItem != -1) {
-      print('item order ditemukan, mengganti item...');
+    debugPrint('Editing order item...');
 
-      // Menggunakan fungsi reusable dengan pengecualian index lama
-      final existingOrderItemIndex = findExistingOrderItemIndexExcept(
-        newOrderItem,
-        indexOldItem,
+    final existingIndex = _findExistingItemIndexExcept(
+      newOrderItem,
+      indexOldItem,
+    );
+    final updatedItems = [...state!.items];
+
+    if (existingIndex != -1) {
+      // Merge dengan item yang sama
+      updatedItems[existingIndex] = updatedItems[existingIndex].copyWith(
+        quantity: updatedItems[existingIndex].quantity + newOrderItem.quantity,
       );
-
-      final updatedItems = [...state!.items]; // buat salinan
-
-      if (existingOrderItemIndex != -1) {
-        print('item order ada yang sama, menambahkan quantity...');
-
-        final updatedItem = updatedItems[existingOrderItemIndex].copyWith(
-          quantity:
-              updatedItems[existingOrderItemIndex].quantity +
-              newOrderItem.quantity,
-        );
-
-        updatedItems[existingOrderItemIndex] = updatedItem;
-        updatedItems.removeAt(indexOldItem); // hapus item lama
-      } else {
-        print('tidak ada item yang sama, mengganti item...');
-        updatedItems[indexOldItem] = newOrderItem;
-      }
-
-      state = state!.copyWith(items: updatedItems);
-      _recalculateAll();
-      print('Item order berhasil diubah.');
-    }
-  }
-
-  // Kosongkan daftar pesanan
-  void clearOrder() {
-    state = null;
-  }
-
-  // Hitung total harga dari daftar pesanan
-  int get subTotalPrice {
-    if (state != null) {
-      return state!.items.fold(0, (sum, item) => sum + item.subtotal);
+      updatedItems.removeAt(indexOldItem);
     } else {
-      return 0;
+      // Replace item
+      updatedItems[indexOldItem] = newOrderItem;
     }
+
+    state = state!.copyWith(items: updatedItems);
+    _recalculateAll();
   }
 
-  // Kirim data orderDetail ke backend
-  Future<bool> submitOrder(WidgetRef ref) async {
-    final cashier = await HiveService.getCashier();
+  // ============================================================================
+  // CUSTOM AMOUNT MANAGEMENT
+  // ============================================================================
 
-    state = state!.copyWith(cashier: cashier);
-    // print('statedtdt: $state');
-    if (state == null) return false;
+  void addCustomAmountItem(CustomAmountItemsModel customAmountItem) {
+    if (state == null) return;
 
-    try {
-      final order = await OrderService().createOrder(state!);
-      // print('Order submitted: $order');
+    final currentCustomAmounts = state!.customAmountItems ?? [];
+    final updatedCustomAmounts = [...currentCustomAmounts, customAmountItem];
 
-      final orderDetails = ref.read(orderDetailProvider.notifier);
-      orderDetails.addOrderIdToOrderDetail(order['orderId']);
-      orderDetails.addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
+    state = state!.copyWith(customAmountItems: updatedCustomAmounts);
+    _recalculateAll();
 
-      if (order.isNotEmpty) {
-        //update menu items
-        return true;
-      }
-    } catch (e) {
-      debugPrint('error apa? $e');
-      // return false;
-      rethrow;
-    }
-    return false; // Return false if state is null
+    debugPrint('Custom amount added: ${customAmountItem.name}');
   }
 
-  // TODO: boleh dihapus jika fungsi sama bisa
-  // Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
-  //   final cashier = await HiveService.getCashier();
+  void removeCustomAmountItem(CustomAmountItemsModel customAmountItem) {
+    if (state == null) return;
 
-  //   state = state!.copyWith(cashier: cashier);
-  //   // print('statedtdt: $state');
-  //   if (state == null) return false;
+    final currentCustomAmounts = state!.customAmountItems ?? [];
+    final updatedCustomAmounts =
+        currentCustomAmounts.where((item) => item != customAmountItem).toList();
 
-  //   try {
-  //     final order = await OrderService().createOrder(state!, paymentData);
-  //     // print('Order submitted: $order');
+    state = state!.copyWith(customAmountItems: updatedCustomAmounts);
+    _recalculateAll();
 
-  //     final orderDetails = ref.read(orderDetailProvider.notifier);
-  //     orderDetails.addOrderIdToOrderDetail(order['orderId']);
-  //     orderDetails.addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
+    debugPrint('Custom amount removed');
+  }
 
-  //     if (order.isNotEmpty) {
-  //       //update menu items
-  //       return true;
-  //     }
-  //   } catch (e) {
-  //     debugPrint('error apa? $e');
-  //     return false;
-  //   }
-  //   return false; // Return false if state is null
-  // }
+  // ============================================================================
+  // PROMO MANAGEMENT
+  // ============================================================================
 
-  Future<void> _recalculateAll() async {
-    if (state == null || _isCalculating) return;
+  /// Select/add promo ID
+  void selectAutoPromo(String promoId) {
+    if (state == null) return;
 
-    _isCalculating = true;
+    final current = state!.selectedPromoIds;
+    if (current.contains(promoId)) return;
 
-    try {
-      // 1. Update subtotal setiap item
-      final updatedItems =
-          state!.items
-              .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
-              .toList();
+    state = state!.copyWith(selectedPromoIds: [...current, promoId]);
+    debugPrint('Promo selected: $promoId');
+    _recalculateAll();
+  }
 
-      // 2. Hitung total dari order items
-      final totalFromItems = updatedItems.fold<int>(
-        0,
-        (sum, item) => sum + item.subtotal,
-      );
+  /// Deselect/remove promo ID
+  void deselectAutoPromo(String promoId) {
+    if (state == null) return;
 
-      // 3. Hitung total dari custom amounts
-      final totalFromCustomAmounts = (state!.customAmountItems ?? []).fold<int>(
-        0,
-        (sum, item) => sum + (item.amount ?? 0),
-      );
+    final updated =
+        state!.selectedPromoIds.where((id) => id != promoId).toList();
 
-      // 4. Total sebelum diskon = items + custom amounts
-      final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
+    state = state!.copyWith(selectedPromoIds: updated);
+    debugPrint('Promo deselected: $promoId');
+    _recalculateAll();
+  }
 
-      // 4b) apply auto promos
-      final promos = await ref.read(autoPromoRepository).getLocalAutoPromos();
-      final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+  /// Update all selected promo IDs
+  void updateSelectedPromos(List<String> promoIds) {
+    if (state == null) return;
 
-      MenuItemModel? findMenuItemById(String id) {
-        return menuItems.firstWhere((item) => item.id == id);
+    state = state!.copyWith(selectedPromoIds: promoIds);
+    debugPrint('Selected promos updated: $promoIds');
+    _recalculateAll();
+  }
+
+  /// Toggle promo (select/deselect)
+  void togglePromo(String promoId) {
+    if (state == null) return;
+
+    final currentIds = state!.selectedPromoIds;
+    final newIds =
+        currentIds.contains(promoId)
+            ? currentIds.where((id) => id != promoId).toList()
+            : [...currentIds, promoId];
+
+    updateSelectedPromos(newIds);
+  }
+
+  /// Clear all selected promos
+  void clearSelectedPromos() {
+    if (state == null) return;
+
+    state = state!.copyWith(selectedPromoIds: []);
+    _recalculateAll();
+    debugPrint('All promos cleared');
+  }
+
+  /// Apply promo group (untuk bundling/paket)
+  Future<void> applyPromoGroup(PromoGroupModel group) async {
+    if (state == null) {
+      initializeOrder(orderType: OrderType.dineIn);
+    }
+
+    debugPrint('🎯 Applying promo group: ${group.name}');
+
+    // Get menu items
+    final menus = await ref.read(menuItemRepository).getLocalMenuItems();
+    MenuItemModel? findMenu(String id) =>
+        menus.firstWhereOrNull((m) => m.id == id);
+
+    final items = <OrderItemModel>[];
+
+    // Build order items dari group lines
+    for (final line in group.lines) {
+      final menu = findMenu(line.menuItemId);
+      if (menu == null) {
+        debugPrint('⚠️ Menu not found: ${line.menuItemId}');
+        continue;
       }
 
-      final now =
-          DateTime.now(); // kalau kamu perlu WIB, pastikan device timezone WIB
+      // Get default addons
+      final selectedAddons = _getDefaultAddons(menu);
 
-      final orderAfterPromo = PromoEngine.apply(
-        state!.copyWith(
-          items: updatedItems,
-          totalBeforeDiscount: totalBeforeDiscount,
+      items.add(
+        OrderItemModel(
+          menuItem: menu,
+          selectedToppings: const [],
+          selectedAddons: selectedAddons,
+          quantity: line.qty,
+          subtotal: 0,
+          reservedPromoId: group.promoId,
         ),
-        promos,
-        now,
-        findMenuItemById,
       );
+    }
 
-      // ambil diskon auto
-      final autoDiscount = PromoEngine.sumAutoDiscount(
-        orderAfterPromo.appliedPromos,
-      );
+    if (items.isEmpty) {
+      debugPrint('❌ No items to add from promo group');
+      return;
+    }
 
-      // 5. Hitung total setelah diskon (manual + auto)
-      final manualDiscount = state!.discounts?.totalDiscount ?? 0;
-      final totalAfterDiscount =
-          totalBeforeDiscount - manualDiscount - autoDiscount;
+    debugPrint('📦 Adding ${items.length} items from promo group');
 
-      // 6. Hitung tax dan service
-      int totalTax = 0;
-      int totalServiceFee = 0;
+    // ✅ PERBAIKAN: Update state SEKALI dengan semua perubahan
+    final currentIds = state!.selectedPromoIds;
+    final newIds =
+        currentIds.contains(group.promoId)
+            ? currentIds
+            : [...currentIds, group.promoId];
 
-      // 🔹 Cek dulu: apakah order ini full kategori BAZAR?
-      final isBazaarOrder = _isBazaarOrder(updatedItems);
-
-      if (totalAfterDiscount > 0 && !isBazaarOrder) {
-        // 💰 Mode normal → tetap hitung tax & service
-        try {
-          final result = await _taxAndServiceRepository.calculateOrderTotals(
-            totalAfterDiscount,
-          );
-          totalTax = result.taxAmount;
-          totalServiceFee = result.serviceAmount;
-        } catch (e) {
-          print('Error calculating tax and service: $e');
-        }
+    // Merge items
+    var updatedItems = [...state!.items];
+    for (final orderItem in items) {
+      final idx = updatedItems.findSimilarItemIndex(orderItem);
+      if (idx != -1) {
+        updatedItems[idx] = updatedItems[idx].copyWith(
+          quantity: updatedItems[idx].quantity + orderItem.quantity,
+        );
       } else {
-        // 🧾 Mode BAZAR → tanpa tax & service
-        totalTax = 0;
-        totalServiceFee = 0;
-        if (isBazaarOrder) {
-          print('Order ini kategori BAZAR → TANPA tax & service');
+        updatedItems.add(orderItem);
+      }
+    }
+
+    // Update state SEKALI dengan semua perubahan
+    state = state!.copyWith(items: updatedItems, selectedPromoIds: newIds);
+
+    debugPrint(
+      '✅ State updated: ${updatedItems.length} items, ${newIds.length} promos',
+    );
+
+    // Recalculate setelah state lengkap
+    await _recalculateAll();
+
+    debugPrint('✅ Promo group applied successfully');
+  }
+
+  /// Auto-select eligible promos
+  Future<void> autoSelectEligiblePromos() async {
+    if (state == null) return;
+
+    try {
+      debugPrint('Auto-selecting eligible promos...');
+
+      final allPromos =
+          await ref.read(autoPromoRepository).getLocalAutoPromos();
+      final now = DateTime.now();
+
+      final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+      MenuItemModel? findMenuItemById(String id) =>
+          menuItems.firstWhereOrNull((m) => m.id == id);
+
+      final eligibleIds = <String>[];
+
+      for (final promo in allPromos) {
+        if (!_isPromoValidNow(promo, now)) continue;
+
+        final isEligible = _checkPromoEligibility(promo, state!, now);
+
+        if (isEligible && _shouldAutoSelect(promo.promoType)) {
+          eligibleIds.add(promo.id);
         }
       }
 
-      // 7. Hitung grand total
-      final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
-
-      // 8. Update state sekali saja
-      // state = state!.copyWith(
-      //   items: updatedItems,
-      //   totalBeforeDiscount: totalBeforeDiscount,
-      //   totalAfterDiscount: totalAfterDiscount,
-      //   totalTax: totalTax,
-      //   totalServiceFee: totalServiceFee,
-      //   grandTotal: grandTotal,
-      // );
-      state = state!.copyWith(
-        items:
-            orderAfterPromo.items, // penting: ini sudah termasuk free item baru
-        appliedPromos: orderAfterPromo.appliedPromos,
-        totalBeforeDiscount: totalBeforeDiscount,
-        totalAfterDiscount: totalAfterDiscount,
-        totalTax: totalTax,
-        totalServiceFee: totalServiceFee,
-        grandTotal: grandTotal,
-      );
-
-      print('Calculation completed:');
-      print('- Total from items: $totalFromItems');
-      print('- Total from custom amounts: $totalFromCustomAmounts');
-      print('- Before discount: $totalBeforeDiscount');
-      print('- After discount: $totalAfterDiscount');
-      print('- Is bazaar order: $isBazaarOrder');
-      print('- Tax: $totalTax');
-      print('- Service: $totalServiceFee');
-      print('- Grand total: $grandTotal');
+      if (eligibleIds.isNotEmpty) {
+        updateSelectedPromos(eligibleIds);
+        debugPrint('Auto-selected ${eligibleIds.length} promos');
+      }
     } catch (e) {
-      print('Error in recalculation: $e');
-    } finally {
-      _isCalculating = false;
+      debugPrint('Error auto-selecting promos: $e');
     }
   }
 
-  // Future<void> _recalculateAll() async {
-  //   if (state == null || _isCalculating) return;
+  // ============================================================================
+  // PAYMENT MANAGEMENT
+  // ============================================================================
 
-  //   _isCalculating = true;
-
-  //   try {
-  //     // 1. Update subtotal setiap item
-  //     final updatedItems =
-  //         state!.items
-  //             .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
-  //             .toList();
-
-  //     // 2. Hitung total from order items
-  //     final totalFromItems = updatedItems.fold(
-  //       0,
-  //       (sum, item) => sum + item.subtotal,
-  //     );
-
-  //     // 3. Hitung total from custom amounts
-  //     final totalFromCustomAmounts = (state!.customAmountItems ?? []).fold(
-  //       0,
-  //       (sum, item) => sum + (item.amount ?? 0),
-  //     );
-
-  //     // 4. Total before discount = items + custom amounts
-  //     final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
-
-  //     // 5. Hitung total after discount
-  //     final discountAmount = state!.discounts?.totalDiscount ?? 0;
-  //     final totalAfterDiscount = totalBeforeDiscount - discountAmount;
-
-  //     // 6. Hitung tax dan service (jika ada outlet ID)
-  //     int totalTax = 0;
-  //     int totalServiceFee = 0;
-
-  //     if (totalAfterDiscount > 0) {
-  //       try {
-  //         final result = await _taxAndServiceRepository.calculateOrderTotals(
-  //           totalAfterDiscount,
-  //         );
-  //         totalTax = result.taxAmount;
-  //         totalServiceFee = result.serviceAmount;
-  //       } catch (e) {
-  //         print('Error calculating tax and service: $e');
-  //       }
-  //     }
-
-  //     // 7. Hitung grand total
-  //     final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
-
-  //     // 8. Update state sekali saja
-  //     state = state!.copyWith(
-  //       items: updatedItems,
-  //       totalBeforeDiscount: totalBeforeDiscount,
-  //       totalAfterDiscount: totalAfterDiscount,
-  //       totalTax: totalTax,
-  //       totalServiceFee: totalServiceFee,
-  //       grandTotal: grandTotal,
-  //     );
-
-  //     print('Calculation completed:');
-  //     print('- Total from items: $totalFromItems');
-  //     print('- Total from custom amounts: $totalFromCustomAmounts');
-  //     print('- Before discount: $totalBeforeDiscount');
-  //     print('- After discount: $totalAfterDiscount');
-  //     print('- Tax: $totalTax');
-  //     print('- Service: $totalServiceFee');
-  //     print('- Grand total: $grandTotal');
-  //   } catch (e) {
-  //     print('Error in recalculation: $e');
-  //   } finally {
-  //     _isCalculating = false;
-  //   }
-  // }
-
-  //add orderId to orderDetail
-  void addOrderIdToOrderDetail(String orderId) {
-    if (state != null) {
-      state = state!.copyWith(orderId: orderId);
-      print('success add Order ID: $orderId');
-    }
+  void setPayments(List<PaymentModel> payments) {
+    if (state == null) return;
+    state = state!.copyWith(payments: payments);
   }
 
-  void addPaymentStatusToOrderDetail(String paymentStatus) {
-    if (state != null) {
-      state = state!.copyWith(paymentStatus: paymentStatus);
-      print('success add Payment Status: $paymentStatus');
-    }
+  void addPayment(PaymentModel payment) {
+    if (state == null) return;
+    final current = state!.payments;
+    state = state!.copyWith(payments: [...current, payment]);
   }
 
   void updatePaymentAmount(int paymentAmount) {
@@ -591,76 +479,365 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
   }
 
-  // Future<void> updateOrderId() async {
-  //   final orderId = await generateOrderId(tableNumber: state?.tableNumber);
-  //   print('sedang update Order ID: $orderId');
-  //   print('state: $state');
-  //   if (state != null) {
-  //     state = state!.copyWith(orderId: orderId);
-  //     print('success update Order ID: ${state?.orderId}');
-  //   }
-  // }
+  // ============================================================================
+  // CALCULATION ENGINE
+  // ============================================================================
 
-  void updateOrderId() {
-    if (state != null) {
-      //isis orderid menggunakan UUID
-      state = state!.copyWith(orderId: Uuid().v1());
+  Future<void> _recalculateAll() async {
+    if (state == null || _isCalculating) {
+      debugPrint(
+        '⏭️ Skipping recalculation: state=${state != null}, calculating=$_isCalculating',
+      );
+      return;
+    }
+
+    _isCalculating = true;
+
+    try {
+      debugPrint('🔄 Starting recalculation...');
+      debugPrint(
+        '📊 Current state: ${state!.items.length} items, ${state!.selectedPromoIds.length} selected promos',
+      );
+
+      // 1) Update subtotal setiap item
+      final updatedItems =
+          state!.items
+              .map((it) => it.copyWith(subtotal: it.countSubTotalPrice()))
+              .toList();
+
+      // 2) Total dari items
+      final totalFromItems = updatedItems.fold<int>(
+        0,
+        (s, it) => s + it.subtotal,
+      );
+
+      // 3) Total dari custom amounts
+      final totalFromCustomAmounts = (state!.customAmountItems ?? []).fold<int>(
+        0,
+        (s, it) => s + (it.amount ?? 0),
+      );
+
+      // 4) Total before discount
+      final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
+
+      debugPrint('💰 Total before discount: $totalBeforeDiscount');
+
+      // 5) Get selected promos
+      final allPromos =
+          await ref.read(autoPromoRepository).getLocalAutoPromos();
+      final selectedIds = state!.selectedPromoIds;
+
+      debugPrint(
+        '🎫 All promos: ${allPromos.length}, Selected IDs: $selectedIds',
+      );
+
+      final selectedPromos =
+          allPromos.where((p) => selectedIds.contains(p.id)).toList();
+
+      debugPrint(
+        '✅ Selected promos: ${selectedPromos.map((p) => p.name).toList()}',
+      );
+
+      // 6) Get menu items for lookup
+      final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+      MenuItemModel? findMenuItemById(String id) =>
+          menuItems.firstWhereOrNull((m) => m.id == id);
+
+      final now = DateTime.now();
+
+      // 7) Apply promo engine
+      debugPrint('🚀 Applying promo engine...');
+
+      final orderAfterPromo = PromoEngine.apply(
+        state!.copyWith(
+          items: updatedItems,
+          totalBeforeDiscount: totalBeforeDiscount,
+        ),
+        selectedPromos,
+        now,
+        findMenuItemById,
+        allowStackingOnTotal: false,
+      );
+
+      debugPrint(
+        '🎉 Applied promos: ${orderAfterPromo.appliedPromos?.length ?? 0}',
+      );
+
+      if (orderAfterPromo.appliedPromos != null) {
+        for (final p in orderAfterPromo.appliedPromos!) {
+          debugPrint(
+            '  - ${p.promoName}: discount=${p.discount}, affected=${p.affectedItems.length}, free=${p.freeItems.length}',
+          );
+        }
+      }
+
+      // 8) Calculate discounts
+      final autoDiscount = PromoEngine.sumAutoDiscount(
+        orderAfterPromo.appliedPromos,
+      );
+
+      final existingDiscounts = state!.discounts ?? DiscountModel();
+      final newDiscounts = existingDiscounts.copyWith(
+        autoPromoDiscount: autoDiscount,
+      );
+
+      final manualDiscount = newDiscounts.manualDiscount;
+      final voucherDiscount = newDiscounts.voucherDiscount;
+      final totalDiscount = autoDiscount + manualDiscount + voucherDiscount;
+
+      final totalAfterDiscount = (totalBeforeDiscount - totalDiscount).clamp(
+        0,
+        1 << 31,
+      );
+
+      debugPrint('🎁 Auto discount: $autoDiscount');
+      debugPrint('💸 Total discount: $totalDiscount');
+
+      // 9) Calculate tax & service
+      int totalTax = 0;
+      int totalServiceFee = 0;
+
+      final isBazaarOrder = _isBazaarOrder(orderAfterPromo.items);
+
+      if (totalAfterDiscount > 0 && !isBazaarOrder) {
+        try {
+          final result = await _taxAndServiceRepository.calculateOrderTotals(
+            totalAfterDiscount,
+          );
+          totalTax = result.taxAmount;
+          totalServiceFee = result.serviceAmount;
+        } catch (e) {
+          debugPrint('❌ Error calculating tax/service: $e');
+        }
+      }
+
+      final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
+
+      // 10) Update state once
+      state = state!.copyWith(
+        items: orderAfterPromo.items,
+        appliedPromos: orderAfterPromo.appliedPromos,
+        discounts: newDiscounts,
+        totalBeforeDiscount: totalBeforeDiscount,
+        totalAfterDiscount: totalAfterDiscount,
+        totalTax: totalTax,
+        totalServiceFee: totalServiceFee,
+        grandTotal: grandTotal,
+      );
+
+      debugPrint('✅ Recalculation complete: grandTotal=$grandTotal');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error in recalculation: $e');
+      debugPrint('Stack trace: $stackTrace');
+    } finally {
+      _isCalculating = false;
     }
   }
 
-  // Method untuk menambahkan custom amount
-  void addCustomAmountItem(CustomAmountItemsModel customAmountItem) {
-    if (state == null) return;
-
-    final currentCustomAmounts = state!.customAmountItems ?? [];
-    final updatedCustomAmounts = [...currentCustomAmounts, customAmountItem];
-
-    state = state!.copyWith(customAmountItems: updatedCustomAmounts);
-
-    // Recalculate totals karena ada tambahan custom amount
-    _recalculateAll();
-
-    print('Custom amount berhasil ditambahkan: ${customAmountItem.name}');
+  void _printCalculationSummary() {
+    debugPrint('═══════════════════════════════════════');
+    debugPrint('CALCULATION SUMMARY');
+    debugPrint('═══════════════════════════════════════');
+    debugPrint('Selected promo IDs: ${state!.selectedPromoIds}');
+    debugPrint(
+      'Applied promos: ${(state!.appliedPromos ?? []).map((p) => '${p.promoName}(${p.promoId}) disc:${p.discount}').toList()}',
+    );
+    debugPrint('Before discount: ${state!.totalBeforeDiscount}');
+    debugPrint('Auto discount: ${state!.discounts?.autoPromoDiscount ?? 0}');
+    debugPrint('Manual discount: ${state!.discounts?.manualDiscount ?? 0}');
+    debugPrint('Voucher discount: ${state!.discounts?.voucherDiscount ?? 0}');
+    debugPrint('After discount: ${state!.totalAfterDiscount}');
+    debugPrint('Tax: ${state!.totalTax}');
+    debugPrint('Service: ${state!.totalServiceFee}');
+    debugPrint('Grand total: ${state!.grandTotal}');
+    debugPrint('═══════════════════════════════════════');
   }
 
-  // Method untuk menghapus custom amount
-  void removeCustomAmountItem(CustomAmountItemsModel customAmountItem) {
-    if (state == null) return;
+  // ============================================================================
+  // ORDER SUBMISSION
+  // ============================================================================
 
-    final currentCustomAmounts = state!.customAmountItems ?? [];
-    final updatedCustomAmounts =
-        currentCustomAmounts.where((item) => item != customAmountItem).toList();
+  Future<bool> submitOrder() async {
+    if (state == null) return false;
 
-    state = state!.copyWith(customAmountItems: updatedCustomAmounts);
+    try {
+      final cashier = await HiveService.getCashier();
+      state = state!.copyWith(cashier: cashier);
 
-    _recalculateAll();
+      // Ensure latest calculation
+      await _recalculateAll();
 
-    print('Custom amount berhasil dihapus');
+      final payload = state!;
+      final order = await OrderService().createOrder(payload);
+
+      addOrderIdToOrderDetail(order['orderId']);
+      addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
+
+      debugPrint('Order submitted successfully: ${order['orderId']}');
+      return order.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error submitting order: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================================
+  // HELPER METHODS
+  // ============================================================================
+
+  int _findExistingItemIndexExcept(
+    OrderItemModel targetItem,
+    int excludeIndex,
+  ) {
+    if (state == null) return -1;
+
+    for (int i = 0; i < state!.items.length; i++) {
+      if (i == excludeIndex) continue;
+
+      final item = state!.items[i];
+      if (item.menuItem.id == targetItem.menuItem.id &&
+          _areToppingsEqual(
+            item.selectedToppings,
+            targetItem.selectedToppings,
+          ) &&
+          _areAddonsEqual(item.selectedAddons, targetItem.selectedAddons) &&
+          item.notes == targetItem.notes) {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
+  bool _areToppingsEqual(List<ToppingModel> t1, List<ToppingModel> t2) {
+    if (t1.length != t2.length) return false;
+    final ids1 = t1.map((e) => e.id).toSet();
+    final ids2 = t2.map((e) => e.id).toSet();
+    return ids1.difference(ids2).isEmpty && ids2.difference(ids1).isEmpty;
+  }
+
+  bool _areAddonsEqual(List<AddonModel> a1, List<AddonModel> a2) {
+    if (a1.length != a2.length) return false;
+    for (var i = 0; i < a1.length; i++) {
+      final ids1 = (a1[i].options ?? []).map((e) => e.id).toSet();
+      final ids2 = (a2[i].options ?? []).map((e) => e.id).toSet();
+      if (ids1.difference(ids2).isNotEmpty ||
+          ids2.difference(ids1).isNotEmpty) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  List<AddonModel> _getDefaultAddons(MenuItemModel menu) {
+    return (menu.addons ?? [])
+        .map((addon) {
+          final defaultOptions =
+              (addon.options ?? []).where((o) => o.isDefault == true).toList();
+
+          return AddonModel(
+            id: addon.id,
+            name: addon.name,
+            type: addon.type,
+            options: defaultOptions.isEmpty ? null : defaultOptions,
+          );
+        })
+        .where((a) => (a.options ?? []).isNotEmpty)
+        .toList();
   }
 
   bool _isBazaarOrder(List<OrderItemModel> items) {
     if (items.isEmpty) return false;
-
     return items.every((item) {
-      // ✏️ SESUAIKAN FIELD INI dengan punya kamu:
-      // misal: item.menuItem.categoryName, item.menuItem.mainCategory, dll.
-      // final category = item.menuItem.category?.toLowerCase();
       final mainCategory = item.menuItem.mainCategory?.toLowerCase();
-
       return mainCategory == 'bazar';
     });
   }
 
-  void setPayments(List<PaymentModel> payments) {
-    if (state == null) return;
-    state = state!.copyWith(payments: payments);
+  bool _isPromoValidNow(AutoPromoModel promo, DateTime now) {
+    if (!promo.isActive) return false;
+
+    final validFrom = promo.validFrom;
+    final validTo = promo.validTo;
+    return now.isAfter(validFrom) && now.isBefore(validTo);
   }
 
-  void addPayment(PaymentModel payment) {
-    if (state == null) return;
-    final current = state!.payments;
-    state = state!.copyWith(payments: [...current, payment]);
+  bool _shouldAutoSelect(String promoType) {
+    return promoType == 'product_specific' ||
+        promoType == 'discount_on_quantity' ||
+        promoType == 'discount_on_total';
   }
+
+  bool _checkPromoEligibility(
+    AutoPromoModel promo,
+    OrderDetailModel order,
+    DateTime now,
+  ) {
+    if (promo.activeHours.isEnabled) {
+      if (!_isWithinActiveHours(promo.activeHours, now)) return false;
+    }
+
+    switch (promo.promoType) {
+      case 'product_specific':
+        final productIds = promo.conditions.products.map((p) => p.id).toSet();
+        return order.items.any((item) => productIds.contains(item.menuItem.id));
+
+      case 'bundling':
+        for (final bundleItem in promo.conditions.bundleProducts) {
+          final found = order.items.where(
+            (item) => item.menuItem.id == bundleItem.product.id,
+          );
+          final totalQty = found.fold(0, (sum, item) => sum + item.quantity);
+          if (totalQty < bundleItem.quantity) return false;
+        }
+        return promo.conditions.bundleProducts.isNotEmpty;
+
+      case 'discount_on_quantity':
+        final minQty = promo.conditions.minQuantity ?? 0;
+        final totalQty = order.items.fold(
+          0,
+          (sum, item) => sum + item.quantity,
+        );
+        return totalQty >= minQty;
+
+      case 'discount_on_total':
+        final minTotal = promo.conditions.minTotal ?? 0;
+        return order.totalBeforeDiscount >= minTotal;
+
+      case 'buy_x_get_y':
+        final buyProductId = promo.conditions.buyProduct?.id;
+        if (buyProductId == null) return false;
+        return order.items.any((item) => item.menuItem.id == buyProductId);
+
+      default:
+        return false;
+    }
+  }
+
+  bool _isWithinActiveHours(ActiveHoursModel activeHours, DateTime now) {
+    final currentDay = now.weekday % 7;
+    final currentTime =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    for (final schedule in activeHours.schedule) {
+      if (schedule.dayOfWeek == currentDay) {
+        if (_isTimeBetween(currentTime, schedule.startTime, schedule.endTime)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _isTimeBetween(String current, String start, String end) {
+    return current.compareTo(start) >= 0 && current.compareTo(end) <= 0;
+  }
+
+  // ============================================================================
+  // GETTERS
+  // ============================================================================
+
+  int get subTotalPrice => state?.totalBeforeDiscount ?? 0;
 
   int get totalPaid =>
       (state?.payments ?? []).fold(0, (sum, p) => sum + p.amount);
@@ -671,7 +848,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   bool get isFullyPaid => remaining == 0;
 }
 
-// Provider untuk OrderDetailNotifier
+// Provider
 final orderDetailProvider =
     StateNotifierProvider<OrderDetailNotifier, OrderDetailModel?>((ref) {
       return OrderDetailNotifier(ref);

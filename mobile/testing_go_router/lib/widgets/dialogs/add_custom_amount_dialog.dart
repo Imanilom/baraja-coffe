@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 
@@ -106,7 +107,7 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withOpacity(0.1),
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Icon(
@@ -394,7 +395,7 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
                 setState(() {
                   selectedOrderType = newSelection.first;
                 });
-                print('Selected Order Type: $selectedOrderType');
+                AppLogger.debug('Selected Order Type: $selectedOrderType');
               },
               showSelectedIcon: false,
             ),
@@ -505,7 +506,7 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
       orderType: selectedOrderType,
     );
 
-    print('CustomAmountItem: $customAmountItem');
+    AppLogger.debug('CustomAmountItem: $customAmountItem');
 
     widget.onAddCustomAmount(customAmountItem);
     widget.onClose();
