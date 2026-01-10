@@ -302,7 +302,7 @@ export const getWorkstationOrders = async (req, res) => {
         }
       ]
     })
-      .select('order_id user status items createdAt updatedAt orderType reservation tableNumber cashierId groId createdAtWIB updatedAtWIB source')
+      .select('order_id user status items createdAt updatedAt orderType reservation tableNumber cashierId groId createdAtWIB updatedAtWIB source isOpenBill')
       .populate({
         path: 'cashierId',
         select: 'username device_id',
@@ -473,7 +473,9 @@ export const getWorkstationOrders = async (req, res) => {
           servingTime: order.reservation?.food_serving_time,
           shouldStartPreparation,
           timeUntilPreparation,
-          cashierName: order.cashierId?.username || order.groId?.username || 'System'
+          cashierName: order.cashierId?.username || order.groId?.username || 'System',
+          // ✅ NEW: Explicit flag for frontend logic
+          isOpenBill: order.isOpenBill || false
         },
         created_by: {
           employee_id: order.cashierId || order.groId,
