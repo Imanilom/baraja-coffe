@@ -1,0 +1,38 @@
+# Gitignore for Rust project
+
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock file (uncomment if building a library)
+# Cargo.lock
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Keep environment templates
+!.env.example
+!.env.development
+!.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Test coverage
+tarpaulin-report.html
+cobertura.xml
