@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { FaChevronLeft, FaChevronRight, FaPencilAlt, FaReceipt, FaTrashAlt } from "react-icons/fa";
+import React, { useState } from "react";
+import { FaPencilAlt, FaReceipt, FaTrashAlt } from "react-icons/fa";
 import Select from "react-select";
 import CategoryTabs from "./categorytabs";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import MenuSkeleton from "../../skeleton";
 import ConfirmationModalActive from "../dialog/confirmationModalAction";
 import axios from "axios";
 import Paginated from "../../../../components/paginated";
 import ConfirmModal from "../../../../components/modal/confirmmodal";
+import ConfirmModalBulkDelete from "../../../../components/modal/confirmModalBulkDelete";
 
 export default function MenuTable({
     categoryOptions,
@@ -38,57 +39,29 @@ export default function MenuTable({
     loading,
     fetchData,
     onDeleteSuccess,
-    onStatusUpdate // Tambahkan prop untuk status update
+    onStatusUpdate,
+    recipes,
+    hasRecipe,
+    recipeFilter,
+    setRecipeFilter
 }) {
 
     const location = useLocation();
-    const navigate = useNavigate();
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isModalBulkOpen, setIsModalBulkOpen] = useState(false);
     const [newStatus, setNewStatus] = useState(null);
     const [selectedMenu, setSelectedMenu] = useState(null);
     const [itemToDelete, setItemToDelete] = useState(null);
-    const [recipes, setRecipes] = useState([]);
-    const [loadingRecipes, setLoadingRecipes] = useState(true);
-
-    // Fetch recipes data
-    useEffect(() => {
-        const fetchRecipes = async () => {
-            try {
-                setLoadingRecipes(true);
-                const response = await axios.get('/api/product/recipes');
-
-                if (Array.isArray(response.data)) {
-                    setRecipes(response.data);
-                } else if (response.data && Array.isArray(response.data.data)) {
-                    setRecipes(response.data.data);
-                } else {
-                    console.warn("Recipe data is not an array:", response.data);
-                    setRecipes([]);
-                }
-            } catch (error) {
-                console.error("Error fetching recipes:", error);
-                setRecipes([]);
-            } finally {
-                setLoadingRecipes(false);
-            }
-        };
-
-        fetchRecipes();
-    }, []);
-
-    // Function to check if menu has recipe
-    const hasRecipe = (menuId) => {
-        if (!Array.isArray(recipes)) {
-            return false;
-        }
-        return recipes.some(recipe => recipe.menuItemId?._id === menuId);
-    };
 
     // Handler untuk membuka modal delete
     const handleDeleteClick = (item) => {
         setItemToDelete(item);
         setIsModalOpen(true);
+    };
+
+    const handleDeleteClickBulk = () => {
+        setIsModalBulkOpen(true);
     };
 
     // Handler untuk menutup modal
@@ -97,15 +70,16 @@ export default function MenuTable({
         setItemToDelete(null);
     };
 
+    const handleCloseModalBulk = () => {
+        setIsModalBulkOpen(false);
+    };
+
     // Handler untuk konfirmasi delete
     const handleConfirmDelete = async () => {
         try {
             await axios.delete(`/api/menu/menu-items/${itemToDelete.id}`);
-
-            // Refresh data
             await fetchData();
 
-            // Trigger success message di parent component
             if (onDeleteSuccess) {
                 onDeleteSuccess(`Menu "${itemToDelete.name}" berhasil dihapus`);
             }
@@ -113,7 +87,6 @@ export default function MenuTable({
         } catch (error) {
             console.error("Error deleting item:", error);
 
-            // Trigger error message di parent component
             if (onDeleteSuccess) {
                 onDeleteSuccess(null, 'Gagal menghapus menu. Silakan coba lagi.');
             }
@@ -122,29 +95,36 @@ export default function MenuTable({
         }
     };
 
+    // Handler untuk konfirmasi bulk delete
+    const handleConfirmBulkDelete = async () => {
+        try {
+            await handleDeleteSelected();
+            handleCloseModalBulk();
+        } catch (error) {
+            console.error("Error bulk deleting items:", error);
+            handleCloseModalBulk();
+        }
+    };
+
     // Handler untuk update status
     const handleUpdate = async (itemId, newStatus) => {
         try {
             await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
-
-            // Refresh data
             await fetchData();
 
-            // Trigger success message di parent component
             if (onStatusUpdate) {
                 onStatusUpdate(`Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}`);
             }
         } catch (error) {
             console.error("Error updating menu:", error);
 
-            // Trigger error message di parent component
             if (onStatusUpdate) {
                 onStatusUpdate(null, 'Gagal mengubah status menu. Silakan coba lagi.');
             }
         }
     };
 
-    if (loading || loadingRecipes) return <MenuSkeleton />;
+    if (loading) return <MenuSkeleton />;
 
     return (
         <>
@@ -216,16 +196,39 @@ export default function MenuTable({
 
             {/* Menu Table */}
             <div className="w-full px-6">
-                {/* Keterangan Status Resep */}
-                <div className="mb-3 flex items-center gap-4 text-sm">
-                    <span className="text-gray-600 font-medium">Keterangan:</span>
-                    <div className="flex items-center gap-2">
-                        <FaReceipt className="text-green-600" size={14} />
-                        <span className="text-gray-600">Sudah ada resep</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <FaReceipt className="text-yellow-500" size={14} />
-                        <span className="text-gray-600">Belum ada resep</span>
+                {/* Filter Button Status Resep */}
+                <div className="mb-3 flex items-center gap-3">
+                    <span className="text-gray-600 font-medium text-sm">Filter Resep:</span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setRecipeFilter('all')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${recipeFilter === 'all'
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                        >
+                            Semua
+                        </button>
+                        <button
+                            onClick={() => setRecipeFilter('hasRecipe')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${recipeFilter === 'hasRecipe'
+                                ? 'bg-green-600 text-white shadow-sm'
+                                : 'text-green-600 hover:bg-gray-200'
+                                }`}
+                        >
+                            <FaReceipt size={14} />
+                            Sudah ada resep
+                        </button>
+                        <button
+                            onClick={() => setRecipeFilter('noRecipe')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${recipeFilter === 'noRecipe'
+                                ? 'bg-yellow-500 text-white shadow-sm'
+                                : 'text-yellow-500 hover:bg-gray-200'
+                                }`}
+                        >
+                            <FaReceipt size={14} />
+                            Belum ada resep
+                        </button>
                     </div>
                 </div>
 
@@ -250,11 +253,11 @@ export default function MenuTable({
                                 <th className="py-[15px] font-normal text-left">Tempat</th>
                                 <th className="py-[15px] font-normal text-left">Status</th>
                                 <th className="py-[15px] font-normal text-right">Harga</th>
-                                <th className="py-[15px] font-normal w-20">
+                                <th className="py-[15px] pr-2 font-normal flex justify-end">
                                     {checkedItems.length > 0 && (
                                         <button
-                                            onClick={handleDeleteSelected}
-                                            className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 flex justify-center items-center space-x-2"
+                                            onClick={handleDeleteClickBulk}
+                                            className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 flex items-center space-x-2"
                                         >
                                             <p>{checkedItems.length}</p> <FaTrashAlt />
                                         </button>
@@ -342,7 +345,7 @@ export default function MenuTable({
                                         <td className="py-2 w-1/6">
                                             <div className="flex items-center justify-end space-x-3">
                                                 {/* Resep */}
-                                                {hasRecipe(item.id) ? (
+                                                {hasRecipe(item._id || item.id) ? (
                                                     <Link
                                                         to={`/admin/menu-receipt/${item.id}`}
                                                         className="p-2 rounded-md hover:bg-gray-100 text-green-600"
@@ -438,6 +441,17 @@ export default function MenuTable({
                 onConfirm={handleConfirmDelete}
                 title="Hapus Menu"
                 message={`Apakah Anda yakin ingin menghapus "${itemToDelete?.name}"? Tindakan ini tidak dapat dibatalkan.`}
+                confirmText="Ya, Hapus"
+                cancelText="Batal"
+            />
+
+            {/* Modal Konfirmasi Bulk Delete */}
+            <ConfirmModalBulkDelete
+                isOpen={isModalBulkOpen}
+                onClose={handleCloseModalBulk}
+                onConfirm={handleConfirmBulkDelete}
+                title="Hapus Menu"
+                message={`Apakah Anda yakin ingin menghapus ${checkedItems.length} menu yang dipilih? Tindakan ini tidak dapat dibatalkan.`}
                 confirmText="Ya, Hapus"
                 cancelText="Batal"
             />

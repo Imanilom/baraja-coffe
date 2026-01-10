@@ -16,6 +16,7 @@ import {
   getMenuByRating,
   updateMenuActivated,
   getMenuItemsBackOffice,
+  deleteBulkMenuItems,
   getWorkstationMenuData,  // ⚡ OPTIMIZED: Single-call for workstation data
 } from '../controllers/menu.controller.js';
 import {
@@ -48,6 +49,7 @@ router.get('/menu-items/category/:categoryId', getMenuItemsByCategory); // Get M
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID
 router.put('/menu-items/:id', adminAccess, updateMenuItem); // Update a specific MenuItem
 router.put('/menu-items/activated/:id', adminAccess, updateMenuActivated); // Update a specific MenuItem
+router.delete('/menu-items', adminAccess, deleteBulkMenuItems); // Bulk delete
 router.delete('/menu-items/:id', adminAccess, deleteMenuItem); // Delete a specific MenuItem
 router.get('/menu-items/filter', filterMenuItems); // Filter MenuItems by name, category, or type
 router.get('/menu-items/available', getAvailableMenuItems); // Get available MenuItems

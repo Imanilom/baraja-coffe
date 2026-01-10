@@ -1755,6 +1755,44 @@ export const deleteMenuItem = async (req, res) => {
   }
 };
 
+export const deleteBulkMenuItems = async (req, res) => {
+  try {
+    const { id } = req.body; // Array of IDs
+
+    if (!Array.isArray(id) || id.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID array is required'
+      });
+    }
+
+    const result = await MenuItem.deleteMany({
+      _id: { $in: id }
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No menu items found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${result.deletedCount} menu items deleted successfully`,
+      deletedCount: result.deletedCount
+    });
+
+  } catch (error) {
+    console.error('Error bulk deleting menu items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete menu items',
+      error: error.message
+    });
+  }
+};
+
 // 🔹 GET /menu/by-outlet/:outletId
 // Menampilkan menu yang tersedia di outlet tertentu
 export const getMenuByOutlet = async (req, res) => {

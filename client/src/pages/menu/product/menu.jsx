@@ -51,11 +51,13 @@ const Menu = () => {
     const [checkedItems, setCheckedItems] = useState([]);
     const [checkAll, setCheckAll] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [recipes, setRecipes] = useState([]);
+    const [loadingRecipes, setLoadingRecipes] = useState(true);
 
     // State untuk alert message
     const [alertMessage, setAlertMessage] = useState("");
     const [alertType, setAlertType] = useState("success");
-    const [alertKey, setAlertKey] = useState(0); // Key untuk force re-render alert
+    const [alertKey, setAlertKey] = useState(0);
 
     // State filter
     const [selectedOutlet, setSelectedOutlet] = useState("");
@@ -63,11 +65,50 @@ const Menu = () => {
     const [selectedStatus, setSelectedStatus] = useState("");
     const [selectedWorkstation, setSelectedWorkstation] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
+    const [recipeFilter, setRecipeFilter] = useState('all'); // 'all', 'hasRecipe', 'noRecipe'
 
     const itemsPerPage = 10;
 
     // Pagination - selalu sinkron dengan URL
     const currentPage = parseInt(searchParams.get('page')) || 1;
+
+    // Fetch recipes data
+    useEffect(() => {
+        const fetchRecipes = async () => {
+            try {
+                setLoadingRecipes(true);
+                const response = await axios.get('/api/product/recipes');
+
+                if (Array.isArray(response.data)) {
+                    setRecipes(response.data);
+                } else if (response.data && Array.isArray(response.data.data)) {
+                    setRecipes(response.data.data);
+                } else {
+                    console.warn("Recipe data is not an array:", response.data);
+                    setRecipes([]);
+                }
+            } catch (error) {
+                console.error("Error fetching recipes:", error);
+                setRecipes([]);
+            } finally {
+                setLoadingRecipes(false);
+            }
+        };
+
+        fetchRecipes();
+    }, []);
+
+    // Function to check if menu has recipe
+    const hasRecipe = (menuId) => {
+        if (!Array.isArray(recipes)) {
+            return false;
+        }
+        // Cek berbagai kemungkinan struktur ID
+        return recipes.some(recipe => {
+            const recipeMenuId = recipe.menuItemId?._id || recipe.menuItemId;
+            return recipeMenuId === menuId;
+        });
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -102,11 +143,11 @@ const Menu = () => {
         if (location.state?.success) {
             setAlertMessage(location.state.success);
             setAlertType("success");
-            setAlertKey(prev => prev + 1); // Force re-render
+            setAlertKey(prev => prev + 1);
         } else if (location.state?.error) {
             setAlertMessage(location.state.error);
             setAlertType("error");
-            setAlertKey(prev => prev + 1); // Force re-render
+            setAlertKey(prev => prev + 1);
         }
     }, [location.state]);
 
@@ -128,7 +169,7 @@ const Menu = () => {
         if (currentPage !== 1) {
             setSearchParams({ page: '1' });
         }
-    }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery, selectedWorkstation]);
+    }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery, selectedWorkstation, recipeFilter]);
 
     const outletOptions = [
         { value: '', label: 'Outlet' },
@@ -152,6 +193,7 @@ const Menu = () => {
         { value: 'kitchen', label: 'Dapur' },
     ];
 
+    // Filter menu items berdasarkan semua filter termasuk recipe filter
     const filteredMenuItems = menuItems.filter((item) => {
         const matchOutlet =
             selectedOutlet === '' ||
@@ -166,7 +208,14 @@ const Menu = () => {
             item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.barcode?.toLowerCase().includes(searchQuery.toLowerCase());
 
-        return matchOutlet && matchCategory && matchStatus && matchSearch && matchWorkstation;
+        // Filter berdasarkan recipe - gunakan item._id atau item.id
+        const itemId = item._id || item.id;
+        const matchRecipe =
+            recipeFilter === 'all' ? true :
+                recipeFilter === 'hasRecipe' ? hasRecipe(itemId) :
+                    recipeFilter === 'noRecipe' ? !hasRecipe(itemId) : true;
+
+        return matchOutlet && matchCategory && matchStatus && matchSearch && matchWorkstation && matchRecipe;
     });
 
     const totalPages = Math.ceil(filteredMenuItems.length / itemsPerPage);
@@ -184,7 +233,6 @@ const Menu = () => {
     };
 
     const handleDeleteSelected = async () => {
-        if (!window.confirm("Apakah Anda yakin ingin menghapus data terpilih?")) return;
         try {
             await axios.delete("/api/menu/menu-items", {
                 data: { id: checkedItems }
@@ -251,7 +299,7 @@ const Menu = () => {
 
     return (
         <div className="w-full">
-            {/* Alert Message - menggunakan key untuk force re-render */}
+            {/* Alert Message */}
             <MessageAlert
                 key={alertKey}
                 type={alertType}
@@ -301,10 +349,14 @@ const Menu = () => {
                 handleDeleteSelected={handleDeleteSelected}
                 customStyles={customStyles}
                 currentPage={currentPage}
-                loading={loading}
+                loading={loading || loadingRecipes}
                 fetchData={fetchData}
                 onDeleteSuccess={handleDeleteSuccess}
                 onStatusUpdate={handleStatusUpdate}
+                recipes={recipes}
+                hasRecipe={hasRecipe}
+                recipeFilter={recipeFilter}
+                setRecipeFilter={setRecipeFilter}
             />
         </div>
     );
