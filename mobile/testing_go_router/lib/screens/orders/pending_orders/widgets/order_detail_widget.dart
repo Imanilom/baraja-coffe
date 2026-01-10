@@ -223,53 +223,12 @@ class OrderDetailWidget extends ConsumerWidget {
                   'CLOSE BILL',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                onPressed: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder:
-                        (context) => AlertDialog(
-                          title: const Text('Konfirmasi Close Bill'),
-                          content: const Text(
-                            'Apakah Anda yakin ingin menutup bill ini? Struk akan dicetak dengan keterangan BELUM LUNAS.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Batal'),
-                            ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange[700],
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Ya, Close Bill'),
-                            ),
-                          ],
-                        ),
+                onPressed: () {
+                  // ✅ Navigate to PaymentScreen (auto-detects close bill)
+                  context.pushNamed(
+                    'payment-method',
+                    extra: order, // ✅ Pass order directly, auto-detect inside
                   );
-
-                  if (confirm == true) {
-                    try {
-                      final success = await ref
-                          .read(pendingOrderDetailProvider.notifier)
-                          .closeBill(ref, order.orderId!);
-
-                      if (success && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Bill berhasil ditutup'),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Gagal menutup bill: $e')),
-                        );
-                      }
-                    }
-                  }
                 },
               ),
             ),

@@ -1,6 +1,7 @@
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/repositories/order_history_repository.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,7 +30,13 @@ class OrderHistoryNotifier extends AsyncNotifier<List<OrderDetailModel>> {
   //fetch order history
   Future<List<OrderDetailModel>> fetchOrderHistory() async {
     try {
-      final orderHistory = await _repository.fetchOrderHistory();
+      // ✅ FIX #4: Get cashierId from authCashierProvider
+      final cashier = await HiveService.getCashier();
+      if (cashier!.id == null) {
+        throw Exception('Cashier not authenticated');
+      }
+
+      final orderHistory = await _repository.fetchOrderHistory(cashier.id!);
 
       return orderHistory;
     } catch (e) {
@@ -39,9 +46,20 @@ class OrderHistoryNotifier extends AsyncNotifier<List<OrderDetailModel>> {
   }
 
   Future<void> refreshHistory() async {
-    final cashierId = ref.read(authCashierProvider).value?.id ?? '';
+    // ✅ FIX #4: Get cashierId and pass to repository
+    final cashier = await HiveService.getCashier();
+    if (cashier?.id == null) {
+      state = AsyncError(
+        Exception('Cashier not authenticated'),
+        StackTrace.current,
+      );
+      return;
+    }
+
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _repository.fetchOrderHistory());
+    state = await AsyncValue.guard(
+      () => _repository.fetchOrderHistory(cashier!.id!),
+    );
   }
 }
 

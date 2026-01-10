@@ -2612,299 +2612,365 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
 
-    // Generate order ID early
-    if (tableNumber) {
-      orderId = await generateOrderId(String(tableNumber));
-    }
-    // ========== HANDLE OPEN BILL CLOSE REQUEST ==========
-    if (closeOpenBill && order_id) {
-      console.log('🔒 Processing Open Bill close request for:', order_id);
-
-      const result = await closeOpenBillHandler({
-        orderId: order_id,
-        cashierId,
-        paymentDetails,
-        customerName: user,
-        customerPhone: contact?.phone,
-        notes: cashierNotes,
-        isSplitPayment
-      });
-
-      return res.status(200).json(result);
+    // ========== IDEMPOTENCY CHECK ==========
+    const idempotencyKey = req.headers['x-idempotency-key'];
+    if (idempotencyKey) {
+      console.log(`Checking idempotency key: ${idempotencyKey}`);
+      const existingIdempotentOrder = await Order.findOne({ idempotencyKey });
+      if (existingIdempotentOrder) {
+        console.log(`♻️ Returning cached response for idempotency key: ${idempotencyKey}`);
+        return res.status(200).json({
+          success: true,
+          message: 'Order retrieved (idempotent)',
+          orderId: existingIdempotentOrder.order_id,
+          // note: we might not return exact same structure but enough for client to proceed
+        });
+      }
     }
 
-    // Generate order ID
-    if (tableNumber && !order_id) {
-      if (isOpenBill) {
-        orderId = generateOpenBillOrderId(String(tableNumber));
-      } else {
+    // ========== START TRANSACTION ==========
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    let committed = false; // Flag to track commit status
+
+    try {
+      // Validate table availability ATOMICALY within transaction if possible, 
+      // though Table model might not be in same replicaset (assuming same DB)
+      if (tableNumber && isOpenBill) {
+        const table = await Table.findOne({ tableNumber, outletId }).session(session);
+        // Note: checking table.status alone might race, but unique compound index on Order is better.
+        // For now, we trust the flow, but finding duplicate active open bill is key.
+      }
+
+      // Generate order ID early
+      if (tableNumber) {
         orderId = await generateOrderId(String(tableNumber));
       }
-    } else if (order_id) {
-      orderId = order_id;
-    } else {
-      orderId = `${source.toUpperCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-    }
 
-    console.log(`📝 Creating order from ${source}:`, {
-      orderId,
-      source,
-      outletId,
-      tableNumber,
-      isOpenBill,
-      isSplitPayment,
-      appliedPromosCount: appliedPromos?.length || 0,
-      promoTypes: appliedPromos?.map(p => p.promoType) || [],
-      hasItems: req.body.items?.length || 0
-    });
+      // Handle closing open bill - separate logic, usually doesn't need creation idempotency as much as locking
+      if (closeOpenBill && order_id) {
+        // ... (not wrapping closeOpenBill in this transaction for now to limit scope change risk)
+        await session.abortTransaction();
+        session.endSession();
 
-    // ========== CASHIER: OPEN BILL CREATION ==========
-    if (source === 'Cashier' && isOpenBill) {
-      console.log('💰 Processing Open Bill creation with createOrderHandler');
-
-      const result = await processOpenBillOrderWithHandler({
-        req,
-        orderId,
-        outletId,
-        cashierId,
-        tableNumber,
-        device_id,
-        customersCount,
-        cashierNotes,
-        serviceCharge,
-        taxPercentage,
-        items: req.body.items || [],
-        voucherCode,
-        customerType,
-        manualDiscount,
-        manualDiscountReason,
-        customerId,
-        loyaltyPointsToRedeem
-      });
-
-      return res.status(200).json(result);
-    }
-
-    // ========== CASHIER: REGULAR ORDER ==========
-    if (source === 'Cashier') {
-      console.log('💰 Processing regular Cashier order');
-
-      const result = await processCashierOrderDirect({
-        req,
-        orderId,
-        outletId,
-        customAmountItems,
-        paymentDetails,
-        isSplitPayment,
-        cashierId,
-        tableNumber,
-        device_id,
-        customerId,
-        loyaltyPointsToRedeem,
-        orderType,
-        appliedPromos,
-        orderType,
-        voucherCode,
-        customerType,
-        manualDiscount,
-        manualDiscountReason
-      });
-
-      return res.status(200).json(result);
-    }
-
-    // ========== WEB & APP: TIDAK SUPPORT OPEN BILL ==========
-    if ((source === 'Web' || source === 'App') && isOpenBill) {
-      return res.status(400).json({
-        success: false,
-        message: 'Open Bill hanya tersedia untuk Cashier'
-      });
-    }
-
-    // ========== WEB & APP: REGULAR ORDER WITH LOCK ==========
-    console.log('🔒 Processing with atomic lock for Web/App order:', {
-      orderId,
-      source,
-      outletId
-    });
-
-    // PRE-CHECK: Cek order existence SEBELUM lock
-    const existingOrderCheck = await Order.findOne({
-      order_id: orderId,
-      outletId: outletId
-    });
-
-    if (existingOrderCheck) {
-      console.log('🔄 Order already exists, returning existing order:', {
-        orderId,
-        status: existingOrderCheck.status
-      });
-
-      try {
-        const result = await confirmOrderHelper(orderId);
-        return res.status(200).json({
-          status: 'Completed',
-          orderId: orderId,
-          message: 'Order already exists and confirmed',
-          order: result.order
+        console.log('🔒 Processing Open Bill close request for:', order_id);
+        const result = await closeOpenBillHandler({
+          orderId: order_id,
+          cashierId,
+          paymentDetails,
+          customerName: user,
+          customerPhone: contact?.phone,
+          notes: cashierNotes,
+          isSplitPayment
         });
-      } catch (confirmError) {
-        return res.status(200).json({
+        return res.status(200).json(result);
+      }
+
+      // Order ID Logic
+      if (tableNumber && !order_id) {
+        if (isOpenBill) {
+          orderId = generateOpenBillOrderId(String(tableNumber));
+        } else {
+          orderId = await generateOrderId(String(tableNumber));
+        }
+      } else if (order_id) {
+        orderId = order_id;
+      } else {
+        orderId = `${source.toUpperCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      }
+
+      console.log(`📝 Creating order from ${source}:`, {
+        orderId,
+        source,
+        outletId,
+        tableNumber,
+        isOpenBill,
+        isSplitPayment,
+        appliedPromosCount: appliedPromos?.length || 0,
+        promoTypes: appliedPromos?.map(p => p.promoType) || [],
+        hasItems: req.body.items?.length || 0
+      });
+
+      // ========== CASHIER: OPEN BILL CREATION ==========
+      if (source === 'Cashier' && isOpenBill) {
+        console.log('💰 Processing Open Bill creation with createOrderHandler');
+
+        const result = await processOpenBillOrderWithHandler({
+          req,
+          orderId,
+          outletId,
+          cashierId,
+          tableNumber,
+          device_id,
+          customersCount,
+          cashierNotes,
+          serviceCharge,
+          taxPercentage,
+          items: req.body.items || [],
+          voucherCode,
+          customerType,
+          manualDiscount,
+          manualDiscountReason,
+          customerId,
+          loyaltyPointsToRedeem,
+          session // ✅ Pass session
+        });
+
+        if (!committed) {
+          await session.commitTransaction();
+          committed = true;
+        }
+
+        return res.status(200).json(result);
+      }
+
+      // ========== CASHIER: REGULAR ORDER ==========
+      if (source === 'Cashier') {
+        console.log('💰 Processing regular Cashier order');
+
+        const result = await processCashierOrderDirect({
+          req,
+          orderId,
+          outletId,
+          customAmountItems,
+          paymentDetails,
+          isSplitPayment,
+          cashierId,
+          tableNumber,
+          device_id,
+          customerId,
+          loyaltyPointsToRedeem,
+          orderType,
+          appliedPromos,
+          orderType,
+          voucherCode,
+          customerType,
+          manualDiscount,
+          manualDiscount,
+          manualDiscountReason,
+          session // ✅ Pass session
+        });
+
+        if (!committed) {
+          await session.commitTransaction();
+          committed = true;
+        }
+
+        return res.status(200).json(result);
+      }
+
+      // ========== WEB & APP: TIDAK SUPPORT OPEN BILL ==========
+      if ((source === 'Web' || source === 'App') && isOpenBill) {
+        return res.status(400).json({
           success: false,
-          error: `Order exists but confirmation failed: ${confirmError.message}`,
-          orderId: orderId,
-          existingOrder: true
+          message: 'Open Bill hanya tersedia untuk Cashier'
         });
       }
-    }
 
-    // Execute dengan atomic lock untuk Web & App
-    const result = await LockUtil.withOrderLock(orderId, async () => {
-      lockAcquired = true;
+      // ========== WEB & APP: REGULAR ORDER WITH LOCK ==========
+      console.log('🔒 Processing with atomic lock for Web/App order:', {
+        orderId,
+        source,
+        outletId
+      });
 
-      // DOUBLE-CHECK: Cek order existence dalam lock
-      const existingOrderInLock = await Order.findOne({
+      // PRE-CHECK: Cek order existence SEBELUM lock
+      const existingOrderCheck = await Order.findOne({
         order_id: orderId,
         outletId: outletId
       });
 
-      if (existingOrderInLock) {
-        console.log('🔄 Order created by another process during lock acquisition:', {
+      if (existingOrderCheck) {
+        console.log('🔄 Order already exists, returning existing order:', {
           orderId,
-          existingOrderId: existingOrderInLock._id
+          status: existingOrderCheck.status
         });
 
         try {
           const result = await confirmOrderHelper(orderId);
-          return {
-            type: 'existing_order',
-            data: {
-              status: 'Completed',
-              orderId: orderId,
-              message: 'Order processed by another process',
-              order: result.order
-            }
-          };
+          return res.status(200).json({
+            status: 'Completed',
+            orderId: orderId,
+            message: 'Order already exists and confirmed',
+            order: result.order
+          });
         } catch (confirmError) {
-          return {
-            type: 'existing_order_error',
-            data: {
-              success: false,
-              error: `Order exists but confirmation failed: ${confirmError.message}`,
-              orderId: orderId
-            }
-          };
+          return res.status(200).json({
+            success: false,
+            error: `Order exists but confirmation failed: ${confirmError.message}`,
+            orderId: orderId,
+            existingOrder: true
+          });
         }
       }
 
-      // Process Web/App order dengan selected promos
-      return await processWebAppOrder({
-        req,
-        orderId,
-        source,
-        outletId,
-        customAmountItems,
-        paymentDetails,
-        isSplitPayment,
-        tableNumber,
-        device_id,
-        customerId,
-        loyaltyPointsToRedeem,
-        orderType,
-        delivery_option,
-        recipient_data,
-        user,
-        contact,
-        appliedPromos,  // ✅ PASS PROMO SELECTIONS
-        contact,
-        voucherCode,
-        customerType,
-        manualDiscount,
-        manualDiscountReason
+      // Execute dengan atomic lock untuk Web & App
+      const result = await LockUtil.withOrderLock(orderId, async () => {
+        lockAcquired = true;
+
+        // DOUBLE-CHECK: Cek order existence dalam lock
+        const existingOrderInLock = await Order.findOne({
+          order_id: orderId,
+          outletId: outletId
+        });
+
+        if (existingOrderInLock) {
+          console.log('🔄 Order created by another process during lock acquisition:', {
+            orderId,
+            existingOrderId: existingOrderInLock._id
+          });
+
+          try {
+            const result = await confirmOrderHelper(orderId);
+            return {
+              type: 'existing_order',
+              data: {
+                status: 'Completed',
+                orderId: orderId,
+                message: 'Order processed by another process',
+                order: result.order
+              }
+            };
+          } catch (confirmError) {
+            return {
+              type: 'existing_order_error',
+              data: {
+                success: false,
+                error: `Order exists but confirmation failed: ${confirmError.message}`,
+                orderId: orderId
+              }
+            };
+          }
+        }
+
+        // Process Web/App order dengan selected promos
+        return await processWebAppOrder({
+          req,
+          orderId,
+          source,
+          outletId,
+          customAmountItems,
+          paymentDetails,
+          isSplitPayment,
+          tableNumber,
+          device_id,
+          customerId,
+          loyaltyPointsToRedeem,
+          orderType,
+          delivery_option,
+          recipient_data,
+          user,
+          contact,
+          appliedPromos,  // ✅ PASS PROMO SELECTIONS
+          contact,
+          voucherCode,
+          customerType,
+          manualDiscount,
+          manualDiscountReason
+        });
+      }, {
+        owner: `order-${source}-${process.pid}-${Date.now()}`,
+        ttlMs: 30000,
+        retryDelayMs: 300,
+        maxRetries: 5
       });
-    }, {
-      owner: `order-${source}-${process.pid}-${Date.now()}`,
-      ttlMs: 30000,
-      retryDelayMs: 300,
-      maxRetries: 5
-    });
 
-    // Handle different response types
-    switch (result.type) {
-      case 'existing_order':
-      case 'app_cash_order':
-      case 'app_payment_order':
-      case 'web_cash_order':
-      case 'web_payment_order':
-        return res.status(200).json(result.data);
-      default:
-        return res.status(200).json(result.data);
-    }
+      // Handle different response types
+      switch (result.type) {
+        case 'existing_order':
+        case 'app_cash_order':
+        case 'app_payment_order':
+        case 'web_cash_order':
+        case 'web_payment_order':
+          if (!committed) { await session.commitTransaction(); committed = true; }
+          return res.status(200).json(result.data);
+        default:
+          if (!committed) { await session.commitTransaction(); committed = true; }
+          return res.status(200).json(result.data);
+      }
 
-  } catch (err) {
-    console.error('Error in createUnifiedOrder:', err);
+    } catch (err) {
+      console.error('Error in createUnifiedOrder:', err);
 
-    // Transaction number mismatch errors
-    if (err.message.includes('transaction number') || err.message.includes('does not match any in-progress transactions')) {
-      console.error('⚠️ Transaction number mismatch detected');
-      return res.status(503).json({
-        success: false,
-        error: 'Terjadi konflik sementara pada database, silakan coba lagi',
-        orderId: orderId,
-        retrySuggested: true,
-        retryAfter: 2,
-        errorType: 'TRANSACTION_CONFLICT'
-      });
-    }
+      // Transaction number mismatch errors
+      if (err.message.includes('transaction number') || err.message.includes('does not match any in-progress transactions')) {
+        console.error('⚠️ Transaction number mismatch detected');
+        return res.status(503).json({
+          success: false,
+          error: 'Terjadi konflik sementara pada database, silakan coba lagi',
+          orderId: orderId,
+          retrySuggested: true,
+          retryAfter: 2,
+          errorType: 'TRANSACTION_CONFLICT'
+        });
+      }
 
-    // Lock-related errors
-    if (err.message.includes('Failed to acquire lock') || err.message.includes('Lock busy')) {
-      return res.status(429).json({
-        success: false,
-        error: 'System sedang sibuk memproses pesanan lain, silakan coba lagi dalam 5 detik',
-        orderId: orderId,
-        retryAfter: 5
-      });
-    }
+      // Lock-related errors
+      if (err.message.includes('Failed to acquire lock') || err.message.includes('Lock busy')) {
+        return res.status(429).json({
+          success: false,
+          error: 'System sedang sibuk memproses pesanan lain, silakan coba lagi dalam 5 detik',
+          orderId: orderId,
+          retryAfter: 5
+        });
+      }
 
-    // Specific errors
-    if (err.message.includes('Outlet tidak ditemukan')) {
-      return res.status(404).json({
-        success: false,
-        message: err.message
-      });
-    }
+      // Specific errors
+      if (err.message.includes('Outlet tidak ditemukan')) {
+        return res.status(404).json({
+          success: false,
+          message: err.message
+        });
+      }
 
-    if (err.message.includes('Outlet sedang tutup') ||
-      err.message.includes('Fitur delivery hanya tersedia') ||
-      err.message.includes('Data penerima diperlukan') ||
-      err.message.includes('Koordinat lokasi penerima diperlukan') ||
-      err.message.includes('Payment method is required')) {
+      if (err.message.includes('Outlet sedang tutup') ||
+        err.message.includes('Fitur delivery hanya tersedia') ||
+        err.message.includes('Data penerima diperlukan') ||
+        err.message.includes('Koordinat lokasi penerima diperlukan') ||
+        err.message.includes('Payment method is required')) {
+        return res.status(400).json({
+          success: false,
+          message: err.message
+        });
+      }
+
+      // ✅ NEW: Validation errors for selected promos
+      if (err.message.includes('Missing product:') ||
+        err.message.includes('Insufficient quantity for') ||
+        err.message.includes('No items selected') ||
+        err.message.includes('Promo type not selectable')) {
+        return res.status(400).json({
+          success: false,
+          message: err.message,
+          orderId: orderId,
+          errorType: 'PROMO_VALIDATION_FAILED'
+        });
+      }
+
       return res.status(400).json({
         success: false,
-        message: err.message
-      });
-    }
-
-    // ✅ NEW: Validation errors for selected promos
-    if (err.message.includes('Missing product:') ||
-      err.message.includes('Insufficient quantity for') ||
-      err.message.includes('No items selected') ||
-      err.message.includes('Promo type not selectable')) {
-      return res.status(400).json({
-        success: false,
-        message: err.message,
+        error: err.message,
         orderId: orderId,
-        errorType: 'PROMO_VALIDATION_FAILED'
+        retrySuggested: true
+      });
+    } finally {
+      if (!committed && session.inTransaction()) {
+        try {
+          await session.abortTransaction();
+        } catch (e) {
+          console.warn('Failed to abort transaction:', e.message);
+        }
+      }
+      session.endSession();
+    }
+  } catch (error) {
+    if (!res.headersSent) {
+      console.error('❌ Critical error in createUnifiedOrder:', error);
+      return res.status(500).json({
+        success: false,
+        message: error.message
       });
     }
-
-    return res.status(400).json({
-      success: false,
-      error: err.message,
-      orderId: orderId,
-      retrySuggested: true
-    });
   }
 };
 
@@ -2981,7 +3047,8 @@ const processOpenBillOrderWithHandler = async ({
   manualDiscount = 0,
   manualDiscountReason = '',
   customerId,
-  loyaltyPointsToRedeem
+  loyaltyPointsToRedeem,
+  session = null // ✅ Accept session
 }) => {
   try {
     // Cek outlet
@@ -3003,7 +3070,7 @@ const processOpenBillOrderWithHandler = async ({
       isOpenBill: true,
       openBillStatus: 'active',
       status: { $in: ['Pending', 'OnProcess'] }
-    });
+    }).session(session); // ✅ Use session
 
     if (existingOpenBill) {
       throw new Error(`Meja ${tableNumber} sudah memiliki open bill aktif (Order ID: ${existingOpenBill.order_id})`);
@@ -3079,7 +3146,9 @@ const processOpenBillOrderWithHandler = async ({
       isReservation: false,
       requiresDelivery: false,
       recipientData: null,
-      paymentDetails: null // Open bill belum ada payment
+      paymentDetails: null, // Open bill belum ada payment
+      session, // ✅ Pass session
+      idempotencyKey: req.headers['x-idempotency-key'] // ✅ Pass idempotency key
     });
 
     console.log('✅ Open bill created via createOrderHandler:', {
@@ -3088,31 +3157,25 @@ const processOpenBillOrderWithHandler = async ({
       status: 'OpenBill_Active'
     });
 
-    // Update order dengan informasi open bill tambahan
-    const updatedOrder = await Order.findOneAndUpdate(
-      { order_id: orderId },
-      {
-        $set: {
-          isOpenBill: true,
-          openBillStartedAt: new Date(),
-          openBillStatus: 'active',
-          customersCount: customersCount,
-          cashierNotes: cashierNotes,
-          serviceCharge: serviceCharge,
-          taxPercentage: taxPercentage,
-          tableStatus: 'occupied',
-          openBillInfo: {
-            startedBy: cashierId,
-            initialItemsCount: items.length,
-            initialTotal: orderResult.grandTotal
-          }
-        }
-      },
-      { new: true }
-    );
+    // ✅ Update orderResult directly instead of querying again
+    // The order is already created by createOrderHandler, just add open bill fields
+    orderResult.isOpenBill = true;
+    orderResult.openBillStartedAt = new Date();
+    orderResult.openBillStatus = 'active';
+    orderResult.customersCount = customersCount;
+    orderResult.cashierNotes = cashierNotes;
+    orderResult.serviceCharge = serviceCharge;
+    orderResult.taxPercentage = taxPercentage;
+    orderResult.tableStatus = 'occupied';
+    orderResult.openBillInfo = {
+      startedBy: cashierId,
+      initialItemsCount: items.length,
+      initialTotal: orderResult.grandTotal
+    };
 
     // Update status meja
-    await updateTableStatus(tableNumber, outletId, 'occupied', orderId);
+    // ⚠️ Table status sync is handled by separate job - no need to update here
+    // await updateTableStatus(tableNumber, outletId, 'occupied', orderId);
 
     // Broadcast ke kitchen jika ada items
     if (items.length > 0 && global.io) {
@@ -3146,23 +3209,25 @@ const processOpenBillOrderWithHandler = async ({
       orderId,
       tableNumber,
       orderData: {
-        _id: updatedOrder._id,
-        order_id: updatedOrder.order_id,
-        items: updatedOrder.items,
-        discounts: updatedOrder.discounts,
-        appliedPromos: updatedOrder.appliedPromos,
-        appliedVoucher: updatedOrder.appliedVoucher,
-        taxAndServiceDetails: updatedOrder.taxAndServiceDetails,
-        totalBeforeDiscount: updatedOrder.totalBeforeDiscount,
-        totalAfterDiscount: updatedOrder.totalAfterDiscount,
-        totalTax: updatedOrder.totalTax,
-        totalServiceFee: updatedOrder.totalServiceFee,
-        grandTotal: updatedOrder.grandTotal,
-        isOpenBill: updatedOrder.isOpenBill,
-        openBillStatus: updatedOrder.openBillStatus,
-        openBillStartedAt: updatedOrder.openBillStartedAt,
-        customersCount: updatedOrder.customersCount,
-        cashierNotes: updatedOrder.cashierNotes
+        _id: orderResult._id,
+        order_id: orderResult.order_id || orderId,
+        items: orderResult.items,
+        discounts: orderResult.discounts,
+        appliedPromos: orderResult.appliedPromos,
+        appliedVoucher: orderResult.appliedVoucher,
+        taxAndServiceDetails: orderResult.taxAndServiceDetails,
+        totalBeforeDiscount: orderResult.totalBeforeDiscount,
+        totalAfterDiscount: orderResult.totalAfterDiscount,
+        totalTax: orderResult.totalTax,
+        totalServiceFee: orderResult.totalServiceFee,
+        grandTotal: orderResult.grandTotal,
+        isOpenBill: true,
+        openBillStatus: 'active',
+        openBillStartedAt: new Date(),
+        customersCount: customersCount,
+        cashierNotes: cashierNotes,
+        serviceCharge: serviceCharge,
+        taxPercentage: taxPercentage
       },
       message: `Open bill berhasil dibuat untuk meja ${tableNumber}`,
       actions: [
@@ -3234,97 +3299,135 @@ const closeOpenBillHandler = async ({
       }
     }
 
-    // Validasi payment details (OPTIONAL SEKARANG)
-    // Jika tidak ada paymentDetails, kita anggap ini Close Bill tanpa bayar (Pending)
-    let validatedPaymentDetails = null;
-    let isPendingClose = true;
-
-    if (paymentDetails) {
-      validatedPaymentDetails = validateAndNormalizePaymentDetails(
-        paymentDetails,
-        isSplitPayment,
-        'Cashier'
-      );
-      if (validatedPaymentDetails) {
-        isPendingClose = false;
-      }
+    // ✅ REVERT FIX #3: Payment is now REQUIRED for close bill
+    // Validasi payment details (REQUIRED)
+    if (!paymentDetails) {
+      throw new Error('Payment details are required to close open bill');
     }
 
-    // Jika mau bayar langsung, validasi nominal
+    const validatedPaymentDetails = validateAndNormalizePaymentDetails(
+      paymentDetails,
+      isSplitPayment,
+      'Cashier'
+    );
+
+    if (!validatedPaymentDetails) {
+      throw new Error('Invalid payment details');
+    }
+
+    // Validasi nominal payment
     let totalPayment = 0;
     const totalToPay = order.grandTotal;
 
-    if (!isPendingClose) {
-      // Verifikasi payment amount
-      if (Array.isArray(validatedPaymentDetails)) {
-        totalPayment = validatedPaymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-      } else {
-        totalPayment = validatedPaymentDetails.amount || 0;
-      }
+    // Verifikasi payment amount
+    if (Array.isArray(validatedPaymentDetails)) {
+      totalPayment = validatedPaymentDetails.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    } else {
+      totalPayment = validatedPaymentDetails.amount || 0;
+    }
 
-      if (totalPayment < totalToPay) {
-        throw new Error(`Jumlah pembayaran (${totalPayment}) kurang dari total tagihan (${totalToPay})`);
-      }
+    // ✅ FIX: Round both values to avoid floating point issues
+    const roundedPayment = Math.round(totalPayment);
+    const roundedTotal = Math.round(totalToPay);
+
+    if (roundedPayment < roundedTotal) {
+      throw new Error(`Jumlah pembayaran (${roundedPayment}) kurang dari total tagihan (${roundedTotal})`);
     }
 
     // Update customer info
     if (customerName) order.user = customerName;
     if (customerPhone) order.contact = { phone: customerPhone };
 
-    // Proses pembayaran (JIKA ADA)
-    if (!isPendingClose) {
-      const paymentResult = await processCashierPayment(
-        orderId,
-        validatedPaymentDetails,
-        {
-          grandTotal: totalToPay,
-          isSplitPayment: isSplitPayment
-        }
-      );
+    // 🐛 DEBUG: Log before setting isSplitPayment
+    console.log('🔍 BEFORE setting isSplitPayment:', {
+      orderId,
+      currentIsSplitPayment: order.isSplitPayment,
+      isArray: Array.isArray(validatedPaymentDetails),
+      paymentCount: Array.isArray(validatedPaymentDetails) ? validatedPaymentDetails.length : 1,
+      isSplitPaymentParam: isSplitPayment
+    });
+
+    // ✅ FIXED: Set isSplitPayment and update payments array BEFORE processCashierPayment
+    // to avoid race condition with order.save() inside cashierCharge
+    if (Array.isArray(validatedPaymentDetails)) {
+      validatedPaymentDetails.forEach((payment, index) => {
+        order.payments.push({
+          paymentMethod: payment.method || 'Cash',
+          amount: payment.amount || 0,
+          status: 'completed',
+          processedBy: cashierId,
+          processedAt: new Date(),
+          notes: `Split payment ${index + 1} of ${validatedPaymentDetails.length}`
+        });
+      });
+      order.isSplitPayment = true;
+    } else {
+      order.payments.push({
+        paymentMethod: validatedPaymentDetails.method || 'Cash',
+        amount: validatedPaymentDetails.amount || 0,
+        status: 'completed',
+        processedBy: cashierId,
+        processedAt: new Date(),
+        notes: 'Final payment for open bill'
+      });
+      order.isSplitPayment = false;
     }
+
+    // 🐛 DEBUG: Log after setting isSplitPayment
+    console.log('🔍 AFTER setting isSplitPayment:', {
+      orderId,
+      newIsSplitPayment: order.isSplitPayment,
+      paymentsCount: order.payments.length
+    });
+
+    // ✅ CRITICAL: Save order BEFORE processCashierPayment
+    // so that cashierCharge can see the new payment in order.payments
+    await order.save();
+
+    console.log('🔍 Order saved before processCashierPayment');
+
+    // Proses pembayaran (ALWAYS)
+    const paymentResult = await processCashierPayment(
+      orderId,
+      validatedPaymentDetails,
+      {
+        grandTotal: totalToPay,
+        isSplitPayment: isSplitPayment
+      }
+    );
 
     // Update order status
     order.openBillClosedAt = new Date();
     order.openBillStatus = 'closed';
-    // Jika Pending Close -> Status Waiting (Menunggu Pembayaran)
-    // Jika Lunas -> Status Completed
-    order.status = isPendingClose ? 'Waiting' : 'Completed';
+
+    // ✅ REVERT FIX #3: Always set to Completed (payment is required)
+    order.status = 'Completed';
 
     order.cashierNotes = notes || order.cashierNotes;
-
-    // Update payments array (HANYA JIKA BAYAR)
-    if (!isPendingClose) {
-      if (Array.isArray(validatedPaymentDetails)) {
-        validatedPaymentDetails.forEach((payment, index) => {
-          order.payments.push({
-            paymentMethod: payment.method || 'Cash',
-            amount: payment.amount || 0,
-            status: 'completed',
-            processedBy: cashierId,
-            processedAt: new Date(),
-            notes: `Split payment ${index + 1} of ${validatedPaymentDetails.length}`
-          });
-        });
-        order.isSplitPayment = true;
-      } else {
-        order.payments.push({
-          paymentMethod: validatedPaymentDetails.method || 'Cash',
-          amount: validatedPaymentDetails.amount || 0,
-          status: 'completed',
-          processedBy: cashierId,
-          processedAt: new Date(),
-          notes: 'Final payment for open bill'
-        });
-      }
-    }
 
     // Hitung change jika ada
     if (totalPayment > totalToPay) {
       order.change = totalPayment - totalToPay;
     }
 
+    // 🐛 DEBUG: Log before final save
+    console.log('🔍 BEFORE final save:', {
+      orderId,
+      isSplitPayment: order.isSplitPayment,
+      paymentsCount: order.payments.length,
+      status: order.status
+    });
+
     // Simpan perubahan
     await order.save();
+
+    // 🐛 DEBUG: Verify after save
+    const savedOrder = await Order.findOne({ order_id: orderId });
+    console.log('🔍 AFTER save (verified from DB):', {
+      orderId,
+      isSplitPayment: savedOrder.isSplitPayment,
+      paymentsCount: savedOrder.payments.length
+    });
 
     // Update status meja menjadi available
     await updateTableStatus(order.tableNumber, order.outletId, 'available', null);
@@ -4120,7 +4223,8 @@ const processCashierOrderDirect = async ({
   customerId,
   loyaltyPointsToRedeem,
   orderType,
-  appliedPromos = []
+  appliedPromos = [],
+  session = null // ✅ Accept session
 }) => {
   // Cek outlet
   const outlet = await Outlet.findById(outletId);
@@ -4182,6 +4286,7 @@ const processCashierOrderDirect = async ({
   validated.customerId = customerId;
   validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
   validated.cashierId = cashierId;
+  validated.isSplitPayment = isSplitPayment; // ✅ Ensure isSplitPayment is set
 
   // Broadcast order creation
   const areaCode = tableNumber?.charAt(0).toUpperCase();
@@ -4219,7 +4324,9 @@ const processCashierOrderDirect = async ({
     requiresDelivery: false,
     recipientData: null,
     paymentDetails: validatedPaymentDetails,
-    appliedPromos  // ✅ PASS PROMO SELECTIONS
+    appliedPromos,  // ✅ PASS PROMO SELECTIONS
+    session, // ✅ Pass session
+    idempotencyKey: req.headers['x-idempotency-key'] // ✅ Pass idempotency key
   });
 
   console.log('✅ Cashier order created:', {
@@ -7805,6 +7912,15 @@ export const getPendingOrders = async (req, res) => {
     log.timeStart('select_orders');
     const selectedOrders = pendingOrders.filter((order) => {
       if (order.status === 'Pending' || order.status === 'Reserved') return true;
+
+      // ✅ FIX #1: Always show active open bills
+      if (order.isOpenBill === true && order.openBillStatus === 'active') {
+        return true;
+      }
+
+      // ✅ REMOVED: Closed but unpaid filter (payment is now required for close)
+      // Closed open bills are always Completed, so they won't appear here
+
       // console.log('bukan pending order');
       if (order.status === 'OnProcess' || order.status === 'Waiting' || order.status === 'Completed') {
         const details = paymentDetailsMap.get(String(order.order_id)) || [];
@@ -8685,7 +8801,7 @@ export const getCashierOrderHistory = async (req, res) => {
       })
       .populate('items.menuItem')
       .sort({ updatedAt: -1 })
-      .limit(1) //untuk test
+      // .limit(1) // ✅ REMOVED: Test limit removed
       .lean();
 
     console.log(orders.length);
@@ -8706,6 +8822,54 @@ export const getCashierOrderHistory = async (req, res) => {
     })
       .lean()
       .sort({ updatedAt: -1, createdAt: -1 });
+
+    // ✅ FIX #2: Filter orders based on payment status and completion
+    const filteredOrders = orders.filter(order => {
+      // 1. Regular orders (bukan open bill)
+      if (!order.isOpenBill) {
+        // Hanya tampilkan jika bukan Pending DAN ada payment yang settled/completed
+        if (order.status != 'Pending') {
+          const orderPayments = payments.filter(p => p.order_id.toString() === order.order_id.toString());
+
+          // Check if has valid payment (settlement, Success, or completed)
+          const hasValidPayment = orderPayments.some(p =>
+            p.status === 'settlement' || p.status === 'Success' || p.status === 'completed'
+          );
+
+          return hasValidPayment;
+        }
+        return false;
+      }
+
+      // 2. Open bills
+      if (order.isOpenBill) {
+        // Hanya tampilkan jika:
+        // - Status Completed (sudah selesai)
+        // - openBillStatus = 'closed' (sudah di-close)
+        // - Ada payment settlement/completed (sudah dibayar lunas)
+        if (order.status === 'Completed' && order.openBillStatus === 'closed') {
+          const orderPayments = payments.filter(p => p.order_id.toString() === order.order_id.toString());
+
+          // Check if has valid payment (settlement, Success, or completed)
+          const hasValidPayment = orderPayments.some(p =>
+            p.status === 'settlement' || p.status === 'Success' || p.status === 'completed'
+          );
+
+          return hasValidPayment;
+        }
+        return false;
+      }
+
+      return false;
+    });
+
+    // Return early jika tidak ada filtered orders
+    if (filteredOrders.length === 0) {
+      return res.status(200).json({
+        message: 'No order history found for this cashier in the last 3 days.',
+        orders: []
+      });
+    }
 
     // 🔧 Enhanced Payment Processing with Full Details
     const paymentDetailsMap = new Map();
@@ -8735,7 +8899,7 @@ export const getCashierOrderHistory = async (req, res) => {
     });
 
     // Mapping data sesuai kebutuhan frontend
-    const mappedOrders = orders.map(order => {
+    const mappedOrders = filteredOrders.map(order => {
       const orderIdString = order.order_id.toString();
 
       const updatedItems = order.items.map(item => {
@@ -8957,12 +9121,37 @@ export const cashierCharge = async (req, res) => {
     // Reload order untuk mendapatkan data terbaru
     const updatedOrder = await Order.findOne({ order_id });
 
+    // 🐛 DEBUG: Log all payments
+    console.log('🔍 All payments in order:', {
+      order_id,
+      paymentsCount: updatedOrder.payments.length,
+      payments: updatedOrder.payments.map(p => ({
+        method: p.paymentMethod,
+        amount: p.amount,
+        status: p.status,
+        notes: p.notes
+      })),
+      grandTotal: updatedOrder.grandTotal
+    });
+
     // Hitung total paid
     const totalPaid = updatedOrder.payments
       .filter(p => p.status === 'completed')
       .reduce((sum, p) => sum + p.amount, 0);
 
-    const paymentStatus = totalPaid >= updatedOrder.grandTotal ? 'settlement' : 'partial';
+    console.log('🔍 Payment calculation:', {
+      totalPaid,
+      grandTotal: updatedOrder.grandTotal,
+      completedPaymentsCount: updatedOrder.payments.filter(p => p.status === 'completed').length
+    });
+
+    // ✅ FIXED: Round values for comparison to avoid floating point issues
+    const roundedPaid = Math.round(totalPaid);
+    const roundedTotal = Math.round(updatedOrder.grandTotal);
+
+    // For split payments, if this is the last payment and total matches, set settlement
+    // For single payments, always check if paid >= total
+    const paymentStatus = roundedPaid >= roundedTotal ? 'settlement' : 'partial';
 
     // Buat record di collection Payment
     const paymentData = {
@@ -8970,7 +9159,7 @@ export const cashierCharge = async (req, res) => {
       payment_code: generatePaymentCode(),
       transaction_id: generateTransactionId(),
       method: method,
-      status: paymentStatus,
+      status: paymentStatus,  // ✅ Now correctly set to 'settlement' when fully paid
       paymentType: is_down_payment ? 'Down Payment' : 'Full',
       amount: gross_amount,
       totalAmount: updatedOrder.grandTotal,

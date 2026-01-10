@@ -14,6 +14,9 @@ import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:kasirbaraja/services/order_service.dart'; // ✅ NEW
+import 'package:kasirbaraja/providers/orders/pending_order_provider.dart'; // ✅ NEW
+import 'package:kasirbaraja/services/printer_service.dart'; // ✅ NEW
 
 // Provider tipe pembayaran yang sudah kamu punya
 import 'package:kasirbaraja/providers/payment_provider.dart'
@@ -79,6 +82,13 @@ class PaymentScreen extends ConsumerStatefulWidget {
 }
 
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+  // ======= AUTO-DETECT CLOSE BILL =======
+  /// Auto-detect if this is close bill operation from order properties
+  /// Close bill = order with isOpenBill flag set to true
+  bool get _isCloseBill {
+    return widget.order.isOpenBill == true;
+  }
+
   // ======= MODE =======
   PaymentMode _mode = PaymentMode.single;
 
@@ -483,52 +493,52 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       _submitErrorMessage = null;
     });
 
-    final notifier = ref.read(orderDetailProvider.notifier);
-    notifier.setPayments(_payments);
-
     try {
-      final result = await notifier.submitOrder();
-      debugPrint('submitOrder took: ${sw.elapsedMilliseconds}ms');
+      // ✅ Auto-detect: Check if this is close bill operation
+      if (_isCloseBill) {
+        await _submitCloseBill();
+      } else {
+        // Existing regular order submit
+        final notifier = ref.read(orderDetailProvider.notifier);
+        notifier.setPayments(_payments);
 
-      // idealnya submitOrder balikin sesuatu: success / response
+        final result = await notifier.submitOrder();
+        debugPrint('submitOrder took: ${sw.elapsedMilliseconds}ms');
 
-      // SUCCESS → baru:
-      // - tutup halaman
-      // - navigate ke struk / history
-      // if (!mounted) return;
-      debugPrint('result submitOrder: $result');
-      if (result && context.mounted) {
-        setState(() {
-          _submitStatus = SubmitStatus.success;
-        });
-        ref.invalidate(orderHistoryProvider);
-        final savedPrinter = ref.read(savedPrintersProvider.notifier);
-        savedPrinter.printToPrinter(
-          orderDetail: ref.read(orderDetailProvider) ?? widget.order,
-          printType: 'all',
-        );
-        try {
-          final menuRepo = MenuItemRepository();
-
-          // Kurangi stok di Hive sesuai qty yang dibeli
-          menuRepo
-              .decreaseLocalStockFromOrderItems(widget.order.items)
-              .catchError((e) {
-                debugPrint('decreaseLocalStockFromOrderItems gagal: $e');
-              });
-
-          // refresh menu badge stok
-          ref.invalidate(reservationMenuItemProvider);
-
-          debugPrint('✅ Stok lokal berhasil dikurangi setelah transaksi');
-        } catch (e) {
-          debugPrint('⚠️ Gagal mengurangi stok lokal: $e');
-        }
-        if (mounted) {
-          context.goNamed(
-            'payment-success',
-            extra: {'orderDetail': ref.read(orderDetailProvider)},
+        debugPrint('result submitOrder: $result');
+        if (result && context.mounted) {
+          setState(() {
+            _submitStatus = SubmitStatus.success;
+          });
+          ref.invalidate(orderHistoryProvider);
+          final savedPrinter = ref.read(savedPrintersProvider.notifier);
+          savedPrinter.printToPrinter(
+            orderDetail: ref.read(orderDetailProvider) ?? widget.order,
+            printType: 'all',
           );
+          try {
+            final menuRepo = MenuItemRepository();
+
+            // Kurangi stok di Hive sesuai qty yang dibeli
+            menuRepo
+                .decreaseLocalStockFromOrderItems(widget.order.items)
+                .catchError((e) {
+                  debugPrint('decreaseLocalStockFromOrderItems gagal: $e');
+                });
+
+            // refresh menu badge stok
+            ref.invalidate(reservationMenuItemProvider);
+
+            debugPrint('✅ Stok lokal berhasil dikurangi setelah transaksi');
+          } catch (e) {
+            debugPrint('⚠️ Gagal mengurangi stok lokal: $e');
+          }
+          if (mounted) {
+            context.goNamed(
+              'payment-success',
+              extra: {'orderDetail': ref.read(orderDetailProvider)},
+            );
+          }
         }
       }
     } on DioException catch (e) {
@@ -553,6 +563,122 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       // if (mounted) Navigator.pop(context);
       sw.stop();
       debugPrint('refresh took: ${sw.elapsedMilliseconds}ms');
+    }
+  }
+
+  // ✅ NEW: Submit close bill with payment details
+  Future<void> _submitCloseBill() async {
+    try {
+      final cashier = await Hive.box('userBox').get('cashier');
+      if (cashier == null || cashier.id == null) {
+        throw Exception('Cashier not authenticated');
+      }
+
+      // Prepare payment details from _payments
+      final paymentDetails =
+          _payments.map((p) {
+            final Map<String, dynamic> payment = {
+              'method': p.method,
+              'amount': p.amount,
+              'status': 'settlement',
+            };
+
+            // Only include methodType for non-cash payments (EDC, QRIS, etc)
+            if (p.paymentType != null &&
+                p.paymentType != 'Full' &&
+                p.method?.toLowerCase() != 'cash') {
+              payment['methodType'] = p.paymentType;
+            }
+
+            // Include cash-specific fields
+            if (p.tenderedAmount != null) {
+              payment['tenderedAmount'] = p.tenderedAmount;
+            }
+            if (p.changeAmount != null) {
+              payment['changeAmount'] = p.changeAmount;
+            }
+
+            return payment;
+          }).toList();
+
+      final isSplitPayment = _payments.length > 1;
+
+      // ✅ FIX: Adjust total payment to match exact grand total
+      // Calculate current total payment
+      int totalPayment = paymentDetails.fold<int>(
+        0,
+        (sum, p) => sum + (p['amount'] as int? ?? 0),
+      );
+
+      // If there's a difference due to rounding, adjust the last payment
+      final grandTotal = widget.order.grandTotal;
+      if (totalPayment != grandTotal && paymentDetails.isNotEmpty) {
+        final difference = grandTotal - totalPayment;
+        debugPrint('⚠️ Payment adjustment needed: $difference');
+        debugPrint('Total Payment: $totalPayment, Grand Total: $grandTotal');
+
+        // Adjust last payment amount
+        final lastPayment = paymentDetails.last;
+        lastPayment['amount'] = (lastPayment['amount'] as int) + difference;
+
+        debugPrint('✅ Adjusted last payment to: ${lastPayment['amount']}');
+      }
+
+      // ✅ FIXED: Direct instantiation
+      final orderService = OrderService();
+
+      // 🐛 DEBUG: Print payment data
+      debugPrint('=== CLOSE BILL DEBUG ===');
+      debugPrint('Order ID: ${widget.order.orderId}');
+      debugPrint('Cashier ID: ${cashier.id}');
+      debugPrint('Payment Details: $paymentDetails');
+      debugPrint('Is Split: $isSplitPayment');
+      debugPrint('========================');
+
+      final result = await orderService.closeOpenBill(
+        orderId: widget.order.orderId!,
+        cashierId: cashier.id!,
+        paymentDetails: isSplitPayment ? paymentDetails : paymentDetails.first,
+        isSplitPayment: isSplitPayment,
+      );
+
+      if (result['success'] == true) {
+        setState(() {
+          _submitStatus = SubmitStatus.success;
+        });
+
+        // Close loading dialog
+        if (mounted) Navigator.pop(context);
+
+        // Refresh pending orders
+        ref.invalidate(pendingOrderProvider);
+
+        // Print receipt
+        final printers = ref.read(savedPrintersProvider);
+        if (printers.isNotEmpty) {
+          await PrinterService.printDocuments(
+            orderDetail: widget.order,
+            printType: 'customer',
+            printers: printers,
+          );
+        }
+
+        // Navigate to success screen
+        if (mounted) {
+          context.goNamed(
+            'payment-success',
+            extra: {
+              'orderDetail': widget.order,
+              'isCloseBill': true, // Flag to show different message
+            },
+          );
+        }
+      } else {
+        throw Exception(result['message'] ?? 'Failed to close bill');
+      }
+    } catch (e) {
+      debugPrint('Error closing bill: $e');
+      rethrow;
     }
   }
 
@@ -632,20 +758,29 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
-        title: const Text(
-          'Pembayaran',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        title: Text(
+          _isCloseBill ? 'Close Bill - Pembayaran' : 'Pembayaran',
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         centerTitle: true,
         actions: [
           TextButton.icon(
             onPressed: () {
+              final orderDetailNotifier = ref.read(
+                orderDetailProvider.notifier,
+              );
               setState(() {
                 if (_mode == PaymentMode.single) {
                   _mode = PaymentMode.split;
                   _initSplitCardsIfNeeded();
+                  orderDetailNotifier.updateIsSplitPayment(
+                    true,
+                  ); // ✅ Set split payment flag
                 } else {
                   _mode = PaymentMode.single;
+                  orderDetailNotifier.updateIsSplitPayment(
+                    false,
+                  ); // ✅ Clear split payment flag
                 }
               });
             },

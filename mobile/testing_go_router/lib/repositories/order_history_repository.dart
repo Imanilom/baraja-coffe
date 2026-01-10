@@ -1,20 +1,14 @@
-import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/services/order_history_service.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
-import 'package:hive_ce/hive.dart';
 
 class OrderHistoryRepository {
   final OrderHistoryService _orderHistoryService = OrderHistoryService();
 
-  Future<List<OrderDetailModel>> fetchOrderHistory() async {
+  // ✅ FIX #4: Accept cashierId as parameter, remove Hive access
+  Future<List<OrderDetailModel>> fetchOrderHistory(String cashierId) async {
     try {
-      final box = Hive.box('userBox');
-      final cashier = box.get('cashier') as CashierModel?;
-      AppLogger.debug('Cashier from Hive: ${cashier?.id}');
-      final response = await _orderHistoryService.fetchOrderHistory(
-        cashier!.id!,
-      );
+      final response = await _orderHistoryService.fetchOrderHistory(cashierId);
 
       AppLogger.debug("Order history data fetched: ${response.length}");
 
