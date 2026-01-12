@@ -577,18 +577,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       // Prepare payment details from _payments
       final paymentDetails =
           _payments.map((p) {
+            // ✅ FIXED: Use same method as regular orders
+            final methodtype = PaymentDetails.buildPaymentMethodLabel(p);
+
             final Map<String, dynamic> payment = {
               'method': p.method,
               'amount': p.amount,
               'status': 'settlement',
+              'methodType': methodtype, // ✅ Always include methodType
             };
-
-            // Only include methodType for non-cash payments (EDC, QRIS, etc)
-            if (p.paymentType != null &&
-                p.paymentType != 'Full' &&
-                p.method?.toLowerCase() != 'cash') {
-              payment['methodType'] = p.paymentType;
-            }
 
             // Include cash-specific fields
             if (p.tenderedAmount != null) {
@@ -596,6 +593,30 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             }
             if (p.changeAmount != null) {
               payment['changeAmount'] = p.changeAmount;
+            }
+            if (p.remainingAmount != null) {
+              payment['remainingAmount'] = p.remainingAmount;
+            }
+
+            // Include VA numbers and actions
+            if (p.vaNumbers != null && p.vaNumbers!.isNotEmpty) {
+              payment['vaNumbers'] =
+                  p.vaNumbers!
+                      .map((va) => {'bank': va.bank, 'vaNumber': va.vaNumber})
+                      .toList();
+            }
+
+            if (p.actions != null && p.actions!.isNotEmpty) {
+              payment['actions'] =
+                  p.actions!
+                      .map(
+                        (action) => {
+                          'name': action.name,
+                          'method': action.method,
+                          'url': action.url,
+                        },
+                      )
+                      .toList();
             }
 
             return payment;
