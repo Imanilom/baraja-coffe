@@ -238,7 +238,9 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                 {/* Footer Actions */}
                 <div className="p-4 border-t space-y-4 bg-gray-50">
                     <PdfButton
-                        targetId="receipt-pdf"
+                        transactionData={selectedTrx}
+                        formatDateTime={formatDateTime}
+                        formatCurrency={formatCurrency}
                         fileName={`Resi_${selectedTrx?.order_id || "transaksi"}.pdf`}
                     />
 
