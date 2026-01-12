@@ -426,7 +426,7 @@ export const getWorkstationOrders = async (req, res) => {
 
         if (reservation.food_serving_option === 'scheduled' && reservation.food_serving_time) {
           const servingTime = new Date(reservation.food_serving_time).getTime();
-          const prepStartTime = servingTime - 30 * 60 * 1000;
+          const prepStartTime = servingTime - 60 * 60 * 1000;
 
           shouldStartPreparation = now >= prepStartTime;
           timeUntilPreparation = Math.ceil((prepStartTime - now) / 60000);
@@ -441,7 +441,7 @@ export const getWorkstationOrders = async (req, res) => {
             parseInt(timeParts[1])
           ).getTime();
 
-          const prepStartTime = reservationDateTime - 30 * 60 * 1000;
+          const prepStartTime = reservationDateTime - 60 * 60 * 1000;
 
           shouldStartPreparation = now >= prepStartTime;
           timeUntilPreparation = Math.ceil((prepStartTime - now) / 60000);
