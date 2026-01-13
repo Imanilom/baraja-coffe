@@ -1150,8 +1150,12 @@ export const createAppOrder = async (req, res) => {
                 duration: `${Date.now() - startTime}ms`
             });
             // RESERVATION CREATION
+            // Create reservation for:
+            // 1. Non-open bill reservation orders (customer flow)
+            // 2. GRO reservation orders when creating NEW order (not adding to existing)
             let reservationRecord = null;
-            if (orderType === 'reservation' && !effectiveIsOpenBill) {
+            const isNewGroReservation = isGroMode && orderType === 'reservation' && !existingOrder;
+            if (orderType === 'reservation' && (!effectiveIsOpenBill || isNewGroReservation)) {
                 try {
                     let parsedReservationDate;
                     if (reservationData.reservationDate) {
