@@ -645,6 +645,9 @@ export const createAppOrder = async (req, res) => {
                 dpBankInfo,
                 // ✅ FIX: Custom DP Amount from frontend
                 customDpAmount,
+                // ✅ NEW: Full Payment Already Paid (Sudah Lunas)
+                fullPaymentAlreadyPaid,
+                fullPaymentBankInfo,
                 // ✅ FIX: Tax data from frontend
                 taxDetails,
                 totalTax,
@@ -1254,6 +1257,15 @@ export const createAppOrder = async (req, res) => {
                 console.log('   Order ID:', newOrder.order_id);
                 console.log('   Custom DP Amount:', customDpAmount);
                 console.log('   Bank Info:', dpBankInfo?.bankName);
+            }
+
+            // ✅ NEW: Full Payment Already Paid (Sudah Lunas)
+            // Similar to DP, the frontend will call /api/charge with full_payment_already_paid=true
+            if (fullPaymentAlreadyPaid && isGroMode) {
+                console.log('💵 Full Payment Already Paid flag set - Payment will be created via /api/charge endpoint');
+                console.log('   Order ID:', newOrder.order_id);
+                console.log('   Grand Total:', newOrder.grandTotal);
+                console.log('   Bank Info:', fullPaymentBankInfo?.bankName);
             }
             // RESPONSE
             const responseData = {
