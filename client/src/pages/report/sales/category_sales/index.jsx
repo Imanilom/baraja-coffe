@@ -88,7 +88,7 @@ const CategorySales = () => {
         { value: "", label: "Semua Type" },
         { value: "food", label: "Food" },
         { value: "beverage", label: "Beverage" },
-        { value: "other", label: "Other" }
+        { value: "event", label: "Event" },
     ];
 
     // Initialize from URL params or set default to today

@@ -54,9 +54,9 @@ const UpdateCategory = () => {
     const [error, setError] = useState(null);
 
     const categoryOptions = [
-        { value: 'food', label: 'Makanan' },
-        { value: 'beverage', label: 'Minuman' },
-        { value: 'instan', label: 'Instan' },
+        { value: 'food', label: 'Food' },
+        { value: 'beverage', label: 'Beverage' },
+        // { value: 'instan', label: 'Instan' },
         { value: 'event', label: 'Event' }
     ];
 
