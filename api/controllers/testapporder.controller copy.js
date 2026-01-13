@@ -1091,7 +1091,7 @@ export const createAppOrder = async (req, res) => {
                 groId: isGroMode ? groId : null,    // 🔵 employee ID | 🟢 null
                 items: orderItems,
                 status: orderStatus,                // 🔵 Reserved/OnProcess | 🟢 Pending
-                paymentMethod: paymentDetails.method,
+                // paymentMethod: paymentDetails.method,
                 orderType: formattedOrderType,
                 deliveryAddress: deliveryAddress || '',
                 tableNumber: tableNumber || '',

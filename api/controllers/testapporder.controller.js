@@ -1103,7 +1103,7 @@ export const createAppOrder = async (req, res) => {
                     items: orderItems,
                     customAmountItems: processedCustomAmounts, // ✅ Add custom amounts
                     status: orderStatus,
-                    paymentMethod: paymentDetails.method,
+                    // paymentMethod: paymentDetails.method,
                     orderType: formattedOrderType,
                     deliveryAddress: deliveryAddress || '',
                     tableNumber: tableNumber || '',
