@@ -2628,6 +2628,351 @@ class DailyProfitController {
     }
   };
 
+  // async getCategorySalesReport(req, res) {
+  //   try {
+  //     const categorySearch = req.query.category || '';
+
+  //     // Build match stage untuk filter
+  //     const matchStage = {
+  //       status: 'Completed'
+  //     };
+
+  //     // Filter by outlet
+  //     if (req.query.outlet) {
+  //       try {
+  //         const mongoose = require('mongoose');
+  //         matchStage.outlet = mongoose.Types.ObjectId(req.query.outlet);
+  //       } catch (err) {
+  //         matchStage.outlet = req.query.outlet;
+  //       }
+  //     }
+
+  //     // Filter by date range
+  //     if (req.query.startDate || req.query.endDate) {
+  //       matchStage.createdAt = {};
+
+  //       if (req.query.startDate) {
+  //         const startDateStr = req.query.startDate;
+  //         const startDate = new Date(startDateStr + 'T00:00:00.000+07:00');
+  //         matchStage.createdAt.$gte = startDate;
+  //       }
+
+  //       if (req.query.endDate) {
+  //         const endDateStr = req.query.endDate;
+  //         const endDate = new Date(endDateStr + 'T23:59:59.999+07:00');
+  //         matchStage.createdAt.$lte = endDate;
+  //       }
+  //     }
+
+  //     console.log('Match Stage:', JSON.stringify(matchStage, null, 2));
+
+  //     // ✅ Pipeline untuk items regular + customAmountItems
+  //     const pipeline = [
+  //       // Stage 1: Filter orders
+  //       {
+  //         $match: matchStage
+  //       },
+
+  //       // Stage 2: Project untuk combine items + customAmountItems
+  //       {
+  //         $project: {
+  //           outlet: 1,
+  //           createdAt: 1,
+  //           allItems: {
+  //             $concatArrays: [
+  //               // Regular items - tandai dengan type: 'regular'
+  //               {
+  //                 $map: {
+  //                   input: { $ifNull: ['$items', []] },
+  //                   as: 'item',
+  //                   in: {
+  //                     type: 'regular',
+  //                     menuItem: '$$item.menuItem',
+  //                     menuItemData: '$$item.menuItemData',
+  //                     quantity: '$$item.quantity',
+  //                     subtotal: '$$item.subtotal'
+  //                   }
+  //                 }
+  //               },
+  //               // Custom amount items - tandai dengan type: 'custom'
+  //               {
+  //                 $map: {
+  //                   input: { $ifNull: ['$customAmountItems', []] },
+  //                   as: 'custom',
+  //                   in: {
+  //                     type: 'custom',
+  //                     quantity: 1,
+  //                     subtotal: '$$custom.amount',
+  //                     name: '$$custom.name'
+  //                   }
+  //                 }
+  //               }
+  //             ]
+  //           }
+  //         }
+  //       },
+
+  //       // Stage 3: Unwind allItems
+  //       {
+  //         $unwind: {
+  //           path: '$allItems',
+  //           preserveNullAndEmptyArrays: false
+  //         }
+  //       },
+
+  //       // Stage 4: Lookup menuItem (hanya untuk regular items)
+  //       {
+  //         $lookup: {
+  //           from: 'menuitems',
+  //           let: { itemType: '$allItems.type', menuItemId: '$allItems.menuItem' },
+  //           pipeline: [
+  //             {
+  //               $match: {
+  //                 $expr: {
+  //                   $and: [
+  //                     { $eq: ['$$itemType', 'regular'] },
+  //                     { $eq: ['$_id', '$$menuItemId'] }
+  //                   ]
+  //                 }
+  //               }
+  //             }
+  //           ],
+  //           as: 'menuItemInfo'
+  //         }
+  //       },
+
+  //       // Stage 5: Unwind menuItemInfo
+  //       {
+  //         $unwind: {
+  //           path: '$menuItemInfo',
+  //           preserveNullAndEmptyArrays: true
+  //         }
+  //       },
+
+  //       // Stage 6: Lookup category (hanya untuk regular items)
+  //       {
+  //         $lookup: {
+  //           from: 'categories',
+  //           localField: 'menuItemInfo.category',
+  //           foreignField: '_id',
+  //           as: 'categoryInfo'
+  //         }
+  //       },
+
+  //       // Stage 7: Add computed fields
+  //       {
+  //         $addFields: {
+  //           computedCategory: {
+  //             $cond: [
+  //               // Jika type = custom, langsung "Custom"
+  //               { $eq: ['$allItems.type', 'custom'] },
+  //               'Custom',
+  //               // Jika type = regular, cari kategori dari lookup
+  //               {
+  //                 $cond: [
+  //                   { $gt: [{ $size: { $ifNull: ['$categoryInfo', []] } }, 0] },
+  //                   { $arrayElemAt: ['$categoryInfo.name', 0] },
+  //                   {
+  //                     $cond: [
+  //                       { $eq: [{ $type: '$menuItemInfo.category' }, 'string'] },
+  //                       '$menuItemInfo.category',
+  //                       {
+  //                         $cond: [
+  //                           { $ne: ['$allItems.menuItemData.category', null] },
+  //                           '$allItems.menuItemData.category',
+  //                           'Uncategorized'
+  //                         ]
+  //                       }
+  //                     ]
+  //                   }
+  //                 ]
+  //               }
+  //             ]
+  //           },
+  //           itemQuantity: { $ifNull: ['$allItems.quantity', 0] },
+  //           itemSubtotal: { $ifNull: ['$allItems.subtotal', 0] }
+  //         }
+  //       }
+  //     ];
+
+  //     // Add category search filter if exists
+  //     if (categorySearch) {
+  //       pipeline.push({
+  //         $match: {
+  //           computedCategory: { $regex: categorySearch, $options: 'i' }
+  //         }
+  //       });
+  //     }
+
+  //     // Add grouping and calculation stages
+  //     pipeline.push(
+  //       // Group by category
+  //       {
+  //         $group: {
+  //           _id: '$computedCategory',
+  //           quantity: { $sum: '$itemQuantity' },
+  //           subtotal: { $sum: '$itemSubtotal' }
+  //         }
+  //       },
+
+  //       // Project final structure
+  //       {
+  //         $project: {
+  //           _id: 0,
+  //           category: '$_id',
+  //           quantity: 1,
+  //           subtotal: 1,
+  //           average: {
+  //             $cond: {
+  //               if: { $gt: ['$quantity', 0] },
+  //               then: { $divide: ['$subtotal', '$quantity'] },
+  //               else: 0
+  //             }
+  //           }
+  //         }
+  //       },
+
+  //       // Sort by category
+  //       {
+  //         $sort: { category: 1 }
+  //       }
+  //     );
+
+  //     console.log('Executing aggregation pipeline...');
+
+  //     // Execute pipeline
+  //     const categoryData = await Order.aggregate(pipeline)
+  //       .allowDiskUse(true)
+  //       .exec();
+
+  //     console.log('Category data fetched:', categoryData.length, 'categories');
+  //     console.log('Category data detail:', JSON.stringify(categoryData, null, 2));
+
+  //     // ✅ Grand Total - items.subtotal + customAmountItems.amount
+  //     const grandTotalPipeline = [
+  //       { $match: matchStage },
+  //       {
+  //         $project: {
+  //           allItems: {
+  //             $concatArrays: [
+  //               {
+  //                 $map: {
+  //                   input: { $ifNull: ['$items', []] },
+  //                   as: 'item',
+  //                   in: {
+  //                     quantity: '$$item.quantity',
+  //                     subtotal: '$$item.subtotal'
+  //                   }
+  //                 }
+  //               },
+  //               {
+  //                 $map: {
+  //                   input: { $ifNull: ['$customAmountItems', []] },
+  //                   as: 'custom',
+  //                   in: {
+  //                     quantity: 1,
+  //                     subtotal: '$$custom.amount'
+  //                   }
+  //                 }
+  //               }
+  //             ]
+  //           }
+  //         }
+  //       },
+  //       { $unwind: '$allItems' },
+  //       {
+  //         $group: {
+  //           _id: null,
+  //           totalQuantity: { $sum: { $ifNull: ['$allItems.quantity', 0] } },
+  //           totalSubtotal: { $sum: { $ifNull: ['$allItems.subtotal', 0] } },
+  //           totalItems: { $sum: 1 }
+  //         }
+  //       }
+  //     ];
+
+  //     const grandTotalResult = await Order.aggregate(grandTotalPipeline);
+
+  //     console.log('Grand total result:', JSON.stringify(grandTotalResult, null, 2));
+
+  //     // ✅ DEBUGGING: Cek total dengan field lain
+  //     const debugPipeline = [
+  //       { $match: matchStage },
+  //       {
+  //         $group: {
+  //           _id: null,
+  //           totalBeforeDiscount: { $sum: '$totalBeforeDiscount' },
+  //           totalAfterDiscount: { $sum: '$totalAfterDiscount' },
+  //           totalTax: { $sum: '$totalTax' },
+  //           grandTotal: { $sum: '$grandTotal' },
+  //           itemsSubtotal: { $sum: { $sum: '$items.subtotal' } },
+  //           customAmountTotal: {
+  //             $sum: {
+  //               $sum: {
+  //                 $map: {
+  //                   input: { $ifNull: ['$customAmountItems', []] },
+  //                   as: 'custom',
+  //                   in: '$$custom.amount'
+  //                 }
+  //               }
+  //             }
+  //           }
+  //         }
+  //       }
+  //     ];
+
+  //     const debugResult = await Order.aggregate(debugPipeline);
+  //     console.log('🔍 DEBUG - Comparison:', JSON.stringify(debugResult, null, 2));
+
+  //     // Count unique orders
+  //     const orderCountResult = await Order.countDocuments(matchStage);
+
+  //     const grandTotal = grandTotalResult.length > 0 ? {
+  //       quantity: grandTotalResult[0].totalQuantity || 0,
+  //       subtotal: grandTotalResult[0].totalSubtotal || 0,
+  //       average: grandTotalResult[0].totalQuantity > 0
+  //         ? grandTotalResult[0].totalSubtotal / grandTotalResult[0].totalQuantity
+  //         : 0
+  //     } : {
+  //       quantity: 0,
+  //       subtotal: 0,
+  //       average: 0
+  //     };
+
+  //     // Response
+  //     const response = {
+  //       success: true,
+  //       data: categoryData,
+  //       grandTotal: grandTotal,
+  //       debug: debugResult.length > 0 ? debugResult[0] : null,
+  //       metadata: {
+  //         filters: {
+  //           outlet: req.query.outlet || 'all',
+  //           dateRange: req.query.startDate && req.query.endDate
+  //             ? `${req.query.startDate} to ${req.query.endDate}`
+  //             : 'all',
+  //           category: categorySearch || 'all'
+  //         },
+  //         totalOrders: orderCountResult,
+  //         totalCategories: categoryData.length,
+  //         processedAt: new Date().toISOString()
+  //       }
+  //     };
+
+  //     res.status(200).json(response);
+
+  //   } catch (error) {
+  //     console.error('Get category sales report error:', error);
+  //     console.error('Error stack:', error.stack);
+
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to fetch category sales report',
+  //       error: error.message,
+  //       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  //     });
+  //   }
+  // }
+
   async getCategorySalesReport(req, res) {
     try {
       const categorySearch = req.query.category || '';
@@ -2663,8 +3008,6 @@ class DailyProfitController {
           matchStage.createdAt.$lte = endDate;
         }
       }
-
-      console.log('Match Stage:', JSON.stringify(matchStage, null, 2));
 
       // ✅ Pipeline untuk items regular + customAmountItems
       const pipeline = [
@@ -2789,6 +3132,22 @@ class DailyProfitController {
                 }
               ]
             },
+            // ✅ Tambahkan categoryType
+            categoryType: {
+              $cond: [
+                // Jika type = custom, type-nya null
+                { $eq: ['$allItems.type', 'custom'] },
+                null,
+                // Jika type = regular, ambil type dari category
+                {
+                  $cond: [
+                    { $gt: [{ $size: { $ifNull: ['$categoryInfo', []] } }, 0] },
+                    { $arrayElemAt: ['$categoryInfo.type', 0] },
+                    null
+                  ]
+                }
+              ]
+            },
             itemQuantity: { $ifNull: ['$allItems.quantity', 0] },
             itemSubtotal: { $ifNull: ['$allItems.subtotal', 0] }
           }
@@ -2806,10 +3165,13 @@ class DailyProfitController {
 
       // Add grouping and calculation stages
       pipeline.push(
-        // Group by category
+        // Group by category and categoryType
         {
           $group: {
-            _id: '$computedCategory',
+            _id: {
+              category: '$computedCategory',
+              type: '$categoryType'
+            },
             quantity: { $sum: '$itemQuantity' },
             subtotal: { $sum: '$itemSubtotal' }
           }
@@ -2819,7 +3181,8 @@ class DailyProfitController {
         {
           $project: {
             _id: 0,
-            category: '$_id',
+            category: '$_id.category',
+            type: '$_id.type',
             quantity: 1,
             subtotal: 1,
             average: {
@@ -2844,9 +3207,6 @@ class DailyProfitController {
       const categoryData = await Order.aggregate(pipeline)
         .allowDiskUse(true)
         .exec();
-
-      console.log('Category data fetched:', categoryData.length, 'categories');
-      console.log('Category data detail:', JSON.stringify(categoryData, null, 2));
 
       // ✅ Grand Total - items.subtotal + customAmountItems.amount
       const grandTotalPipeline = [
@@ -2892,8 +3252,6 @@ class DailyProfitController {
 
       const grandTotalResult = await Order.aggregate(grandTotalPipeline);
 
-      console.log('Grand total result:', JSON.stringify(grandTotalResult, null, 2));
-
       // ✅ DEBUGGING: Cek total dengan field lain
       const debugPipeline = [
         { $match: matchStage },
@@ -2921,8 +3279,6 @@ class DailyProfitController {
       ];
 
       const debugResult = await Order.aggregate(debugPipeline);
-      console.log('🔍 DEBUG - Comparison:', JSON.stringify(debugResult, null, 2));
-
       // Count unique orders
       const orderCountResult = await Order.countDocuments(matchStage);
 

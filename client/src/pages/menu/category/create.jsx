@@ -53,7 +53,7 @@ const AddCategory = () => {
   const categoryOptions = [
     { value: 'food', label: 'Food' },
     { value: 'beverage', label: 'Beverage' },
-    { value: 'instan', label: 'Instan' },
+    // { value: 'instan', label: 'Instan' },
     { value: 'event', label: 'Event' }
   ];
 
@@ -103,13 +103,6 @@ const AddCategory = () => {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <button
-            onClick={() => navigate('/admin/menu?menu=category')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4 group"
-          >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            <span className="font-medium">Kembali ke Daftar Kategori</span>
-          </button>
 
           <h1 className="text-3xl font-bold text-gray-900">Tambah Kategori Baru</h1>
           <p className="mt-2 text-gray-600">Isi formulir di bawah untuk menambahkan kategori baru ke sistem</p>

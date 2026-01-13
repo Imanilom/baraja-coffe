@@ -21,7 +21,7 @@ export async function createOrderHandler({
   paymentDetails,
   appliedPromos = [],
   session: externalSession = null, // ✅ Accept external session
-  idempotencyKey = null // ✅ Accept idempotencyKey
+  idempotencyKey // ✅ Accept idempotencyKey (defaults to undefined)
 }) {
   let session = externalSession;
 
@@ -220,7 +220,7 @@ async function createOrderWithSimpleTransaction({
   paymentDetails,
   appliedPromos = [],  // ✅ RENAME parameter
   useTransaction,
-  idempotencyKey = null // ✅ Accept idempotencyKey
+  idempotencyKey // ✅ Accept idempotencyKey (defaults to undefined)
 }) {
   console.log('Order Handler - Starting Order Creation:', {
     orderId,
@@ -479,7 +479,7 @@ async function createOrderWithSimpleTransaction({
       },
       createdAt: new Date(),
       updatedAt: new Date(),
-      idempotencyKey, // ✅ Save idempotencyKey
+      ...(idempotencyKey ? { idempotencyKey } : {}), // ✅ Save idempotencyKey only if present
     };
 
     // Tambahkan customer data jika ada

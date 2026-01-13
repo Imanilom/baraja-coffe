@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import Select from 'react-select';
 import { ArrowLeft, Save, AlertCircle, Loader2 } from 'lucide-react';
+import EditCategorySkeleton from './component/skeleton/editCategorySkeleton';
 
 const UpdateCategory = () => {
     const customSelectStyles = {
@@ -55,7 +56,7 @@ const UpdateCategory = () => {
     const categoryOptions = [
         { value: 'food', label: 'Food' },
         { value: 'beverage', label: 'Beverage' },
-        { value: 'instan', label: 'Instan' },
+        // { value: 'instan', label: 'Instan' },
         { value: 'event', label: 'Event' }
     ];
 
@@ -186,16 +187,7 @@ const UpdateCategory = () => {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <Loader2 className="w-12 h-12 animate-spin text-green-900 mx-auto mb-4" />
-                    <p className="text-gray-600">Memuat data kategori...</p>
-                </div>
-            </div>
-        );
-    }
+    if (loading) return <EditCategorySkeleton />
 
     // ✅ Error state yang lebih baik
     if (error && !name) {
@@ -231,13 +223,6 @@ const UpdateCategory = () => {
             <div className="max-w-3xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
-                    <button
-                        onClick={() => navigate('/admin/menu?menu=category')}
-                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4 group"
-                    >
-                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                        <span className="font-medium">Kembali ke Daftar Kategori</span>
-                    </button>
 
                     <h1 className="text-3xl font-bold text-gray-900">Edit Kategori</h1>
                     <p className="mt-2 text-gray-600">Perbarui informasi kategori yang sudah ada</p>

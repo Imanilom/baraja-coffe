@@ -1,15 +1,21 @@
 import React, { useState } from "react";
 import { handleDownloadPDF } from "../../../utils/pdfHelper";
 
-const PdfButton = ({ targetId, fileName }) => {
+const PdfButton = ({ transactionData, formatDateTime, formatCurrency, fileName }) => {
     const [loading, setLoading] = useState(false);
 
     const handleClick = async () => {
-        setLoading(true); // mulai loading
-        await handleDownloadPDF(targetId, fileName);
-        setTimeout(() => {
-            setLoading(false);
-        }, 15000); // tahan 2 detik
+        setLoading(true);
+        try {
+            await handleDownloadPDF(transactionData, formatDateTime, formatCurrency, fileName);
+        } catch (error) {
+            console.error("Error generating PDF:", error);
+            alert("Gagal membuat PDF. Silakan coba lagi.");
+        } finally {
+            setTimeout(() => {
+                setLoading(false);
+            }, 1000);
+        }
     };
 
     return (

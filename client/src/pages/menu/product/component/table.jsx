@@ -3,7 +3,7 @@ import { FaPencilAlt, FaReceipt, FaTrashAlt } from "react-icons/fa";
 import Select from "react-select";
 import CategoryTabs from "./categorytabs";
 import { Link, useLocation } from "react-router-dom";
-import MenuSkeleton from "../../skeleton";
+import MenuSkeleton from "./skeleton";
 import ConfirmationModalActive from "../dialog/confirmationModalAction";
 import axios from "axios";
 import Paginated from "../../../../components/paginated";

@@ -273,102 +273,235 @@ const redis = new IORedis({
 //   enableReadyCheck: false
 // });
 
+// export const getMenuItemsBackOffice = async (req, res) => {
+//   try {
+//     // Ambil semua menu items
+//     const menuItems = await MenuItem.find()
+//       .populate([
+//         { path: "toppings" },
+//         { path: "availableAt" },
+//         {
+//           path: "addons",
+//           populate: { path: "options" },
+//         },
+//         {
+//           path: "category",
+//           select: "name",
+//         },
+//         {
+//           path: "subCategory",
+//           select: "name",
+//         },
+//       ])
+//       .sort({ name: 1 });
+
+//     // Ambil semua rating aktif
+//     const ratings = await MenuRating.find({ isActive: true });
+
+//     const ratingMap = {};
+//     ratings.forEach((rating) => {
+//       const menuId = rating.menuItemId.toString();
+//       if (!ratingMap[menuId]) ratingMap[menuId] = [];
+//       ratingMap[menuId].push(rating.rating);
+//     });
+
+//     const formattedMenuItems = menuItems.map((item) => {
+//       const itemId = item._id.toString();
+//       const itemRatings = ratingMap[itemId] || [];
+
+//       const averageRating =
+//         itemRatings.length > 0
+//           ? Math.round(
+//             (itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) *
+//             10
+//           ) / 10
+//           : null;
+
+//       const reviewCount = itemRatings.length;
+
+//       return {
+//         id: item._id,
+//         name: item.name,
+//         mainCategory: item.mainCategory,
+//         category: item.category
+//           ? { id: item.category._id, name: item.category.name }
+//           : null,
+//         subCategory: item.subCategory
+//           ? { id: item.subCategory._id, name: item.subCategory.name }
+//           : null,
+//         imageUrl: item.imageURL,
+//         originalPrice: item.price,
+//         discountedPrice: item.discountedPrice || item.price,
+//         description: item.description,
+//         discountPercentage: item.discount ? `${item.discount}%` : null,
+//         averageRating,
+//         reviewCount,
+//         toppings: item.toppings.map((topping) => ({
+//           id: topping._id,
+//           name: topping.name,
+//           price: topping.price,
+//         })),
+//         addons: item.addons.map((addon) => ({
+//           id: addon._id,
+//           name: addon.name,
+//           options: addon.options.map((opt) => ({
+//             id: opt._id,
+//             label: opt.label,
+//             price: opt.price,
+//             isDefault: opt.isDefault,
+//           })),
+//         })),
+//         availableAt: item.availableAt,
+//         workstation: item.workstation,
+//         isActive: item.isActive,
+//       };
+//     });
+
+//     const responsePayload = {
+//       success: true,
+//       data: formattedMenuItems,
+//     };
+
+//     return res.status(200).json(responsePayload);
+//   } catch (error) {
+//     console.error("❌ Error fetching menu items:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch menu items.",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getMenuItemsBackOffice = async (req, res) => {
   try {
-    // Ambil semua menu items
-    const menuItems = await MenuItem.find()
-      .populate([
-        { path: "toppings" },
-        { path: "availableAt" },
-        {
-          path: "addons",
-          populate: { path: "options" },
-        },
-        {
-          path: "category",
-          select: "name",
-        },
-        {
-          path: "subCategory",
-          select: "name",
-        },
-      ])
-      .sort({ name: 1 });
+    const menuItems = await MenuItem.aggregate([
+      {
+        $lookup: {
+          from: "menuratings",
+          let: { menuId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$menuItemId", "$$menuId"] },
+                    { $eq: ["$isActive", true] }
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                avgRating: { $avg: "$rating" },
+                count: { $sum: 1 }
+              }
+            }
+          ],
+          as: "ratingData"
+        }
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "categoryData"
+        }
+      },
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subCategory",
+          foreignField: "_id",
+          as: "subCategoryData"
+        }
+      },
+      {
+        $lookup: {
+          from: "outlets",
+          localField: "availableAt",
+          foreignField: "_id",
+          as: "outletData"
+        }
+      },
+      {
+        $project: {
+          id: "$_id",
+          name: 1,
+          mainCategory: 1,
+          category: {
+            $cond: {
+              if: { $gt: [{ $size: "$categoryData" }, 0] },
+              then: {
+                id: { $arrayElemAt: ["$categoryData._id", 0] },
+                name: { $arrayElemAt: ["$categoryData.name", 0] }
+              },
+              else: null
+            }
+          },
+          subCategory: {
+            $cond: {
+              if: { $gt: [{ $size: "$subCategoryData" }, 0] },
+              then: {
+                id: { $arrayElemAt: ["$subCategoryData._id", 0] },
+                name: { $arrayElemAt: ["$subCategoryData.name", 0] }
+              },
+              else: null
+            }
+          },
+          imageUrl: "$imageURL",
+          originalPrice: "$price",
+          discountedPrice: { $ifNull: ["$discountedPrice", "$price"] },
+          description: 1,
+          discountPercentage: {
+            $cond: {
+              if: "$discount",
+              then: { $concat: [{ $toString: "$discount" }, "%"] },
+              else: null
+            }
+          },
+          averageRating: {
+            $cond: {
+              if: { $gt: [{ $size: "$ratingData" }, 0] },
+              then: {
+                $round: [
+                  { $arrayElemAt: ["$ratingData.avgRating", 0] },
+                  1
+                ]
+              },
+              else: null
+            }
+          },
+          reviewCount: {
+            $cond: {
+              if: { $gt: [{ $size: "$ratingData" }, 0] },
+              then: { $arrayElemAt: ["$ratingData.count", 0] },
+              else: 0
+            }
+          },
+          availableAt: "$outletData",
+          workstation: 1,
+          isActive: 1,
+          _id: 0
+        }
+      },
+      {
+        $sort: { name: 1 }
+      }
+    ]);
 
-    // Ambil semua rating aktif
-    const ratings = await MenuRating.find({ isActive: true });
-
-    const ratingMap = {};
-    ratings.forEach((rating) => {
-      const menuId = rating.menuItemId.toString();
-      if (!ratingMap[menuId]) ratingMap[menuId] = [];
-      ratingMap[menuId].push(rating.rating);
-    });
-
-    const formattedMenuItems = menuItems.map((item) => {
-      const itemId = item._id.toString();
-      const itemRatings = ratingMap[itemId] || [];
-
-      const averageRating =
-        itemRatings.length > 0
-          ? Math.round(
-            (itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) *
-            10
-          ) / 10
-          : null;
-
-      const reviewCount = itemRatings.length;
-
-      return {
-        id: item._id,
-        name: item.name,
-        mainCategory: item.mainCategory,
-        category: item.category
-          ? { id: item.category._id, name: item.category.name }
-          : null,
-        subCategory: item.subCategory
-          ? { id: item.subCategory._id, name: item.subCategory.name }
-          : null,
-        imageUrl: item.imageURL,
-        originalPrice: item.price,
-        discountedPrice: item.discountedPrice || item.price,
-        description: item.description,
-        discountPercentage: item.discount ? `${item.discount}%` : null,
-        averageRating,
-        reviewCount,
-        toppings: item.toppings.map((topping) => ({
-          id: topping._id,
-          name: topping.name,
-          price: topping.price,
-        })),
-        addons: item.addons.map((addon) => ({
-          id: addon._id,
-          name: addon.name,
-          options: addon.options.map((opt) => ({
-            id: opt._id,
-            label: opt.label,
-            price: opt.price,
-            isDefault: opt.isDefault,
-          })),
-        })),
-        availableAt: item.availableAt,
-        workstation: item.workstation,
-        isActive: item.isActive,
-      };
-    });
-
-    const responsePayload = {
+    return res.status(200).json({
       success: true,
-      data: formattedMenuItems,
-    };
-
-    return res.status(200).json(responsePayload);
+      data: menuItems
+    });
   } catch (error) {
     console.error("❌ Error fetching menu items:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch menu items.",
-      error: error.message,
+      error: error.message
     });
   }
 };

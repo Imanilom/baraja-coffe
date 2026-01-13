@@ -662,11 +662,17 @@ export const createAppOrder = async (req, res) => {
                     console.log(`   ${idx + 1}. ${ca.name}: Rp ${ca.amount}`);
                 });
             }
+            // ✅ AUTO OPEN BILL: GRO orders are always open bill
+            const effectiveIsOpenBill = isGroMode ? true : isOpenBill;
+            if (isGroMode && !isOpenBill) {
+                console.log('📋 [GRO AUTO OPEN BILL] Forcing isOpenBill=true for GRO order');
+            }
+
             // VALIDATION
             const shouldSkipItemValidation =
-                (orderType === 'reservation' && !isOpenBill) ||
-                (orderType === 'reservation' && isOpenBill) ||
-                isOpenBill;
+                (orderType === 'reservation' && !effectiveIsOpenBill) ||
+                (orderType === 'reservation' && effectiveIsOpenBill) ||
+                effectiveIsOpenBill;
             if ((!items || items.length === 0) &&
                 (!customAmountItems || customAmountItems.length === 0) &&
                 !shouldSkipItemValidation) {
@@ -675,7 +681,7 @@ export const createAppOrder = async (req, res) => {
                     message: 'Order must contain at least one item or custom amount'
                 });
             }
-            if (!isOpenBill && !orderType) {
+            if (!effectiveIsOpenBill && !orderType) {
                 return res.status(400).json({ success: false, message: 'Order type is required' });
             }
             if (!paymentDetails?.method) {
@@ -737,7 +743,7 @@ export const createAppOrder = async (req, res) => {
             // ✅ FIXED: OPEN BILL HANDLING - Added search by Order._id
             let existingOrder = null;
             let existingReservation = null;
-            if (isOpenBill && openBillData) {
+            if (effectiveIsOpenBill && openBillData) {
                 console.log('🔍 Open Bill Search - reservationId:', openBillData.reservationId);
                 console.log('🔍 Open Bill Search - tableNumbers:', openBillData.tableNumbers);
                 // ✅ FIX: Added 4 search strategies including Order._id search
@@ -834,7 +840,7 @@ export const createAppOrder = async (req, res) => {
             // ORDER STATUS
             let orderStatus = 'Pending';
             if (isGroMode) {
-                if (isOpenBill) {
+                if (effectiveIsOpenBill) {
                     orderStatus = existingOrder ? existingOrder.status : 'OnProcess';
                 } else if (orderType === 'reservation') {
                     orderStatus = 'Reserved';
@@ -994,7 +1000,7 @@ export const createAppOrder = async (req, res) => {
             console.log(`   totalBeforeDiscount: ${totalBeforeDiscount}`);
             console.log(`   totalAfterDiscount: ${totalAfterDiscount}`);
 
-            if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0 && processedCustomAmounts.length === 0) {
+            if (orderType === 'reservation' && !effectiveIsOpenBill && orderItems.length === 0 && processedCustomAmounts.length === 0) {
                 totalBeforeDiscount = 25000;
                 totalAfterDiscount = 25000;
             }
@@ -1009,7 +1015,7 @@ export const createAppOrder = async (req, res) => {
                         totalAfterDiscount,  // ✅ Tax on discounted price
                         outlet || "67cbc9560f025d897d69f889",
                         orderType === 'reservation',
-                        isOpenBill
+                        effectiveIsOpenBill
                     );
                 } else {
                     console.log('ℹ️ Tax explicitly disabled by frontend (GRO toggle) in Optimized Controller');
@@ -1026,7 +1032,7 @@ export const createAppOrder = async (req, res) => {
             const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
             let newOrder;
             // ORDER CREATION - OPEN BILL FLOW
-            if (isOpenBill && existingOrder) {
+            if (effectiveIsOpenBill && existingOrder) {
                 console.log('📝 Adding items to existing open bill order:', existingOrder.order_id);
                 if (orderItems.length > 0) {
                     existingOrder.items.push(...orderItems);
@@ -1120,7 +1126,7 @@ export const createAppOrder = async (req, res) => {
                     source: isGroMode ? 'Gro' : 'App',
                     reservation: null,
                     // ✅ FIXED: Pass isOpenBill as-is (allow undefined) so Mongoose model default logic works for Dine-In/Reservation
-                    isOpenBill: isOpenBill,
+                    isOpenBill: effectiveIsOpenBill,
                     created_by: createdByData,
                 });
                 try {
@@ -1144,8 +1150,12 @@ export const createAppOrder = async (req, res) => {
                 duration: `${Date.now() - startTime}ms`
             });
             // RESERVATION CREATION
+            // Create reservation for:
+            // 1. Non-open bill reservation orders (customer flow)
+            // 2. GRO reservation orders when creating NEW order (not adding to existing)
             let reservationRecord = null;
-            if (orderType === 'reservation' && !isOpenBill) {
+            const isNewGroReservation = isGroMode && orderType === 'reservation' && !existingOrder;
+            if (orderType === 'reservation' && (!effectiveIsOpenBill || isNewGroReservation)) {
                 try {
                     let parsedReservationDate;
                     if (reservationData.reservationDate) {
@@ -1222,10 +1232,10 @@ export const createAppOrder = async (req, res) => {
             // RESPONSE
             const responseData = {
                 success: true,
-                message: isOpenBill ? 'Items added to existing order successfully' : `${orderType === 'reservation' ? 'Reservation' : 'Order'} created successfully`,
+                message: effectiveIsOpenBill ? 'Items added to existing order successfully' : `${orderType === 'reservation' ? 'Reservation' : 'Order'} created successfully`,
                 order: newOrder,
-                isOpenBill: isOpenBill || false,
-                existingReservation: isOpenBill ? existingReservation : null,
+                isOpenBill: effectiveIsOpenBill || false,
+                existingReservation: effectiveIsOpenBill ? existingReservation : null,
                 stockDeductions: stockDeductions.map(d => ({
                     menuItemName: d.menuItemName,
                     deductedQty: d.deductedQty,
@@ -1280,7 +1290,7 @@ export const createAppOrder = async (req, res) => {
                 createdAt: newOrder.createdAt,
                 updatedAt: newOrder.updatedAt,
                 __v: newOrder.__v,
-                isOpenBill: isOpenBill || false
+                isOpenBill: effectiveIsOpenBill || false
             };
             // ✅ LOG ORDER CREATION SUCCESS
             console.log(`\n✅ ========== ORDER CREATED ==========`);
@@ -1292,14 +1302,14 @@ export const createAppOrder = async (req, res) => {
             console.log(`📱 Source: ${newOrder.source}`);
             console.log(`🔖 Status: ${newOrder.status}`);
             console.log(`💳 Payment: ${newOrder.paymentMethod}`);
-            if (isOpenBill) {
+            if (effectiveIsOpenBill) {
                 console.log(`📝 Type: Open Bill (items added to existing order)`);
             } else if (reservationRecord) {
                 console.log(`📅 Type: Reservation`);
             }
             console.log(`=====================================\n`);
             // SOCKET.IO NOTIFICATION
-            if (isOpenBill) {
+            if (effectiveIsOpenBill) {
                 io.to('cashier_room').emit('open_bill_order', {
                     mappedOrders,
                     originalReservation: existingReservation,
@@ -1324,7 +1334,7 @@ export const createAppOrder = async (req, res) => {
                     customerName: finalUserName,
                     isReservation: orderType === 'reservation',
                     service: newOrder.type || 'Dine-In',
-                    isOpenBill: isOpenBill || false
+                    isOpenBill: effectiveIsOpenBill || false
                 });
             }
 

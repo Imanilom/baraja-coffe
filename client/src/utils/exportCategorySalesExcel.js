@@ -37,6 +37,7 @@ export const exportCategorySalesExcel = async ({
     // =====================
     const columns = [
         "Kategori",
+        "Tipe",
         "Qty Terjual",
         "Penjualan Bersih",
         "Rata-rata"
@@ -70,6 +71,7 @@ export const exportCategorySalesExcel = async ({
 
         const rowData = [
             item.category || "-",
+            item.type,
             item.quantity,
             item.subtotal,
             average
@@ -102,6 +104,7 @@ export const exportCategorySalesExcel = async ({
 
     const grandRow = [
         "GRAND TOTAL",
+        "",
         grandTotal.quantity,
         grandTotal.subtotal,
         grandAverage

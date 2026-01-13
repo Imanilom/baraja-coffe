@@ -62,8 +62,8 @@ router.post('/categories', adminAccess, createCategory); // Create a new categor
 router.get('/categories', getCategories); // Get all categories
 router.get('/categories/filter', filterMenuByCategory); // Filter menu items by category
 router.get('/categories/:id', getCategoryById); // Get category by ID
-router.put('/categories/:id', updateCategory); // Update a category
-router.delete('/categories/:id', deleteCategory); // Delete a 
+router.put('/categories/:id', adminAccess, updateCategory); // Update a category
+router.delete('/categories/:id', adminAccess, deleteCategory); // Delete a category
 
 // Get stock for specific menu item
 router.get('/:menuItemId/stock', menuStockController.getMenuItemStock);
