@@ -176,13 +176,18 @@ pub async fn get_dashboard_data(
     let order_coll = db.collection::<Document>("orders");
 
     // Parse dates
-    let start_dt = Jakarta
-        .datetime_from_str(&format!("{} 00:00:00", query.start_date), "%Y-%m-%d %H:%M:%S")
+    let start_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 00:00:00", query.start_date), "%Y-%m-%d %H:%M:%S")
         .map_err(|_| AppError::BadRequest("Invalid start date format".into()))?;
-    
-    let end_dt = Jakarta
-        .datetime_from_str(&format!("{} 23:59:59.999", query.end_date), "%Y-%m-%d %H:%M:%S%.f")
+    let end_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 23:59:59.999", query.end_date), "%Y-%m-%d %H:%M:%S%.f")
         .map_err(|_| AppError::BadRequest("Invalid end date format".into()))?;
+
+    use chrono::TimeZone;
+    let start_dt = Jakarta.from_local_datetime(&start_naive)
+        .earliest()
+        .ok_or_else(|| AppError::BadRequest("Invalid start date format or timezone conversion failed".into()))?;
+    let end_dt = Jakarta.from_local_datetime(&end_naive)
+        .latest()
+        .ok_or_else(|| AppError::BadRequest("Invalid end date format or timezone conversion failed".into()))?;
 
     // Date range logic for previous period
     let diff = end_dt.signed_duration_since(start_dt);
@@ -491,13 +496,18 @@ pub async fn get_quick_stats(
     let order_coll = db.collection::<Document>("orders");
 
      // Parse dates
-    let start_dt = Jakarta
-        .datetime_from_str(&format!("{} 00:00:00", query.start_date), "%Y-%m-%d %H:%M:%S")
+    let start_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 00:00:00", query.start_date), "%Y-%m-%d %H:%M:%S")
         .map_err(|_| AppError::BadRequest("Invalid start date format".into()))?;
-    
-    let end_dt = Jakarta
-        .datetime_from_str(&format!("{} 23:59:59.999", query.end_date), "%Y-%m-%d %H:%M:%S%.f")
+    let end_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 23:59:59.999", query.end_date), "%Y-%m-%d %H:%M:%S%.f")
         .map_err(|_| AppError::BadRequest("Invalid end date format".into()))?;
+
+    use chrono::TimeZone;
+    let start_dt = Jakarta.from_local_datetime(&start_naive)
+        .earliest()
+        .ok_or_else(|| AppError::BadRequest("Invalid start date format or timezone conversion failed".into()))?;
+    let end_dt = Jakarta.from_local_datetime(&end_naive)
+        .latest()
+        .ok_or_else(|| AppError::BadRequest("Invalid end date format or timezone conversion failed".into()))?;
 
     let mut match_filter = doc! {
         "status": "Completed",

@@ -255,10 +255,18 @@ pub async fn get_sales_summary(
     let mut filter = doc! { "status": "Completed" };
 
     if let (Some(start), Some(end)) = (&query.start_date, &query.end_date) {
-        let start_dt = Jakarta.datetime_from_str(&format!("{} 00:00:00", start), "%Y-%m-%d %H:%M:%S")
+        let start_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 00:00:00", start), "%Y-%m-%d %H:%M:%S")
             .map_err(|_| AppError::BadRequest("Invalid start date".into()))?;
-        let end_dt = Jakarta.datetime_from_str(&format!("{} 23:59:59.999", end), "%Y-%m-%d %H:%M:%S%.f")
+        let end_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 23:59:59.999", end), "%Y-%m-%d %H:%M:%S%.f")
             .map_err(|_| AppError::BadRequest("Invalid end date".into()))?;
+        
+        use chrono::TimeZone;
+        let start_dt = Jakarta.from_local_datetime(&start_naive)
+            .earliest()
+            .ok_or_else(|| AppError::BadRequest("Invalid start date format or timezone conversion failed".into()))?;
+        let end_dt = Jakarta.from_local_datetime(&end_naive)
+            .latest()
+            .ok_or_else(|| AppError::BadRequest("Invalid end date format or timezone conversion failed".into()))?;
         
         filter.insert("createdAt", doc! {
             "$gte": start_dt.with_timezone(&Utc),
@@ -537,10 +545,18 @@ pub async fn get_daily_profit(
     let order_coll = db.collection::<Document>("orders");
 
     // Dates
-    let start_dt_local = Jakarta.datetime_from_str(&format!("{} 00:00:00", query.start_date), "%Y-%m-%d %H:%M:%S")
+    let start_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 00:00:00", query.start_date), "%Y-%m-%d %H:%M:%S")
         .map_err(|_| AppError::BadRequest("Invalid start date".into()))?;
-    let end_dt_local = Jakarta.datetime_from_str(&format!("{} 23:59:59.999", query.end_date), "%Y-%m-%d %H:%M:%S%.f")
+    let end_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 23:59:59.999", query.end_date), "%Y-%m-%d %H:%M:%S%.f")
         .map_err(|_| AppError::BadRequest("Invalid end date".into()))?;
+    
+    use chrono::TimeZone;
+    let start_dt_local = Jakarta.from_local_datetime(&start_naive)
+        .earliest()
+        .ok_or_else(|| AppError::BadRequest("Invalid start date format or timezone conversion failed".into()))?;
+    let end_dt_local = Jakarta.from_local_datetime(&end_naive)
+        .latest()
+        .ok_or_else(|| AppError::BadRequest("Invalid end date format or timezone conversion failed".into()))?;
 
     let mut filter = doc! {
         "createdAtWIB": {
@@ -639,7 +655,7 @@ pub async fn get_daily_profit(
              // Add to orders list
              profit_orders.push(ProfitOrder {
                  order_id: doc.get_str("order_id").unwrap_or("").to_string(),
-                 created_at: doc.get_datetime("createdAtWIB").ok().map(|d| d.to_rfc3339()).unwrap_or_default(),
+                 created_at: doc.get_datetime("createdAtWIB").ok().map(|d| d.to_rfc3339_string()).unwrap_or_default(),
                  order_type,
                  payment_method: doc.get_str("paymentMethod").unwrap_or("").to_string(),
                  revenue: grand_total,
@@ -712,8 +728,13 @@ pub async fn get_product_sales_report(
         }
     }
     if let (Some(start), Some(end)) = (&query.start_date, &query.end_date) {
-        let start_dt = Jakarta.datetime_from_str(&format!("{} 00:00:00", start), "%Y-%m-%d %H:%M:%S").unwrap();
-        let end_dt = Jakarta.datetime_from_str(&format!("{} 23:59:59.999", end), "%Y-%m-%d %H:%M:%S%.f").unwrap();
+        let start_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 00:00:00", start), "%Y-%m-%d %H:%M:%S").unwrap();
+        let end_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 23:59:59.999", end), "%Y-%m-%d %H:%M:%S%.f").unwrap();
+        
+        use chrono::TimeZone; // validation trait
+        let start_dt = Jakarta.from_local_datetime(&start_naive).unwrap();
+        let end_dt = Jakarta.from_local_datetime(&end_naive).unwrap();
+        
         filter.insert("createdAt", doc! { "$gte": start_dt.with_timezone(&Utc), "$lte": end_dt.with_timezone(&Utc) });
     }
 
