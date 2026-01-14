@@ -18,6 +18,14 @@ pub mod promo;
 pub mod voucher;
 pub mod payment;
 
+// HR modules
+pub mod hr_company;
+pub mod hr_employee;
+pub mod hr_attendance;
+pub mod hr_salary;
+pub mod hr_setting;
+pub mod hr_fingerprint;
+
 pub use user::{User, UserResponse, AuthType};
 pub use role::{Role, Permission};
 pub use category::Category;
@@ -37,3 +45,16 @@ pub use marketlist::{MarketList, MarketListItem, MarketListPurpose, Payment as M
 pub use payment::Payment as OrderPayment;
 pub use request::{Request, RequestItem, RequestStatus, FulfillmentStatus, RequestType, RequestItemStatus};
 pub use order::{Order, OrderItem, SplitPayment, CustomAmountItem, MenuItemData, VaNumber, PaymentAction};
+
+// HR exports
+pub use hr_company::{Company, CompanySettings, AttendanceSettings as CompanyAttendanceSettings, 
+                     SalaryCalculationSettings as CompanySalarySettings, BpjsSettings as CompanyBpjsSettings,
+                     DeductionSettings as CompanyDeductionSettings};
+pub use hr_employee::{Employee, EmploymentStatus, EmploymentType, Allowances, 
+                      Deductions as EmployeeDeductions, BankAccount};
+pub use hr_attendance::{Attendance, AttendanceStatus, CheckType, CheckInfo, ApprovalInfo, ApprovalStatus};
+pub use hr_salary::{Salary, SalaryStatus, PaymentMethod, SalaryPeriod, AttendanceSummary, 
+                    Earnings, SalaryDeductions, CalculationRates};
+pub use hr_setting::{HRSetting, AttendanceSettings, SalaryCalculationSettings, 
+                     BpjsSettings, DeductionSettings};
+pub use hr_fingerprint::{Fingerprint, RawFingerprint};
