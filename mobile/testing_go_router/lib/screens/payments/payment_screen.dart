@@ -18,6 +18,7 @@ import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/services/order_service.dart'; // ✅ NEW
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart'; // ✅ NEW
+import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/services/printer_service.dart'; // ✅ NEW
 
 // Provider tipe pembayaran yang sudah kamu punya
@@ -670,11 +671,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           _submitStatus = SubmitStatus.success;
         });
 
-        // Close loading dialog
-        if (mounted) Navigator.pop(context);
-
         // Refresh pending orders
         ref.invalidate(pendingOrderProvider);
+        ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
 
         // ✅ FIXED: Build payment details manually from submitted data
         // Convert paymentDetails to Payment models
@@ -768,8 +767,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           );
         }
 
-        // Navigate to success screen
         if (mounted) {
+          // Close loading dialog
+          Navigator.pop(context);
+          // Navigate to success screen
           context.goNamed(
             'payment-success',
             extra: {
