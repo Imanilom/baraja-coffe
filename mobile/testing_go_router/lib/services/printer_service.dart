@@ -1869,14 +1869,15 @@ class PrinterService {
     // 2. Siapkan konten
     final List<int> bytes = [];
 
-    // Header
+    // Header - Payment Status
+    // ✅ FIXED: Check order status for more accurate paid/unpaid determination
+    final bool isPaid =
+        orderDetail.status == 'Completed' ||
+        (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
+
     bytes.addAll(
       generator.text(
-        orderDetail.paymentStatus == null
-            ? 'Pending'
-            : orderDetail.paymentStatus!.toLowerCase() == 'settlement'
-            ? 'Lunas'
-            : 'Belum Lunas',
+        isPaid ? 'Lunas' : 'Belum Lunas',
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
@@ -2023,9 +2024,10 @@ class PrinterService {
   ) async {
     final List<int> bytes = [];
     // Footer
+    // ✅ FIXED: Check order status for more accurate paid/unpaid determination
     final bool isLunas =
-        orderDetail.paymentStatus != null &&
-        orderDetail.paymentStatus!.toLowerCase() == 'settlement';
+        orderDetail.status == 'Completed' ||
+        (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
 
     bytes.addAll(
       generator.text(
