@@ -3,6 +3,9 @@ use axum::{
     Router,
     middleware,
 };
+
+pub mod hr;
+pub use hr::hr_routes;
 use std::sync::Arc;
 
 use crate::error::ApiResponse;
@@ -99,6 +102,13 @@ fn order_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .with_state(state)
 }
 
+/// Create webhook routes
+fn webhook_routes() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/midtrans", post(handlers::webhook::midtrans_webhook))
+        .route("/gosend", post(handlers::webhook::gosend_webhook))
+}
+
 /// Create application routes
 pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
@@ -112,4 +122,6 @@ pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .nest("/api/products", product_routes())
         .nest("/api/suppliers", supplier_routes())
         .nest("/api/marketlist", marketlist_routes(state.clone()))
+        .nest("/api/hr", hr::hr_routes(state.clone()))
+        .nest("/api/webhook", webhook_routes())
 }

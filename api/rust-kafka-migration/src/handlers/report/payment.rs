@@ -65,7 +65,7 @@ pub struct ReportPeriod {
     pub include_tax: bool,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Debug, serde::Serialize, Clone, Default)]
 pub struct ReportSummary {
     #[serde(rename = "totalRevenue")]
     pub total_revenue: f64,
@@ -207,13 +207,18 @@ pub async fn generate_sales_report(
     let should_include_tax = query.include_tax.unwrap_or("true".to_string()) == "true";
 
     // Parse dates
-    let start_dt = Jakarta
-        .datetime_from_str(&format!("{} 00:00:00", query.start_date), "%Y-%m-%d %H:%M:%S")
-        .map_err(|_| AppError::BadRequest("Invalid start date format".into()))?;
-    
-    let end_dt = Jakarta
-        .datetime_from_str(&format!("{} 23:59:59.999", query.end_date), "%Y-%m-%d %H:%M:%S%.f")
-        .map_err(|_| AppError::BadRequest("Invalid end date format".into()))?;
+        let start_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 00:00:00", query.start_date), "%Y-%m-%d %H:%M:%S")
+            .map_err(|_| AppError::BadRequest("Invalid start date format".into()))?;
+        let end_naive = chrono::NaiveDateTime::parse_from_str(&format!("{} 23:59:59.999", query.end_date), "%Y-%m-%d %H:%M:%S%.f")
+            .map_err(|_| AppError::BadRequest("Invalid end date format".into()))?;
+        
+        use chrono::TimeZone;
+        let start_dt = Jakarta.from_local_datetime(&start_naive)
+            .earliest()
+            .ok_or_else(|| AppError::BadRequest("Invalid start date format or timezone conversion failed".into()))?;
+        let end_dt = Jakarta.from_local_datetime(&end_naive)
+            .latest()
+            .ok_or_else(|| AppError::BadRequest("Invalid end date format or timezone conversion failed".into()))?;
 
     if start_dt > end_dt {
          return Err(AppError::BadRequest("Start date cannot be after end date".into()));
@@ -486,7 +491,11 @@ pub async fn generate_sales_report(
         doc! {
             "$project": {
                 "order_id": 1,
-                "grandTotal": if should_include_tax { "$grandTotal" } else { { "$ifNull": ["$totalAfterDiscount", "$grandTotal"] } },
+                "grandTotal": if should_include_tax { 
+                    Bson::String("$grandTotal".to_string()) 
+                } else { 
+                    Bson::Document(doc! { "$ifNull": ["$totalAfterDiscount", "$grandTotal"] }) 
+                },
                 "paymentCount": { "$size": { "$ifNull": ["$payments", []] } },
                 "paymentMethodsCombined": {
                     "$reduce": {
@@ -685,6 +694,11 @@ pub async fn generate_sales_report(
         });
     }
 
+    // Extract values we need before moving summary
+    let total_split_orders = summary.split_payment_orders;
+    let total_orders = summary.total_orders;
+    let raw_data_count = summary.total_transactions;
+
     Ok(Json(PaymentReportResponse {
         success: true,
         data: PaymentReportData {
@@ -698,16 +712,17 @@ pub async fn generate_sales_report(
              summary,
              payment_methods,
              split_payment_analysis: SplitPaymentAnalysis {
-                 total_split_orders: summary.split_payment_orders,
-                 total_orders: summary.total_orders,
-                 percentage_of_total_orders: if summary.total_orders > 0 { (summary.split_payment_orders as f64 / summary.total_orders as f64) * 100.0 } else { 0.0 },
+                 total_split_orders,
+                 total_orders,
+                 percentage_of_total_orders: if total_orders > 0 { (total_split_orders as f64 / total_orders as f64) * 100.0 } else { 0.0 },
                  method_combinations: combinations,
              },
              item_sales,
              period_breakdown,
-             raw_data_count: summary.total_transactions,
+             raw_data_count,
         }
     }))
+
 }
 
 // Helper to process period breakdown which requires manual processing of paymentMethods array

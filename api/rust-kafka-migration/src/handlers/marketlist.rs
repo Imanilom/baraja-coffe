@@ -44,10 +44,16 @@ pub async fn get_requests(
     // ... add more filter logic as needed ...
 
     let limit = filter.limit.unwrap_or(50);
-    let _skip = (filter.page.unwrap_or(1).saturating_sub(1)) * limit as u64;
+    let skip = (filter.page.unwrap_or(1).saturating_sub(1)) * limit as u64;
+
+    let options = mongodb::options::FindOptions::builder()
+        .skip(skip)
+        .limit(limit)
+        .sort(doc! { "createdAt": -1 })
+        .build();
 
     let requests = state.db.collection::<Request>("requests")
-        .find(db_filter, None).await?;
+        .find(db_filter, options).await?;
     
     use futures::stream::TryStreamExt;
     let results: Vec<Request> = requests.try_collect().await?;
