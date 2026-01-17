@@ -1446,6 +1446,7 @@ class DailyProfitController {
               select: 'name'
             }
           })
+          .populate('reservation')
           .populate('outlet')
           .populate({
             path: 'user_id',
@@ -1606,6 +1607,7 @@ class DailyProfitController {
           user_id: order.user_id || null,
           cashierId: order.cashierId || null,
           groId: order.groId || null,
+          payments: relatedPayments, // Include all payments
           paymentDetails: paymentDetails || null,
           actualPaymentMethod
         };

@@ -120,8 +120,11 @@ const SalesTransactionTable = ({
                                 <th className="px-4 py-3 font-semibold w-1/12">ID Struk</th>
                                 <th className="px-4 py-3 font-semibold w-3/12">Produk</th>
                                 <th className="px-4 py-3 font-semibold w-1/12">Tipe Penjualan</th>
-                                <th className="px-4 py-3 font-semibold w-2/12">Metode Pembayaran</th>
-                                <th className="px-4 py-3 font-semibold w-2/12 text-right">Total</th>
+                                <th className="px-4 py-3 font-semibold w-1/12">Metode Pembayaran</th>
+                                <th className="px-4 py-3 font-semibold w-1/12 text-right">DP</th>
+                                <th className="px-4 py-3 font-semibold w-1/12 text-right">Pelunasan</th>
+                                <th className="px-4 py-3 font-semibold w-1/12 text-center">Status Pembayaran</th>
+                                <th className="px-4 py-3 font-semibold w-1/12 text-right">Total</th>
                             </tr>
                         </thead>
 
@@ -134,8 +137,50 @@ const SalesTransactionTable = ({
                                         const cashier = product?.cashierId;
                                         const gro = product?.groId;
                                         const orderType = product?.orderType || "N/A";
-                                        const paymentMethod = product?.actualPaymentMethod || "N/A";
                                         const isSelected = selectedItems.includes(product._id);
+
+                                        // Payment logic
+                                        const payments = product?.payments || [];
+                                        const paymentMethods = [];
+                                        let dpAmount = 0;
+                                        let pelunasanAmount = 0;
+                                        let cashPaymentObj = null; // New variable for cash payment object
+                                        let isPaidFull = product?.status === "Completed"; // Fallback
+
+                                        payments.forEach(p => {
+                                            const status = p.status?.toLowerCase();
+                                            // Only count successful payments: settlement (Midtrans), capture (Midtrans CC), paid, or completed
+                                            if (status === "settlement" || status === "paid" || status === "completed" || status === "capture" || status === "partial") {
+                                                let methodName = p.method_type || p.method || "N/A";
+
+                                                if (!paymentMethods.includes(methodName)) {
+                                                    paymentMethods.push(methodName);
+                                                }
+
+                                                if (p.method?.toLowerCase() === "cash" || p.paymentMethod?.toLowerCase() === "cash") {
+                                                    cashPaymentObj = p;
+                                                }
+
+                                                if (p.paymentType === "Down Payment") {
+                                                    dpAmount += p.amount || 0;
+                                                } else {
+                                                    // Fallback: anything that's not explicitly DP is treated as Pelunasan/Full
+                                                    pelunasanAmount += p.amount || 0;
+                                                }
+                                            }
+                                        });
+
+                                        const displayPaymentMethod = paymentMethods.length > 0 ? paymentMethods.join(", ") : (product?.actualPaymentMethod || "N/A");
+
+                                        // Status Pembayaran logic
+                                        let statusPembayaran = "N/A";
+                                        if (dpAmount > 0 && pelunasanAmount === 0) {
+                                            statusPembayaran = "Down Payment/DP";
+                                        } else if (pelunasanAmount > 0) {
+                                            statusPembayaran = "Lunas";
+                                        } else if (product?.status === "Completed") {
+                                            statusPembayaran = "Lunas";
+                                        }
 
                                         let menuNames = [];
                                         let totalSubtotal = 0;
@@ -259,7 +304,27 @@ const SalesTransactionTable = ({
                                                     className="px-4 py-3 cursor-pointer"
                                                     onClick={() => setSelectedTrx(product)}
                                                 >
-                                                    {paymentMethod}
+                                                    {displayPaymentMethod}
+                                                </td>
+                                                <td
+                                                    className="px-4 py-3 text-right cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
+                                                    {dpAmount > 0 ? `Rp ${dpAmount.toLocaleString('id-ID')}` : "-"}
+                                                </td>
+                                                <td
+                                                    className="px-4 py-3 text-right cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
+                                                    {pelunasanAmount > 0 ? `Rp ${pelunasanAmount.toLocaleString('id-ID')}` : "-"}
+                                                </td>
+                                                <td
+                                                    className="px-4 py-3 text-center cursor-pointer"
+                                                    onClick={() => setSelectedTrx(product)}
+                                                >
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusPembayaran === "Lunas" ? "bg-green-100 text-green-700" : statusPembayaran === "Down Payment/DP" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"}`}>
+                                                        {statusPembayaran}
+                                                    </span>
                                                 </td>
                                                 <td
                                                     className="px-4 py-3 text-right cursor-pointer"
@@ -275,7 +340,7 @@ const SalesTransactionTable = ({
                                         console.error(`Error rendering product ${index}:`, err, product);
                                         return (
                                             <tr className="text-left text-sm" key={`error-${index}`}>
-                                                <td colSpan="7" className="px-4 py-3 text-red-500 text-center">
+                                                <td colSpan="10" className="px-4 py-3 text-red-500 text-center">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -286,14 +351,14 @@ const SalesTransactionTable = ({
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={10}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
 
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="px-4 py-2" colSpan="6">
+                                <td className="px-4 py-2" colSpan="9">
                                     Grand Total
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
