@@ -4775,6 +4775,7 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
           is_down_payment: false,
           tendered_amount: payment.tenderedAmount || payment.amount,
           change_amount: payment.changeAmount || 0,
+          remaining_amount: payment.remainingAmount, // ✅ NEW: Pass remainingAmount from frontend
           is_split_payment: true,
           split_payment_index: index,
           va_numbers: payment.vaNumbers,
@@ -4835,6 +4836,7 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
         remaining_payment: paymentDetails?.remainingPayment,
         tendered_amount: paymentDetails?.tenderedAmount,
         change_amount: paymentDetails?.changeAmount,
+        remaining_amount: paymentDetails?.remainingAmount, // ✅ NEW: Pass remainingAmount from frontend
         is_split_payment: false,
         va_numbers: paymentDetails?.vaNumbers,
         actions: paymentDetails?.actions,
@@ -6167,7 +6169,10 @@ export const charge = async (req, res) => {
 
       // ✅ FIX: Handle DP Already Paid (Manual Bank Transfer via Cash Flow)
       // Jika dp_already_paid = true, status langsung settlement & method disesuaikan
-      const isInstantSettlement = req.body.dp_already_paid === true || req.body.dp_already_paid === 'true';
+      // ✅ NEW: Also handle full_payment_already_paid for instant settlement
+      const isDpInstantSettlement = req.body.dp_already_paid === true || req.body.dp_already_paid === 'true';
+      const isFullPaymentInstantSettlement = req.body.full_payment_already_paid === true || req.body.full_payment_already_paid === 'true';
+      const isInstantSettlement = isDpInstantSettlement || isFullPaymentInstantSettlement;
       const initialStatus = isInstantSettlement ? 'settlement' : 'pending';
 
       // ✅ FIX: Method tetap 'cash', nama bank masuk ke method_type saja
@@ -6176,6 +6181,7 @@ export const charge = async (req, res) => {
 
       if (isInstantSettlement && req.body.bank_info && req.body.bank_info.bankName) {
         console.log('✅ Instant Settlement detected. Bank info:', req.body.bank_info.bankName);
+        console.log('   Settlement type:', isDpInstantSettlement ? 'DP Already Paid' : 'Full Payment Already Paid');
         console.log('   Method stays as:', effectiveMethod);
         console.log('   Bank name will be saved to method_type');
       }
@@ -9042,7 +9048,8 @@ export const cashierCharge = async (req, res) => {
       split_payment_index = 0,
       va_numbers,
       actions,
-      method_type
+      method_type,
+      remaining_amount // ✅ NEW: Accept remainingAmount from frontend
     } = req.body;
 
     console.log('Cashier Charge - Processing Payment:', {
@@ -9054,6 +9061,7 @@ export const cashierCharge = async (req, res) => {
       split_payment_index,
       tendered_amount,
       change_amount,
+      remaining_amount, // ✅ NEW: Log remainingAmount
       va_numbers,
       actions
     });
@@ -9165,7 +9173,10 @@ export const cashierCharge = async (req, res) => {
       paymentType: is_down_payment ? 'Down Payment' : 'Full',
       amount: gross_amount,
       totalAmount: updatedOrder.grandTotal,
-      remainingAmount: Math.max(0, updatedOrder.grandTotal - totalPaid),
+      // ✅ UPDATED: Use remainingAmount from frontend if provided, otherwise calculate
+      remainingAmount: remaining_amount !== undefined
+        ? remaining_amount
+        : Math.max(0, updatedOrder.grandTotal - totalPaid),
       tendered_amount: tendered_amount || gross_amount,
       change_amount: change_amount || 0,
       fraud_status: 'accept',
@@ -9177,6 +9188,18 @@ export const cashierCharge = async (req, res) => {
       actions: actions,
       method_type: method_type
     };
+
+    // 🐛 DEBUG: Log frontend vs backend remainingAmount comparison
+    const calculatedRemaining = Math.max(0, updatedOrder.grandTotal - totalPaid);
+    if (remaining_amount !== undefined && remaining_amount !== calculatedRemaining) {
+      console.log('⚠️ RemainingAmount Mismatch:', {
+        order_id,
+        frontendValue: remaining_amount,
+        backendCalculated: calculatedRemaining,
+        difference: Math.abs(remaining_amount - calculatedRemaining),
+        usingValue: paymentData.remainingAmount
+      });
+    }
 
     const payment = await Payment.create(paymentData);
 

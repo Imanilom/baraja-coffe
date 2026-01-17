@@ -1,4 +1,5 @@
 mod config;
+mod common;
 mod db;
 mod error;
 mod handlers;
@@ -7,6 +8,7 @@ mod middleware;
 mod routes;
 mod services;
 mod utils;
+mod websocket;
 
 use std::sync::Arc;
 use tower_http::{
@@ -18,10 +20,43 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::Config;
 use db::DbConnection;
-use db::repositories::{UserRepository, MenuRepository, InventoryRepository, OutletRepository, OrderRepository, MarketListRepository, PaymentRepository};
+use db::repositories::{
+    UserRepository, MenuRepository, InventoryRepository, OutletRepository,
+    OrderRepository, MarketListRepository, PaymentRepository,
+    CompanyRepository, EmployeeRepository, AttendanceRepository,
+    SalaryRepository, HRSettingRepository, FingerprintRepository,
+};
 use error::AppResult;
 use kafka::KafkaProducer;
-use services::{MenuService, InventoryService, OutletService, LoyaltyService, TaxService, PromoService, MarketListService};
+use services::{
+    MenuService, InventoryService, OutletService, LoyaltyService,
+    TaxService, PromoService, MarketListService,
+    EmployeeService, AttendanceService, BpjsService, SalaryService, FingerprintService,
+    PrintService,
+};
+use websocket::{ConnectionManager, WebSocketBroadcaster};
+
+/// Application state shared across all handlers
+/// HR Repositories container
+#[derive(Clone)]
+pub struct HRRepositories {
+    pub company_repo: CompanyRepository,
+    pub employee_repo: EmployeeRepository,
+    pub attendance_repo: AttendanceRepository,
+    pub salary_repo: SalaryRepository,
+    pub hr_setting_repo: HRSettingRepository,
+    pub fingerprint_repo: FingerprintRepository,
+}
+
+/// HR Services container
+#[derive(Clone)]
+pub struct HRServices {
+    pub employee_service: EmployeeService,
+    pub attendance_service: AttendanceService,
+    pub bpjs_service: BpjsService,
+    pub salary_service: SalaryService,
+    pub fingerprint_service: FingerprintService,
+}
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -32,6 +67,11 @@ pub struct AppState {
     pub user_repo: UserRepository,
     pub order_repo: OrderRepository,
     pub payment_repo: PaymentRepository,
+    
+    // HR Modules
+    pub hr_repositories: HRRepositories,
+    pub hr_services: HRServices,
+
     pub menu_service: MenuService,
     pub inventory_service: InventoryService,
     pub outlet_service: OutletService,
@@ -39,7 +79,12 @@ pub struct AppState {
     pub tax_service: TaxService,
     pub promo_service: PromoService,
     pub market_list_service: MarketListService,
+    pub print_service: PrintService,
     pub lock_util: crate::utils::LockUtil,
+
+    // WebSocket
+    pub ws_manager: Arc<ConnectionManager>,
+    pub ws_broadcaster: Arc<WebSocketBroadcaster>,
 }
 
 #[tokio::main]
@@ -76,6 +121,23 @@ async fn main() -> AppResult<()> {
     let market_list_repo = MarketListRepository::new(db.clone());
     let payment_repo = PaymentRepository::new(db.clone());
 
+    // Initialize HR Repositories
+    let company_repo = CompanyRepository::new(db.clone());
+    let employee_repo = EmployeeRepository::new(db.clone());
+    let attendance_repo = AttendanceRepository::new(db.clone());
+    let salary_repo = SalaryRepository::new(db.clone());
+    let hr_setting_repo = HRSettingRepository::new(db.clone());
+    let fingerprint_repo = FingerprintRepository::new(db.clone());
+
+    let hr_repositories = HRRepositories {
+        company_repo: company_repo.clone(),
+        employee_repo: employee_repo.clone(),
+        attendance_repo: attendance_repo.clone(),
+        salary_repo: salary_repo.clone(),
+        hr_setting_repo: hr_setting_repo.clone(),
+        fingerprint_repo: fingerprint_repo.clone(),
+    };
+
     // Initialize services
     let menu_service = MenuService::new(menu_repo.clone(), inventory_repo.clone(), kafka.clone());
     let inventory_service = InventoryService::new(inventory_repo.clone(), menu_repo.clone(), kafka.clone());
@@ -85,11 +147,38 @@ async fn main() -> AppResult<()> {
     let promo_service = PromoService::new(db.database().clone());
     let market_list_service = MarketListService::new(market_list_repo.clone(), inventory_service.clone());
 
+    // Initialize HR Services
+    let employee_service = EmployeeService::new(employee_repo.clone(), company_repo.clone(), user_repo.clone());
+    let attendance_service = AttendanceService::new(attendance_repo.clone(), company_repo.clone());
+    let bpjs_service = BpjsService::new();
+    let salary_service = SalaryService::new(
+        salary_repo.clone(),
+        employee_repo.clone(),
+        attendance_repo.clone(),
+        company_repo.clone(),
+        bpjs_service.clone(),
+    );
+    let fingerprint_service = FingerprintService::new(fingerprint_repo.clone(), employee_repo.clone());
+
+    let hr_services = HRServices {
+        employee_service,
+        attendance_service,
+        bpjs_service,
+        salary_service,
+        fingerprint_service,
+    };
+
     // Initialize Redis and LockUtil
     let redis_client = redis::Client::open(config.redis.url.as_str())
         .map_err(error::AppError::Redis)?;
     let lock_util = utils::LockUtil::new(redis_client);
     tracing::info!("Redis connection initialized");
+
+    // Initialize WebSocket
+    let ws_manager = Arc::new(ConnectionManager::new());
+    let ws_broadcaster = Arc::new(WebSocketBroadcaster::new(ws_manager.clone()));
+    let print_service = PrintService::new(ws_broadcaster.clone());
+    tracing::info!("WebSocket and Print Service initialized");
 
     // Create application state
     let state = Arc::new(AppState {
@@ -99,6 +188,8 @@ async fn main() -> AppResult<()> {
         user_repo,
         order_repo,
         payment_repo,
+        hr_repositories,
+        hr_services,
         menu_service,
         inventory_service,
         outlet_service,
@@ -106,7 +197,10 @@ async fn main() -> AppResult<()> {
         tax_service,
         promo_service,
         market_list_service,
+        print_service,
         lock_util,
+        ws_manager,
+        ws_broadcaster,
     });
 
     // Configure CORS

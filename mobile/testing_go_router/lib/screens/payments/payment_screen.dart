@@ -6,6 +6,8 @@ import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/helper/offline_order_id_generator.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/models/payments/va_number.model.dart';
+import 'package:kasirbaraja/models/payments/payment_action.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
@@ -16,6 +18,7 @@ import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/services/order_service.dart'; // ✅ NEW
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart'; // ✅ NEW
+import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/services/printer_service.dart'; // ✅ NEW
 
 // Provider tipe pembayaran yang sudah kamu punya
@@ -25,6 +28,7 @@ import 'package:kasirbaraja/providers/payment_provider.dart'
 // 🔹 Helper saran cash
 import 'package:kasirbaraja/helper/payment_helper.dart';
 import 'package:kasirbaraja/utils/payment_details_utils.dart';
+import 'package:kasirbaraja/enums/order_status.dart'; // ✅ NEW: Import OrderStatus enum
 
 /// Mode pembayaran:
 /// - single: tanpa split, 1x bayar langsung lunas
@@ -577,18 +581,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       // Prepare payment details from _payments
       final paymentDetails =
           _payments.map((p) {
+            // ✅ FIXED: Use same method as regular orders
+            final methodtype = PaymentDetails.buildPaymentMethodLabel(p);
+
             final Map<String, dynamic> payment = {
               'method': p.method,
               'amount': p.amount,
               'status': 'settlement',
+              'methodType': methodtype, // ✅ Always include methodType
             };
-
-            // Only include methodType for non-cash payments (EDC, QRIS, etc)
-            if (p.paymentType != null &&
-                p.paymentType != 'Full' &&
-                p.method?.toLowerCase() != 'cash') {
-              payment['methodType'] = p.paymentType;
-            }
 
             // Include cash-specific fields
             if (p.tenderedAmount != null) {
@@ -596,6 +597,29 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             }
             if (p.changeAmount != null) {
               payment['changeAmount'] = p.changeAmount;
+            }
+            // ✅ FIXED: remainingAmount is non-nullable, no need for null check
+            payment['remainingAmount'] = p.remainingAmount;
+
+            // Include VA numbers and actions
+            if (p.vaNumbers != null && p.vaNumbers!.isNotEmpty) {
+              payment['vaNumbers'] =
+                  p.vaNumbers!
+                      .map((va) => {'bank': va.bank, 'vaNumber': va.vaNumber})
+                      .toList();
+            }
+
+            if (p.actions != null && p.actions!.isNotEmpty) {
+              payment['actions'] =
+                  p.actions!
+                      .map(
+                        (action) => {
+                          'name': action.name,
+                          'method': action.method,
+                          'url': action.url,
+                        },
+                      )
+                      .toList();
             }
 
             return payment;
@@ -647,29 +671,111 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           _submitStatus = SubmitStatus.success;
         });
 
-        // Close loading dialog
-        if (mounted) Navigator.pop(context);
-
         // Refresh pending orders
         ref.invalidate(pendingOrderProvider);
+        ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
+        ref.invalidate(orderHistoryProvider);
+        // ✅ FIXED: Build payment details manually from submitted data
+        // Convert paymentDetails to Payment models
+        final List<PaymentModel> payments = [];
 
-        // Print receipt
+        if (isSplitPayment) {
+          // Multiple payments
+          for (var i = 0; i < paymentDetails.length; i++) {
+            final p = paymentDetails[i];
+            payments.add(
+              PaymentModel(
+                method: p['method'] ?? 'Cash',
+                amount: p['amount'] ?? 0,
+                tenderedAmount: p['tenderedAmount'],
+                changeAmount: p['changeAmount'],
+                remainingAmount: p['remainingAmount'] ?? 0,
+                vaNumbers:
+                    (p['vaNumbers'] as List?)
+                        ?.map(
+                          (va) => VANumberModel(
+                            bank: va['bank'],
+                            vaNumber: va['vaNumber'],
+                          ),
+                        )
+                        .toList(),
+                actions:
+                    (p['actions'] as List?)
+                        ?.map(
+                          (action) => PaymentActionModel(
+                            name: action['name'],
+                            method: action['method'],
+                            url: action['url'],
+                          ),
+                        )
+                        .toList(),
+                status: 'settlement',
+              ),
+            );
+          }
+        } else {
+          // Single payment
+          final p = paymentDetails.first;
+          payments.add(
+            PaymentModel(
+              method: p['method'] ?? 'Cash',
+              amount: p['amount'] ?? 0,
+              tenderedAmount: p['tenderedAmount'],
+              changeAmount: p['changeAmount'],
+              remainingAmount: p['remainingAmount'] ?? 0,
+              vaNumbers:
+                  (p['vaNumbers'] as List?)
+                      ?.map(
+                        (va) => VANumberModel(
+                          bank: va['bank'],
+                          vaNumber: va['vaNumber'],
+                        ),
+                      )
+                      .toList(),
+              actions:
+                  (p['actions'] as List?)
+                      ?.map(
+                        (action) => PaymentActionModel(
+                          name: action['name'],
+                          method: action['method'],
+                          url: action['url'],
+                        ),
+                      )
+                      .toList(),
+              status: 'settlement',
+            ),
+          );
+        }
+
+        // Create updated order with payment details
+        final updatedOrder = widget.order.copyWith(
+          status: OrderStatus.completed,
+          paymentStatus: 'settlement',
+          payments: payments, // ✅ Add payment details
+          isSplitPayment: isSplitPayment,
+        );
+
+        debugPrint('✅ Built order with ${payments.length} payment(s)');
+
+        // Print receipt with payment details
         final printers = ref.read(savedPrintersProvider);
         if (printers.isNotEmpty) {
           await PrinterService.printDocuments(
-            orderDetail: widget.order,
+            orderDetail: updatedOrder, // ✅ Now has payment details
             printType: 'customer',
             printers: printers,
           );
         }
 
-        // Navigate to success screen
         if (mounted) {
+          // Close loading dialog
+          Navigator.pop(context);
+          // Navigate to success screen
           context.goNamed(
             'payment-success',
             extra: {
-              'orderDetail': widget.order,
-              'isCloseBill': true, // Flag to show different message
+              'orderDetail': updatedOrder, // ✅ Pass order with payments
+              'isCloseBill': true,
             },
           );
         }

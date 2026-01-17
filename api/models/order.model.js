@@ -865,22 +865,14 @@ OrderSchema.pre('save', async function (next) {
       this.totalCustomAmount = 0;
     }
 
-    // Untuk open bill: calculate tax dan grand total
-    // ✅ FIX: Skip recalculation jika bill sedang di-close
-    const isClosingBill = this.isModified('openBillStatus') && this.openBillStatus === 'closed';
-
-    if (this.isOpenBill && !isClosingBill) {
-      // Exclude cancelled items dari perhitungan
-      const activeItemsTotal = this.items.reduce((total, item) => {
-        if (item.isCancelled) return total;
-        return total + (item.subtotal || 0);
-      }, 0);
-
-      this.totalBeforeDiscount = activeItemsTotal;
-      this.totalAfterDiscount = activeItemsTotal;
-      this.taxAmount = activeItemsTotal * (this.taxPercentage / 100);
-      this.grandTotal = activeItemsTotal + this.taxAmount + this.serviceCharge;
-    }
+    // ✅ REMOVED: grandTotal recalculation
+    // Controller (testapporder.controller.js, order.controller.js) already calculates
+    // all totals correctly based on frontend input. Pre-save should NOT override
+    // those values as it causes bugs (e.g., tax toggle OFF but saved with tax).
+    // 
+    // Previously this code would recalculate grandTotal for open bill orders,
+    // but this created inconsistency between frontend display and saved values.
+    // Now we trust the controller to set correct values.
 
     // Update split payment status
     if (this.payments && Array.isArray(this.payments)) {

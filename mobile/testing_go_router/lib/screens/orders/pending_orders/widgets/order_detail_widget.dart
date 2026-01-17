@@ -7,6 +7,8 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
+import 'package:kasirbaraja/services/printer_service.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 
 class OrderDetailWidget extends ConsumerWidget {
   final OrderDetailModel order;
@@ -37,6 +39,8 @@ class OrderDetailWidget extends ConsumerWidget {
           _buildItemsList(context, order, ref),
           const SizedBox(height: 8),
           _buildPricingDetails(order),
+          const SizedBox(height: 8),
+          _buildReprintButtons(context, order, ref),
         ],
       ),
     );
@@ -207,6 +211,79 @@ class OrderDetailWidget extends ConsumerWidget {
 
           if (order.isOpenBill == true) ...[
             const SizedBox(height: 12),
+            // ✅ NEW: Print Struk button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.blue[700],
+                  side: BorderSide(color: Colors.blue[700]!),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.print),
+                label: const Text(
+                  'PRINT STRUK (BELUM LUNAS)',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onPressed: () async {
+                  final printers = ref.read(savedPrintersProvider);
+                  if (printers.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Tidak ada printer yang tersedia'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    return;
+                  }
+
+                  // ✅ FIXED: Check if any printer supports customer receipts
+                  final customerPrinters =
+                      printers.where((p) => p.canPrintCustomer).toList();
+
+                  if (customerPrinters.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          '⚠️ Tidak ada printer untuk struk customer',
+                        ),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    return;
+                  }
+
+                  try {
+                    await PrinterService.printDocuments(
+                      orderDetail: order,
+                      printType: 'customer',
+                      printers: customerPrinters,
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Struk berhasil dicetak'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Gagal mencetak: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -398,6 +475,167 @@ class OrderDetailWidget extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReprintButtons(
+    BuildContext context,
+    OrderDetailModel order,
+    WidgetRef ref,
+  ) {
+    // Check if order has items for each workstation
+    final hasKitchenItems = order.items.any(
+      (item) => item.menuItem.workstation == 'kitchen',
+    );
+    final hasBarItems = order.items.any(
+      (item) => item.menuItem.workstation == 'bar',
+    );
+    final hasWaiterItems = order.items.isNotEmpty;
+
+    // Don't show section if no items
+    if (!hasKitchenItems && !hasBarItems && !hasWaiterItems) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Print Ulang Workstation',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (hasKitchenItems)
+                _buildReprintButton(
+                  context: context,
+                  ref: ref,
+                  order: order,
+                  label: 'Kitchen',
+                  icon: Icons.restaurant,
+                  color: Colors.orange,
+                  printType: 'kitchen',
+                ),
+              if (hasBarItems)
+                _buildReprintButton(
+                  context: context,
+                  ref: ref,
+                  order: order,
+                  label: 'Bar',
+                  icon: Icons.local_bar,
+                  color: Colors.purple,
+                  printType: 'bar',
+                ),
+              if (hasWaiterItems)
+                _buildReprintButton(
+                  context: context,
+                  ref: ref,
+                  order: order,
+                  label: 'Waiter',
+                  icon: Icons.person,
+                  color: Colors.blue,
+                  printType: 'waiter',
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReprintButton({
+    required BuildContext context,
+    required WidgetRef ref,
+    required OrderDetailModel order,
+    required String label,
+    required IconData icon,
+    required Color color,
+    required String printType,
+  }) {
+    return ElevatedButton.icon(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      onPressed: () async {
+        final printers = ref.read(savedPrintersProvider);
+        if (printers.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tidak ada printer yang tersedia'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+
+        // ✅ FIXED: Check if any printer supports this workstation
+        final supportedPrinters =
+            printers.where((printer) {
+              switch (printType) {
+                case 'kitchen':
+                  return printer.canPrintKitchen;
+                case 'bar':
+                  return printer.canPrintBar;
+                case 'waiter':
+                  return printer.canPrintWaiter;
+                case 'customer':
+                  return printer.canPrintCustomer;
+                default:
+                  return false;
+              }
+            }).toList();
+
+        if (supportedPrinters.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⚠️ Tidak ada printer untuk $label'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+
+        try {
+          await PrinterService.printDocuments(
+            orderDetail: order,
+            printType: printType,
+            printers: supportedPrinters,
+          );
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('✅ Struk $label berhasil dicetak ulang'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Gagal mencetak: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
     );
   }
 }
