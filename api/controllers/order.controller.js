@@ -6169,7 +6169,10 @@ export const charge = async (req, res) => {
 
       // ✅ FIX: Handle DP Already Paid (Manual Bank Transfer via Cash Flow)
       // Jika dp_already_paid = true, status langsung settlement & method disesuaikan
-      const isInstantSettlement = req.body.dp_already_paid === true || req.body.dp_already_paid === 'true';
+      // ✅ NEW: Also handle full_payment_already_paid for instant settlement
+      const isDpInstantSettlement = req.body.dp_already_paid === true || req.body.dp_already_paid === 'true';
+      const isFullPaymentInstantSettlement = req.body.full_payment_already_paid === true || req.body.full_payment_already_paid === 'true';
+      const isInstantSettlement = isDpInstantSettlement || isFullPaymentInstantSettlement;
       const initialStatus = isInstantSettlement ? 'settlement' : 'pending';
 
       // ✅ FIX: Method tetap 'cash', nama bank masuk ke method_type saja
@@ -6178,6 +6181,7 @@ export const charge = async (req, res) => {
 
       if (isInstantSettlement && req.body.bank_info && req.body.bank_info.bankName) {
         console.log('✅ Instant Settlement detected. Bank info:', req.body.bank_info.bankName);
+        console.log('   Settlement type:', isDpInstantSettlement ? 'DP Already Paid' : 'Full Payment Already Paid');
         console.log('   Method stays as:', effectiveMethod);
         console.log('   Bank name will be saved to method_type');
       }

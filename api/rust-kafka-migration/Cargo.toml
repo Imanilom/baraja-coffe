@@ -6,15 +6,15 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.100"
 argon2 = "0.5.3"
-axum = "0.7.9"
+axum = { version = "0.7.9", features = ["ws"] }
 axum-tungstenite = "0.1.1"
 bcrypt = "0.15.1"
 bson = { version = "2.15.0", features = ["chrono-0_4", "serde_with"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 chrono-tz = "0.8.6"
 config = "0.14.1"
-dotenvy = "0.15.7"
 dashmap = "5.5"
+dotenvy = "0.15.7"
 futures = "0.3.31"
 futures-util = "0.3"
 jsonwebtoken = "9.3.1"

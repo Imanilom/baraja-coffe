@@ -109,6 +109,12 @@ fn webhook_routes() -> Router<Arc<AppState>> {
         .route("/gosend", post(handlers::webhook::gosend_webhook))
 }
 
+/// Create websocket routes
+fn websocket_routes() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", get(crate::websocket::websocket_handler))
+}
+
 /// Create application routes
 pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
@@ -124,4 +130,5 @@ pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .nest("/api/marketlist", marketlist_routes(state.clone()))
         .nest("/api/hr", hr::hr_routes(state.clone()))
         .nest("/api/webhook", webhook_routes())
+        .nest("/ws", websocket_routes())
 }

@@ -645,6 +645,9 @@ export const createAppOrder = async (req, res) => {
                 dpBankInfo,
                 // ✅ FIX: Custom DP Amount from frontend
                 customDpAmount,
+                // ✅ NEW: Full Payment Already Paid (Sudah Lunas)
+                fullPaymentAlreadyPaid,
+                fullPaymentBankInfo,
                 // ✅ FIX: Tax data from frontend
                 taxDetails,
                 totalTax,
@@ -1007,8 +1010,18 @@ export const createAppOrder = async (req, res) => {
             // Tax and service calculation - ✅ FIX: Tax is calculated on DISCOUNTED price
             let taxServiceCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
             if (totalAfterDiscount > 0) {
-                // ✅ FIX: Respect frontend "disable tax" toggle (totalTax 0 and empty details)
-                const isTaxDisabled = (totalTax === 0 && (!taxDetails || taxDetails.length === 0));
+                // ✅ DEBUG: Log tax-related inputs
+                console.log('📊 TAX CALCULATION DEBUG:');
+                console.log(`   totalTax from frontend: ${totalTax} (type: ${typeof totalTax})`);
+                console.log(`   taxDetails from frontend: ${JSON.stringify(taxDetails)}`);
+                console.log(`   taxDetails length: ${taxDetails?.length || 0}`);
+
+                // ✅ SIMPLIFIED: If frontend sends totalTax=0, respect that decision
+                // This handles GRO tax toggle being OFF
+                const taxValue = Number(totalTax) || 0;
+                const isTaxDisabled = taxValue === 0;  // ✅ Simple check: if 0, tax is disabled
+                console.log(`   taxValue (converted): ${taxValue}`);
+                console.log(`   isTaxDisabled: ${isTaxDisabled}`);
 
                 if (!isTaxDisabled) {
                     taxServiceCalculation = await calculateTaxAndServiceCached(
@@ -1017,8 +1030,9 @@ export const createAppOrder = async (req, res) => {
                         orderType === 'reservation',
                         effectiveIsOpenBill
                     );
+                    console.log(`   ✅ Tax calculated: ${taxServiceCalculation.totalTax}`);
                 } else {
-                    console.log('ℹ️ Tax explicitly disabled by frontend (GRO toggle) in Optimized Controller');
+                    console.log('ℹ️ Tax explicitly disabled by frontend (totalTax=0)');
                 }
             }
             // Apply voucher discount on top of menu discount
@@ -1030,6 +1044,11 @@ export const createAppOrder = async (req, res) => {
                 if (totalAfterDiscount < 0) totalAfterDiscount = 0;
             }
             const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
+            console.log('💰 GRAND TOTAL CALCULATION:');
+            console.log(`   totalAfterDiscount: ${totalAfterDiscount}`);
+            console.log(`   taxServiceCalculation.totalTax: ${taxServiceCalculation.totalTax}`);
+            console.log(`   taxServiceCalculation.totalServiceFee: ${taxServiceCalculation.totalServiceFee}`);
+            console.log(`   grandTotal: ${grandTotal}`);
             let newOrder;
             // ORDER CREATION - OPEN BILL FLOW
             if (effectiveIsOpenBill && existingOrder) {
@@ -1063,12 +1082,22 @@ export const createAppOrder = async (req, res) => {
                 }
                 let updatedTaxCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
                 if (updatedTotalAfterDiscount > 0) {
-                    updatedTaxCalculation = await calculateTaxAndServiceCached(
-                        updatedTotalAfterDiscount,
-                        outlet || "67cbc9560f025d897d69f889",
-                        orderType === 'reservation',
-                        true
-                    );
+                    // ✅ SIMPLIFIED: If frontend sends totalTax=0, respect that (match New Order flow)
+                    const taxValue = Number(totalTax) || 0;
+                    const isTaxDisabled = taxValue === 0;  // ✅ Simple check: if 0, tax is disabled
+                    console.log(`   📊 Open Bill Tax Debug: taxValue=${taxValue}, isTaxDisabled=${isTaxDisabled}`);
+
+                    if (!isTaxDisabled) {
+                        updatedTaxCalculation = await calculateTaxAndServiceCached(
+                            updatedTotalAfterDiscount,
+                            outlet || "67cbc9560f025d897d69f889",
+                            orderType === 'reservation',
+                            true
+                        );
+                        console.log(`   ✅ Open Bill Tax calculated: ${updatedTaxCalculation.totalTax}`);
+                    } else {
+                        console.log('ℹ️ Tax explicitly disabled by frontend (totalTax=0) in Open Bill flow');
+                    }
                 }
                 existingOrder.totalBeforeDiscount = updatedTotalBeforeDiscount;
                 existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
@@ -1228,6 +1257,15 @@ export const createAppOrder = async (req, res) => {
                 console.log('   Order ID:', newOrder.order_id);
                 console.log('   Custom DP Amount:', customDpAmount);
                 console.log('   Bank Info:', dpBankInfo?.bankName);
+            }
+
+            // ✅ NEW: Full Payment Already Paid (Sudah Lunas)
+            // Similar to DP, the frontend will call /api/charge with full_payment_already_paid=true
+            if (fullPaymentAlreadyPaid && isGroMode) {
+                console.log('💵 Full Payment Already Paid flag set - Payment will be created via /api/charge endpoint');
+                console.log('   Order ID:', newOrder.order_id);
+                console.log('   Grand Total:', newOrder.grandTotal);
+                console.log('   Bank Info:', fullPaymentBankInfo?.bankName);
             }
             // RESPONSE
             const responseData = {
