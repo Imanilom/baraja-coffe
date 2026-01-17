@@ -8,13 +8,41 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
 
     // Get payment details from paymentDetails object if available
     const paymentDetails = selectedTrx?.paymentDetails;
-    const paymentMethod = paymentDetails?.method_type || selectedTrx?.actualPaymentMethod || selectedTrx?.paymentMethod || "N/A";
     const paymentStatus = paymentDetails?.status;
     const paymentAmount = paymentDetails?.amount || finalTotal;
     const changeAmount = paymentDetails?.change_amount || 0;
-    const transactionTime = paymentDetails?.transaction_time;
-    const paymentCode = paymentDetails?.payment_code;
     const transactionId = paymentDetails?.transaction_id;
+
+    // Unified payment logic to match table
+    const payments = selectedTrx?.payments || [];
+    const paymentMethodsList = [];
+    let cashPaymentObj = null;
+    let dpAmount = 0;
+    let pelunasanAmount = 0;
+
+    payments.forEach(p => {
+        const status = p.status?.toLowerCase();
+        if (status === "settlement" || status === "paid" || status === "completed" || status === "capture" || status === "partial") {
+            let methodName = p.method_type || p.method || "N/A";
+            if (!paymentMethodsList.includes(methodName)) {
+                paymentMethodsList.push(methodName);
+            }
+            if (p.method?.toLowerCase() === "cash" || p.paymentMethod?.toLowerCase() === "cash") {
+                cashPaymentObj = p;
+            }
+            if (p.paymentType === "Down Payment") {
+                dpAmount += p.amount || 0;
+            } else {
+                pelunasanAmount += p.amount || 0;
+            }
+        }
+    });
+
+    const displayPaymentMethod = paymentMethodsList.length > 0 ? paymentMethodsList.join(", ") : (selectedTrx?.actualPaymentMethod || "N/A");
+
+    const reservation = selectedTrx?.reservation;
+    const dpPayment = selectedTrx?.payments?.find(p => p.paymentType === "Down Payment" && ["settlement", "paid", "completed", "capture", "partial"].includes(p.status?.toLowerCase()));
+    const finalPayment = selectedTrx?.payments?.find(p => (p.paymentType === "Final Payment" || p.paymentType === "Full") && ["settlement", "paid", "completed", "capture", "partial"].includes(p.status?.toLowerCase()));
 
     // Format status badge color
     const getStatusBadgeClass = (status) => {
@@ -81,6 +109,12 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                             <span className="font-medium text-gray-600">Tanggal</span>
                             <p>{formatDateTime(selectedTrx?.createdAt)}</p>
                         </div>
+                        {reservation && (
+                            <div className="flex justify-between text-blue-700 bg-blue-50 px-2 rounded">
+                                <span className="font-medium">Tanggal Reservasi</span>
+                                <p className="font-semibold">{formatDateTime(reservation.reservation_date)?.split(',')[0]} {reservation.reservation_time}</p>
+                            </div>
+                        )}
                         <div className="flex justify-between">
                             <span className="font-medium text-gray-600">Kasir</span>
                             <p>{selectedTrx.groId?.name ? `${selectedTrx.groId?.name} ( GRO )` : selectedTrx.cashierId?.username || "-"}</p>
@@ -211,9 +245,17 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                         <div className="flex justify-between items-center">
                             <span className="text-gray-600">Metode Pembayaran</span>
                             <div className="flex flex-col items-end gap-1">
-                                <span className="font-semibold">{paymentMethod}</span>
+                                <span className="font-semibold">{displayPaymentMethod}</span>
                             </div>
                         </div>
+
+                        {/* Cash Amount Row (If physical cash was used) */}
+                        {cashPaymentObj && (
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Tunai</span>
+                                <span className="font-semibold">{formatCurrency(cashPaymentObj.tendered_amount || cashPaymentObj.amount)}</span>
+                            </div>
+                        )}
 
                         {/* Payment Amount */}
                         {/* <div className="flex justify-between font-medium text-green-800 rounded">
@@ -226,6 +268,31 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                             <span className="text-gray-600">Kembali</span>
                             <span className="font-semibold">{formatCurrency(changeAmount)}</span>
                         </div>
+
+                        {dpPayment && (
+                            <div className="flex flex-col pt-2 border-t border-gray-100 italic text-gray-500 text-xs">
+                                <div className="flex justify-between">
+                                    <span>Tanggal DP</span>
+                                    <span>{formatDateTime(dpPayment.createdAt)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>Nominal DP</span>
+                                    <span>{formatCurrency(dpPayment.amount)}</span>
+                                </div>
+                            </div>
+                        )}
+                        {finalPayment && (
+                            <div className="flex flex-col italic text-gray-500 text-xs">
+                                <div className="flex justify-between">
+                                    <span>Tanggal Pelunasan</span>
+                                    <span>{formatDateTime(finalPayment.createdAt)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>Nominal Pelunasan</span>
+                                    <span>{formatCurrency(finalPayment.amount)}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer Note */}

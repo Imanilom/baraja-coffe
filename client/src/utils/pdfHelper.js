@@ -96,7 +96,21 @@ export const handleDownloadPDF = async (transactionData, formatDateTime, formatC
     addLine("Pelanggan", transactionData.user, 7);
     yPos += 4;
     addLine("No Meja", transactionData.tableNumber, 7);
-    yPos += 5;
+    yPos += 4;
+
+    // Reservation Info
+    if (transactionData.reservation) {
+        const res = transactionData.reservation;
+        pdf.setTextColor(30, 64, 175);
+        pdf.setFillColor(239, 246, 255);
+        pdf.rect(margin, yPos - 3, contentWidth, 5, 'F');
+        const resDate = formatDateTime(res.reservation_date)?.split(',')[0];
+        addLine("Tgl Reservasi", `${resDate} ${res.reservation_time}`, 7);
+        pdf.setTextColor(0);
+        yPos += 5;
+    } else {
+        yPos += 1;
+    }
 
     // Order Type
     pdf.setFillColor(240, 253, 244);
@@ -210,22 +224,69 @@ export const handleDownloadPDF = async (transactionData, formatDateTime, formatC
 
     addDashedLine();
 
-    // Payment Details
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text("Detail Pembayaran", margin, yPos);
-    yPos += 5;
+    // Unified payment logic to match table/modal
+    const payments = transactionData?.payments || [];
+    const paymentMethodsList = [];
+    let cashPaymentObj = null;
+    const successStatuses = ["settlement", "paid", "completed", "capture", "partial"];
 
-    pdf.setFont('helvetica', 'normal');
-    const paymentMethod = transactionData.paymentDetails?.method_type ||
-        transactionData.actualPaymentMethod ||
-        transactionData.paymentMethod || "N/A";
-    addLine("Metode Pembayaran", paymentMethod, 7);
+    payments.forEach(p => {
+        const status = p.status?.toLowerCase();
+        if (successStatuses.includes(status)) {
+            let methodName = p.method_type || p.method || "N/A";
+            if (!paymentMethodsList.includes(methodName)) {
+                paymentMethodsList.push(methodName);
+            }
+            if (p.method?.toLowerCase() === "cash" || p.paymentMethod?.toLowerCase() === "cash") {
+                cashPaymentObj = p;
+            }
+        }
+    });
+
+    const displayPaymentMethod = paymentMethodsList.length > 0 ? paymentMethodsList.join(", ") : (transactionData?.actualPaymentMethod || "N/A");
+
+    addLine("Metode Pembayaran", displayPaymentMethod, 7);
     yPos += 4;
+
+    if (cashPaymentObj) {
+        addLine("Tunai", formatCurrency(cashPaymentObj.tendered_amount || cashPaymentObj.amount), 7);
+        yPos += 4;
+    }
 
     const changeAmount = transactionData.paymentDetails?.change_amount || 0;
     addLine("Kembali", formatCurrency(changeAmount), 7);
-    yPos += 6;
+    yPos += 5;
+
+    // DP & Pelunasan Details
+    const dpPayment = payments.find(p => p.paymentType === "Down Payment" && successStatuses.includes(p.status?.toLowerCase()));
+    const finalPayment = payments.find(p => (p.paymentType === "Final Payment" || p.paymentType === "Full") && successStatuses.includes(p.status?.toLowerCase()));
+
+    if (dpPayment || finalPayment) {
+        addDashedLine();
+        pdf.setFont('helvetica', 'italic');
+        pdf.setFontSize(6);
+        pdf.setTextColor(100);
+
+        if (dpPayment) {
+            addLine("  Tanggal DP", formatDateTime(dpPayment.createdAt), 6);
+            yPos += 3;
+            addLine("  Nominal DP", formatCurrency(dpPayment.amount), 6);
+            yPos += 4;
+        }
+
+        if (finalPayment) {
+            addLine("  Tanggal Pelunasan", formatDateTime(finalPayment.createdAt), 6);
+            yPos += 3;
+            addLine("  Nominal Pelunasan", formatCurrency(finalPayment.amount), 6);
+            yPos += 4;
+        }
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(0);
+        yPos += 2;
+    } else {
+        yPos += 2;
+    }
 
     addDashedLine();
 

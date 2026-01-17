@@ -496,28 +496,28 @@ const PaymentMethodSales = () => {
                 {/* Summary Cards */}
                 {reportData?.summary && (
                     <div className="grid grid-cols-4 gap-4 mb-4">
-                        <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs mb-1">Total Transaksi</p>
+                        <div className="bg-white p-4 rounded shadow border-l-4 border-green-600">
+                            <p className="text-gray-500 text-xs mb-1 uppercase tracking-wider font-semibold">Total Transaksi</p>
                             <p className="text-2xl font-bold text-green-900">
                                 {reportData.summary.totalTransactions?.toLocaleString() || 0}
                             </p>
                         </div>
-                        <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs mb-1">Total Order</p>
+                        <div className="bg-white p-4 rounded shadow border-l-4 border-blue-600">
+                            <p className="text-gray-500 text-xs mb-1 uppercase tracking-wider font-semibold">Total Order</p>
                             <p className="text-2xl font-bold text-green-900">
                                 {reportData.summary.totalOrders?.toLocaleString() || 0}
                             </p>
                         </div>
-                        <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs mb-1">
-                                Total Pendapatan {includeTax ? '(Dengan Pajak)' : '(Tanpa Pajak)'}
+                        <div className="bg-white p-4 rounded shadow border-l-4 border-yellow-600">
+                            <p className="text-gray-500 text-xs mb-1 uppercase tracking-wider font-semibold">
+                                Total Pendapatan {includeTax ? '(Gross)' : '(Nett)'}
                             </p>
                             <p className="text-2xl font-bold text-green-900">
                                 {formatCurrency(reportData.summary.totalRevenue)}
                             </p>
                         </div>
-                        <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs mb-1">Rata-rata per Transaksi</p>
+                        <div className="bg-white p-4 rounded shadow border-l-4 border-purple-600">
+                            <p className="text-gray-500 text-xs mb-1 uppercase tracking-wider font-semibold">Rerata Per Transaksi</p>
                             <p className="text-2xl font-bold text-green-900">
                                 {formatCurrency(reportData.summary.averageTransaction)}
                             </p>
