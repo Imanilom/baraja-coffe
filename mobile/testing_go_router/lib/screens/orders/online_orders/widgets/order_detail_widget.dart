@@ -49,7 +49,9 @@ class OrderDetailWidget extends ConsumerWidget {
         gradient: LinearGradient(
           colors: [
             PaymentStatusUtils.getColor(order.paymentStatus!),
-            PaymentStatusUtils.getColor(order.paymentStatus!).withValues(alpha: 0.8),
+            PaymentStatusUtils.getColor(
+              order.paymentStatus!,
+            ).withValues(alpha: 0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -116,8 +118,8 @@ class OrderDetailWidget extends ConsumerWidget {
           _buildInfoRow('Customer', order.user ?? 'Unknown'),
           _buildInfoRow('Order Type', order.orderType.name),
           if (order.tableNumber!.isNotEmpty)
-            _buildInfoRow('Table', order.tableNumber!),
-          _buildInfoRow('Payment Method', order.paymentMethod!),
+            _buildInfoRow('Table', order.tableNumber ?? 'Tidak ada'),
+          _buildInfoRow('Payment Method', order.paymentMethod ?? 'Belum ada'),
           _buildInfoRow('Source', order.source ?? 'Unknown'),
         ],
       ),
