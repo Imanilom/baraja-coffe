@@ -674,7 +674,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         // Refresh pending orders
         ref.invalidate(pendingOrderProvider);
         ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
-
+        ref.invalidate(orderHistoryProvider);
         // ✅ FIXED: Build payment details manually from submitted data
         // Convert paymentDetails to Payment models
         final List<PaymentModel> payments = [];

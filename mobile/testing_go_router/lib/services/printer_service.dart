@@ -1323,31 +1323,88 @@ class PrinterService {
     );
     bytes.addAll(generator.hr(ch: '='));
     AppLogger.debug('bersiap untuk menulis pembayaran');
-    if (isOrderDetailSplitPayment(orderDetail)) {
-      AppLogger.debug('isSplitPayment: ${orderDetail.isSplitPayment}');
-      bytes.addAll(generator.feed(1));
-      for (var payment in orderDetail.payments) {
+    // ✅ FIXED: Check order status for more accurate paid/unpaid determination
+    final bool isPaid =
+        orderDetail.status == 'Completed' ||
+        (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
+
+    if (isPaid) {
+      if (isOrderDetailSplitPayment(orderDetail)) {
+        AppLogger.debug('isSplitPayment: ${orderDetail.isSplitPayment}');
+        bytes.addAll(generator.feed(1));
+        for (var payment in orderDetail.payments) {
+          bytes.addAll(
+            generator.row([
+              PosColumn(
+                text: PaymentDetails.buildPaymentMethodLabel(payment),
+                width: 6,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+                text:
+                    formatPrice(
+                      payment.tenderedAmount == 0
+                          ? payment.amount
+                          : payment.tenderedAmount ?? 0,
+                    ).toString(),
+                width: 6,
+                styles: const PosStyles(align: PosAlign.right),
+              ),
+            ]),
+          );
+
+          bytes.addAll(generator.hr());
+
+          bytes.addAll(
+            generator.row([
+              PosColumn(
+                text: 'Kembalian',
+                width: 6,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                text: formatPrice(payment.changeAmount ?? 0).toString(),
+                width: 6,
+                styles: const PosStyles(align: PosAlign.right),
+              ),
+            ]),
+          );
+          bytes.addAll(generator.feed(1));
+        }
+      } else {
+        AppLogger.debug('brarti tidak ada order detail');
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: PaymentDetails.buildPaymentMethodLabel(payment),
+              text: 'Metode',
               width: 6,
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
               //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
               text:
-                  formatPrice(
-                    payment.tenderedAmount == 0
-                        ? payment.amount
-                        : payment.tenderedAmount ?? 0,
-                  ).toString(),
+                  "${orderDetail.paymentMethod ?? ""} ${orderDetail.paymentType ?? ""}",
               width: 6,
               styles: const PosStyles(align: PosAlign.right),
             ),
           ]),
         );
 
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Diterima',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: formatPrice(orderDetail.paymentAmount).toString(),
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
         bytes.addAll(generator.hr());
 
         bytes.addAll(
@@ -1358,63 +1415,13 @@ class PrinterService {
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
-              text: formatPrice(payment.changeAmount ?? 0).toString(),
+              text: formatPrice(orderDetail.changeAmount).toString(),
               width: 6,
               styles: const PosStyles(align: PosAlign.right),
             ),
           ]),
         );
-        bytes.addAll(generator.feed(1));
       }
-    } else {
-      AppLogger.debug('brarti tidak ada order detail');
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Metode',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
-            text:
-                "${orderDetail.paymentMethod ?? ""} ${orderDetail.paymentType ?? ""}",
-            width: 6,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
-
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Diterima',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text: formatPrice(orderDetail.paymentAmount).toString(),
-            width: 6,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
-      bytes.addAll(generator.hr());
-
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Kembalian',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text: formatPrice(orderDetail.changeAmount).toString(),
-            width: 6,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
     }
 
     bytes.addAll(generator.hr(ch: '='));
