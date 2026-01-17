@@ -8,6 +8,7 @@ mod middleware;
 mod routes;
 mod services;
 mod utils;
+mod websocket;
 
 use std::sync::Arc;
 use tower_http::{
@@ -31,7 +32,9 @@ use services::{
     MenuService, InventoryService, OutletService, LoyaltyService,
     TaxService, PromoService, MarketListService,
     EmployeeService, AttendanceService, BpjsService, SalaryService, FingerprintService,
+    PrintService,
 };
+use websocket::{ConnectionManager, WebSocketBroadcaster};
 
 /// Application state shared across all handlers
 /// HR Repositories container
@@ -76,7 +79,12 @@ pub struct AppState {
     pub tax_service: TaxService,
     pub promo_service: PromoService,
     pub market_list_service: MarketListService,
+    pub print_service: PrintService,
     pub lock_util: crate::utils::LockUtil,
+
+    // WebSocket
+    pub ws_manager: Arc<ConnectionManager>,
+    pub ws_broadcaster: Arc<WebSocketBroadcaster>,
 }
 
 #[tokio::main]
@@ -166,6 +174,12 @@ async fn main() -> AppResult<()> {
     let lock_util = utils::LockUtil::new(redis_client);
     tracing::info!("Redis connection initialized");
 
+    // Initialize WebSocket
+    let ws_manager = Arc::new(ConnectionManager::new());
+    let ws_broadcaster = Arc::new(WebSocketBroadcaster::new(ws_manager.clone()));
+    let print_service = PrintService::new(ws_broadcaster.clone());
+    tracing::info!("WebSocket and Print Service initialized");
+
     // Create application state
     let state = Arc::new(AppState {
         config: config.clone(),
@@ -183,7 +197,10 @@ async fn main() -> AppResult<()> {
         tax_service,
         promo_service,
         market_list_service,
+        print_service,
         lock_util,
+        ws_manager,
+        ws_broadcaster,
     });
 
     // Configure CORS

@@ -27,6 +27,8 @@ use crate::{
     },
     error::{ApiResponse, AppError, AppResult},
     AppState,
+    services::print_service::PrintOrderInfo,
+    websocket::events::{OrderData, PrintItem},
 };
 
 // ================ ORDER HANDLERS ================
@@ -471,7 +473,48 @@ async fn calculate_and_save_order(
     payment.created_at = mongodb::bson::DateTime::from_chrono(payment_time_wib);
     payment.updated_at = mongodb::bson::DateTime::from_chrono(payment_time_wib);
 
+    let payment_method_clone = payment.method.clone();
     state.payment_repo.create(payment).await?;
+
+    // ================ PRINT & BROADCAST ================
+    
+    if payment_method_clone == "Cash" {
+        let print_items: Vec<PrintItem> = order.items.iter().map(|item| {
+            PrintItem {
+                name: item.menu_item_data.name.clone(),
+                quantity: item.quantity,
+                workstation: item.menu_item_data.workstation.clone(),
+                main_category: Some(item.menu_item_data.category.clone()),
+                notes: Some(item.notes.clone()),
+                is_custom_amount: None,
+            }
+        }).collect();
+
+        let print_info = PrintOrderInfo {
+            order_id: order.order_id.clone(),
+            table_number: order.table_number.clone(),
+            items: print_items,
+            source: order.source.clone(),
+            order_type: order.order_type.clone(),
+            payment_method: payment_method_clone.clone(),
+            is_open_bill: order.is_open_bill,
+        };
+
+        if let Err(e) = state.print_service.trigger_immediate_print(print_info).await {
+            warn!("Failed to trigger print: {}", e);
+        }
+    }
+
+    let order_data = OrderData {
+        order_id: order.order_id.clone(),
+        table_number: order.table_number.clone(),
+        area_code: order.table_number.as_ref().map(|t| t.chars().next().unwrap_or('?').to_string()),
+        source: order.source.clone(),
+        payment_method: Some(payment_method_clone),
+        timestamp: Utc::now(),
+        message: format!("New order from {}", order.source),
+    };
+    state.print_service.broadcast_new_order(order_data);
 
     Ok(serde_json::json!({
         "success": true,
@@ -540,21 +583,30 @@ async fn map_request_to_order(
 
             let subtotal = base_price * item_req.quantity as f64;
 
-            order_items.push(OrderItem {
-                menu_item: Some(item_oid),
-                menu_item_data: MenuItemData {
-                    name: if item_oid.to_hex() == "68ef2ce19f99d12634707152" {
+                let name = if item_oid.to_hex() == "68ef2ce19f99d12634707152" {
                         "Ayam Kecap Chinese Martabak Sayur".to_string()
                     } else {
                         "Lemon Tea".to_string()
+                    };
+                let category = "General".to_string();
+                let workstation = Some(if name.contains("Tea") || name.contains("Coffee") || category == "Beverage" {
+                    "bar".to_string()
+                } else {
+                    "kitchen".to_string()
+                });
+
+                order_items.push(OrderItem {
+                    menu_item: Some(item_oid),
+                    menu_item_data: MenuItemData {
+                        name,
+                        price: base_price,
+                        category,
+                        sku: "".to_string(),
+                        selected_addons: item_req.selected_addons.clone().unwrap_or_default(),
+                        selected_toppings: item_req.selected_toppings.clone().unwrap_or_default(),
+                        workstation,
+                        ..MenuItemData::default()
                     },
-                    price: base_price,
-                    category: "General".to_string(),
-                    sku: "".to_string(),
-                    selected_addons: item_req.selected_addons.clone().unwrap_or_default(),
-                    selected_toppings: item_req.selected_toppings.clone().unwrap_or_default(),
-                    ..MenuItemData::default()
-                },
                 quantity: item_req.quantity,
                 subtotal,
                 addons: item_req.selected_addons.clone().unwrap_or_default(),
