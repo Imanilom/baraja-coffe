@@ -1,164 +1,85 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import CreateMenu from "./create";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { FaList, FaLayerGroup } from 'react-icons/fa';
+import Menu from './product/menu';
+import CategoryIndex from './category/index';
 
-const Menu = () => {
-  const [menuItems, setMenuItems] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [editingMenu, setEditingMenu] = useState(null);
-  const itemsPerPage = 6; // Number of items per page
+const MenuCategoryTabs = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const fetchMenuItems = async () => {
-    try {
-      const response = await axios.get("/api/menu-items");
-      setMenuItems(response.data?.data || []);
-   
-      const uniqueCategories = [
-        "all",
-        ...new Set(response.data?.data.map((item) => item.category)),
-      ];
-      setCategories(uniqueCategories);
-    } catch (error) {
-      console.error("Error fetching menu items:", error);
-    }
+  // Get active tab from URL query parameter, default to 'menu'
+  const getActiveTabFromQuery = () => {
+    const tabParam = searchParams.get('menu');
+    return tabParam === 'category' ? 'category' : 'menu';
   };
 
-  const deleteMenuItem = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this menu item?"
-    );
-    if (!confirmDelete) return;
+  const [activeTab, setActiveTab] = useState(getActiveTabFromQuery());
 
-    try {
-      await axios.delete(`/api/menu-items/${id}`);
-      fetchMenuItems();
-    } catch (error) {
-      console.error("Error deleting menu item:", error);
-    }
-  };
-
+  // Sync tab with URL query parameter changes
   useEffect(() => {
-    fetchMenuItems();
-  }, []);
+    const newTab = getActiveTabFromQuery();
+    setActiveTab(newTab);
+  }, [searchParams]);
 
-  const filteredItems =
-    selectedCategory === "all"
-      ? menuItems
-      : menuItems.filter((item) => item.category === selectedCategory);
+  // Handle navigation from location.state (untuk redirect dari create/update)
+  useEffect(() => {
+    // Jika ada returnTab di location.state, gunakan itu
+    if (location.state?.returnTab) {
+      const returnTab = location.state.returnTab;
+      setSearchParams({ menu: returnTab }, { replace: true });
 
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+      // Clear state setelah digunakan
+      window.history.replaceState({}, document.title);
+    }
+    // Jika tidak ada query parameter sama sekali (first load)
+    else if (!searchParams.has('menu')) {
+      setSearchParams({ menu: 'menu' }, { replace: true });
+    }
+  }, [location.state]);
 
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  // Handle tab change and update URL query parameter
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchParams({ menu: tab });
+  };
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Menu Items</h1>
-
-      {/* Filter by category */}
-      <div className="mb-4">
-        <label className="mr-2 font-medium">Filter by Category:</label>
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="border rounded px-2 py-1"
-        >
-          {categories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Button to create a new item */}
-      <button
-        onClick={() => setEditingMenu("create")}
-        className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
-      >
-        Add Menu Item
-      </button>
-
-      {editingMenu === "create" && (
-        <CreateMenu
-          fetchMenuItems={fetchMenuItems}
-          onCancel={() => setEditingMenu(null)}
-        />
-      )}
-
-      {/* Grid to display items */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        {currentItems.map((item) => (
-          <div
-            key={item._id}
-            className="border rounded-lg shadow-md p-4 bg-white"
-          >
-            <img
-              src={item.imageURL || "https://placehold.co/600x400"}
-              alt={item.name}
-              className="h-40 w-full object-cover rounded-md mb-4"
-            />
-            <h2 className="text-lg font-bold">{item.name}</h2>
-            <p className="text-gray-600">{item.description}</p>
-            <p className="text-gray-800 font-medium mt-2">
-            Price:{" "}IDR {""}
-              {item.promotionTitle ? (
-                <>
-                  <span className="line-through text-gray-500">
-                  {item.price}
-                  </span>{" "}
-                  <span className="text-green-500">{item.discountedPrice}</span>
-                </>
-              ) : (
-                item.price
-              )}
-            </p>
-            {item.promotionTitle && (
-              <p className="bg-green-100 text-green-700 px-2 py-1 rounded text-sm mt-2">
-                Promotion: {item.promotionTitle} ({item.discount}% off)
-              </p>
-            )}
-            <p className="text-gray-500 text-sm">Category: {item.category}</p>
-            <div className="flex justify-between mt-4">
-              <Link
-                to={`/menu-update/${item._id}`}
-                className="bg-yellow-500 text-white px-4 py-2 rounded"
-              >
-                Edit
-              </Link>
-              <button
-                onClick={() => deleteMenuItem(item._id)}
-                className="bg-red-500 text-white px-4 py-2 rounded"
-              >
-                Delete
-              </button>
-            </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-white border-b border-gray-200">
+        <div className="px-6 pt-4">
+          <div className="flex gap-8">
+            <button
+              onClick={() => handleTabChange('menu')}
+              className={`pb-3 px-1 relative flex items-center gap-2 text-sm font-medium transition-colors ${activeTab === 'menu'
+                  ? 'text-[#005429] border-b-2 border-[#005429]'
+                  : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              <FaList size={16} />
+              Menu
+            </button>
+            <button
+              onClick={() => handleTabChange('category')}
+              className={`pb-3 px-1 relative flex items-center gap-2 text-sm font-medium transition-colors ${activeTab === 'category'
+                  ? 'text-[#005429] border-b-2 border-[#005429]'
+                  : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              <FaLayerGroup size={16} />
+              Kategori
+            </button>
           </div>
-        ))}
+        </div>
       </div>
 
-      {/* Pagination */}
-      <div className="flex justify-center mt-4">
-        {Array.from({ length: totalPages }, (_, i) => (
-          <button
-            key={i + 1}
-            onClick={() => setCurrentPage(i + 1)}
-            className={`px-4 py-2 mx-1 rounded ${
-              currentPage === i + 1
-                ? "bg-blue-500 text-white"
-                : "bg-gray-200 text-gray-700"
-            }`}
-          >
-            {i + 1}
-          </button>
-        ))}
+      {/* Content Area - Switch based on active tab */}
+      <div className="transition-all duration-300">
+        {activeTab === 'menu' ? <Menu /> : <CategoryIndex />}
       </div>
     </div>
   );
 };
 
-export default Menu;
+export default MenuCategoryTabs;
