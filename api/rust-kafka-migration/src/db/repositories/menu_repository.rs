@@ -180,4 +180,105 @@ impl MenuRepository {
 
         Ok(())
     }
+
+    /// Optimized query for customer-facing menu (filtered by stock availability)
+    /// Prefers manual_stock over calculated_stock from menustocks collection
+    pub async fn find_customer_menu_items(&self) -> AppResult<Vec<MenuItem>> {
+        let pipeline = vec![
+            // Only active items
+            doc! { "$match": { "isActive": true } },
+            
+            // Lookup menu stocks
+            doc! {
+                "$lookup": {
+                    "from": "menustocks",
+                    "localField": "_id",
+                    "foreignField": "menuItemId",
+                    "as": "stockRecords"
+                }
+            },
+            
+            // Add computed field for effective stock
+            doc! {
+                "$addFields": {
+                    "effectiveStock": {
+                        "$sum": {
+                            "$map": {
+                                "input": "$stockRecords",
+                                "as": "stock",
+                                "in": {
+                                    "$cond": [
+                                        { "$gt": ["$$stock.manualStock", null] },
+                                        "$$stock.manualStock",
+                                        "$$stock.calculatedStock"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            
+            // Filter by stock > 0 OR fallback to availableStock > 0
+            doc! {
+                "$match": {
+                    "$or": [
+                        { "effectiveStock": { "$gt": 0.0 } },
+                        { "availableStock": { "$gt": 0.0 } }
+                    ]
+                }
+            },
+            
+            // Remove stockRecords from output
+            doc! {
+                "$project": {
+                    "stockRecords": 0,
+                    "effectiveStock": 0
+                }
+            }
+        ];
+
+        let mut cursor = self.menu_collection.aggregate(pipeline, None).await?;
+        let mut items = Vec::new();
+        
+        while cursor.advance().await? {
+            let doc = cursor.deserialize_current()?;
+            let item: MenuItem = bson::from_document(doc)?;
+            items.push(item);
+        }
+        
+        Ok(items)
+    }
+
+    /// Optimized query for cashier (all active items, minimal projection)
+    pub async fn find_cashier_menu_items(&self) -> AppResult<Vec<MenuItem>> {
+        let filter = doc! { "isActive": true };
+        
+        // Use find with options for better performance
+        let mut cursor = self.menu_collection.find(filter, None).await?;
+        let mut items = Vec::new();
+        
+        while cursor.advance().await? {
+            items.push(cursor.deserialize_current()?);
+        }
+        
+        Ok(items)
+    }
+
+    /// Optimized query for backoffice (all items, sorted by creation date)
+    pub async fn find_backoffice_menu_items(&self) -> AppResult<Vec<MenuItem>> {
+        let options = mongodb::options::FindOptions::builder()
+            .sort(doc! { "createdAt": -1 })
+            .build();
+        
+        let mut cursor = self.menu_collection.find(None, options).await?;
+        let mut items = Vec::new();
+        
+        while cursor.advance().await? {
+            items.push(cursor.deserialize_current()?);
+        }
+        
+        Ok(items)
+    }
 }
+

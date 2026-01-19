@@ -127,6 +127,14 @@ impl ConnectionManager {
     pub fn get_device_info(&self, client_id: &ClientId) -> Option<DeviceInfo> {
         self.devices.get(client_id).map(|d| d.clone())
     }
+
+    pub fn send_to_client(&self, client_id: &str, message: String) -> bool {
+        if let Some(sender) = self.clients.get(client_id) {
+            sender.send(message).is_ok()
+        } else {
+            false
+        }
+    }
 }
 
 impl Default for ConnectionManager {
