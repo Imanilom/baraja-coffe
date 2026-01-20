@@ -472,7 +472,10 @@ async function createOrderWithSimpleTransaction({
         originalServiceFee: totals.totalServiceFee,
         adjustedServiceFee,
         originalGrandTotal: totals.grandTotal,
-        adjustedGrandTotal
+        adjustedGrandTotal,
+        itemCustomDiscounts: discounts.itemCustomDiscounts,
+        orderLevelCustomDiscount,
+        totalCustomDiscount: discounts.itemCustomDiscounts + orderLevelCustomDiscount  // ✅ Auto-calculated
       });
     }
 
@@ -508,7 +511,7 @@ async function createOrderWithSimpleTransaction({
         voucherDiscount: discounts.voucherDiscount || 0,
         loyaltyDiscount: discounts.loyaltyDiscount || 0,
         customAmountDiscount: discounts.customAmountDiscount || 0,
-        customDiscount: orderData.discounts?.customDiscount || 0,  // ✅ NEW: Custom discount from Flutter
+        customDiscount: discounts.itemCustomDiscounts + orderLevelCustomDiscount,  // ✅ AUTO-CALCULATED: item + order discounts
         total: discounts.total || 0
       },
       // ✅ NEW: Custom discount details from Flutter
