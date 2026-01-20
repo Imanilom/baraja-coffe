@@ -428,6 +428,54 @@ async function createOrderWithSimpleTransaction({
       }];
     }
 
+    // ✅ NEW: Apply order-level custom discount (from Flutter)
+    const orderLevelCustomDiscount = orderData.customDiscountDetails?.isActive
+      ? (orderData.customDiscountDetails.discountAmount || 0)
+      : (cleanOrderData.discounts?.customDiscount || 0);
+
+    console.log('💰 APPLYING ORDER-LEVEL CUSTOM DISCOUNT:', {
+      orderLevelCustomDiscount,
+      fromCustomDiscountDetails: orderData.customDiscountDetails?.discountAmount,
+      fromCleanOrderData: cleanOrderData.discounts?.customDiscount,
+      isActive: orderData.customDiscountDetails?.isActive,
+      totalBeforeAdjustment: totals.afterDiscount
+    });
+
+    // Adjust totals if order-level custom discount exists
+    let adjustedTotalAfterDiscount = totals.afterDiscount;
+    let adjustedGrandTotal = totals.grandTotal;
+    let adjustedTaxAmount = totals.totalTax;
+    let adjustedServiceFee = totals.totalServiceFee;
+    let adjustedTaxAndServiceDetails = taxesAndFees;
+
+    if (orderLevelCustomDiscount > 0) {
+      adjustedTotalAfterDiscount = Math.max(0, totals.afterDiscount - orderLevelCustomDiscount);
+
+      // ✅ RECALCULATE tax properly based on adjusted total
+      const recalculatedTax = await calculateTaxesAndServices(
+        outletId,
+        adjustedTotalAfterDiscount,
+        orderItems,
+        processedCustomAmountItems
+      );
+
+      adjustedTaxAmount = recalculatedTax.totalTax;
+      adjustedServiceFee = recalculatedTax.totalServiceFee;
+      adjustedTaxAndServiceDetails = recalculatedTax.taxAndServiceDetails;
+      adjustedGrandTotal = adjustedTotalAfterDiscount + adjustedTaxAmount + adjustedServiceFee;
+
+      console.log('💰 ADJUSTED TOTALS WITH RECALCULATED TAX:', {
+        originalAfterDiscount: totals.afterDiscount,
+        adjustedTotalAfterDiscount,
+        originalTax: totals.totalTax,
+        adjustedTaxAmount,
+        originalServiceFee: totals.totalServiceFee,
+        adjustedServiceFee,
+        originalGrandTotal: totals.grandTotal,
+        adjustedGrandTotal
+      });
+    }
+
     // Prepare base order data
     const baseOrderData = {
       order_id: orderId,
@@ -444,11 +492,11 @@ async function createOrderWithSimpleTransaction({
       outlet: outletId,
       outletId: outletId,
       totalBeforeDiscount: totals.beforeDiscount,
-      totalAfterDiscount: totals.afterDiscount,
+      totalAfterDiscount: adjustedTotalAfterDiscount,  // ✅ Use adjusted value
       totalCustomAmount: totals.totalCustomAmount,
-      totalTax: totals.totalTax,
-      totalServiceFee: totals.totalServiceFee,
-      grandTotal: totals.grandTotal,
+      totalTax: adjustedTaxAmount,  // ✅ Use recalculated tax
+      totalServiceFee: adjustedServiceFee,  // ✅ Use recalculated service fee
+      grandTotal: adjustedGrandTotal,  // ✅ Use adjusted value
       source: source,
       isOpenBill: isOpenBill || false,
       isSplitPayment: isSplitPayment,
@@ -460,12 +508,19 @@ async function createOrderWithSimpleTransaction({
         voucherDiscount: discounts.voucherDiscount || 0,
         loyaltyDiscount: discounts.loyaltyDiscount || 0,
         customAmountDiscount: discounts.customAmountDiscount || 0,
+        customDiscount: orderData.discounts?.customDiscount || 0,  // ✅ NEW: Custom discount from Flutter
         total: discounts.total || 0
+      },
+      // ✅ NEW: Custom discount details from Flutter
+      customDiscountDetails: orderData.customDiscountDetails || {
+        isActive: false,
+        discountValue: 0,
+        discountAmount: 0
       },
       appliedPromos: selectedPromos,
       appliedManualPromo: promotions.appliedManualPromo || null,
       appliedVoucher: promotions.appliedVoucher || null,
-      taxAndServiceDetails: taxesAndFees || [],
+      taxAndServiceDetails: adjustedTaxAndServiceDetails || [],  // ✅ Use recalculated tax details
       notes: notes || '',
       currentBatch: 1,
       deliveryStatus: "false",
@@ -734,7 +789,13 @@ export async function processOrderItems({
         notes: item.notes || '',
         isPrinted: false,
         dineType: item.dineType || 'Dine-In',
-        isBazarCategory
+        isBazarCategory,
+        // ✅ NEW: Pass through customDiscount from Flutter
+        customDiscount: item.customDiscount || {
+          isActive: false,
+          discountValue: 0,
+          discountAmount: 0
+        }
       });
     }
   }
@@ -895,6 +956,23 @@ export async function processOrderItems({
     selectedPromoDiscount: selectedPromoResult.totalDiscount
   });
 
+  // ✅ NEW: Calculate custom discount from items (from Flutter)
+  const itemCustomDiscounts = orderItems.reduce((total, item) => {
+    if (item.customDiscount?.isActive && item.customDiscount?.discountAmount) {
+      return total + item.customDiscount.discountAmount;
+    }
+    return total;
+  }, 0);
+
+  console.log('💰 CUSTOM DISCOUNT CALCULATION:', {
+    itemCustomDiscounts,
+    itemsWithDiscount: orderItems.filter(item => item.customDiscount?.isActive).length
+  });
+
+  // ✅ NEW: Order-level custom discount will be passed separately through baseOrderData
+  // For now, only include item-level discounts in processOrderItems
+  // Order-level discount will be added later in createOrderWithSimpleTransaction
+
   // TOTAL SEMUA DISKON
   const totalAllDiscounts =
     selectedPromoResult.totalDiscount +
@@ -902,7 +980,8 @@ export async function processOrderItems({
     loyaltyDiscount +
     promotionResults.autoPromoDiscount +
     promotionResults.manualDiscount +
-    promotionResults.voucherDiscount;
+    promotionResults.voucherDiscount +
+    itemCustomDiscounts;  // ✅ Item-level custom discounts only
 
   const totalAfterAllDiscounts = Math.max(0, combinedTotalBeforeDiscount - totalAllDiscounts);
 
@@ -912,6 +991,7 @@ export async function processOrderItems({
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     loyaltyDiscount,
+    itemCustomDiscounts,  // ✅ Item-level only
     totalAllDiscounts,
     combinedTotalBeforeDiscount,
     totalAfterAllDiscounts
@@ -966,6 +1046,7 @@ export async function processOrderItems({
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     loyaltyDiscount,
+    itemCustomDiscounts,  // ✅ NEW: Log in summary
     totalAllDiscounts,
     totalAfterAllDiscounts,
     totalTax: taxResult.totalTax,
@@ -993,6 +1074,7 @@ export async function processOrderItems({
       voucherDiscount: promotionResults.voucherDiscount,
       loyaltyDiscount: loyaltyDiscount,
       customAmountDiscount: customAmountDiscount,
+      itemCustomDiscounts,  // ✅ NEW: Include item custom discounts
       total: totalAllDiscounts
     },
     promotions: {

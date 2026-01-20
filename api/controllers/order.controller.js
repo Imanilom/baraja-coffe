@@ -4277,7 +4277,14 @@ const processCashierOrderDirect = async ({
     source: 'Cashier',
     outletId: outletId,
     user: req.body.user || 'Cashier',
-    contact: req.body.contact || { phone: '081234567890' }
+    contact: req.body.contact || { phone: '081234567890' },
+    // ✅ NEW: Pass through custom discount fields from Flutter
+    discounts: req.body.discounts || {},
+    customDiscountDetails: req.body.customDiscountDetails || {
+      isActive: false,
+      discountValue: 0,
+      discountAmount: 0
+    }
   };
 
   const validated = validateOrderData(validationData, 'Cashier');
