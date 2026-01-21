@@ -11,6 +11,7 @@ abstract class DiscountModel with _$DiscountModel {
     @HiveField(0) @Default(0) int autoPromoDiscount,
     @HiveField(1) @Default(0) int manualDiscount,
     @HiveField(2) @Default(0) int voucherDiscount,
+    @HiveField(3) @Default(0) int customDiscount,
   }) = _DiscountModel;
 
   factory DiscountModel.fromJson(Map<String, dynamic> json) =>
@@ -19,6 +20,9 @@ abstract class DiscountModel with _$DiscountModel {
 
 extension DiscountModelExt on DiscountModel {
   int get totalDiscount {
-    return autoPromoDiscount + manualDiscount + voucherDiscount;
+    return autoPromoDiscount +
+        manualDiscount +
+        voucherDiscount +
+        customDiscount;
   }
 }

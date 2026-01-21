@@ -70,13 +70,15 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       totalCustomAmount: fields[36] == null ? 0 : (fields[36] as num).toInt(),
       selectedPromoIds:
           fields[37] == null ? [] : (fields[37] as List).cast<String>(),
+      customDiscountDetails:
+          fields[38] == null ? null : fields[38] as CustomDiscountModel?,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
-      ..writeByte(38)
+      ..writeByte(39)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -152,7 +154,9 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(36)
       ..write(obj.totalCustomAmount)
       ..writeByte(37)
-      ..write(obj.selectedPromoIds);
+      ..write(obj.selectedPromoIds)
+      ..writeByte(38)
+      ..write(obj.customDiscountDetails);
   }
 
   @override
@@ -261,6 +265,12 @@ _OrderDetailModel _$OrderDetailModelFromJson(
           ?.map((e) => e as String)
           .toList() ??
       const <String>[],
+  customDiscountDetails:
+      json['customDiscountDetails'] == null
+          ? null
+          : CustomDiscountModel.fromJson(
+            json['customDiscountDetails'] as Map<String, dynamic>,
+          ),
 );
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
@@ -303,4 +313,5 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'customAmountItems': instance.customAmountItems,
       'totalCustomAmount': instance.totalCustomAmount,
       'selectedPromoIds': instance.selectedPromoIds,
+      'customDiscountDetails': instance.customDiscountDetails,
     };

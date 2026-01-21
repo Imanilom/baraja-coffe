@@ -435,6 +435,17 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                     .toList(),
             'notes': item.notes,
             'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            // Include custom discount for item
+            if (item.customDiscount?.isActive == true)
+              'customDiscount': {
+                'isActive': item.customDiscount!.isActive,
+                'discountType': item.customDiscount!.discountType,
+                'discountValue': item.customDiscount!.discountValue,
+                'discountAmount': item.customDiscount!.discountAmount,
+                'appliedBy': item.customDiscount!.appliedBy,
+                'appliedAt': item.customDiscount!.appliedAt?.toIso8601String(),
+                'reason': item.customDiscount!.reason,
+              },
           };
         }).toList(),
     'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
@@ -445,6 +456,17 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'selectedPromoIds': order.selectedPromoIds,
     'appliedPromos': order.appliedPromos,
     'discounts': order.discounts,
+    // Include order-level custom discount
+    if (order.customDiscountDetails?.isActive == true)
+      'customDiscountDetails': {
+        'isActive': order.customDiscountDetails!.isActive,
+        'discountType': order.customDiscountDetails!.discountType,
+        'discountValue': order.customDiscountDetails!.discountValue,
+        'discountAmount': order.customDiscountDetails!.discountAmount,
+        'appliedBy': order.customDiscountDetails!.appliedBy,
+        'appliedAt': order.customDiscountDetails!.appliedAt?.toIso8601String(),
+        'reason': order.customDiscountDetails!.reason,
+      },
     'totalPrice': order.grandTotal,
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,
