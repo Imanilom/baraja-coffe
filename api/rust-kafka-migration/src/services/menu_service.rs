@@ -101,4 +101,17 @@ impl MenuService {
         }
         Ok(())
     }
+
+    pub async fn get_customer_menu_items(&self) -> AppResult<Vec<MenuItem>> {
+        self.menu_repo.find_customer_menu_items().await
+    }
+
+    pub async fn get_cashier_menu_items(&self) -> AppResult<Vec<MenuItem>> {
+        self.menu_repo.find_cashier_menu_items().await
+    }
+
+    pub async fn get_backoffice_menu_items(&self) -> AppResult<Vec<MenuItem>> {
+        self.menu_repo.find_backoffice_menu_items().await
+    }
 }
+

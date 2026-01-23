@@ -1,12 +1,27 @@
 use axum::{
-    routing::{get, post, put, delete},
-    Router,
     middleware,
+    routing::{delete, get, post, put},
+    Router,
 };
 
+pub mod category;
+pub mod event;
 pub mod hr;
+pub mod promo;
+pub mod recipe;
+pub mod report;
+pub mod tax;
+pub mod voucher;
+
+pub use category::category_routes;
+pub use event::event_routes;
 pub use hr::hr_routes;
+pub use promo::promo_routes;
+pub use recipe::recipe_routes;
+pub use report::report_routes;
 use std::sync::Arc;
+pub use tax::tax_routes;
+pub use voucher::voucher_routes;
 
 use crate::error::ApiResponse;
 use crate::handlers;
@@ -35,7 +50,10 @@ fn auth_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/me", get(handlers::get_me))
         .route("/update-profile", post(handlers::update_profile))
         .route("/change-password", post(handlers::change_password))
-        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
 
     // Combine routes
     public_routes.merge(protected_routes)
@@ -44,8 +62,19 @@ fn auth_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
 /// Create menu routes
 fn menu_routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/", get(handlers::get_menu_items).post(handlers::create_menu_item))
-        .route("/:id", get(handlers::get_menu_item).put(handlers::update_menu_item).delete(handlers::delete_menu_item))
+        .route(
+            "/",
+            get(handlers::get_menu_items).post(handlers::create_menu_item),
+        )
+        .route("/customer", get(handlers::menu::get_customer_menu))
+        .route("/cashier", get(handlers::menu::get_cashier_menu))
+        .route("/backoffice", get(handlers::menu::get_backoffice_menu))
+        .route(
+            "/:id",
+            get(handlers::get_menu_item)
+                .put(handlers::update_menu_item)
+                .delete(handlers::delete_menu_item),
+        )
         .route("/categories", get(handlers::menu::get_categories))
         .route("/debug/db", get(handlers::menu::list_collections_debug))
 }
@@ -53,29 +82,52 @@ fn menu_routes() -> Router<Arc<AppState>> {
 /// Create product routes
 fn product_routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/", get(handlers::get_products).post(handlers::create_product))
+        .route(
+            "/",
+            get(handlers::get_products).post(handlers::create_product),
+        )
         .route("/bulk", post(handlers::bulk_create_products))
         .route("/search", get(handlers::search_products))
-        .route("/:id", get(handlers::get_product).put(handlers::update_product).delete(handlers::delete_product))
+        .route(
+            "/:id",
+            get(handlers::get_product)
+                .put(handlers::update_product)
+                .delete(handlers::delete_product),
+        )
         .route("/:id/price", put(handlers::update_product_price))
 }
 
 /// Create supplier routes
 fn supplier_routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/", get(handlers::supplier::get_suppliers).post(handlers::create_supplier))
+        .route(
+            "/",
+            get(handlers::supplier::get_suppliers).post(handlers::create_supplier),
+        )
         .route("/bulk", post(handlers::bulk_create_suppliers))
-        .route("/:id", put(handlers::update_supplier).delete(handlers::delete_supplier))
+        .route(
+            "/:id",
+            put(handlers::update_supplier).delete(handlers::delete_supplier),
+        )
 }
 
 /// Create marketlist routes
 fn marketlist_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route("/requests", get(handlers::get_requests).post(handlers::create_request))
+        .route(
+            "/requests",
+            get(handlers::get_requests).post(handlers::create_request),
+        )
         .route("/requests/:id", get(handlers::get_request))
-        .route("/requests/:id/approve", post(handlers::approve_request_items))
+        .route(
+            "/requests/:id/approve",
+            post(handlers::approve_request_items),
+        )
         .route("/purchase", post(handlers::record_purchase))
-        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
 }
 
 /// Create inventory routes
@@ -83,7 +135,10 @@ fn inventory_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
         .route("/menu-stock/:id", post(handlers::adjust_menu_stock))
         .route("/product-stock/:id", post(handlers::update_product_stock))
-        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
 }
 
 /// Create outlet routes
@@ -111,8 +166,7 @@ fn webhook_routes() -> Router<Arc<AppState>> {
 
 /// Create websocket routes
 fn websocket_routes() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/", get(crate::websocket::websocket_handler))
+    Router::new().route("/", get(crate::websocket::websocket_handler))
 }
 
 /// Create application routes
@@ -122,13 +176,20 @@ pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/health", get(health_check))
         .nest("/api/auth", auth_routes(state.clone()))
         .nest("/api/menu", menu_routes())
+        .nest("/api/categories", category::category_routes())
+        .nest("/api/recipes", recipe::recipe_routes())
         .nest("/api/inventory", inventory_routes(state.clone()))
         .nest("/api/outlets", outlet_routes())
         .nest("/api/order", order_routes(state.clone()))
         .nest("/api/products", product_routes())
         .nest("/api/suppliers", supplier_routes())
         .nest("/api/marketlist", marketlist_routes(state.clone()))
+        .nest("/api/events", event::event_routes())
+        .nest("/api/promos", promo::promo_routes())
+        .nest("/api/vouchers", voucher::voucher_routes())
+        .nest("/api/taxes", tax::tax_routes())
         .nest("/api/hr", hr::hr_routes(state.clone()))
+        .nest("/api/report", report::report_routes())
         .nest("/api/webhook", webhook_routes())
         .nest("/ws", websocket_routes())
 }

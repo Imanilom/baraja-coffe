@@ -1,5 +1,5 @@
-mod config;
 mod common;
+mod config;
 mod db;
 mod error;
 mod handlers;
@@ -12,27 +12,26 @@ mod websocket;
 
 use std::sync::Arc;
 use tower_http::{
+    compression::CompressionLayer,
     cors::{Any, CorsLayer},
     trace::TraceLayer,
-    compression::CompressionLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::Config;
-use db::DbConnection;
 use db::repositories::{
-    UserRepository, MenuRepository, InventoryRepository, OutletRepository,
-    OrderRepository, MarketListRepository, PaymentRepository,
-    CompanyRepository, EmployeeRepository, AttendanceRepository,
-    SalaryRepository, HRSettingRepository, FingerprintRepository,
+    AttendanceRepository, CompanyRepository, EmployeeRepository, EventRepository,
+    FingerprintRepository, HRSettingRepository, InventoryRepository, MarketListRepository,
+    MenuRepository, OrderRepository, OutletRepository, PaymentRepository, SalaryRepository,
+    UserRepository,
 };
+use db::DbConnection;
 use error::AppResult;
 use kafka::KafkaProducer;
 use services::{
-    MenuService, InventoryService, OutletService, LoyaltyService,
-    TaxService, PromoService, MarketListService,
-    EmployeeService, AttendanceService, BpjsService, SalaryService, FingerprintService,
-    PrintService,
+    AttendanceService, BpjsService, EmployeeService, FingerprintService, InventoryService,
+    LoyaltyService, MarketListService, MenuService, OutletService, PrintService, PromoService,
+    SalaryService, TaxService,
 };
 use websocket::{ConnectionManager, WebSocketBroadcaster};
 
@@ -65,9 +64,11 @@ pub struct AppState {
     pub db: Arc<DbConnection>,
     pub kafka: Arc<KafkaProducer>,
     pub user_repo: UserRepository,
+    pub menu_repo: MenuRepository,
+    pub event_repo: EventRepository,
     pub order_repo: OrderRepository,
     pub payment_repo: PaymentRepository,
-    
+
     // HR Modules
     pub hr_repositories: HRRepositories,
     pub hr_services: HRServices,
@@ -120,6 +121,7 @@ async fn main() -> AppResult<()> {
     let order_repo = OrderRepository::new(db.clone());
     let market_list_repo = MarketListRepository::new(db.clone());
     let payment_repo = PaymentRepository::new(db.clone());
+    let event_repo = EventRepository::new(db.clone());
 
     // Initialize HR Repositories
     let company_repo = CompanyRepository::new(db.clone());
@@ -140,15 +142,21 @@ async fn main() -> AppResult<()> {
 
     // Initialize services
     let menu_service = MenuService::new(menu_repo.clone(), inventory_repo.clone(), kafka.clone());
-    let inventory_service = InventoryService::new(inventory_repo.clone(), menu_repo.clone(), kafka.clone());
+    let inventory_service =
+        InventoryService::new(inventory_repo.clone(), menu_repo.clone(), kafka.clone());
     let outlet_service = OutletService::new(outlet_repo.clone());
     let loyalty_service = LoyaltyService::new(db.database().clone());
     let tax_service = TaxService::new(db.database().clone());
     let promo_service = PromoService::new(db.database().clone());
-    let market_list_service = MarketListService::new(market_list_repo.clone(), inventory_service.clone());
+    let market_list_service =
+        MarketListService::new(market_list_repo.clone(), inventory_service.clone());
 
     // Initialize HR Services
-    let employee_service = EmployeeService::new(employee_repo.clone(), company_repo.clone(), user_repo.clone());
+    let employee_service = EmployeeService::new(
+        employee_repo.clone(),
+        company_repo.clone(),
+        user_repo.clone(),
+    );
     let attendance_service = AttendanceService::new(attendance_repo.clone(), company_repo.clone());
     let bpjs_service = BpjsService::new();
     let salary_service = SalaryService::new(
@@ -158,7 +166,8 @@ async fn main() -> AppResult<()> {
         company_repo.clone(),
         bpjs_service.clone(),
     );
-    let fingerprint_service = FingerprintService::new(fingerprint_repo.clone(), employee_repo.clone());
+    let fingerprint_service =
+        FingerprintService::new(fingerprint_repo.clone(), employee_repo.clone());
 
     let hr_services = HRServices {
         employee_service,
@@ -169,8 +178,8 @@ async fn main() -> AppResult<()> {
     };
 
     // Initialize Redis and LockUtil
-    let redis_client = redis::Client::open(config.redis.url.as_str())
-        .map_err(error::AppError::Redis)?;
+    let redis_client =
+        redis::Client::open(config.redis.url.as_str()).map_err(error::AppError::Redis)?;
     let lock_util = utils::LockUtil::new(redis_client);
     tracing::info!("Redis connection initialized");
 
@@ -186,6 +195,8 @@ async fn main() -> AppResult<()> {
         db,
         kafka,
         user_repo,
+        menu_repo,
+        event_repo,
         order_repo,
         payment_repo,
         hr_repositories,
@@ -219,10 +230,10 @@ async fn main() -> AppResult<()> {
     // Start server
     let addr = format!("0.0.0.0:{}", config.server.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    
+
     tracing::info!("🚀 Server listening on {}", addr);
     tracing::info!("Environment: {}", config.server.env);
-    
+
     axum::serve(listener, app)
         .await
         .map_err(|e| error::AppError::Internal(format!("Server error: {}", e)))?;

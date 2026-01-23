@@ -4,6 +4,7 @@ import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -33,6 +34,8 @@ abstract class OrderItemModel with _$OrderItemModel {
     @HiveField(9) @Default(0) int printedQuantity,
     @HiveField(10) @Default([]) List<String> printBatchIds,
     @HiveField(11) @Default(null) String? reservedPromoId,
+    // Custom discount untuk item ini
+    @HiveField(12) @Default(null) CustomDiscountModel? customDiscount,
   }) = _OrderItemModel;
 
   OrderItemModel._();

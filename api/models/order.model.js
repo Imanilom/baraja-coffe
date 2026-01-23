@@ -161,7 +161,30 @@ const OrderItemSchema = new mongoose.Schema({
   isCancelled: { type: Boolean, default: false },
   cancelledAt: { type: Date },
   cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  cancellationReason: { type: String }
+  cancellationReason: { type: String },
+
+  // ✅ NEW: Custom discount fields (populated by Flutter app - offline first)
+  customDiscount: {
+    isActive: { type: Boolean, default: false },
+    discountType: {
+      type: String,
+      enum: ['percentage', 'fixed']
+      // No default - will be undefined when discount not applied
+    },
+    discountValue: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 }, // Already calculated by Flutter
+    appliedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: false  // ✅ Optional - Flutter may not always send valid ObjectId
+    },
+    appliedAt: {
+      type: Date,
+      required: false  // ✅ Optional
+      // No default - only set when discount is actually applied
+    },
+    reason: { type: String, default: '' }
+  }
 });
 
 // Schema untuk selected promo bundles
@@ -358,8 +381,33 @@ const OrderSchema = new mongoose.Schema({
     autoPromoDiscount: { type: Number, default: 0 },
     manualDiscount: { type: Number, default: 0 },
     voucherDiscount: { type: Number, default: 0 },
-    selectedBundleDiscount: { type: Number, default: 0 } // ✅ BARU: Total discount dari selected bundles
+    selectedBundleDiscount: { type: Number, default: 0 }, // ✅ BARU: Total discount dari selected bundles
+    customDiscount: { type: Number, default: 0 } // ✅ NEW: Custom discount from Flutter (offline-first)
   },
+
+  // ✅ NEW: Custom discount details (populated by Flutter app - offline first)
+  customDiscountDetails: {
+    isActive: { type: Boolean, default: false },
+    discountType: {
+      type: String,
+      enum: ['percentage', 'fixed']
+      // No default - will be undefined when discount not applied
+    },
+    discountValue: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 }, // Already calculated by Flutter
+    appliedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: false  // ✅ Optional - Flutter may not always send valid ObjectId
+    },
+    appliedAt: {
+      type: Date,
+      required: false  // ✅ Optional
+      // No default - only set when discount is actually applied
+    },
+    reason: { type: String, default: '' }
+  },
+
   appliedPromos: [{
     promoId: {
       type: mongoose.Schema.Types.ObjectId,

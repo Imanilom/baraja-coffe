@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$DiscountModel {
 
-@HiveField(0) int get autoPromoDiscount;@HiveField(1) int get manualDiscount;@HiveField(2) int get voucherDiscount;
+@HiveField(0) int get autoPromoDiscount;@HiveField(1) int get manualDiscount;@HiveField(2) int get voucherDiscount;@HiveField(3) int get customDiscount;
 /// Create a copy of DiscountModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $DiscountModelCopyWith<DiscountModel> get copyWith => _$DiscountModelCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DiscountModel&&(identical(other.autoPromoDiscount, autoPromoDiscount) || other.autoPromoDiscount == autoPromoDiscount)&&(identical(other.manualDiscount, manualDiscount) || other.manualDiscount == manualDiscount)&&(identical(other.voucherDiscount, voucherDiscount) || other.voucherDiscount == voucherDiscount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DiscountModel&&(identical(other.autoPromoDiscount, autoPromoDiscount) || other.autoPromoDiscount == autoPromoDiscount)&&(identical(other.manualDiscount, manualDiscount) || other.manualDiscount == manualDiscount)&&(identical(other.voucherDiscount, voucherDiscount) || other.voucherDiscount == voucherDiscount)&&(identical(other.customDiscount, customDiscount) || other.customDiscount == customDiscount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,autoPromoDiscount,manualDiscount,voucherDiscount);
+int get hashCode => Object.hash(runtimeType,autoPromoDiscount,manualDiscount,voucherDiscount,customDiscount);
 
 @override
 String toString() {
-  return 'DiscountModel(autoPromoDiscount: $autoPromoDiscount, manualDiscount: $manualDiscount, voucherDiscount: $voucherDiscount)';
+  return 'DiscountModel(autoPromoDiscount: $autoPromoDiscount, manualDiscount: $manualDiscount, voucherDiscount: $voucherDiscount, customDiscount: $customDiscount)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $DiscountModelCopyWith<$Res>  {
   factory $DiscountModelCopyWith(DiscountModel value, $Res Function(DiscountModel) _then) = _$DiscountModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) int autoPromoDiscount,@HiveField(1) int manualDiscount,@HiveField(2) int voucherDiscount
+@HiveField(0) int autoPromoDiscount,@HiveField(1) int manualDiscount,@HiveField(2) int voucherDiscount,@HiveField(3) int customDiscount
 });
 
 
@@ -65,11 +65,12 @@ class _$DiscountModelCopyWithImpl<$Res>
 
 /// Create a copy of DiscountModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? autoPromoDiscount = null,Object? manualDiscount = null,Object? voucherDiscount = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? autoPromoDiscount = null,Object? manualDiscount = null,Object? voucherDiscount = null,Object? customDiscount = null,}) {
   return _then(_self.copyWith(
 autoPromoDiscount: null == autoPromoDiscount ? _self.autoPromoDiscount : autoPromoDiscount // ignore: cast_nullable_to_non_nullable
 as int,manualDiscount: null == manualDiscount ? _self.manualDiscount : manualDiscount // ignore: cast_nullable_to_non_nullable
 as int,voucherDiscount: null == voucherDiscount ? _self.voucherDiscount : voucherDiscount // ignore: cast_nullable_to_non_nullable
+as int,customDiscount: null == customDiscount ? _self.customDiscount : customDiscount // ignore: cast_nullable_to_non_nullable
 as int,
   ));
 }
@@ -155,10 +156,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  int autoPromoDiscount, @HiveField(1)  int manualDiscount, @HiveField(2)  int voucherDiscount)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  int autoPromoDiscount, @HiveField(1)  int manualDiscount, @HiveField(2)  int voucherDiscount, @HiveField(3)  int customDiscount)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DiscountModel() when $default != null:
-return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscount);case _:
+return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscount,_that.customDiscount);case _:
   return orElse();
 
 }
@@ -176,10 +177,10 @@ return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscou
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  int autoPromoDiscount, @HiveField(1)  int manualDiscount, @HiveField(2)  int voucherDiscount)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  int autoPromoDiscount, @HiveField(1)  int manualDiscount, @HiveField(2)  int voucherDiscount, @HiveField(3)  int customDiscount)  $default,) {final _that = this;
 switch (_that) {
 case _DiscountModel():
-return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscount);case _:
+return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscount,_that.customDiscount);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -196,10 +197,10 @@ return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscou
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  int autoPromoDiscount, @HiveField(1)  int manualDiscount, @HiveField(2)  int voucherDiscount)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  int autoPromoDiscount, @HiveField(1)  int manualDiscount, @HiveField(2)  int voucherDiscount, @HiveField(3)  int customDiscount)?  $default,) {final _that = this;
 switch (_that) {
 case _DiscountModel() when $default != null:
-return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscount);case _:
+return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscount,_that.customDiscount);case _:
   return null;
 
 }
@@ -211,12 +212,13 @@ return $default(_that.autoPromoDiscount,_that.manualDiscount,_that.voucherDiscou
 @JsonSerializable()
 
 class _DiscountModel implements DiscountModel {
-   _DiscountModel({@HiveField(0) this.autoPromoDiscount = 0, @HiveField(1) this.manualDiscount = 0, @HiveField(2) this.voucherDiscount = 0});
+   _DiscountModel({@HiveField(0) this.autoPromoDiscount = 0, @HiveField(1) this.manualDiscount = 0, @HiveField(2) this.voucherDiscount = 0, @HiveField(3) this.customDiscount = 0});
   factory _DiscountModel.fromJson(Map<String, dynamic> json) => _$DiscountModelFromJson(json);
 
 @override@JsonKey()@HiveField(0) final  int autoPromoDiscount;
 @override@JsonKey()@HiveField(1) final  int manualDiscount;
 @override@JsonKey()@HiveField(2) final  int voucherDiscount;
+@override@JsonKey()@HiveField(3) final  int customDiscount;
 
 /// Create a copy of DiscountModel
 /// with the given fields replaced by the non-null parameter values.
@@ -231,16 +233,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DiscountModel&&(identical(other.autoPromoDiscount, autoPromoDiscount) || other.autoPromoDiscount == autoPromoDiscount)&&(identical(other.manualDiscount, manualDiscount) || other.manualDiscount == manualDiscount)&&(identical(other.voucherDiscount, voucherDiscount) || other.voucherDiscount == voucherDiscount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DiscountModel&&(identical(other.autoPromoDiscount, autoPromoDiscount) || other.autoPromoDiscount == autoPromoDiscount)&&(identical(other.manualDiscount, manualDiscount) || other.manualDiscount == manualDiscount)&&(identical(other.voucherDiscount, voucherDiscount) || other.voucherDiscount == voucherDiscount)&&(identical(other.customDiscount, customDiscount) || other.customDiscount == customDiscount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,autoPromoDiscount,manualDiscount,voucherDiscount);
+int get hashCode => Object.hash(runtimeType,autoPromoDiscount,manualDiscount,voucherDiscount,customDiscount);
 
 @override
 String toString() {
-  return 'DiscountModel(autoPromoDiscount: $autoPromoDiscount, manualDiscount: $manualDiscount, voucherDiscount: $voucherDiscount)';
+  return 'DiscountModel(autoPromoDiscount: $autoPromoDiscount, manualDiscount: $manualDiscount, voucherDiscount: $voucherDiscount, customDiscount: $customDiscount)';
 }
 
 
@@ -251,7 +253,7 @@ abstract mixin class _$DiscountModelCopyWith<$Res> implements $DiscountModelCopy
   factory _$DiscountModelCopyWith(_DiscountModel value, $Res Function(_DiscountModel) _then) = __$DiscountModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) int autoPromoDiscount,@HiveField(1) int manualDiscount,@HiveField(2) int voucherDiscount
+@HiveField(0) int autoPromoDiscount,@HiveField(1) int manualDiscount,@HiveField(2) int voucherDiscount,@HiveField(3) int customDiscount
 });
 
 
@@ -268,11 +270,12 @@ class __$DiscountModelCopyWithImpl<$Res>
 
 /// Create a copy of DiscountModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? autoPromoDiscount = null,Object? manualDiscount = null,Object? voucherDiscount = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? autoPromoDiscount = null,Object? manualDiscount = null,Object? voucherDiscount = null,Object? customDiscount = null,}) {
   return _then(_DiscountModel(
 autoPromoDiscount: null == autoPromoDiscount ? _self.autoPromoDiscount : autoPromoDiscount // ignore: cast_nullable_to_non_nullable
 as int,manualDiscount: null == manualDiscount ? _self.manualDiscount : manualDiscount // ignore: cast_nullable_to_non_nullable
 as int,voucherDiscount: null == voucherDiscount ? _self.voucherDiscount : voucherDiscount // ignore: cast_nullable_to_non_nullable
+as int,customDiscount: null == customDiscount ? _self.customDiscount : customDiscount // ignore: cast_nullable_to_non_nullable
 as int,
   ));
 }

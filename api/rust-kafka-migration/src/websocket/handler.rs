@@ -8,7 +8,7 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use super::{events::*, manager::ConnectionManager};
 use crate::AppState;
@@ -85,10 +85,9 @@ async fn handle_client_message(
                 success: true 
             };
             if let Ok(json) = serde_json::to_string(&ack) {
-                if let Some(sender) = manager.clients.get(client_id) {
-                    let _ = sender.send(json);
-                }
+                manager.send_to_client(client_id, json);
             }
+
         }
         ClientMessage::JoinRoom { room } => {
             manager.join_room(client_id.to_string(), room);
