@@ -4,13 +4,24 @@ use axum::{
     Router,
 };
 
+pub mod category;
 pub mod event;
 pub mod hr;
+pub mod promo;
+pub mod recipe;
 pub mod report;
+pub mod tax;
+pub mod voucher;
+
+pub use category::category_routes;
 pub use event::event_routes;
 pub use hr::hr_routes;
+pub use promo::promo_routes;
+pub use recipe::recipe_routes;
 pub use report::report_routes;
 use std::sync::Arc;
+pub use tax::tax_routes;
+pub use voucher::voucher_routes;
 
 use crate::error::ApiResponse;
 use crate::handlers;
@@ -165,12 +176,18 @@ pub fn create_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/health", get(health_check))
         .nest("/api/auth", auth_routes(state.clone()))
         .nest("/api/menu", menu_routes())
+        .nest("/api/categories", category::category_routes())
+        .nest("/api/recipes", recipe::recipe_routes())
         .nest("/api/inventory", inventory_routes(state.clone()))
         .nest("/api/outlets", outlet_routes())
         .nest("/api/order", order_routes(state.clone()))
         .nest("/api/products", product_routes())
         .nest("/api/suppliers", supplier_routes())
         .nest("/api/marketlist", marketlist_routes(state.clone()))
+        .nest("/api/events", event::event_routes())
+        .nest("/api/promos", promo::promo_routes())
+        .nest("/api/vouchers", voucher::voucher_routes())
+        .nest("/api/taxes", tax::tax_routes())
         .nest("/api/hr", hr::hr_routes(state.clone()))
         .nest("/api/report", report::report_routes())
         .nest("/api/webhook", webhook_routes())

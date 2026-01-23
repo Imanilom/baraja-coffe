@@ -1,3 +1,4 @@
+pub mod area;
 pub mod category;
 pub mod event;
 pub mod loyalty;
@@ -12,8 +13,10 @@ pub mod product_stock;
 pub mod promo;
 pub mod recipe;
 pub mod request;
+pub mod reservation;
 pub mod role;
 pub mod supplier;
+pub mod table;
 pub mod tax;
 pub mod user;
 pub mod voucher;
@@ -27,6 +30,7 @@ pub mod hr_fingerprint;
 pub mod hr_salary;
 pub mod hr_setting;
 
+pub use area::Area;
 pub use category::Category;
 pub use event::{CheckInStatus, Event, EventStatus, FreeRegistration};
 pub use loyalty::{CustomerLoyalty, LoyaltyLevel, LoyaltyProgram};
@@ -45,8 +49,13 @@ pub use recipe::Recipe;
 pub use request::{
     FulfillmentStatus, Request, RequestItem, RequestItemStatus, RequestStatus, RequestType,
 };
+pub use reservation::{
+    EmployeeInfo, FoodServingOption, Reservation, ReservationStatus, ReservationType, ServingType,
+    TableType as ReservationTableType,
+};
 pub use role::{Permission, Role};
 pub use supplier::Supplier;
+pub use table::{StatusHistoryEntry, Table, TableStatus};
 pub use tax::TaxAndService;
 pub use user::{AuthType, User, UserResponse};
 pub use voucher::{Voucher, VoucherUsage};
