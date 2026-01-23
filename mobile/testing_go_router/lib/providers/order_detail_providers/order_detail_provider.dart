@@ -4,6 +4,7 @@ import 'package:kasirbaraja/extensions/order_item_extensions.dart';
 import 'package:kasirbaraja/features/promos/promo_engine.dart';
 import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/promo_group.model.dart';
@@ -277,6 +278,137 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     _recalculateAll();
 
     debugPrint('Custom amount removed');
+  }
+
+  // ============================================================================
+  // CUSTOM DISCOUNT MANAGEMENT
+  // ============================================================================
+
+  /// Apply custom discount to specific item
+  void applyItemCustomDiscount({
+    required OrderItemModel item,
+    required String discountType,
+    required int discountValue,
+    required String reason,
+  }) {
+    if (state == null) return;
+
+    final cashier = state!.cashier;
+    final itemIndex = state!.items.indexOf(item);
+    if (itemIndex == -1) {
+      debugPrint('❌ Item not found in order');
+      return;
+    }
+
+    // Calculate discount amount
+    final itemSubtotal = item.subtotal;
+    final discountAmount =
+        discountType == 'percentage'
+            ? (itemSubtotal * discountValue / 100).round()
+            : discountValue;
+
+    debugPrint('💰 Applying item custom discount:');
+    debugPrint('  - Item: ${item.menuItem.name}');
+    debugPrint('  - Subtotal: Rp $itemSubtotal');
+    debugPrint('  - Type: $discountType');
+    debugPrint('  - Value: $discountValue');
+    debugPrint('  - Amount: Rp $discountAmount');
+
+    // Create discount model
+    final customDiscount = CustomDiscountModel(
+      isActive: true,
+      discountType: discountType,
+      discountValue: discountValue,
+      discountAmount: discountAmount,
+      appliedBy: cashier?.id,
+      appliedAt: DateTime.now(),
+      reason: reason,
+    );
+
+    // Update item
+    final updatedItem = item.copyWith(customDiscount: customDiscount);
+    final updatedItems = [...state!.items];
+    updatedItems[itemIndex] = updatedItem;
+
+    state = state!.copyWith(items: updatedItems);
+    _idempotencyKey = null; // Cart changed
+    _recalculateAll();
+
+    debugPrint('✅ Custom discount applied to item: ${item.menuItem.name}');
+  }
+
+  /// Remove custom discount from specific item
+  void removeItemCustomDiscount(OrderItemModel item) {
+    if (state == null) return;
+
+    final itemIndex = state!.items.indexOf(item);
+    if (itemIndex == -1) return;
+
+    debugPrint('🗑️ Removing custom discount from: ${item.menuItem.name}');
+
+    final updatedItem = item.copyWith(customDiscount: null);
+    final updatedItems = [...state!.items];
+    updatedItems[itemIndex] = updatedItem;
+
+    state = state!.copyWith(items: updatedItems);
+    _idempotencyKey = null; //Cart changed
+    _recalculateAll();
+
+    debugPrint('✅ Custom discount removed from item');
+  }
+
+  /// Apply custom discount to entire order
+  void applyOrderCustomDiscount({
+    required String discountType,
+    required int discountValue,
+    required String reason,
+  }) {
+    if (state == null) return;
+
+    final cashier = state!.cashier;
+
+    // Calculate based on current total after item discounts and promos
+    final baseAmount = state!.totalAfterDiscount;
+    final discountAmount =
+        discountType == 'percentage'
+            ? (baseAmount * discountValue / 100).round()
+            : discountValue;
+
+    debugPrint('💰 Applying order-level custom discount:');
+    debugPrint('  - Base amount: Rp $baseAmount');
+    debugPrint('  - Type: $discountType');
+    debugPrint('  - Value: $discountValue');
+    debugPrint('  - Amount: Rp $discountAmount');
+
+    // Create discount model
+    final customDiscount = CustomDiscountModel(
+      isActive: true,
+      discountType: discountType,
+      discountValue: discountValue,
+      discountAmount: discountAmount,
+      appliedBy: cashier?.id,
+      appliedAt: DateTime.now(),
+      reason: reason,
+    );
+
+    state = state!.copyWith(customDiscountDetails: customDiscount);
+    _idempotencyKey = null; // Cart changed
+    _recalculateAll();
+
+    debugPrint('✅ Order-level custom discount applied: Rp $discountAmount');
+  }
+
+  /// Remove order-level custom discount
+  void removeOrderCustomDiscount() {
+    if (state == null) return;
+
+    debugPrint('🗑️ Removing order-level custom discount');
+
+    state = state!.copyWith(customDiscountDetails: null);
+    _idempotencyKey = null; // Cart changed
+    _recalculateAll();
+
+    debugPrint('✅ Order-level custom discount removed');
   }
 
   // ============================================================================
@@ -593,14 +725,25 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         orderAfterPromo.appliedPromos,
       );
 
+      // 8a) Calculate item-level custom discounts
+      final itemCustomDiscounts = updatedItems.fold<int>(
+        0,
+        (sum, item) => sum + (item.customDiscount?.discountAmount ?? 0),
+      );
+
+      debugPrint('💰 Item custom discounts: Rp $itemCustomDiscounts');
+
       final existingDiscounts = state!.discounts ?? DiscountModel();
       final newDiscounts = existingDiscounts.copyWith(
         autoPromoDiscount: autoDiscount,
+        customDiscount:
+            itemCustomDiscounts, // Sum of item-level custom discounts
       );
 
       final manualDiscount = newDiscounts.manualDiscount;
       final voucherDiscount = newDiscounts.voucherDiscount;
-      final totalDiscount = autoDiscount + manualDiscount + voucherDiscount;
+      final totalDiscount =
+          autoDiscount + manualDiscount + voucherDiscount + itemCustomDiscounts;
 
       final totalAfterDiscount = (totalBeforeDiscount - totalDiscount).clamp(
         0,
@@ -608,18 +751,28 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       );
 
       debugPrint('🎁 Auto discount: $autoDiscount');
-      debugPrint('💸 Total discount: $totalDiscount');
+      debugPrint('💸 Item custom discounts: $itemCustomDiscounts');
+      debugPrint('💸 Total discount (before order discount): $totalDiscount');
 
-      // 9) Calculate tax & service
+      // 8b) Apply order-level custom discount AFTER other discounts
+      final orderCustomDiscount =
+          state!.customDiscountDetails?.discountAmount ?? 0;
+      final totalAfterAllDiscounts = (totalAfterDiscount - orderCustomDiscount)
+          .clamp(0, 1 << 31);
+
+      debugPrint('🎯 Order-level custom discount: Rp $orderCustomDiscount');
+      debugPrint('💵 Total after ALL discounts: Rp $totalAfterAllDiscounts');
+
+      // 9) Calculate tax & service (based on final discounted amount)
       int totalTax = 0;
       int totalServiceFee = 0;
 
       final isBazaarOrder = _isBazaarOrder(orderAfterPromo.items);
 
-      if (totalAfterDiscount > 0 && !isBazaarOrder) {
+      if (totalAfterAllDiscounts > 0 && !isBazaarOrder) {
         try {
           final result = await _taxAndServiceRepository.calculateOrderTotals(
-            totalAfterDiscount,
+            totalAfterAllDiscounts, // Use final amount after ALL discounts
           );
           totalTax = result.taxAmount;
           totalServiceFee = result.serviceAmount;
@@ -628,7 +781,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         }
       }
 
-      final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
+      final grandTotal = totalAfterAllDiscounts + totalTax + totalServiceFee;
 
       // 10) Update state once
       state = state!.copyWith(
@@ -636,7 +789,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         appliedPromos: orderAfterPromo.appliedPromos,
         discounts: newDiscounts,
         totalBeforeDiscount: totalBeforeDiscount,
-        totalAfterDiscount: totalAfterDiscount,
+        totalAfterDiscount: totalAfterAllDiscounts, // Use final amount
         totalTax: totalTax,
         totalServiceFee: totalServiceFee,
         grandTotal: grandTotal,

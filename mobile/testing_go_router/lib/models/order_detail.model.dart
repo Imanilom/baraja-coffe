@@ -8,6 +8,7 @@ import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/applied_promos.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
@@ -101,6 +102,9 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     List<CustomAmountItemsModel>? customAmountItems,
     @HiveField(36) @Default(0) int totalCustomAmount,
     @HiveField(37) @Default(<String>[]) List<String> selectedPromoIds,
+
+    // Custom discount untuk order-level
+    @HiveField(38) @Default(null) CustomDiscountModel? customDiscountDetails,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>

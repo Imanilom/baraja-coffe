@@ -20,19 +20,22 @@ class DiscountModelAdapter extends TypeAdapter<DiscountModel> {
       autoPromoDiscount: fields[0] == null ? 0 : (fields[0] as num).toInt(),
       manualDiscount: fields[1] == null ? 0 : (fields[1] as num).toInt(),
       voucherDiscount: fields[2] == null ? 0 : (fields[2] as num).toInt(),
+      customDiscount: fields[3] == null ? 0 : (fields[3] as num).toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, DiscountModel obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(4)
       ..writeByte(0)
       ..write(obj.autoPromoDiscount)
       ..writeByte(1)
       ..write(obj.manualDiscount)
       ..writeByte(2)
-      ..write(obj.voucherDiscount);
+      ..write(obj.voucherDiscount)
+      ..writeByte(3)
+      ..write(obj.customDiscount);
   }
 
   @override
@@ -55,6 +58,7 @@ _DiscountModel _$DiscountModelFromJson(Map<String, dynamic> json) =>
       autoPromoDiscount: (json['autoPromoDiscount'] as num?)?.toInt() ?? 0,
       manualDiscount: (json['manualDiscount'] as num?)?.toInt() ?? 0,
       voucherDiscount: (json['voucherDiscount'] as num?)?.toInt() ?? 0,
+      customDiscount: (json['customDiscount'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$DiscountModelToJson(_DiscountModel instance) =>
@@ -62,4 +66,5 @@ Map<String, dynamic> _$DiscountModelToJson(_DiscountModel instance) =>
       'autoPromoDiscount': instance.autoPromoDiscount,
       'manualDiscount': instance.manualDiscount,
       'voucherDiscount': instance.voucherDiscount,
+      'customDiscount': instance.customDiscount,
     };

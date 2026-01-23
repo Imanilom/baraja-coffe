@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { Order } from '../models/order.model.js';  
-import Payment from '../models/Payment.model.js'; 
+import { Order } from '../models/order.model.js';
+import Payment from '../models/Payment.model.js';
 import cron from 'node-cron';
 
 // Helper function untuk mendapatkan waktu WIB sekarang
@@ -25,20 +25,33 @@ export const autoCancelUnpaidOrders = async () => {
       });
     }
 
-    // Waktu threshold: 30 menit yang lalu dalam WIB
+    // Waktu threshold:
     const thirtyMinutesAgo = new Date(getWIBNow().getTime() - 30 * 60 * 1000);
+    const oneDayAgo = new Date(getWIBNow().getTime() - 24 * 60 * 60 * 1000); // 1 Hari untuk Web Order
 
-    console.log(`Mencari REGULAR orders yang dibuat sebelum: ${thirtyMinutesAgo}`);
+    console.log(`Mencari REGULAR orders yang belum dibayar...`);
+    console.log(`- Non-Web orders sebelum: ${thirtyMinutesAgo.toLocaleString()}`);
+    console.log(`- Web orders sebelum: ${oneDayAgo.toLocaleString()}`);
 
-    // ✅ QUERY YANG DIPERBAIKI - Lebih sederhana dan akurat
+    // ✅ QUERY YANG DIPERBAIKI - Membedakan timeout untuk Web Order
     const unpaidOrders = await Order.find({
       status: { $in: ['Pending'] },
       isOpenBill: false, // TIDAK termasuk open bill
-      orderType: { 
+      orderType: {
         $in: ['Dine-In', 'Take Away', 'Pickup', 'Delivery'] // HANYA order reguler
       },
-      createdAtWIB: { $lte: thirtyMinutesAgo }
-      // ✅ DIHAPUS: Filter paymentMethod yang terlalu ketat
+      $or: [
+        // Case 1: Non-Web orders (30 minutes timeout)
+        {
+          source: { $ne: 'Web' },
+          createdAtWIB: { $lte: thirtyMinutesAgo }
+        },
+        // Case 2: Web orders (24 hours timeout)
+        {
+          source: 'Web',
+          createdAtWIB: { $lte: oneDayAgo }
+        }
+      ]
     }).populate('items.menuItem');
 
     console.log(`Ditemukan ${unpaidOrders.length} REGULAR orders yang belum dibayar`);
@@ -101,12 +114,14 @@ export const autoCancelUnpaidOrders = async () => {
 
         // Update order status to Canceled
         const updateResult = await Order.findByIdAndUpdate(
-          order._id, 
+          order._id,
           {
             status: 'Canceled',
             updatedAt: getWIBNow(),
             updatedAtWIB: getWIBNow(),
-            cancellationReason: 'Auto-cancel: Tidak ada pembayaran dalam 30 menit'
+            cancellationReason: order.source === 'Web'
+              ? 'Auto-cancel: Tidak ada pembayaran dalam 24 jam'
+              : 'Auto-cancel: Tidak ada pembayaran dalam 30 menit'
           },
           { new: true }
         );
@@ -114,7 +129,7 @@ export const autoCancelUnpaidOrders = async () => {
         if (updateResult) {
           canceledCount++;
           console.log(`✅ Order REGULER ${order.order_id} berhasil di-cancel (created at: ${order.createdAtWIB})`);
-          
+
           // Log auto-cancel activity
           await logAutoCancel(order);
         } else {
@@ -161,7 +176,10 @@ const logAutoCancel = async (order) => {
       totalAmount: order.grandTotal,
       createdAt: order.createdAtWIB,
       canceledAt: getWIBNow(),
-      reason: 'Auto-cancel: Tidak ada pembayaran dalam 30 menit',
+      canceledAt: getWIBNow(),
+      reason: order.source === 'Web'
+        ? 'Auto-cancel: Tidak ada pembayaran dalam 24 jam'
+        : 'Auto-cancel: Tidak ada pembayaran dalam 30 menit',
       isOpenBill: order.isOpenBill,
       isReservation: order.orderType === 'Reservation' || !!order.reservation
     };
@@ -182,23 +200,28 @@ const logAutoCancel = async (order) => {
 export const diagnoseUncanceledOrders = async () => {
   try {
     const thirtyMinutesAgo = new Date(getWIBNow().getTime() - 30 * 60 * 1000);
-    
+    const oneDayAgo = new Date(getWIBNow().getTime() - 24 * 60 * 60 * 1000);
+
     console.log('🔍 DIAGNOSIS - Mencari order yang seharusnya ter-cancel...');
-    console.log(`Waktu threshold: ${thirtyMinutesAgo}`);
+    console.log(`- Non-Web orders threshold: ${thirtyMinutesAgo}`);
+    console.log(`- Web orders threshold: ${oneDayAgo}`);
 
     const problematicOrders = await Order.find({
       status: { $in: ['Pending'] },
-      createdAtWIB: { $lte: thirtyMinutesAgo },
-      isOpenBill: false
+      isOpenBill: false,
+      $or: [
+        { source: { $ne: 'Web' }, createdAtWIB: { $lte: thirtyMinutesAgo } },
+        { source: 'Web', createdAtWIB: { $lte: oneDayAgo } }
+      ]
     }).sort({ createdAtWIB: 1 });
 
     console.log(`\n📋 Ditemukan ${problematicOrders.length} order yang perlu diagnosis:`);
 
     let shouldCancelCount = 0;
-    
+
     for (const order of problematicOrders) {
       const payments = await Payment.find({ order_id: order.order_id });
-      
+
       console.log(`\n--- Order ${order.order_id} ---`);
       console.log(`Type: ${order.orderType}, Status: ${order.status}`);
       console.log(`Created: ${order.createdAtWIB}`);
@@ -206,21 +229,21 @@ export const diagnoseUncanceledOrders = async () => {
       console.log(`Is Open Bill: ${order.isOpenBill}`);
       console.log(`Reservation: ${order.reservation || 'No'}`);
       console.log(`Payments found: ${payments.length}`);
-      
+
       payments.forEach(payment => {
         console.log(`  - Payment: ${payment.status}, Expiry: ${payment.expiry_time}`);
       });
 
       // Analisis kriteria cancel
-      const isRegularOrder = !order.isOpenBill && 
-                            order.orderType !== 'Reservation' && 
-                            order.orderType !== 'Event';
-      
-      const hasSuccessfulPayment = payments.some(p => 
+      const isRegularOrder = !order.isOpenBill &&
+        order.orderType !== 'Reservation' &&
+        order.orderType !== 'Event';
+
+      const hasSuccessfulPayment = payments.some(p =>
         ['settlement', 'paid', 'capture', 'success'].includes(p.status)
       );
-      
-      const hasValidPendingPayment = payments.some(p => 
+
+      const hasValidPendingPayment = payments.some(p =>
         p.status === 'pending' && p.expiry_time && p.expiry_time > getWIBNow()
       );
 
@@ -266,27 +289,31 @@ export const manualTriggerAutoCancel = async () => {
 export const previewAutoCancel = async () => {
   try {
     const thirtyMinutesAgo = new Date(getWIBNow().getTime() - 30 * 60 * 1000);
+    const oneDayAgo = new Date(getWIBNow().getTime() - 24 * 60 * 60 * 1000);
 
     const potentialOrders = await Order.find({
       status: { $in: ['Pending'] },
-      createdAtWIB: { $lte: thirtyMinutesAgo }
-    }).select('order_id orderType isOpenBill status createdAtWIB paymentMethod reservation originalReservationId reservationReference')
+      $or: [
+        { source: { $ne: 'Web' }, createdAtWIB: { $lte: thirtyMinutesAgo } },
+        { source: 'Web', createdAtWIB: { $lte: oneDayAgo } }
+      ]
+    }).select('order_id orderType isOpenBill status createdAtWIB paymentMethod reservation originalReservationId reservationReference source')
       .sort({ createdAtWIB: 1 });
 
     console.log('📋 Preview orders yang akan dicek:');
-    
-    const regularOrders = potentialOrders.filter(order => 
-      !order.isOpenBill && 
-      order.orderType !== 'Reservation' && 
+
+    const regularOrders = potentialOrders.filter(order =>
+      !order.isOpenBill &&
+      order.orderType !== 'Reservation' &&
       order.orderType !== 'Event' &&
       !order.reservation &&
       !order.originalReservationId &&
       !order.reservationReference
     );
 
-    const skipOrders = potentialOrders.filter(order => 
-      order.isOpenBill || 
-      order.orderType === 'Reservation' || 
+    const skipOrders = potentialOrders.filter(order =>
+      order.isOpenBill ||
+      order.orderType === 'Reservation' ||
       order.orderType === 'Event' ||
       order.reservation ||
       order.originalReservationId ||
@@ -300,12 +327,12 @@ export const previewAutoCancel = async () => {
 
     console.log(`⏩ Akan di-skip: ${skipOrders.length} orders`);
     skipOrders.forEach(order => {
-      const skipReason = order.isOpenBill ? 'Open Bill' : 
-                        order.orderType === 'Reservation' ? 'Reservation' :
-                        order.orderType === 'Event' ? 'Event' :
-                        order.reservation ? 'Has Reservation' :
-                        order.originalReservationId ? 'Original Reservation' :
-                        order.reservationReference ? 'Reservation Reference' : 'Other';
+      const skipReason = order.isOpenBill ? 'Open Bill' :
+        order.orderType === 'Reservation' ? 'Reservation' :
+          order.orderType === 'Event' ? 'Event' :
+            order.reservation ? 'Has Reservation' :
+              order.originalReservationId ? 'Original Reservation' :
+                order.reservationReference ? 'Reservation Reference' : 'Other';
       console.log(`   - ${order.order_id} (${order.orderType}) - ${skipReason}`);
     });
 
@@ -327,7 +354,7 @@ export const previewAutoCancel = async () => {
 export const forceCancelOrder = async (orderId) => {
   try {
     console.log(`🔄 Force cancel order: ${orderId}`);
-    
+
     const order = await Order.findOne({ order_id: orderId });
     if (!order) {
       return { success: false, error: 'Order not found' };

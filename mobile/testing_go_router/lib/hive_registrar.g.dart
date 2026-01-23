@@ -11,6 +11,7 @@ import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
@@ -46,6 +47,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(BundleProductModelAdapter());
     registerAdapter(CashierModelAdapter());
     registerAdapter(CustomAmountItemsModelAdapter());
+    registerAdapter(CustomDiscountModelAdapter());
     registerAdapter(DeviceModelAdapter());
     registerAdapter(DiscountModelAdapter());
     registerAdapter(EditOrderItemModelAdapter());
@@ -88,6 +90,7 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(BundleProductModelAdapter());
     registerAdapter(CashierModelAdapter());
     registerAdapter(CustomAmountItemsModelAdapter());
+    registerAdapter(CustomDiscountModelAdapter());
     registerAdapter(DeviceModelAdapter());
     registerAdapter(DiscountModelAdapter());
     registerAdapter(EditOrderItemModelAdapter());

@@ -5,6 +5,7 @@ import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
@@ -13,6 +14,7 @@ import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 // import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
+import 'package:kasirbaraja/screens/orders/order_details/custom_discount_dialog.dart';
 import 'package:kasirbaraja/screens/orders/order_details/dialog_order_type.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/widgets/buttons/vertical_icon_text_button.dart';
@@ -571,7 +573,124 @@ class OrderDetail extends ConsumerWidget {
                                   ),
                               ],
                             ),
-                            trailing: Text(formatRupiah(orderItem.subtotal)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Custom discount badge
+                                if (orderItem.customDiscount?.isActive == true)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.green),
+                                    ),
+                                    child: Text(
+                                      orderItem.customDiscount!.discountType ==
+                                              'percentage'
+                                          ? '${orderItem.customDiscount!.discountValue}%'
+                                          : formatRupiah(
+                                            orderItem
+                                                .customDiscount!
+                                                .discountValue,
+                                          ),
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+
+                                // Price display
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    // Original price (strikethrough if discounted)
+                                    if (orderItem.customDiscount?.isActive ==
+                                        true)
+                                      Text(
+                                        formatRupiah(orderItem.subtotal),
+                                        style: const TextStyle(
+                                          decoration:
+                                              TextDecoration.lineThrough,
+                                          fontSize: 11,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    // Final price
+                                    Text(
+                                      formatRupiah(
+                                        orderItem.subtotal -
+                                            (orderItem
+                                                    .customDiscount
+                                                    ?.discountAmount ??
+                                                0),
+                                      ),
+                                      style: TextStyle(
+                                        color:
+                                            orderItem
+                                                        .customDiscount
+                                                        ?.isActive ==
+                                                    true
+                                                ? Colors.green
+                                                : Colors.black,
+                                        fontWeight:
+                                            orderItem
+                                                        .customDiscount
+                                                        ?.isActive ==
+                                                    true
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(width: 4),
+
+                                // Discount icon button
+                                IconButton(
+                                  icon: Icon(
+                                    orderItem.customDiscount?.isActive == true
+                                        ? Icons.discount
+                                        : Icons.discount_outlined,
+                                    size: 18,
+                                    color:
+                                        orderItem.customDiscount?.isActive ==
+                                                true
+                                            ? Colors.green
+                                            : Colors.grey,
+                                  ),
+                                  onPressed: () {
+                                    if (orderItem.customDiscount?.isActive ==
+                                        true) {
+                                      // Remove existing discount
+                                      ref
+                                          .read(orderDetailProvider.notifier)
+                                          .removeItemCustomDiscount(orderItem);
+                                    } else {
+                                      // Show dialog to add discount
+                                      _showItemDiscountDialog(
+                                        context,
+                                        ref,
+                                        orderItem,
+                                      );
+                                    }
+                                  },
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 32,
+                                    minHeight: 32,
+                                  ),
+                                ),
+                              ],
+                            ),
                             onTap: () {
                               showModalBottomSheet(
                                 context: context,
@@ -731,11 +850,36 @@ class OrderDetail extends ConsumerWidget {
                       label: 'Sub Total Harga',
                       value: formatRupiah(orderDetail.totalBeforeDiscount),
                     ),
+
+                    // Show regular discount (auto promo + manual + voucher)
                     if (totalDiscount > 0)
                       _OrderSummaryRow(
                         label: 'Diskon',
                         value: '- ${formatRupiah(totalDiscount)}',
                       ),
+
+                    // Show item custom discounts separately
+                    if ((orderDetail.discounts?.customDiscount ?? 0) > 0)
+                      _OrderSummaryRow(
+                        label: 'Diskon Items',
+                        value:
+                            '- ${formatRupiah(orderDetail.discounts!.customDiscount)}',
+                        valueColor: Colors.green,
+                      ),
+
+                    // Show order-level custom discount separately
+                    if (orderDetail.customDiscountDetails?.isActive == true)
+                      _OrderSummaryRow(
+                        label: 'Diskon Order',
+                        value:
+                            '- ${formatRupiah(orderDetail.customDiscountDetails!.discountAmount)}',
+                        valueColor: Colors.green,
+                        subtitle:
+                            orderDetail.customDiscountDetails!.reason.isNotEmpty
+                                ? orderDetail.customDiscountDetails!.reason
+                                : null,
+                      ),
+
                     _OrderSummaryRow(
                       label: 'Tax',
                       value: formatRupiah(orderDetail.totalTax),
@@ -753,6 +897,32 @@ class OrderDetail extends ConsumerWidget {
                     ),
 
                     const SizedBox(height: 8),
+
+                    // Order discount button
+                    if (orderDetail.customDiscountDetails?.isActive != true)
+                      OutlinedButton.icon(
+                        onPressed: () => _showOrderDiscountDialog(context, ref),
+                        icon: const Icon(Icons.local_offer, size: 18),
+                        label: const Text('Tambah Diskon Order'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue,
+                        ),
+                      )
+                    else
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          ref
+                              .read(orderDetailProvider.notifier)
+                              .removeOrderCustomDiscount();
+                        },
+                        icon: const Icon(Icons.remove_circle_outline, size: 18),
+                        label: const Text('Hapus Diskon Order'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                      ),
+
+                    const SizedBox(height: 8),
                     buildBottomActions(
                       context: context,
                       ref: ref,
@@ -763,6 +933,58 @@ class OrderDetail extends ConsumerWidget {
               ),
         ],
       ),
+    );
+  }
+
+  // ============================================================================
+  // CUSTOM DISCOUNT DIALOG HELPERS
+  // ============================================================================
+
+  void _showItemDiscountDialog(
+    BuildContext context,
+    WidgetRef ref,
+    OrderItemModel item,
+  ) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => CustomDiscountDialog(
+            title: 'Diskon Item: ${item.menuItem.name}',
+            itemSubtotal: item.subtotal,
+            onApply: (discountType, discountValue, reason) {
+              ref
+                  .read(orderDetailProvider.notifier)
+                  .applyItemCustomDiscount(
+                    item: item,
+                    discountType: discountType,
+                    discountValue: discountValue,
+                    reason: reason,
+                  );
+            },
+          ),
+    );
+  }
+
+  void _showOrderDiscountDialog(BuildContext context, WidgetRef ref) {
+    final orderDetail = ref.read(orderDetailProvider);
+    if (orderDetail == null) return;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => CustomDiscountDialog(
+            title: 'Diskon Order',
+            itemSubtotal: orderDetail.totalAfterDiscount,
+            onApply: (discountType, discountValue, reason) {
+              ref
+                  .read(orderDetailProvider.notifier)
+                  .applyOrderCustomDiscount(
+                    discountType: discountType,
+                    discountValue: discountValue,
+                    reason: reason,
+                  );
+            },
+          ),
     );
   }
 
@@ -1127,27 +1349,56 @@ class _OrderSummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isBold;
+  final Color? valueColor;
+  final String? subtitle;
 
   const _OrderSummaryRow({
     required this.label,
     required this.value,
     this.isBold = false,
+    this.valueColor,
+    this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
-    final textStyle =
-        isBold
-            ? const TextStyle(fontWeight: FontWeight.bold)
-            : const TextStyle();
-
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: textStyle),
-          Text(value, style: textStyle),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: isBold ? 16 : 14,
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: isBold ? 16 : 14,
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                  color: valueColor,
+                ),
+              ),
+            ],
+          ),
+          if (subtitle != null && subtitle!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 8, top: 2),
+              child: Text(
+                subtitle!,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
         ],
       ),
     );
