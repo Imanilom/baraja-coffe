@@ -62,23 +62,23 @@ const closeOrderSchema = Joi.object({
 // Di getOpenBills controller, tambahkan opsi untuk include reservasi
 export const getOpenBills = async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 20, 
-      status, 
-      table_number, 
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      table_number,
       area_id,
       include_reservations = false // Tambahkan parameter baru
     } = req.query;
-    
+
     let query = { isOpenBill: true };
-    
+
     if (status) {
       query.status = status;
     } else {
       query.status = { $in: ['Pending', 'Confirmed', 'In Progress', 'OnProcess', 'Waiting'] };
     }
-    
+
     // JIKA ingin include reservasi yang belum punya order
     if (include_reservations === 'true') {
       // Gabungkan query dari Orders dan Reservasi
@@ -87,24 +87,24 @@ export const getOpenBills = async (req, res) => {
           .populate('reservation')
           .skip((page - 1) * limit)
           .limit(parseInt(limit)),
-        
+
         // Cari reservasi yang belum punya order dan status confirmed
         Reservation.find({
           status: status || 'confirmed',
           _id: { $nin: await Order.distinct('reservation') } // Exclude yang sudah punya order
         })
-        .populate('table_id')
-        .populate('area_id')
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit))
+          .populate('table_id')
+          .populate('area_id')
+          .skip((page - 1) * limit)
+          .limit(parseInt(limit))
       ]);
-      
+
       // Format data untuk konsumsi frontend
       const formattedOrders = orders.map(order => ({
         ...order.toObject(),
         type: 'order'
       }));
-      
+
       const formattedReservations = reservations.map(reservation => ({
         _id: reservation._id,
         reservation: reservation,
@@ -117,14 +117,14 @@ export const getOpenBills = async (req, res) => {
         type: 'reservation', // Tandai sebagai reservasi
         can_create_order: true
       }));
-      
+
       const combinedData = [...formattedOrders, ...formattedReservations];
-      const total = await Order.countDocuments(query) + 
-                   await Reservation.countDocuments({
-                     status: status || 'confirmed',
-                     _id: { $nin: await Order.distinct('reservation') }
-                   });
-      
+      const total = await Order.countDocuments(query) +
+        await Reservation.countDocuments({
+          status: status || 'confirmed',
+          _id: { $nin: await Order.distinct('reservation') }
+        });
+
       return res.json({
         success: true,
         data: combinedData,
@@ -135,7 +135,7 @@ export const getOpenBills = async (req, res) => {
         }
       });
     }
-    
+
     // Kode original untuk orders saja...
     // ...
   } catch (error) {
@@ -212,7 +212,7 @@ export const addItemToOpenBill = async (req, res) => {
 
   try {
     const { id } = req.params;
-    
+
     console.log('📥 Received request to add item:', {
       orderId: id,
       body: req.body
@@ -229,7 +229,7 @@ export const addItemToOpenBill = async (req, res) => {
     }
 
     const { error, value } = addOrderItemSchema.validate(req.body);
-    
+
     if (error) {
       await session.abortTransaction();
       session.endSession();
@@ -243,10 +243,10 @@ export const addItemToOpenBill = async (req, res) => {
 
     const { menuItem, quantity, subtotal, notes, guestName, dineType } = value;
 
-    console.log('➕ Adding item to open bill:', { 
-      orderId: id, 
-      menuItem, 
-      quantity, 
+    console.log('➕ Adding item to open bill:', {
+      orderId: id,
+      menuItem,
+      quantity,
       subtotal,
       notes,
       guestName,
@@ -285,7 +285,7 @@ export const addItemToOpenBill = async (req, res) => {
     // DAPATKAN HARGA MENU ITEM DARI DATABASE
     const MenuItem = mongoose.model('MenuItem');
     const menuItemDoc = await MenuItem.findById(menuItem).session(session);
-    
+
     if (!menuItemDoc) {
       await session.abortTransaction();
       session.endSession();
@@ -295,15 +295,16 @@ export const addItemToOpenBill = async (req, res) => {
       });
     }
 
-    // Hitung subtotal jika tidak disediakan
-    const calculatedSubtotal = subtotal || (menuItemDoc.price * quantity);
+    // Hitung subtotal SELALU dari database untuk keamanan
+    // Jangan percaya subtotal dari frontend
+    const calculatedSubtotal = menuItemDoc.price * quantity;
     const itemPrice = menuItemDoc.price;
 
-    console.log('💰 Price calculation:', {
+    console.log('💰 Price calculation (Backend Enforced):', {
       menuPrice: itemPrice,
       quantity: quantity,
       calculatedSubtotal: calculatedSubtotal,
-      providedSubtotal: subtotal
+      providedSubtotalFromFrontend: subtotal // Log what frontend sent for debugging
     });
 
     // Add new item dengan data denormalized
@@ -332,7 +333,7 @@ export const addItemToOpenBill = async (req, res) => {
     // Recalculate totals
     const itemsTotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
     const customAmountTotal = order.customAmountItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-    
+
     order.totalBeforeDiscount = itemsTotal;
     order.totalAfterDiscount = itemsTotal;
     order.grandTotal = itemsTotal + customAmountTotal;
@@ -431,7 +432,7 @@ export const removeItemFromOpenBill = async (req, res) => {
     // Recalculate totals
     const itemsTotal = order.items.reduce((sum, item) => sum + item.subtotal, 0);
     const customAmountTotal = order.customAmountItems.reduce((sum, item) => sum + item.amount, 0);
-    
+
     order.totalBeforeDiscount = itemsTotal;
     order.totalAfterDiscount = itemsTotal;
     order.grandTotal = itemsTotal + customAmountTotal;
@@ -488,7 +489,7 @@ export const addCustomAmountToOpenBill = async (req, res) => {
     }
 
     const { error, value } = customAmountSchema.validate(req.body);
-    
+
     if (error) {
       await session.abortTransaction();
       session.endSession();
@@ -502,9 +503,9 @@ export const addCustomAmountToOpenBill = async (req, res) => {
 
     const { amount, name, description, dineType, originalAmount, discountApplied } = value;
 
-    console.log('💰 Adding custom amount to open bill:', { 
-      orderId: id, 
-      amount, 
+    console.log('💰 Adding custom amount to open bill:', {
+      orderId: id,
+      amount,
       name,
       description,
       dineType
@@ -555,7 +556,7 @@ export const addCustomAmountToOpenBill = async (req, res) => {
     // Recalculate totals
     const itemsTotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
     const customAmountTotal = order.customAmountItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-    
+
     order.totalBeforeDiscount = itemsTotal;
     order.totalAfterDiscount = itemsTotal;
     order.totalCustomAmount = customAmountTotal;
@@ -615,7 +616,7 @@ export const updateCustomAmountInOpenBill = async (req, res) => {
     }
 
     const { error, value } = updateCustomAmountSchema.validate(req.body);
-    
+
     if (error) {
       await session.abortTransaction();
       session.endSession();
@@ -671,7 +672,7 @@ export const updateCustomAmountInOpenBill = async (req, res) => {
     // Recalculate totals
     const itemsTotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
     const customAmountTotal = order.customAmountItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-    
+
     order.totalBeforeDiscount = itemsTotal;
     order.totalAfterDiscount = itemsTotal;
     order.totalCustomAmount = customAmountTotal;
@@ -765,7 +766,7 @@ export const removeCustomAmountFromOpenBill = async (req, res) => {
     // Recalculate totals
     const itemsTotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
     const customAmountTotal = order.customAmountItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-    
+
     order.totalBeforeDiscount = itemsTotal;
     order.totalAfterDiscount = itemsTotal;
     order.totalCustomAmount = customAmountTotal;
@@ -866,9 +867,9 @@ export const closeOpenBill = async (req, res) => {
   try {
     const { id } = req.params;
 
-    console.log('💰 Closing open bill request:', { 
+    console.log('💰 Closing open bill request:', {
       orderId: id,
-      body: req.body 
+      body: req.body
     });
 
     // Validasi ObjectId
@@ -882,11 +883,11 @@ export const closeOpenBill = async (req, res) => {
     }
 
     // Validasi dengan Joi - dengan error handling yang lebih baik
-    const { error, value } = closeOrderSchema.validate(req.body, { 
+    const { error, value } = closeOrderSchema.validate(req.body, {
       abortEarly: false,
-      stripUnknown: true 
+      stripUnknown: true
     });
-    
+
     if (error) {
       await session.abortTransaction();
       session.endSession();
@@ -900,9 +901,9 @@ export const closeOpenBill = async (req, res) => {
 
     const { final_notes, payment_method, amount_paid, change } = value;
 
-    console.log('💰 Processing close order:', { 
-      orderId: id, 
-      payment_method, 
+    console.log('💰 Processing close order:', {
+      orderId: id,
+      payment_method,
       amount_paid,
       change,
       final_notes
@@ -957,11 +958,11 @@ export const closeOpenBill = async (req, res) => {
     }
 
     // PERBAIKAN: Update order status menjadi "Pending" untuk pembayaran di kasir
-    order.status = 'Pending'; 
+    order.status = 'Pending';
     order.isOpenBill = false;
     order.paymentMethod = payment_method;
     order.change = change || 0;
-    
+
     // Tambahkan catatan jika ada
     if (final_notes && final_notes.trim() !== '') {
       order.notes = order.notes ? `${order.notes}\n${final_notes}` : final_notes;
@@ -980,7 +981,7 @@ export const closeOpenBill = async (req, res) => {
 
     // PERBAIKAN: Create payment record dengan struktur yang benar
     const paymentCode = `PAY-${order.order_id}-${Date.now()}`;
-    
+
     const paymentRecord = new Payment({
       order_id: order.order_id,
       order: order._id, // Tambahkan reference ke order
@@ -1087,7 +1088,7 @@ export const cancelOpenBill = async (req, res) => {
     // Update order status
     order.status = 'Canceled';
     order.isOpenBill = false;
-    
+
     if (cancellation_reason) {
       order.cancellationReason = cancellation_reason;
     }
