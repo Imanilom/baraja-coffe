@@ -307,7 +307,7 @@ const OrderSchema = new mongoose.Schema({
   openBillStatus: {
     type: String,
     enum: ['active', 'closed', 'pending_payment'],
-    default: 'active'
+    default: 'closed'
   },
   customersCount: {
     type: Number,
