@@ -945,9 +945,9 @@ export const createAppOrder = async (req, res) => {
                     // Otherwise fallback to database price calculation
                     let itemSubtotal;
                     if (item.totalprice && item.totalprice > 0) {
-                        // Frontend sent totalprice (price already discounted per unit)
-                        itemSubtotal = item.totalprice * item.quantity;
-                        console.log(`   📦 ${item.productName}: Original: ${originalSubtotal}, Discounted: ${itemSubtotal}`);
+                        // Frontend sent totalprice (Total Subtotal for the item line)
+                        itemSubtotal = item.totalprice;
+                        console.log(`   📦 ${item.productName}: Original: ${originalSubtotal}, Discounted (Custom): ${itemSubtotal}`);
                     } else {
                         // Fallback: calculate from database price (no discount)
                         itemSubtotal = originalSubtotal;
