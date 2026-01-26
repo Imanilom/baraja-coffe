@@ -571,41 +571,20 @@ class OrderDetail extends ConsumerWidget {
                                       color: Colors.grey,
                                     ),
                                   ),
+                                if (orderItem.customDiscount?.isActive == true)
+                                  Text(
+                                    'Diskon ${orderItem.customDiscount!.discountType == 'percentage' ? '${orderItem.customDiscount!.discountValue}%' : ''}: -${formatRupiah(orderItem.customDiscount!.discountAmount)}',
+                                    style: TextStyle(
+                                      color: Colors.green[700],
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                               ],
                             ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Custom discount badge
-                                if (orderItem.customDiscount?.isActive == true)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    margin: const EdgeInsets.only(right: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: Colors.green),
-                                    ),
-                                    child: Text(
-                                      orderItem.customDiscount!.discountType ==
-                                              'percentage'
-                                          ? '${orderItem.customDiscount!.discountValue}%'
-                                          : formatRupiah(
-                                            orderItem
-                                                .customDiscount!
-                                                .discountValue,
-                                          ),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-
                                 // Price display
                                 Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -650,44 +629,6 @@ class OrderDetail extends ConsumerWidget {
                                       ),
                                     ),
                                   ],
-                                ),
-
-                                const SizedBox(width: 4),
-
-                                // Discount icon button
-                                IconButton(
-                                  icon: Icon(
-                                    orderItem.customDiscount?.isActive == true
-                                        ? Icons.discount
-                                        : Icons.discount_outlined,
-                                    size: 18,
-                                    color:
-                                        orderItem.customDiscount?.isActive ==
-                                                true
-                                            ? Colors.green
-                                            : Colors.grey,
-                                  ),
-                                  onPressed: () {
-                                    if (orderItem.customDiscount?.isActive ==
-                                        true) {
-                                      // Remove existing discount
-                                      ref
-                                          .read(orderDetailProvider.notifier)
-                                          .removeItemCustomDiscount(orderItem);
-                                    } else {
-                                      // Show dialog to add discount
-                                      _showItemDiscountDialog(
-                                        context,
-                                        ref,
-                                        orderItem,
-                                      );
-                                    }
-                                  },
-                                  padding: const EdgeInsets.all(4),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 32,
-                                    minHeight: 32,
-                                  ),
                                 ),
                               ],
                             ),
@@ -939,31 +880,6 @@ class OrderDetail extends ConsumerWidget {
   // ============================================================================
   // CUSTOM DISCOUNT DIALOG HELPERS
   // ============================================================================
-
-  void _showItemDiscountDialog(
-    BuildContext context,
-    WidgetRef ref,
-    OrderItemModel item,
-  ) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => CustomDiscountDialog(
-            title: 'Diskon Item: ${item.menuItem.name}',
-            itemSubtotal: item.subtotal,
-            onApply: (discountType, discountValue, reason) {
-              ref
-                  .read(orderDetailProvider.notifier)
-                  .applyItemCustomDiscount(
-                    item: item,
-                    discountType: discountType,
-                    discountValue: discountValue,
-                    reason: reason,
-                  );
-            },
-          ),
-    );
-  }
 
   void _showOrderDiscountDialog(BuildContext context, WidgetRef ref) {
     final orderDetail = ref.read(orderDetailProvider);

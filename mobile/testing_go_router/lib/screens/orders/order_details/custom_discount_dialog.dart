@@ -13,16 +13,32 @@ class CustomDiscountDialog extends StatefulWidget {
     required this.title,
     required this.itemSubtotal,
     required this.onApply,
+    this.initialDiscountType,
+    this.initialDiscountValue,
+    this.initialReason,
   });
+
+  final String? initialDiscountType;
+  final int? initialDiscountValue;
+  final String? initialReason;
 
   @override
   State<CustomDiscountDialog> createState() => _CustomDiscountDialogState();
 }
 
 class _CustomDiscountDialogState extends State<CustomDiscountDialog> {
-  String _discountType = 'percentage'; // 'percentage' or 'fixed'
-  final TextEditingController _valueController = TextEditingController();
+  late String _discountType;
+  late TextEditingController _valueController;
   String? _valueError;
+
+  @override
+  void initState() {
+    super.initState();
+    _discountType = widget.initialDiscountType ?? 'percentage';
+    _valueController = TextEditingController(
+      text: widget.initialDiscountValue?.toString() ?? '',
+    );
+  }
 
   @override
   void dispose() {

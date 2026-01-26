@@ -67,7 +67,7 @@ abstract class OrderItemModel with _$OrderItemModel {
     final toppingIds = (selectedToppings.map((t) => t.id).toList()..sort())
         .join('-');
     // Pastikan notes dan orderType juga masuk ke hash
-    return '${menuItem.id}-$addonIds-$toppingIds-${notes ?? ''}-${orderType.name}';
+    return '${menuItem.id}-$addonIds-$toppingIds-${notes ?? ''}-${orderType.name}-${customDiscount.toString()}';
   }
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) =>

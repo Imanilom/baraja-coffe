@@ -52,7 +52,8 @@ extension OrderItemModelExtensions on OrderItemModel {
         _areToppingsEqual(selectedToppings, other.selectedToppings) &&
         _areAddonsEqual(selectedAddons, other.selectedAddons) &&
         _areNotesEqual(notes, other.notes) &&
-        _areOrderItemOrderTypeEqual(orderType, other.orderType);
+        _areOrderItemOrderTypeEqual(orderType, other.orderType) &&
+        customDiscount == other.customDiscount;
   }
 
   /// Mengecek apakah dua list toppings sama
@@ -115,6 +116,9 @@ extension OrderItemModelExtensions on OrderItemModel {
       '  Addons equal: ${_areAddonsEqual(selectedAddons, other.selectedAddons)}',
     );
     AppLogger.debug('  Notes equal: ${_areNotesEqual(notes, other.notes)}');
+    AppLogger.debug(
+      '  Custom Discount equal: ${customDiscount == other.customDiscount}',
+    );
     AppLogger.debug('  Overall similar: ${isSimilarTo(other)}');
   }
 }
