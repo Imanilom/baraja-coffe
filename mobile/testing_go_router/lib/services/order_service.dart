@@ -11,6 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
 import 'package:kasirbaraja/models/payments/process_payment_request.dart';
 import 'package:kasirbaraja/utils/payment_details_utils.dart';
@@ -23,15 +24,13 @@ class OrderService {
     String? idempotencyKey,
   }) async {
     try {
-      AppLogger.debug('order request: ${createOrderRequest(orderDetail)}');
-      AppLogger.debug('log order: ${logOrder(orderDetail)}');
-      AppLogger.debug('log menu item: ${logMenuItem(orderDetail)}');
-      AppLogger.debug('log payments: ${logPayments(orderDetail)}');
-      AppLogger.debug('log appliedPromo: ${logAppliedPRomo(orderDetail)}');
+      final payload = createOrderRequest(orderDetail);
+      AppLogger.debug('order request: $payload');
+      // print('PAYLOAD DISCOUNTS: ${payload['discounts']}');
 
       Response response = await _dio.post(
         '/api/unified-order',
-        data: createOrderRequest(orderDetail),
+        data: payload,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -455,7 +454,11 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'outlet': user.outletId,
     'selectedPromoIds': order.selectedPromoIds,
     'appliedPromos': order.appliedPromos,
-    'discounts': order.discounts,
+    'discounts':
+        order.discounts?.copyWith(
+          customDiscount: 0, // Prevent double counting in backend
+        ) ??
+        DiscountModel(customDiscount: 0),
     // Include order-level custom discount
     if (order.customDiscountDetails?.isActive == true)
       'customDiscountDetails': {

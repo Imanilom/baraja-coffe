@@ -324,7 +324,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
                       icon: Icons.remove,
                       onPressed:
                           quantity > 1
-                              ? () => setState(() => quantity--)
+                              ? () => _updateQuantity(quantity - 1)
                               : null,
                     ),
                     Padding(
@@ -356,7 +356,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
                     ),
                     _buildQuantityButton(
                       icon: Icons.add,
-                      onPressed: () => setState(() => quantity++),
+                      onPressed: () => _updateQuantity(quantity + 1),
                     ),
                   ],
                 ),
@@ -457,7 +457,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
         final parsed = int.tryParse(raw) ?? quantity;
         final sanitized = parsed.clamp(1, 9999); // batas atas opsional
         HapticFeedback.lightImpact();
-        setState(() => quantity = sanitized);
+        _updateQuantity(sanitized);
       }
       controller.dispose();
       focusNode.dispose();
@@ -657,6 +657,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
             } else {
               selectedToppingIds.add(id);
             }
+            _recalculateDiscount();
           });
         },
       ),
@@ -747,6 +748,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
           HapticFeedback.lightImpact();
           setState(() {
             selectedAddonOptionIdByAddonId[addonId] = val;
+            _recalculateDiscount();
           });
         },
       ),
@@ -1003,13 +1005,41 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
     );
   }
 
-  void _showDiscountDialog(dynamic menuItem) {
-    // Hitung subtotal saat ini untuk referensi diskon
+  // ---------- Discount & Quantity Helpers ----------
+
+  void _updateQuantity(int newQuantity) {
+    if (newQuantity < 1) return;
+
+    setState(() {
+      quantity = newQuantity;
+      _recalculateDiscount();
+    });
+  }
+
+  void _recalculateDiscount() {
+    if (customDiscount == null || !customDiscount!.isActive) return;
+
+    // Only recalculate amount for percentage discount
+    if (customDiscount!.discountType == 'percentage') {
+      final unitPrice = _calculateUnitBasePrice();
+      final currentSubtotal = unitPrice * quantity;
+
+      final newDiscountAmount =
+          (currentSubtotal * customDiscount!.discountValue / 100).round();
+
+      customDiscount = customDiscount!.copyWith(
+        discountAmount: newDiscountAmount,
+      );
+    }
+  }
+
+  int _calculateUnitBasePrice() {
+    final menuItem = widget.orderItem.menuItem;
     final double basePrice = (menuItem.originalPrice ?? 0).toDouble();
 
     // Hitung total toppings
     double toppingTotal = 0;
-    final allToppings = widget.orderItem.menuItem.toppings ?? const [];
+    final allToppings = menuItem.toppings ?? const [];
     for (final t in allToppings) {
       if (selectedToppingIds.contains(t.id)) {
         toppingTotal += t.price ?? 0;
@@ -1018,7 +1048,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
 
     // Hitung total addons
     double addonTotal = 0;
-    final allAddons = widget.orderItem.menuItem.addons ?? const [];
+    final allAddons = menuItem.addons ?? const [];
     for (final addon in allAddons) {
       final addonId = addon.id ?? '';
       final selectedOptionId = selectedAddonOptionIdByAddonId[addonId];
@@ -1031,7 +1061,12 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
       }
     }
 
-    final currentSubtotal = (basePrice + toppingTotal + addonTotal) * quantity;
+    return (basePrice + toppingTotal + addonTotal).toInt();
+  }
+
+  void _showDiscountDialog(dynamic menuItem) {
+    final unitPrice = _calculateUnitBasePrice();
+    final currentSubtotal = unitPrice * quantity;
 
     showDialog(
       context: context,

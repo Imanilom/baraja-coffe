@@ -698,6 +698,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
             } else {
               selectedToppings.add(topping);
             }
+            _recalculateDiscount();
           });
         },
       ),
@@ -841,7 +842,9 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     } else {
       selectedAddons[idx] = updated;
     }
-    setState(() {});
+    setState(() {
+      _recalculateDiscount();
+    });
   }
 
   Widget _buildActionButtons() {
