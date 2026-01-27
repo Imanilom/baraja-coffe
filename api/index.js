@@ -162,6 +162,8 @@ app.use('/api/hr', hrRoutes);
 import appconfigRoutes from './routes/appconfig.routes.js';
 app.use('/api/app-config', appconfigRoutes);
 
+import testZoneRoutes from './routes/test_zone.routes.js';
+app.use('/api/orders', testZoneRoutes);
 
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));

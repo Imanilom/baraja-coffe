@@ -945,9 +945,9 @@ export const createAppOrder = async (req, res) => {
                     // Otherwise fallback to database price calculation
                     let itemSubtotal;
                     if (item.totalprice && item.totalprice > 0) {
-                        // Frontend sent totalprice (price already discounted per unit)
-                        itemSubtotal = item.totalprice * item.quantity;
-                        console.log(`   📦 ${item.productName}: Original: ${originalSubtotal}, Discounted: ${itemSubtotal}`);
+                        // Frontend sent totalprice (Total Subtotal for the item line)
+                        itemSubtotal = item.totalprice;
+                        console.log(`   📦 ${item.productName}: Original: ${originalSubtotal}, Discounted (Custom): ${itemSubtotal}`);
                     } else {
                         // Fallback: calculate from database price (no discount)
                         itemSubtotal = originalSubtotal;
@@ -1016,11 +1016,16 @@ export const createAppOrder = async (req, res) => {
                 console.log(`   taxDetails from frontend: ${JSON.stringify(taxDetails)}`);
                 console.log(`   taxDetails length: ${taxDetails?.length || 0}`);
 
-                // ✅ SIMPLIFIED: If frontend sends totalTax=0, respect that decision
-                // This handles GRO tax toggle being OFF
-                const taxValue = Number(totalTax) || 0;
-                const isTaxDisabled = taxValue === 0;  // ✅ Simple check: if 0, tax is disabled
-                console.log(`   taxValue (converted): ${taxValue}`);
+                // ✅ FIX: Only disable tax if totalTax is EXPLICITLY provided as 0 (number) or "0" (string)
+                // If undefined or null, we assume tax should be calculated normally.
+                let isTaxDisabled = false;
+                if (totalTax !== undefined && totalTax !== null) {
+                    const taxValue = Number(totalTax);
+                    if (!isNaN(taxValue) && taxValue === 0) {
+                        isTaxDisabled = true;
+                    }
+                }
+
                 console.log(`   isTaxDisabled: ${isTaxDisabled}`);
 
                 if (!isTaxDisabled) {
@@ -1082,10 +1087,15 @@ export const createAppOrder = async (req, res) => {
                 }
                 let updatedTaxCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
                 if (updatedTotalAfterDiscount > 0) {
-                    // ✅ SIMPLIFIED: If frontend sends totalTax=0, respect that (match New Order flow)
-                    const taxValue = Number(totalTax) || 0;
-                    const isTaxDisabled = taxValue === 0;  // ✅ Simple check: if 0, tax is disabled
-                    console.log(`   📊 Open Bill Tax Debug: taxValue=${taxValue}, isTaxDisabled=${isTaxDisabled}`);
+                    // ✅ FIX: Match tax logic with new order flow
+                    let isTaxDisabled = false;
+                    if (totalTax !== undefined && totalTax !== null) {
+                        const taxValue = Number(totalTax);
+                        if (!isNaN(taxValue) && taxValue === 0) {
+                            isTaxDisabled = true;
+                        }
+                    }
+                    console.log(`   📊 Open Bill Tax Debug: isTaxDisabled=${isTaxDisabled}`);
 
                     if (!isTaxDisabled) {
                         updatedTaxCalculation = await calculateTaxAndServiceCached(
@@ -1104,7 +1114,7 @@ export const createAppOrder = async (req, res) => {
                 existingOrder.totalTax = updatedTaxCalculation.totalTax;
                 existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
                 existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
-                existingOrder.totalCustomAmount = existingOrder.customAmountItems?.reduce((sum, ca) => sum + ca.amount, 0) || 0;
+                existingOrder.totalCustomAmount = (existingOrder.totalCustomAmount || 0) + newCustomAmountsTotal; // ✅ FIX: Increment existing custom amount
                 existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
                 if (voucherId) {
                     existingOrder.appliedVoucher = voucherId;

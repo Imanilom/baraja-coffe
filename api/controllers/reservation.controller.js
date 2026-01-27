@@ -7,6 +7,7 @@ import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
 import { createMidtransSnapTransaction } from '../validators/order.validator.js';
 import { LockUtil } from '../utils/lock.util.js';
+import { MenuItem } from '../models/MenuItem.model.js';
 
 // Helper untuk get WIB time sekarang
 const getWIBNow = () => {
@@ -482,19 +483,47 @@ export const createReservationWithOrder = async (req, res) => {
           const orderSequence = await getNextOrderSequence(session);
           const orderId = `ORD-${reservation.reservation_code}-${orderSequence.toString().padStart(3, '0')}`;
 
-          // Prepare order items
-          const formattedOrderItems = order_items.map(item => ({
-            menuItem: item.menuItem,
-            quantity: item.quantity,
-            subtotal: item.subtotal,
-            notes: item.notes || '',
-            guestName: item.guestName || '',
-            dineType: 'Dine-In',
-            addedAt: getWIBNow(),
-            kitchenStatus: 'pending',
-            isPrinted: false,
-            batchNumber: 1
-          }));
+          // Fetch menu items info from DB to ensure prices are correct
+          const menuItemIds = order_items.map(item => item.menuItem);
+          const menuItemsDocs = await MenuItem.find({ _id: { $in: menuItemIds } }).session(session);
+          const menuItemsMap = new Map(menuItemsDocs.map(doc => [doc._id.toString(), doc]));
+
+          // Prepare order items with BACKEND CALCULATED subtotal
+          const formattedOrderItems = order_items.map(item => {
+            const menuItemDoc = menuItemsMap.get(item.menuItem.toString());
+
+            // Fallback price if not found (shouldn't happen due to previous checks usually, but safe)
+            // or maybe throw error if strict
+            if (!menuItemDoc) {
+              throw new Error(`Menu item not found: ${item.menuItem}`);
+            }
+
+            const realPrice = menuItemDoc.price || 0;
+            const calculatedSubtotal = realPrice * item.quantity;
+
+            console.log(`💰 Recalculating item: ${menuItemDoc.name} | Qty: ${item.quantity} | Frontend Subtotal: ${item.subtotal} | Backend Subtotal: ${calculatedSubtotal}`);
+
+            return {
+              menuItem: item.menuItem,
+              quantity: item.quantity,
+              subtotal: calculatedSubtotal, // ✅ USE CALCULATED SUBTOTAL
+              notes: item.notes || '',
+              guestName: item.guestName || '',
+              dineType: 'Dine-In',
+              addedAt: getWIBNow(),
+              kitchenStatus: 'pending',
+              isPrinted: false,
+              batchNumber: 1,
+              // Store snapshot of data at time of order
+              menuItemData: {
+                name: menuItemDoc.name,
+                price: realPrice,
+                category: menuItemDoc.category,
+                sku: menuItemDoc.sku,
+                isActive: menuItemDoc.isActive
+              }
+            };
+          });
 
           // Calculate totals
           const orderTotal = order_items.reduce((sum, item) => sum + item.subtotal, 0);

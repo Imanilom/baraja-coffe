@@ -6,6 +6,8 @@ import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
+import 'package:kasirbaraja/screens/orders/order_details/custom_discount_dialog.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 class EditOrderItemDialog extends StatefulWidget {
@@ -32,6 +34,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   late int quantity;
   late String note;
   late OrderType selectedOrderType;
+  CustomDiscountModel? customDiscount;
 
   @override
   void initState() {
@@ -42,6 +45,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     quantity = widget.orderItem.quantity;
     note = widget.orderItem.notes ?? '';
     selectedOrderType = widget.orderItem.orderType ?? OrderType.dineIn;
+    customDiscount = widget.orderItem.customDiscount;
   }
 
   @override
@@ -226,6 +230,76 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () => _showDiscountDialog(menuItem),
+                            borderRadius: BorderRadius.circular(4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    customDiscount != null
+                                        ? Colors.green[50]
+                                        : Colors.grey[100],
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color:
+                                      customDiscount != null
+                                          ? const Color(0xFF4CAF50)
+                                          : Colors.grey[300]!,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.discount_outlined,
+                                    size: 14,
+                                    color:
+                                        customDiscount != null
+                                            ? Colors.green[700]
+                                            : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      customDiscount != null
+                                          ? '${customDiscount!.discountType == 'percentage' ? '${customDiscount!.discountValue}% ' : ''}-${formatRupiah(customDiscount!.discountAmount)}'
+                                          : 'Diskon',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color:
+                                            customDiscount != null
+                                                ? Colors.green[700]
+                                                : Colors.grey[600],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (customDiscount != null) ...[
+                                    const SizedBox(width: 4),
+                                    InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          customDiscount = null;
+                                        });
+                                      },
+                                      child: const Icon(
+                                        Icons.close,
+                                        size: 14,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -267,7 +341,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                       icon: Icons.remove,
                       onPressed:
                           quantity > 1
-                              ? () => setState(() => quantity--)
+                              ? () => _updateQuantity(quantity - 1)
                               : null,
                     ),
                     Padding(
@@ -299,7 +373,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                     ),
                     _buildQuantityButton(
                       icon: Icons.add,
-                      onPressed: () => setState(() => quantity++),
+                      onPressed: () => _updateQuantity(quantity + 1),
                     ),
                   ],
                 ),
@@ -400,7 +474,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         final parsed = int.tryParse(raw) ?? quantity;
         final sanitized = parsed.clamp(1, 9999); // batas atas opsional
         HapticFeedback.lightImpact();
-        setState(() => quantity = sanitized);
+        _updateQuantity(sanitized);
       }
       controller.dispose();
       focusNode.dispose();
@@ -810,6 +884,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                   selectedAddons: selectedAddons,
                   notes: note.isEmpty ? null : note,
                   orderType: selectedOrderType,
+                  customDiscount: customDiscount,
                 );
                 widget.onEditOrder(editedOrderItem);
                 widget.onClose();
@@ -1057,6 +1132,97 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         Expanded(child: _buildNotesSection()),
         Expanded(child: _buildOrderTypeSelector()),
       ],
+    );
+  }
+
+  // ---------- Discount & Quantity Helpers ----------
+
+  void _updateQuantity(int newQuantity) {
+    if (newQuantity < 1) return;
+
+    setState(() {
+      quantity = newQuantity;
+      _recalculateDiscount();
+    });
+  }
+
+  void _recalculateDiscount() {
+    if (customDiscount == null || !customDiscount!.isActive) return;
+
+    // Only recalculate amount for percentage discount
+    if (customDiscount!.discountType == 'percentage') {
+      final unitPrice = _calculateUnitBasePrice();
+      final currentSubtotal = unitPrice * quantity;
+
+      final newDiscountAmount =
+          (currentSubtotal * customDiscount!.discountValue / 100).round();
+
+      customDiscount = customDiscount!.copyWith(
+        discountAmount: newDiscountAmount,
+      );
+    }
+    // For fixed discount, the amount stays fixed as per requirement (or common behavior)
+    // If the user entered a nominal amount, it's usually a specific deduction they want.
+    // However, if they want "5000 per item", our current UI/Model structure (single amount field)
+    // suggests it's a total discount.
+  }
+
+  int _calculateUnitBasePrice() {
+    final menuItem = widget.orderItem.menuItem;
+    final double basePrice = (menuItem.originalPrice ?? 0).toDouble();
+
+    // Hitung total toppings
+    double toppingTotal = 0;
+    final selectedToppingIds = selectedToppings.map((t) => t.id).toSet();
+    final allToppings = menuItem.toppings ?? const [];
+    for (final t in allToppings) {
+      if (selectedToppingIds.contains(t.id)) {
+        toppingTotal += t.price ?? 0;
+      }
+    }
+
+    // Hitung total addons
+    double addonTotal = 0;
+    for (final addon in selectedAddons) {
+      if (addon.options != null && addon.options!.isNotEmpty) {
+        addonTotal += addon.options!.first.price ?? 0;
+      }
+    }
+
+    return (basePrice + toppingTotal + addonTotal).toInt();
+  }
+
+  void _showDiscountDialog(dynamic menuItem) {
+    final unitPrice = _calculateUnitBasePrice();
+    final currentSubtotal = unitPrice * quantity;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => CustomDiscountDialog(
+            title: 'Diskon Item',
+            itemSubtotal: currentSubtotal.toInt(),
+            initialDiscountType: customDiscount?.discountType,
+            initialDiscountValue: customDiscount?.discountValue,
+            initialReason: customDiscount?.reason,
+            onApply: (type, value, reason) {
+              final discountAmount =
+                  type == 'percentage'
+                      ? (currentSubtotal * value / 100).round()
+                      : value;
+
+              setState(() {
+                customDiscount = CustomDiscountModel(
+                  isActive: true,
+                  discountType: type,
+                  discountValue: value,
+                  discountAmount: discountAmount,
+                  reason: reason,
+                  appliedAt: DateTime.now(),
+                );
+              });
+            },
+          ),
     );
   }
 }
