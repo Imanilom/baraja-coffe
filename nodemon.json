@@ -1,0 +1,18 @@
+{
+    "watch": [
+        "api"
+    ],
+    "ext": "js,mjs,cjs,json",
+    "ignore": [
+        "mobile/*",
+        "node_modules/*",
+        ".git/*",
+        "*.log",
+        "logs/*",
+        "coverage/*",
+        "client/*",
+        "frontend/*",
+        "testing_go_router/*"
+    ],
+    "delay": "500"
+}
