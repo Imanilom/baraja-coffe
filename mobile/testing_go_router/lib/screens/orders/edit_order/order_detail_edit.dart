@@ -154,31 +154,67 @@ class OrderDetailEdit extends ConsumerWidget {
                                 color: isLocked ? Colors.grey : null,
                               ),
                             ),
-                            onTap:
-                                isLocked
-                                    ? null
-                                    : () {
-                                      showModalBottomSheet(
-                                        context: context,
-                                        isScrollControlled: true,
-                                        backgroundColor: Colors.transparent,
-                                        builder:
-                                            (context) => EditOrderItemDialog(
-                                              orderItem: orderItem,
-                                              onEditOrder: (editedOrderItem) {
-                                                notifier.editOrderItem(
-                                                  orderItem,
-                                                  editedOrderItem,
-                                                );
-                                              },
-                                              onDeleteOrderItem: () {
-                                                notifier.removeItem(orderItem);
-                                              },
-                                              onClose:
-                                                  () => Navigator.pop(context),
-                                            ),
-                                      );
-                                    },
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder:
+                                    (context) => EditOrderItemDialog(
+                                      orderItem: orderItem,
+                                      isLocked: isLocked, // Pass lock status
+                                      onEditOrder: (editedOrderItem) {
+                                        if (isLocked)
+                                          return; // Prevent edits if locked
+                                        notifier.editOrderItem(
+                                          orderItem,
+                                          editedOrderItem,
+                                        );
+                                      },
+                                      onDeleteOrderItem: () async {
+                                        if (isLocked) {
+                                          // Delete existing item via API
+                                          final success = await notifier
+                                              .deleteExistingItem(orderItem);
+                                          if (context.mounted) {
+                                            if (success) {
+                                              Navigator.pop(context);
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Item berhasil dihapus',
+                                                  ),
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                              );
+                                            } else {
+                                              // Error is handled in provider/state
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Gagal menghapus item',
+                                                  ),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        } else {
+                                          // Remove local new item
+                                          notifier.removeItem(orderItem);
+                                          if (context.mounted) {
+                                            Navigator.pop(context);
+                                          }
+                                        }
+                                      },
+                                      onClose: () => Navigator.pop(context),
+                                    ),
+                              );
+                            },
                           );
                         },
                       ),

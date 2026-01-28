@@ -3133,6 +3133,7 @@ const processOpenBillOrderWithHandler = async ({
       isSplitPayment: false,
       source: 'Cashier',
       isOpenBill: true,
+      openBillStatus: 'active', // ✅ Set status active
       manualDiscount: manualDiscount || 0,
       manualDiscountReason: manualDiscountReason || '',
       cashierNotes,

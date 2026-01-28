@@ -215,6 +215,61 @@ class OrderEditorNotifier extends StateNotifier<EditOrderItemModel> {
     _recalc();
   }
 
+  Future<bool> deleteExistingItem(OrderItemModel item) async {
+    // 1. Validasi
+    final orderId = state.order?.orderId;
+    final menuItemId = item.menuItem.id;
+
+    if (orderId == null || menuItemId == null) {
+      AppLogger.error('Cannot delete item: Missing orderId or menuItemId');
+      return false;
+    }
+
+    state = state.copyWith(isSubmitting: true, error: null);
+
+    try {
+      // 2. Call API
+      // Note: Backend might need specific endpoint or parameters
+      // Using existing deleteOrderItemAtOrder
+      await OrderService().deleteOrderItemAtOrder(
+        orderId: orderId,
+        menuItemId: menuItemId,
+      );
+
+      // 3. Update local state
+      // Instead of full reload, just remove locally and recalculate
+      final currentOrder = state.order;
+      if (currentOrder != null) {
+        final updatedItems = List<OrderItemModel>.from(currentOrder.items);
+        updatedItems.removeWhere((it) => it.orderItemid == item.orderItemid);
+
+        final updatedOriginals =
+            state.originalItems != null
+                ? List<OrderItemModel>.from(state.originalItems!)
+                : <OrderItemModel>[];
+        updatedOriginals.removeWhere(
+          (it) => it.orderItemid == item.orderItemid,
+        );
+
+        state = state.copyWith(
+          order: currentOrder.copyWith(items: updatedItems),
+          originalItems: updatedOriginals,
+          isSubmitting: false,
+        );
+        _recalc();
+      }
+
+      return true;
+    } catch (e) {
+      AppLogger.error('Failed to delete existing item', error: e);
+      state = state.copyWith(
+        isSubmitting: false,
+        error: 'Gagal menghapus item: $e',
+      );
+      return false;
+    }
+  }
+
   void addItem(OrderItemModel item) {
     final order = state.order;
     if (order == null) return;

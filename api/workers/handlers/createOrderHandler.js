@@ -264,6 +264,7 @@ async function createOrderWithSimpleTransaction({
       cashierId,
       paymentMethod,
       device_id,
+      openBillStatus, // ✅ Extract openBillStatus
       ...cleanOrderData
     } = orderData;
 
@@ -501,7 +502,9 @@ async function createOrderWithSimpleTransaction({
       totalServiceFee: adjustedServiceFee,  // ✅ Use recalculated service fee
       grandTotal: adjustedGrandTotal,  // ✅ Use adjusted value
       source: source,
+      source: source,
       isOpenBill: isOpenBill || false,
+      openBillStatus: openBillStatus || (isOpenBill ? 'active' : 'closed'), // ✅ Use passed status or default to active if open bill
       isSplitPayment: isSplitPayment,
       splitPaymentStatus: calculateSplitPaymentStatus(payments, totals.grandTotal),
       discounts: {
