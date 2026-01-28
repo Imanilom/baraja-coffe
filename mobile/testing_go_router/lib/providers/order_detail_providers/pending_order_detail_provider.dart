@@ -47,47 +47,6 @@ class PendingOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
     }
     return false;
   }
-
-  /// ❌ DEPRECATED: Close bill now uses PaymentScreen for payment selection
-  /// This method is no longer used. Close bill button now navigates to PaymentScreen
-  /// with isCloseBill flag, where payment details are collected before submission.
-  ///
-  /// See: order_detail_widget.dart line ~226 for new implementation
-  @Deprecated('Use PaymentScreen with isCloseBill flag instead')
-  Future<bool> closeBill(WidgetRef ref, String orderId) async {
-    try {
-      final cashier = await HiveService.getCashier();
-
-      if (cashier?.id == null) {
-        throw Exception("Cashier ID not found in local storage");
-      }
-
-      // ❌ This call is now invalid - closeOpenBill requires payment details
-      // Keeping for backward compatibility but will throw error
-      final orderService = OrderService();
-
-      // This will fail because closeOpenBill now requires paymentDetails
-      throw Exception(
-        'Close bill without payment is no longer supported. '
-        'Please use PaymentScreen to select payment method first.',
-      );
-
-      // Old code commented out:
-      // final result = await orderService.closeOpenBill(orderId, cashier!.id!);
-      //
-      // if (result['success'] == true) {
-      //   ref.invalidate(pendingOrderProvider);
-      //   final updatedOrder = await orderService.fetchOrderDetail(orderId);
-      //   state = updatedOrder;
-      //   // ... print receipt ...
-      //   return true;
-      // }
-      // return false;
-    } catch (e) {
-      AppLogger.error('Error closing bill', error: e);
-      rethrow;
-    }
-  }
 }
 
 // Provider untuk PendingOrderDetailProvider

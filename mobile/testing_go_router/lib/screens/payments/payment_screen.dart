@@ -1546,10 +1546,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Widget _buildNonCashTypesSingle(PaymentMethodModel method) {
-    final activeTypes =
-        method.paymentTypes
-            .where((t) => t.isActive && !t.isDigital == false || true)
-            .toList();
+    final activeTypes = method.paymentTypes.where((t) => t.isActive).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
