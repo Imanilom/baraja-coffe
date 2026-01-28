@@ -1,6 +1,7 @@
 import express from 'express';
 import {
-  salesReport
+  salesReport,
+  getCashRecap
 } from '../controllers/report.controller.js';
 import {
   getSalesSummary,
@@ -48,6 +49,7 @@ const router = express.Router();
 // Middleware for admin and superadmin access
 const adminAccess = verifyToken(['admin', 'superadmin']);
 
+router.post('/cash-recap', getCashRecap); // New Cash Recap Endpoint
 router.get('/sales', salesReport); // Get all Sales
 
 router.get('/customers', getCustomerReports);

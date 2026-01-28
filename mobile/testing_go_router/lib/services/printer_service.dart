@@ -10,9 +10,13 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/report/cash_recap_model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:kasirbaraja/utils/payment_details_utils.dart';
+import 'package:intl/intl.dart';
+import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
@@ -2637,5 +2641,195 @@ class ThermalPrinters {
     }
 
     return bytes;
+  }
+
+  // --- Print Cash Recap ---
+  static Future<bool> printCashRecap({
+    required CashRecapModel recap,
+    required BluetoothPrinterModel printer,
+    required String cashierName,
+    required String outletName,
+  }) async {
+    try {
+      await PrinterService.disconnectPrinter();
+      await PrinterService.connectPrinter(printer);
+
+      final profile = await CapabilityProfile.load();
+      PaperSize paperSize;
+      if (printer.paperSize == 'mm58') {
+        paperSize = PaperSize.mm58;
+      } else if (printer.paperSize == 'mm80') {
+        paperSize = PaperSize.mm80;
+      } else {
+        paperSize = PaperSize.mm72;
+      }
+      final generator = Generator(paperSize, profile);
+      final List<int> bytes = [];
+
+      // Bytes generation
+      // 1. Header
+      try {
+        bytes.addAll(
+          await PrinterService.generateOptimizedLogoBytes(
+            generator,
+            'assets/logo/logo_baraja.png',
+            paperSize,
+          ),
+        );
+      } catch (e) {
+        bytes.addAll(
+          generator.text(
+            'BARAJA COFFEE',
+            styles: const PosStyles(
+              align: PosAlign.center,
+              bold: true,
+              height: PosTextSize.size2,
+              width: PosTextSize.size2,
+            ),
+          ),
+        );
+      }
+
+      bytes.addAll(
+        generator.text(
+          'REKAP KASIR (CASH)',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
+        ),
+      );
+      bytes.addAll(generator.feed(1));
+
+      bytes.addAll(
+        generator.text(
+          'Outlet: $outletName',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(
+        generator.text(
+          'Kasir: $cashierName',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(
+        generator.text(
+          'Date: ${DateFormat('dd/MM/yyyy HH:mm').format(recap.printDate)}',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(generator.feed(1));
+
+      bytes.addAll(generator.hr(ch: '-'));
+
+      // 2. Period
+      bytes.addAll(
+        generator.text('Periode:', styles: const PosStyles(bold: true)),
+      );
+      bytes.addAll(
+        generator.text(
+          '${DateFormat('dd/MM HH:mm').format(recap.startDate)} - ${DateFormat('dd/MM HH:mm').format(recap.endDate)}',
+        ),
+      );
+      bytes.addAll(generator.hr(ch: '-'));
+
+      // 3. Orders List
+      bytes.addAll(
+        generator.row([
+          PosColumn(text: 'Jam', width: 3, styles: const PosStyles(bold: true)),
+          PosColumn(text: 'ID', width: 5, styles: const PosStyles(bold: true)),
+          PosColumn(
+            text: 'Total',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right, bold: true),
+          ),
+        ]),
+      );
+      bytes.addAll(generator.hr(ch: '.'));
+
+      for (var order in recap.orders) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(text: order.time, width: 3),
+            PosColumn(
+              text:
+                  order.id.length > 5
+                      ? '..${order.id.substring(order.id.length - 5)}'
+                      : order.id,
+              width: 5,
+            ), // Shorten ID
+            PosColumn(
+              text: formatRupiah(order.amount.toInt()),
+              width: 4,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+      }
+
+      bytes.addAll(generator.hr(ch: '-'));
+
+      // 4. Summary
+      bytes.addAll(
+        generator.row([
+          PosColumn(text: 'Total Order:', width: 6),
+          PosColumn(
+            text: '${recap.orderCount}',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right, bold: true),
+          ),
+        ]),
+      );
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'TOTAL CASH:',
+            width: 5,
+            styles: const PosStyles(
+              height: PosTextSize.size1,
+              width: PosTextSize.size1,
+              bold: true,
+            ),
+          ),
+          PosColumn(
+            text: formatRupiah(recap.totalCash.toInt()),
+            width: 7,
+            styles: const PosStyles(
+              align: PosAlign.right,
+              height: PosTextSize.size1,
+              width: PosTextSize.size1,
+              bold: true,
+            ),
+          ),
+        ]),
+      );
+
+      bytes.addAll(generator.feed(2));
+      bytes.addAll(
+        generator.text(
+          '( Tanda Tangan )',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(generator.feed(3));
+      bytes.addAll(generator.cut());
+
+      // Print
+      final result = await PrintBluetoothThermal.writeBytes(
+        bytes,
+      ).then((_) => true).catchError((_) => false);
+
+      return result;
+    } catch (e) {
+      AppLogger.error('Failed to print cash recap', error: e);
+      return false;
+    } finally {
+      await Future.delayed(const Duration(seconds: 1));
+      await PrinterService.disconnectPrinter();
+    }
   }
 }

@@ -5,6 +5,7 @@ import 'package:kasirbaraja/models/report/analytic_report.model.dart';
 import 'package:kasirbaraja/models/report/order_detail_report.model.dart';
 import 'package:kasirbaraja/models/report/summary_report.model.dart';
 import 'package:kasirbaraja/models/report/performance_report.model.dart';
+import 'package:kasirbaraja/models/report/cash_recap_model.dart';
 
 class SalesReportService {
   // This class would contain methods to generate sales reports
@@ -194,6 +195,31 @@ class SalesReportService {
       );
 
       return PerformanceReportModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<CashRecapModel> fetchCashRecap({
+    required String outletId,
+    required String cashierId,
+  }) async {
+    AppLogger.info('Fetching cash recap for cashierId: $cashierId');
+    try {
+      Response response = await _dio.post(
+        '/api/report/cash-recap',
+        data: {'outletId': outletId, 'cashierId': cashierId},
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      return CashRecapModel.fromJson(response.data);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {

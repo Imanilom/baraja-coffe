@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
+import 'package:kasirbaraja/models/cashier.model.dart';
+import 'package:kasirbaraja/models/user.model.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/report/order_detail_report.model.dart';
 import 'package:kasirbaraja/models/report/performance_report.model.dart';
 import 'package:kasirbaraja/providers/sales_report_provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/services/printer_service.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
+import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 
 class SalesReportScreen extends ConsumerStatefulWidget {
   const SalesReportScreen({super.key});
@@ -87,6 +94,16 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
                         Icon(Icons.print),
                         SizedBox(width: 8),
                         Text('Print'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'print_cash_recap',
+                    child: Row(
+                      children: [
+                        Icon(Icons.receipt_long),
+                        SizedBox(width: 8),
+                        Text('Print Rekap Kasir'),
                       ],
                     ),
                   ),
@@ -1584,7 +1601,9 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: getCategoryColor(category).withValues(alpha: 0.1),
+                        color: getCategoryColor(
+                          category,
+                        ).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -2473,6 +2492,80 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
       case 'print':
         _printReport();
         break;
+      case 'print_cash_recap':
+        _printCashRecap();
+        break;
+    }
+  }
+
+  Future<void> _printCashRecap() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final box = Hive.box('userBox');
+      final user = box.get('user') as UserModel?;
+      final cashier = box.get('cashier') as CashierModel?;
+
+      final outletId = user?.outletId ?? '';
+      final outletName =
+          'Baraja Coffee'; // Default since OutletModel is not available
+
+      if (cashier == null) throw Exception('Cashier not found');
+
+      final service = ref.read(salesReportServiceProvider);
+
+      final recap = await service.fetchCashRecap(
+        outletId: outletId,
+        cashierId: cashier.id ?? '',
+      );
+
+      final printers = await HiveService.getPrinters();
+      final connectedPrinter = printers.firstWhere(
+        (p) => p.isConnected == true,
+        orElse:
+            () =>
+                printers.isNotEmpty
+                    ? printers.first
+                    : throw Exception('No printer configured'),
+      );
+
+      final success = await ThermalPrinters.printCashRecap(
+        recap: recap,
+        printer: connectedPrinter,
+        cashierName: cashier.username ?? 'Unknown Cashier',
+        outletName: outletName,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Berhasil mencetak rekap kasir'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal mencetak rekap kasir'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // Hide loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
