@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/services/printer_service.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
+import 'package:kasirbaraja/models/order_status.model.dart';
 import 'package:kasirbaraja/extensions/order_item_extensions.dart';
 import 'package:kasirbaraja/features/promos/promo_engine.dart';
 import 'package:kasirbaraja/models/auto_promo.model.dart';
@@ -21,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:collection/collection.dart';
 import 'package:uuid/uuid.dart';
+import 'package:kasirbaraja/providers/orders/saved_order_provider.dart';
 
 class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   OrderDetailNotifier(this.ref) : super(null);
@@ -31,13 +34,17 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   bool _isCalculating = false;
   String? _idempotencyKey; // Idempotency key state
+  bool _isEditingOpenBill = false;
+  OrderDetailModel? _baselineOrder;
+
+  bool get isEditingOpenBill => _isEditingOpenBill;
 
   // ============================================================================
   // ORDER INITIALIZATION
   // ============================================================================
 
   /// Initialize new order
-  void initializeOrder({required OrderType orderType}) {
+  void initializeOrder({required OrderTypeModel orderType}) {
     debugPrint('Initialize order with type: $orderType');
     if (state != null) return;
 
@@ -60,14 +67,151 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   void clearOrder() {
     state = null;
     _idempotencyKey = null; // Reset key
+    _isEditingOpenBill = false;
+    _baselineOrder = null;
     debugPrint('Order cleared');
+  }
+
+  // ============================================================================
+  // OPEN BILL MANAGEMENT
+  // ============================================================================
+
+  /// Load Open Bill for editing
+  void loadFromOpenBill(OrderDetailModel openBill) {
+    clearOrder();
+
+    // Deep copy items properly (though they are immutable, ensure fresh list)
+    // We retain printedQuantity from the source
+    state = openBill.copyWith(
+      items: openBill.items.map((e) => e.copyWith()).toList(),
+    );
+
+    _isEditingOpenBill = true;
+    _baselineOrder = openBill; // Store snapshot for reference
+
+    debugPrint('Open Bill loaded: ${openBill.orderId}');
+    _recalculateAll();
+  }
+
+  /// Save Open Bill (Incremental Print & Update)
+  Future<bool> saveOpenBill() async {
+    if (state == null) return false;
+
+    try {
+      debugPrint('Saving Open Bill...');
+
+      // 0. Generate orderId FIRST (before printing) so receipt has valid ID
+      if (state!.orderId == null || state!.orderId!.isEmpty) {
+        final newOrderId = _generateOpenBillId(state!);
+        state = state!.copyWith(orderId: newOrderId);
+        debugPrint('Generated new orderId: $newOrderId');
+      }
+
+      // 1. Identify Deltas
+      bool hasPositiveDelta = false;
+      bool hasNegativeDelta = false;
+
+      final isFirstTime = state!.printSequence == 0;
+
+      for (var item in state!.items) {
+        final printed = item.printedQuantity ?? 0;
+        final current = item.quantity;
+        final delta = current - printed;
+
+        if (delta > 0) hasPositiveDelta = true;
+        if (delta < 0) hasNegativeDelta = true;
+      }
+
+      final hasChanges = hasPositiveDelta || hasNegativeDelta;
+
+      if (!hasChanges && !isFirstTime) {
+        debugPrint('No changes to print. Just saving state.');
+      }
+
+      // 2. Print Control
+      if (hasChanges) {
+        final printers = await HiveService.getPrinters();
+        if (printers.isNotEmpty) {
+          // Print Additions (Normal)
+          if (hasPositiveDelta || isFirstTime) {
+            // Note: isFirstTime might have delta=0 if all pre-printed?
+            // Usually isFirstTime implies we print everything that hasn't been printed.
+            // If printedQuantity is 0, delta > 0.
+            // So checking hasPositiveDelta is sufficient usually.
+            if (hasPositiveDelta) {
+              await PrinterService.printDocuments(
+                orderDetail: state!,
+                printType: 'Kitchen_And_Bar', // Adjust if needed
+                printers: printers,
+                isVoid: false,
+              );
+            }
+          }
+
+          // Print Voids
+          if (hasNegativeDelta) {
+            await PrinterService.printDocuments(
+              orderDetail: state!,
+              printType: 'Kitchen_And_Bar',
+              printers: printers,
+              isVoid: true,
+            );
+          }
+        } else {
+          debugPrint('⚠️ No printers found.');
+        }
+      }
+
+      // 3. Update State (Sync printedQuantity)
+      // Whether print succeeded or not, we assume we want to sync state to avoid double printing loop?
+      // Ideally only on success. But here we assume success.
+      final updatedItems =
+          state!.items.map((item) {
+            // Sync printedQuantity to match current quantity
+            return item.copyWith(printedQuantity: item.quantity);
+          }).toList();
+
+      final nextSequence = state!.printSequence + (hasChanges ? 1 : 0);
+
+      state = state!.copyWith(
+        items: updatedItems,
+        printSequence: nextSequence,
+        isOpenBill: true,
+        updatedAt: DateTime.now(),
+        createdAt:
+            state!.createdAt ?? DateTime.now(), // ✅ Set created at if null
+        status: OrderStatusModel.pending,
+        paymentStatus:
+            state!.paymentStatus ?? 'Pending', // ✅ Set payment status
+      );
+
+      // 4. Persist to Hive (via HiveService)
+      final box = HiveService.savedOrdersBox;
+
+      // orderId is already generated at the start of this method
+      final orderId = state!.orderId!;
+
+      await box.put(orderId, state!);
+
+      debugPrint('Open Bill saved: $orderId');
+
+      _baselineOrder = state; // Update baseline
+
+      // ✅ Refresh the Saved Order List
+      ref.invalidate(savedOrderProvider);
+
+      return true;
+    } catch (e) {
+      debugPrint('Error saving Open Bill: $e');
+      return false;
+    }
   }
 
   // ============================================================================
   // ORDER PROPERTIES UPDATE
   // ============================================================================
 
-  void updateOrderType(OrderType orderType) {
+  void updateOrderType(OrderTypeModel orderType) {
     if (state != null) {
       state = state!.copyWith(orderType: orderType);
       debugPrint('Order type updated: $orderType');
@@ -473,7 +617,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   /// Apply promo group (untuk bundling/paket)
   Future<void> applyPromoGroup(PromoGroupModel group) async {
     if (state == null) {
-      initializeOrder(orderType: OrderType.dineIn);
+      initializeOrder(orderType: OrderTypeModel.dineIn);
     }
 
     debugPrint('🎯 Applying promo group: ${group.name}');
@@ -855,11 +999,31 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       // Success! Reset key for next independent action
       _idempotencyKey = null;
 
+      // ✅ Cleanup saved order if applicable
+      await _cleanupSavedOrder();
+
       return order.isNotEmpty;
     } catch (e) {
       debugPrint('Error submitting order: $e');
       // Do NOT reset key here, so retry uses same key
       rethrow;
+    }
+  }
+
+  // ✅ NEW: Cleanup Saved Order after submission
+  Future<void> _cleanupSavedOrder() async {
+    if (_isEditingOpenBill && _baselineOrder?.orderId != null) {
+      try {
+        final repo = ref.read(savedOrderRepositoryProvider);
+        await repo.deleteOrder(_baselineOrder!.orderId!);
+
+        // Also refresh the pending list
+        ref.invalidate(savedOrderProvider);
+
+        debugPrint('✅ Deleted local saved order: ${_baselineOrder?.orderId}');
+      } catch (e) {
+        debugPrint('⚠️ Failed to clean up saved order: $e');
+      }
     }
   }
 
@@ -1028,6 +1192,45 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       state == null ? 0 : (state!.grandTotal - totalPaid).clamp(0, 1 << 31);
 
   bool get isFullyPaid => remaining == 0;
+
+  String _generateOpenBillId(OrderDetailModel order) {
+    final now = DateTime.now();
+    final dayFormat =
+        '${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}';
+
+    // Sanitize table number (remove spaces, uppercase)
+    String table =
+        (order.tableNumber ?? '00').replaceAll(' ', '').toUpperCase();
+    if (table.isEmpty) table = '00';
+
+    // Calculate daily sequence based on existing keys
+    final box = HiveService.savedOrdersBox;
+    int count = 1;
+    final prefix = 'OPEN-$dayFormat-$table-';
+
+    // Simple collision check logic
+    // We check how many keys start with this prefix to determine the next sequence
+    final existingKeys = box.keys.cast<String>().where(
+      (k) => k.startsWith(prefix),
+    );
+
+    if (existingKeys.isNotEmpty) {
+      // Find max sequence
+      int maxSeq = 0;
+      for (final key in existingKeys) {
+        try {
+          final parts = key.split('-');
+          if (parts.length >= 4) {
+            final seq = int.tryParse(parts.last) ?? 0;
+            if (seq > maxSeq) maxSeq = seq;
+          }
+        } catch (_) {}
+      }
+      count = maxSeq + 1;
+    }
+
+    return '$prefix${count.toString().padLeft(2, '0')}';
+  }
 }
 
 // Provider

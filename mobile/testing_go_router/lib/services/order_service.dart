@@ -1,6 +1,6 @@
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -433,7 +433,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
             // Include custom discount for item
             if (item.customDiscount?.isActive == true)
               'customDiscount': {
@@ -447,7 +447,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
               },
           };
         }).toList(),
-    'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
+    'orderType': OrderTypeModel.toJsonString(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'outletId': user.outletId,
@@ -481,8 +481,8 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                 'name': item.name,
                 'description': item.description,
                 'amount': item.amount,
-                'orderType': OrderTypeExtension.orderTypeToJson(
-                  item.orderType ?? OrderType.dineIn,
+                'orderType': OrderTypeModel.toJsonString(
+                  item.orderType ?? OrderTypeModel.dineIn,
                 ),
               };
             }).toList()
@@ -519,7 +519,7 @@ Map<String, dynamic> logOrder(OrderDetailModel order) {
     'user': order.user,
     'cashierId': order.cashier?.id ?? '',
     'device_id': loginDevice.id,
-    'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
+    'orderType': OrderTypeModel.toJsonString(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'outletId': user.outletId,
@@ -537,8 +537,8 @@ Map<String, dynamic> logOrder(OrderDetailModel order) {
                 'name': item.name,
                 'description': item.description,
                 'amount': item.amount,
-                'orderType': OrderTypeExtension.orderTypeToJson(
-                  item.orderType ?? OrderType.dineIn,
+                'orderType': OrderTypeModel.toJsonString(
+                  item.orderType ?? OrderTypeModel.dineIn,
                 ),
               };
             }).toList()
@@ -568,7 +568,7 @@ Map<String, dynamic> logMenuItem(OrderDetailModel order) {
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
           };
         }).toList(),
   };
@@ -654,7 +654,7 @@ Map<String, dynamic> updateEditOrderRequest(
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
           };
         }).toList(),
   };

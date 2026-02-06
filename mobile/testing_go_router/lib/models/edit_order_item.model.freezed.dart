@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$EditOrderItemModel {
 
-@HiveField(0) String? get reason;@HiveField(1) OrderDetailModel? get order;@HiveField(2) List<OrderItemModel>? get originalItems;@HiveField(3) bool get isSubmitting;@HiveField(4) String? get error;
+@HiveField(0) String? get reason;@HiveField(1) OrderDetailModel? get order;@HiveField(2) List<OrderItemModel>? get originalItems;@HiveField(3) bool get isSubmitting;@HiveField(4) String? get error;@HiveField(5) List<OrderItemModel>? get itemsToDelete;
 /// Create a copy of EditOrderItemModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $EditOrderItemModelCopyWith<EditOrderItemModel> get copyWith => _$EditOrderItemM
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is EditOrderItemModel&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.order, order) || other.order == order)&&const DeepCollectionEquality().equals(other.originalItems, originalItems)&&(identical(other.isSubmitting, isSubmitting) || other.isSubmitting == isSubmitting)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EditOrderItemModel&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.order, order) || other.order == order)&&const DeepCollectionEquality().equals(other.originalItems, originalItems)&&(identical(other.isSubmitting, isSubmitting) || other.isSubmitting == isSubmitting)&&(identical(other.error, error) || other.error == error)&&const DeepCollectionEquality().equals(other.itemsToDelete, itemsToDelete));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,reason,order,const DeepCollectionEquality().hash(originalItems),isSubmitting,error);
+int get hashCode => Object.hash(runtimeType,reason,order,const DeepCollectionEquality().hash(originalItems),isSubmitting,error,const DeepCollectionEquality().hash(itemsToDelete));
 
 @override
 String toString() {
-  return 'EditOrderItemModel(reason: $reason, order: $order, originalItems: $originalItems, isSubmitting: $isSubmitting, error: $error)';
+  return 'EditOrderItemModel(reason: $reason, order: $order, originalItems: $originalItems, isSubmitting: $isSubmitting, error: $error, itemsToDelete: $itemsToDelete)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $EditOrderItemModelCopyWith<$Res>  {
   factory $EditOrderItemModelCopyWith(EditOrderItemModel value, $Res Function(EditOrderItemModel) _then) = _$EditOrderItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) String? reason,@HiveField(1) OrderDetailModel? order,@HiveField(2) List<OrderItemModel>? originalItems,@HiveField(3) bool isSubmitting,@HiveField(4) String? error
+@HiveField(0) String? reason,@HiveField(1) OrderDetailModel? order,@HiveField(2) List<OrderItemModel>? originalItems,@HiveField(3) bool isSubmitting,@HiveField(4) String? error,@HiveField(5) List<OrderItemModel>? itemsToDelete
 });
 
 
@@ -65,14 +65,15 @@ class _$EditOrderItemModelCopyWithImpl<$Res>
 
 /// Create a copy of EditOrderItemModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? reason = freezed,Object? order = freezed,Object? originalItems = freezed,Object? isSubmitting = null,Object? error = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? reason = freezed,Object? order = freezed,Object? originalItems = freezed,Object? isSubmitting = null,Object? error = freezed,Object? itemsToDelete = freezed,}) {
   return _then(_self.copyWith(
 reason: freezed == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
 as String?,order: freezed == order ? _self.order : order // ignore: cast_nullable_to_non_nullable
 as OrderDetailModel?,originalItems: freezed == originalItems ? _self.originalItems : originalItems // ignore: cast_nullable_to_non_nullable
 as List<OrderItemModel>?,isSubmitting: null == isSubmitting ? _self.isSubmitting : isSubmitting // ignore: cast_nullable_to_non_nullable
 as bool,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,itemsToDelete: freezed == itemsToDelete ? _self.itemsToDelete : itemsToDelete // ignore: cast_nullable_to_non_nullable
+as List<OrderItemModel>?,
   ));
 }
 /// Create a copy of EditOrderItemModel
@@ -169,10 +170,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  String? reason, @HiveField(1)  OrderDetailModel? order, @HiveField(2)  List<OrderItemModel>? originalItems, @HiveField(3)  bool isSubmitting, @HiveField(4)  String? error)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  String? reason, @HiveField(1)  OrderDetailModel? order, @HiveField(2)  List<OrderItemModel>? originalItems, @HiveField(3)  bool isSubmitting, @HiveField(4)  String? error, @HiveField(5)  List<OrderItemModel>? itemsToDelete)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _EditOrderItemModel() when $default != null:
-return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,_that.error);case _:
+return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,_that.error,_that.itemsToDelete);case _:
   return orElse();
 
 }
@@ -190,10 +191,10 @@ return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  String? reason, @HiveField(1)  OrderDetailModel? order, @HiveField(2)  List<OrderItemModel>? originalItems, @HiveField(3)  bool isSubmitting, @HiveField(4)  String? error)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  String? reason, @HiveField(1)  OrderDetailModel? order, @HiveField(2)  List<OrderItemModel>? originalItems, @HiveField(3)  bool isSubmitting, @HiveField(4)  String? error, @HiveField(5)  List<OrderItemModel>? itemsToDelete)  $default,) {final _that = this;
 switch (_that) {
 case _EditOrderItemModel():
-return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,_that.error);case _:
+return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,_that.error,_that.itemsToDelete);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -210,10 +211,10 @@ return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  String? reason, @HiveField(1)  OrderDetailModel? order, @HiveField(2)  List<OrderItemModel>? originalItems, @HiveField(3)  bool isSubmitting, @HiveField(4)  String? error)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  String? reason, @HiveField(1)  OrderDetailModel? order, @HiveField(2)  List<OrderItemModel>? originalItems, @HiveField(3)  bool isSubmitting, @HiveField(4)  String? error, @HiveField(5)  List<OrderItemModel>? itemsToDelete)?  $default,) {final _that = this;
 switch (_that) {
 case _EditOrderItemModel() when $default != null:
-return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,_that.error);case _:
+return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,_that.error,_that.itemsToDelete);case _:
   return null;
 
 }
@@ -225,7 +226,7 @@ return $default(_that.reason,_that.order,_that.originalItems,_that.isSubmitting,
 @JsonSerializable()
 
 class _EditOrderItemModel implements EditOrderItemModel {
-   _EditOrderItemModel({@HiveField(0) this.reason = null, @HiveField(1) this.order = null, @HiveField(2) final  List<OrderItemModel>? originalItems = const [], @HiveField(3) this.isSubmitting = false, @HiveField(4) this.error = null}): _originalItems = originalItems;
+   _EditOrderItemModel({@HiveField(0) this.reason = null, @HiveField(1) this.order = null, @HiveField(2) final  List<OrderItemModel>? originalItems = const [], @HiveField(3) this.isSubmitting = false, @HiveField(4) this.error = null, @HiveField(5) final  List<OrderItemModel>? itemsToDelete = const []}): _originalItems = originalItems,_itemsToDelete = itemsToDelete;
   factory _EditOrderItemModel.fromJson(Map<String, dynamic> json) => _$EditOrderItemModelFromJson(json);
 
 @override@JsonKey()@HiveField(0) final  String? reason;
@@ -241,6 +242,15 @@ class _EditOrderItemModel implements EditOrderItemModel {
 
 @override@JsonKey()@HiveField(3) final  bool isSubmitting;
 @override@JsonKey()@HiveField(4) final  String? error;
+ final  List<OrderItemModel>? _itemsToDelete;
+@override@JsonKey()@HiveField(5) List<OrderItemModel>? get itemsToDelete {
+  final value = _itemsToDelete;
+  if (value == null) return null;
+  if (_itemsToDelete is EqualUnmodifiableListView) return _itemsToDelete;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(value);
+}
+
 
 /// Create a copy of EditOrderItemModel
 /// with the given fields replaced by the non-null parameter values.
@@ -255,16 +265,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EditOrderItemModel&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.order, order) || other.order == order)&&const DeepCollectionEquality().equals(other._originalItems, _originalItems)&&(identical(other.isSubmitting, isSubmitting) || other.isSubmitting == isSubmitting)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EditOrderItemModel&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.order, order) || other.order == order)&&const DeepCollectionEquality().equals(other._originalItems, _originalItems)&&(identical(other.isSubmitting, isSubmitting) || other.isSubmitting == isSubmitting)&&(identical(other.error, error) || other.error == error)&&const DeepCollectionEquality().equals(other._itemsToDelete, _itemsToDelete));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,reason,order,const DeepCollectionEquality().hash(_originalItems),isSubmitting,error);
+int get hashCode => Object.hash(runtimeType,reason,order,const DeepCollectionEquality().hash(_originalItems),isSubmitting,error,const DeepCollectionEquality().hash(_itemsToDelete));
 
 @override
 String toString() {
-  return 'EditOrderItemModel(reason: $reason, order: $order, originalItems: $originalItems, isSubmitting: $isSubmitting, error: $error)';
+  return 'EditOrderItemModel(reason: $reason, order: $order, originalItems: $originalItems, isSubmitting: $isSubmitting, error: $error, itemsToDelete: $itemsToDelete)';
 }
 
 
@@ -275,7 +285,7 @@ abstract mixin class _$EditOrderItemModelCopyWith<$Res> implements $EditOrderIte
   factory _$EditOrderItemModelCopyWith(_EditOrderItemModel value, $Res Function(_EditOrderItemModel) _then) = __$EditOrderItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) String? reason,@HiveField(1) OrderDetailModel? order,@HiveField(2) List<OrderItemModel>? originalItems,@HiveField(3) bool isSubmitting,@HiveField(4) String? error
+@HiveField(0) String? reason,@HiveField(1) OrderDetailModel? order,@HiveField(2) List<OrderItemModel>? originalItems,@HiveField(3) bool isSubmitting,@HiveField(4) String? error,@HiveField(5) List<OrderItemModel>? itemsToDelete
 });
 
 
@@ -292,14 +302,15 @@ class __$EditOrderItemModelCopyWithImpl<$Res>
 
 /// Create a copy of EditOrderItemModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? reason = freezed,Object? order = freezed,Object? originalItems = freezed,Object? isSubmitting = null,Object? error = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? reason = freezed,Object? order = freezed,Object? originalItems = freezed,Object? isSubmitting = null,Object? error = freezed,Object? itemsToDelete = freezed,}) {
   return _then(_EditOrderItemModel(
 reason: freezed == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
 as String?,order: freezed == order ? _self.order : order // ignore: cast_nullable_to_non_nullable
 as OrderDetailModel?,originalItems: freezed == originalItems ? _self._originalItems : originalItems // ignore: cast_nullable_to_non_nullable
 as List<OrderItemModel>?,isSubmitting: null == isSubmitting ? _self.isSubmitting : isSubmitting // ignore: cast_nullable_to_non_nullable
 as bool,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,itemsToDelete: freezed == itemsToDelete ? _self._itemsToDelete : itemsToDelete // ignore: cast_nullable_to_non_nullable
+as List<OrderItemModel>?,
   ));
 }
 

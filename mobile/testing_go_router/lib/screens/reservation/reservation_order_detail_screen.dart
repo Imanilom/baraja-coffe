@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:go_router/go_router.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 // import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/reservation_order_detail_provider.dart';
 // import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
@@ -46,7 +46,7 @@ class ReservationOrderDetailScreen extends ConsumerWidget {
                           : 'Meja',
                   onPressed: () {
                     if (reservationOrderDetail?.orderType ==
-                        OrderType.takeAway) {
+                        OrderTypeModel.takeAway) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
@@ -61,7 +61,7 @@ class ReservationOrderDetailScreen extends ConsumerWidget {
                     if (reservationOrderDetail == null) {
                       ref
                           .read(reservationOrderDetailProvider.notifier)
-                          .initializeOrder(orderType: OrderType.dineIn);
+                          .initializeOrder(orderType: OrderTypeModel.dineIn);
                     }
                     // open dialog untuk submit nomor meja
                     showDialog(
@@ -130,9 +130,7 @@ class ReservationOrderDetailScreen extends ConsumerWidget {
                 //order type dine-in, take away, delivery,
                 VerticalIconTextButton(
                   icon: Icons.restaurant_menu_rounded,
-                  label: OrderTypeExtension.orderTypeToJson(
-                    reservationOrderDetail?.orderType ?? OrderType.dineIn,
-                  ),
+                  label: reservationOrderDetail?.orderType.name ?? 'Dine In',
                   onPressed: () {},
                   color:
                       reservationOrderDetail != null
@@ -152,7 +150,7 @@ class ReservationOrderDetailScreen extends ConsumerWidget {
                     //initialize order detail
                     ref
                         .read(reservationOrderDetailProvider.notifier)
-                        .initializeOrder(orderType: OrderType.dineIn);
+                        .initializeOrder(orderType: OrderTypeModel.dineIn);
                     // input nama pelanggan
                     showDialog(
                       context: context,

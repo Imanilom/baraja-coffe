@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kasirbaraja/enums/order_status.dart';
+import 'package:kasirbaraja/models/order_status.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
@@ -45,7 +46,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   int _getOnlineOrderCount(WidgetRef ref) {
     final onlineOrders = ref.watch(onlineOrderProvider).valueOrNull ?? [];
     return onlineOrders
-        .where((order) => order.status == OrderStatus.pending)
+        .where((order) => order.status == OrderStatusModel.pending)
         .length;
 
     // Contoh static untuk demo
@@ -282,18 +283,18 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     title: 'Rekap Kasir',
                     // isSelected: currentPageIndex == 2,
                     onTap: () {
-                      // if (currentPageIndex != 2) {
-                      //   ref.read(currentPageIndexProvider.notifier).setIndex(2);
-                      // }
-                      // Navigator.pop(context);
-                      // context.pushNamed('sales-report');
-                      //fitur belum tersedia
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Fitur rekap kasir belum tersedia.'),
-                        ),
-                      );
+                      if (currentPageIndex != 2) {
+                        ref.read(currentPageIndexProvider.notifier).setIndex(2);
+                      }
                       Navigator.pop(context);
+                      context.pushNamed('sales-report');
+                      //fitur belum tersedia
+                      // ScaffoldMessenger.of(context).showSnackBar(
+                      //   const SnackBar(
+                      //     content: Text('Fitur rekap kasir belum tersedia.'),
+                      //   ),
+                      // );
+                      // Navigator.pop(context);
                     },
                   ),
                 ],
@@ -393,11 +394,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               ),
               onPressed: () {
-                if (currentPageIndex != 0) {
-                  ref.read(currentPageIndexProvider.notifier).setIndex(0);
-                }
-                if (currentWidgetIndex != 1) {
-                  ref.read(currentWidgetIndexProvider.notifier).setIndex(1);
+                if (currentPageIndex != 1) {
+                  ref.read(currentPageIndexProvider.notifier).setIndex(1);
                 }
               },
             ),
@@ -434,7 +432,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           PendingOrderScreen(),
           OrderHistoryScreen(),
           OnlineOrderScreen(),
-          // SalesReportScreen(),
+          SalesReportScreen(),
         ],
       ),
     );

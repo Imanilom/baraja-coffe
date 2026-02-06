@@ -2693,6 +2693,43 @@ export const createUnifiedOrder = async (req, res) => {
         hasItems: req.body.items?.length || 0
       });
 
+      // ========== CASHIER: OPEN BILL PAYMENT (Existing Order) ==========
+      // Detect: order_id exists + has paymentDetails = paying existing open bill
+      const hasValidPaymentDetails = paymentDetails && (
+        Array.isArray(paymentDetails)
+          ? paymentDetails.length > 0
+          : Object.keys(paymentDetails).length > 0
+      );
+      const isPayingExistingOpenBill = source === 'Cashier'
+        && order_id
+        && order_id.length > 0
+        && hasValidPaymentDetails;
+
+      if (isPayingExistingOpenBill) {
+        console.log('💰 Processing payment for existing Open Bill:', order_id);
+
+        const result = await processOpenBillPayment({
+          orderId: order_id,
+          cashierId,
+          paymentDetails,
+          isSplitPayment,
+          orderType,
+          items: req.body.items || [],
+          customAmountItems,
+          appliedPromos,
+          discounts: req.body.discounts,
+          customDiscountDetails: req.body.customDiscountDetails,
+          session
+        });
+
+        if (!committed) {
+          await session.commitTransaction();
+          committed = true;
+        }
+
+        return res.status(200).json(result);
+      }
+
       // ========== CASHIER: OPEN BILL CREATION ==========
       if (source === 'Cashier' && isOpenBill) {
         console.log('💰 Processing Open Bill creation with createOrderHandler');

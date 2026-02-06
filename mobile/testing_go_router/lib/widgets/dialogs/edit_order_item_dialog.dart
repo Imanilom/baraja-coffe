@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -35,7 +35,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   late List<AddonModel> selectedAddons;
   late int quantity;
   late String note;
-  late OrderType selectedOrderType;
+  late OrderTypeModel selectedOrderType;
   CustomDiscountModel? customDiscount;
 
   @override
@@ -46,7 +46,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     AppLogger.debug('selectedAddons: $selectedAddons');
     quantity = widget.orderItem.quantity;
     note = widget.orderItem.notes ?? '';
-    selectedOrderType = widget.orderItem.orderType ?? OrderType.dineIn;
+    selectedOrderType = widget.orderItem.orderType ?? OrderTypeModel.dineIn;
     customDiscount = widget.orderItem.customDiscount;
   }
 
@@ -1124,25 +1124,25 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           ),
           const SizedBox(height: 8),
           Center(
-            child: SegmentedButton<OrderType>(
+            child: SegmentedButton<OrderTypeModel>(
               segments: [
-                ButtonSegment<OrderType>(
-                  value: OrderType.dineIn,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.dineIn,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.dineIn),
+                    OrderTypeModel.dineIn.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
-                ButtonSegment<OrderType>(
-                  value: OrderType.takeAway,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.takeAway,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.takeAway),
+                    OrderTypeModel.takeAway.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
               ],
-              selected: {selectedOrderType ?? OrderType.dineIn},
-              onSelectionChanged: (Set<OrderType> newSelection) {
+              selected: {selectedOrderType},
+              onSelectionChanged: (Set<OrderTypeModel> newSelection) {
                 setState(() {
                   selectedOrderType = newSelection.first;
                 });
@@ -1154,23 +1154,6 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         ],
       ),
     );
-  }
-
-  String _getShortOrderTypeLabel(OrderType orderType) {
-    switch (orderType) {
-      case OrderType.dineIn:
-        return 'Dine-In';
-      case OrderType.pickup:
-        return 'Pickup';
-      case OrderType.delivery:
-        return 'Delivery';
-      case OrderType.takeAway:
-        return 'Take Away';
-      case OrderType.reservation:
-        return 'Reservation';
-      default:
-        return 'Unknown';
-    }
   }
 
   Widget _notesAndTypeSection() {

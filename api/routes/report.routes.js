@@ -1,6 +1,5 @@
 import express from 'express';
 import {
-  salesReport,
   getCashRecap
 } from '../controllers/report.controller.js';
 import {
@@ -50,7 +49,7 @@ const router = express.Router();
 const adminAccess = verifyToken(['admin', 'superadmin']);
 
 router.post('/cash-recap', getCashRecap); // New Cash Recap Endpoint
-router.get('/sales', salesReport); // Get all Sales
+router.get('/sales', getSalesSummary); // Get all Sales
 
 router.get('/customers', getCustomerReports);
 router.get('/customers/:customerId', getCustomerDetailReport);

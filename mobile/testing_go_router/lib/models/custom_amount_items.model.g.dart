@@ -21,7 +21,10 @@ class CustomAmountItemsModelAdapter
       amount: fields[0] == null ? 0 : (fields[0] as num).toInt(),
       name: fields[1] == null ? 'Custom Amount' : fields[1] as String?,
       description: fields[2] == null ? null : fields[2] as String?,
-      orderType: fields[3] == null ? OrderType.dineIn : fields[3] as OrderType?,
+      orderType:
+          fields[3] == null
+              ? OrderTypeModel.dineIn
+              : fields[3] as OrderTypeModel?,
     );
   }
 
@@ -61,8 +64,9 @@ _CustomAmountItemsModel _$CustomAmountItemsModelFromJson(
   name: json['name'] as String? ?? 'Custom Amount',
   description: json['description'] as String? ?? null,
   orderType:
-      $enumDecodeNullable(_$OrderTypeEnumMap, json['orderType']) ??
-      OrderType.dineIn,
+      json['orderType'] == null
+          ? OrderTypeModel.dineIn
+          : OrderTypeModel.fromString(json['orderType'] as String),
 );
 
 Map<String, dynamic> _$CustomAmountItemsModelToJson(
@@ -71,14 +75,5 @@ Map<String, dynamic> _$CustomAmountItemsModelToJson(
   'amount': instance.amount,
   'name': instance.name,
   'description': instance.description,
-  'orderType': _$OrderTypeEnumMap[instance.orderType],
-};
-
-const _$OrderTypeEnumMap = {
-  OrderType.dineIn: 'dineIn',
-  OrderType.pickup: 'pickup',
-  OrderType.delivery: 'delivery',
-  OrderType.takeAway: 'takeAway',
-  OrderType.reservation: 'reservation',
-  OrderType.unknown: 'unknown',
+  'orderType': OrderTypeModel.toJsonString(instance.orderType),
 };

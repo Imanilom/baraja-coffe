@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -115,7 +115,7 @@ class _LisMenuState extends ConsumerState<ListMenu> {
       backgroundColor: Colors.transparent,
       builder:
           (context) => AddCustomAmountDialog(
-            orderType: OrderType.dineIn, // opsional
+            orderType: OrderTypeModel.dineIn, // opsional
             onAddCustomAmount: (customAmountItem) {
               // notifier.addCustomAmountItem(customAmountItem);
             },

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -30,7 +30,8 @@ class OrderDetail extends ConsumerWidget {
 
     final hasName = (orderDetail?.user ?? '').trim().isNotEmpty;
     final isTakeAway =
-        (orderDetail?.orderType ?? OrderType.dineIn) == OrderType.takeAway;
+        (orderDetail?.orderType ?? OrderTypeModel.dineIn) ==
+        OrderTypeModel.takeAway;
     final hasTable = (orderDetail?.tableNumber ?? '').trim().isNotEmpty;
     final needTable = !isTakeAway;
 
@@ -48,12 +49,36 @@ class OrderDetail extends ConsumerWidget {
     const String onNull = 'Pilih menu untuk memulai pesanan';
 
     Future<void> handleOpenBill() async {
-      final sw = Stopwatch()..start();
-
       if (orderDetail == null) return;
 
       final ok = await _ensureRequiredFields(context, ref, orderDetail);
       if (!ok) return;
+
+      // Show confirmation dialog before proceeding
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Konfirmasi Open Bill'),
+              content: const Text(
+                'Apakah Anda yakin ingin menyimpan pesanan ini sebagai Open Bill?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Ya, Simpan'),
+                ),
+              ],
+            ),
+      );
+
+      if (confirmed != true) return;
+
+      final sw = Stopwatch()..start();
 
       // tanda openbill dulu (opsional, tapi oke)
       ref.read(orderDetailProvider.notifier).updateIsOpenBill(true);
@@ -64,42 +89,72 @@ class OrderDetail extends ConsumerWidget {
       final menuRepo = MenuItemRepository();
 
       try {
-        // 1) critical path: submit backend
-        await ref.read(orderDetailProvider.notifier).submitOrder();
+        // CEK: Apakah kita sedang mengedit Open Bill yang sudah ada?
+        // CEK: Apakah kita sedang mengedit Open Bill yang sudah ada?
+        // KITA SEKARANG MENGGUNAKAN LOGIK SAVE OPEN BILL (HIVE) UTK SEMUA KASUS
+
+        // 1. Jika baru (belum isOpenBill), set flag
+        if (orderDetail.isOpenBill != true) {
+          ref.read(orderDetailProvider.notifier).updateIsOpenBill(true);
+        }
+
+        // 2. Simpan ke Hive (create or update handled inside)
+        debugPrint('Saving Open Bill to Hive (Offline First)...');
+        final success =
+            await ref.read(orderDetailProvider.notifier).saveOpenBill();
+
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                orderDetail.isOpenBill == true
+                    ? 'Perubahan Open Bill disimpan'
+                    : 'Open Bill berhasil dibuat',
+              ),
+            ),
+          );
+        } else {
+          // Revert flag if new and failed?
+          if (orderDetail.isOpenBill != true) {
+            ref.read(orderDetailProvider.notifier).updateIsOpenBill(false);
+          }
+          throw Exception('Gagal menyimpan ke Hive');
+        }
+
         debugPrint('handleOpenBill took: ${sw.elapsedMilliseconds} ms');
 
         if (!context.mounted) return;
 
-        // 2) matikan loading SECEPATNYA setelah backend sukses
+        // 2) matikan loading SECEPATNYA setelah sukses
         ref.read(openBillLoadingProvider.notifier).state = false;
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Open Bill berhasil')));
+        if (orderDetail.isOpenBill != true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Open Bill berhasil dibuat')),
+          );
+        }
 
-        // 3) refresh pending order (kalau harus langsung tampil)
-        // kalau ini berat dan gak harus langsung, jadikan fire-and-forget juga
+        // 3) refresh pending order
         ref.read(pendingOrderProvider.notifier).refresh().catchError((e) {
           debugPrint('refresh pending order gagal: $e');
         });
 
-        // 4) post-processing lokal (JANGAN bikin user nunggu)
-        // kurangi stok lokal hanya jika sukses
+        // 4) Kurangi stok & Refresh menu
         menuRepo.decreaseLocalStockFromOrderItems(orderDetail.items).catchError(
           (e) {
             debugPrint('decreaseLocalStockFromOrderItems gagal: $e');
           },
         );
-
-        // refresh menu badge stok
         ref.invalidate(reservationMenuItemProvider);
 
         // 5) clear order paling akhir (sukses)
         ref.read(orderDetailProvider.notifier).clearOrder();
         ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
       } catch (e) {
-        // gagal: revert flag openbill
-        ref.read(orderDetailProvider.notifier).updateIsOpenBill(false);
+        // gagal: revert flag openbill JIKA ini order baru
+        if (orderDetail.isOpenBill != true) {
+          ref.read(orderDetailProvider.notifier).updateIsOpenBill(false);
+        }
 
         // matikan loading
         ref.read(openBillLoadingProvider.notifier).state = false;
@@ -169,34 +224,29 @@ class OrderDetail extends ConsumerWidget {
           Expanded(
             child: TextButton(
               onPressed: isLoading ? null : () => handleOpenBill(),
-              // onPressed: () {
-              //   //alert dialog fitur belum jadi
-              //   showDialog(
-              //     context: context,
-              //     builder:
-              //         (context) => AlertDialog(
-              //           title: const Text('Fitur belum jadi'),
-              //           content: const Text(
-              //             'Fitur ini belum jadi, silahkan tunggu beberapa hari lagi',
-              //           ),
-              //           actions: [
-              //             TextButton(
-              //               child: const Text('OK'),
-              //               onPressed: () => Navigator.pop(context),
-              //             ),
-              //           ],
-              //         ),
-              //   );
-              // },
               style: TextButton.styleFrom(
-                backgroundColor: Colors.grey[50],
+                backgroundColor:
+                    (orderDetail.isOpenBill == true)
+                        ? Colors.blue[50]
+                        : Colors.grey[50], // Blue tint if editing
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text(
-                'Open Bill',
-                style: TextStyle(color: Colors.grey),
+              child: Text(
+                (orderDetail.isOpenBill == true)
+                    ? 'Simpan & Print'
+                    : 'Open Bill',
+                style: TextStyle(
+                  color:
+                      (orderDetail.isOpenBill == true)
+                          ? Colors.blue[700]
+                          : Colors.grey,
+                  fontWeight:
+                      (orderDetail.isOpenBill == true)
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                ),
               ),
             ),
           ),
@@ -302,6 +352,34 @@ class OrderDetail extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // INDICATOR EDITING OPEN BILL
+          if (orderDetail?.isOpenBill == true)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.amber[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.edit_note, color: Colors.orange[900], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Mode Edit Open Bill ${orderDetail?.printSequence != null && orderDetail!.printSequence > 0 ? "(Cetak #${orderDetail.printSequence})" : ""}',
+                      style: TextStyle(
+                        color: Colors.orange[900],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Top actions (Meja, Order Type, Pelanggan)
           Container(
             color: Colors.white,
@@ -322,7 +400,7 @@ class OrderDetail extends ConsumerWidget {
                           ? Colors.green
                           : Colors.grey,
                   onPressed: () {
-                    if (orderDetail?.orderType == OrderType.takeAway) {
+                    if (orderDetail?.orderType == OrderTypeModel.takeAway) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
@@ -336,7 +414,7 @@ class OrderDetail extends ConsumerWidget {
                     if (orderDetail == null) {
                       ref
                           .read(orderDetailProvider.notifier)
-                          .initializeOrder(orderType: OrderType.dineIn);
+                          .initializeOrder(orderType: OrderTypeModel.dineIn);
                     }
 
                     showDialog(
@@ -395,9 +473,8 @@ class OrderDetail extends ConsumerWidget {
                 // Order Type
                 VerticalIconTextButton(
                   icon: Icons.restaurant_menu_rounded,
-                  label: OrderTypeExtension.orderTypeToJson(
-                    orderDetail?.orderType ?? OrderType.dineIn,
-                  ),
+                  label:
+                      orderDetail?.orderType.name ?? OrderTypeModel.dineIn.name,
                   color: orderDetail != null ? Colors.green : Colors.grey,
                   onPressed: () {
                     if (orderDetail == null) return;
@@ -439,7 +516,7 @@ class OrderDetail extends ConsumerWidget {
                     if (orderDetail == null) {
                       ref
                           .read(orderDetailProvider.notifier)
-                          .initializeOrder(orderType: OrderType.dineIn);
+                          .initializeOrder(orderType: OrderTypeModel.dineIn);
                     }
 
                     showDialog(
@@ -541,7 +618,7 @@ class OrderDetail extends ConsumerWidget {
                               child: Text(orderItem.quantity.toString()),
                             ),
                             title: Text(
-                              '(${OrderTypeExtension.orderTypeToShortJson(orderItem.orderType)}) ${orderItem.menuItem.name.toString()}',
+                              '(${orderItem.orderType.shortName}) ${orderItem.menuItem.name.toString()}',
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -924,7 +1001,7 @@ class OrderDetail extends ConsumerWidget {
     if (latest == null) return false;
 
     // 2) Meja wajib jika dine-in
-    final mustHaveTable = latest.orderType != OrderType.takeAway;
+    final mustHaveTable = latest.orderType != OrderTypeModel.takeAway;
     if (mustHaveTable &&
         (latest.tableNumber == null || latest.tableNumber!.trim().isEmpty)) {
       final table = await _promptTable(
@@ -1144,7 +1221,7 @@ class OrderDetail extends ConsumerWidget {
         child: Icon(Icons.attach_money, color: Colors.blue[700], size: 20),
       ),
       title: Text(
-        '(${OrderTypeExtension.orderTypeToShortJson(customAmount.orderType ?? OrderType.dineIn)}) ${customAmount.name ?? "Custom Amount"}',
+        '(${customAmount.orderType?.shortName ?? OrderTypeModel.dineIn.shortName}) ${customAmount.name ?? "Custom Amount"}',
       ),
       subtitle:
           (customAmount.description != null &&

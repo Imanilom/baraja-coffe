@@ -19,7 +19,7 @@ import 'package:intl/intl.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
-import 'package:kasirbaraja/enums/order_type.dart';
+
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 class PrinterService {
@@ -116,17 +116,18 @@ class PrinterService {
     required OrderDetailModel orderDetail,
     required String printType,
     required List<BluetoothPrinterModel> printers,
+    bool isVoid = false,
+    bool forceReprint = false, // NEW: bypass delta logic for reprint
   }) async {
     final jobs = _createPrintJobs(printType);
 
-    // AppLogger.debug('dokumen print ${orderDetail.items.toList()}');
-
     for (final job in jobs) {
-      // if (printers.any((element) => element.connectionType == 'bluetooth')) {
       await _printJobToSupportedPrinters(
         orderDetail: orderDetail,
         jobType: job,
         printers: printers,
+        isVoid: isVoid,
+        forceReprint: forceReprint,
       );
       // }
 
@@ -180,28 +181,57 @@ class PrinterService {
     }
   }
 
-  // Modifikasi fungsi _printJobToSupportedPrinters
   static Future<void> _printJobToSupportedPrinters({
     required OrderDetailModel orderDetail,
     required String jobType,
     required List<BluetoothPrinterModel> printers,
+    bool isVoid = false,
+    bool forceReprint = false, // NEW: bypass delta logic for reprint
   }) async {
-    // 1️⃣ Ambil daftar item yang punya delta quantity (belum tercetak)
-    final deltas = _selectDeltasForJob(orderDetail, jobType);
-    if (deltas.isEmpty) {
-      AppLogger.warning('⚠️ Tidak ada delta item untuk $jobType');
+    List<OrderItemModel> itemsToPrint;
+
+    if (forceReprint) {
+      // REPRINT: Print all items matching workstation (ignore delta)
+      itemsToPrint =
+          orderDetail.items.where((item) {
+            switch (jobType) {
+              case 'kitchen':
+                return item.menuItem.workstation?.toLowerCase().trim() ==
+                    'kitchen';
+              case 'bar':
+                return item.menuItem.workstation?.toLowerCase().trim() == 'bar';
+              case 'customer':
+              case 'waiter':
+                return true;
+              default:
+                return false;
+            }
+          }).toList();
+    } else {
+      // NORMAL: Only print items with delta quantity
+      final deltas = _selectDeltasForJob(
+        orderDetail,
+        jobType,
+        onlyVoids: isVoid,
+      );
+      if (deltas.isEmpty) {
+        return;
+      }
+      itemsToPrint =
+          deltas.map((t) {
+            final (idx, delta) = t;
+            final src = orderDetail.items[idx];
+            return src.copyWith(quantity: delta.abs());
+          }).toList();
+    }
+
+    if (itemsToPrint.isEmpty) {
+      AppLogger.warning('⚠️ Tidak ada item untuk $jobType');
       return;
     }
 
-    // 2️⃣ Buat daftar item dengan quantity hanya delta-nya
-    final itemsToPrint =
-        deltas.map((t) {
-          final (idx, delta) = t;
-          final src = orderDetail.items[idx];
-          return src.copyWith(quantity: delta);
-        }).toList();
+    // ... [printer filtering logic unchanged] ...
 
-    // 3️⃣ Cari printer yang mendukung jobType ini
     final supportedPrinters =
         printers.where((printer) {
           switch (jobType) {
@@ -219,42 +249,27 @@ class PrinterService {
         }).toList();
 
     if (supportedPrinters.isEmpty) {
-      AppLogger.warning('⚠️ Tidak ada printer yang mendukung $jobType');
+      // AppLogger.warning('⚠️ Tidak ada printer untuk $jobType');
       return;
     }
 
     AppLogger.info(
-      '📤 Mencetak $jobType di ${supportedPrinters.length} printer',
+      '📤 Mencetak $jobType (${isVoid ? "VOID" : "Normal"}) ke ${supportedPrinters.length} printer',
     );
 
-    // var anySuccess = false;
+    // Label Batch
+    final String label =
+        isVoid ? 'DIBATALKAN / VOID' : _batchLabel(orderDetail);
+
     for (final printer in supportedPrinters) {
-      AppLogger.debug(
-        '📤 Mencetak printer coba: $jobType di ${printer.connectionType} (${printer.address})',
-      );
       await _printSingleJob(
         orderDetail: orderDetail,
         printer: printer,
         jobType: jobType,
-        itemsToPrint: itemsToPrint, // 🔹 kirim item delta
-        batchLabel: _batchLabel(orderDetail), // 🔹 label Cetak Awal / Tambahan
+        itemsToPrint: itemsToPrint,
+        batchLabel: label,
       );
-      // anySuccess = anySuccess || ok;
     }
-
-    // 4️⃣ Jika cetak sukses → tandai printedQuantity bertambah
-    // if (anySuccess) {
-    //   for (final (idx, delta) in deltas) {
-    //     final cur = orderDetail.items[idx];
-    //     final newPrinted = (cur.printedQuantity ?? 0) + delta;
-    //     orderDetail.items[idx] = cur.copyWith(printedQuantity: newPrinted);
-    //     // optional: append batchId, mis. ts:
-    //     // orderDetail.items[idx].printBatchIds = [...cur.printBatchIds, batchId];
-    //   }
-    //   // orderDetail.printSequence =
-    //   //     (orderDetail.printSequence) + 1; // naikkan sequence
-    //   print('✅ Tambah printedQuantity & increment printSequence');
-    // }
   }
 
   static Future<bool> _printSingleJob({
@@ -1123,7 +1138,7 @@ class PrinterService {
         paperSize,
         orderDetail.orderId,
         orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.orderType.name,
         orderDetail.tableNumber,
       ),
     );
@@ -1329,7 +1344,7 @@ class PrinterService {
     AppLogger.debug('bersiap untuk menulis pembayaran');
     // ✅ FIXED: Check order status for more accurate paid/unpaid determination
     final bool isPaid =
-        orderDetail.status == 'Completed' ||
+        orderDetail.status.id == 'Completed' ||
         (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
 
     if (isPaid) {
@@ -1496,7 +1511,7 @@ class PrinterService {
         paperSize,
         orderDetail.orderId,
         orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.orderType.name,
         orderDetail.tableNumber,
       ),
     );
@@ -1520,7 +1535,7 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
+            text: item.orderType.shortName,
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
@@ -1615,9 +1630,7 @@ class PrinterService {
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: OrderTypeExtension.orderTypeToShortJson(
-                customItem.orderType,
-              ),
+              text: customItem.orderType.shortName,
               width: 1,
               styles: const PosStyles(
                 align: PosAlign.left,
@@ -1703,7 +1716,7 @@ class PrinterService {
         paperSize,
         orderDetail.orderId,
         orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.orderType.name,
         orderDetail.tableNumber,
       ),
     );
@@ -1725,7 +1738,7 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
+            text: item.orderType.shortName,
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
@@ -1820,9 +1833,7 @@ class PrinterService {
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: OrderTypeExtension.orderTypeToShortJson(
-                customItem.orderType,
-              ),
+              text: customItem.orderType.shortName,
               width: 1,
               styles: const PosStyles(
                 align: PosAlign.left,
@@ -1883,7 +1894,7 @@ class PrinterService {
     // Header - Payment Status
     // ✅ FIXED: Check order status for more accurate paid/unpaid determination
     final bool isPaid =
-        orderDetail.status == 'Completed' ||
+        orderDetail.status.id == 'Completed' ||
         (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
 
     bytes.addAll(
@@ -1943,7 +1954,7 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
+            text: item.orderType.shortName,
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
@@ -1971,9 +1982,7 @@ class PrinterService {
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: OrderTypeExtension.orderTypeToShortJson(
-                customItem.orderType,
-              ),
+              text: customItem.orderType.shortName,
               width: 1,
               styles: const PosStyles(
                 align: PosAlign.left,
@@ -2037,7 +2046,7 @@ class PrinterService {
     // Footer
     // ✅ FIXED: Check order status for more accurate paid/unpaid determination
     final bool isLunas =
-        orderDetail.status == 'Completed' ||
+        orderDetail.status.id == 'Completed' ||
         (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
 
     bytes.addAll(
@@ -2155,8 +2164,9 @@ class PrinterService {
 
   static List<(int index, int deltaQty)> _selectDeltasForJob(
     OrderDetailModel od,
-    String jobType,
-  ) {
+    String jobType, {
+    bool onlyVoids = false,
+  }) {
     bool matchWS(String? ws) => switch (jobType) {
       'kitchen' => (ws?.toLowerCase().trim() == 'kitchen'),
       'bar' => (ws?.toLowerCase().trim() == 'bar'),
@@ -2169,7 +2179,12 @@ class PrinterService {
       final it = od.items[i];
       if (!matchWS(it.menuItem.workstation)) continue;
       final delta = (it.quantity - (it.printedQuantity ?? 0));
-      if (delta > 0) out.add((i, delta));
+
+      if (onlyVoids) {
+        if (delta < 0) out.add((i, delta));
+      } else {
+        if (delta > 0) out.add((i, delta));
+      }
     }
     return out;
   }
@@ -2715,9 +2730,12 @@ class ThermalPrinters {
           styles: const PosStyles(align: PosAlign.center),
         ),
       );
+      // Helper to force WIB (UTC+7)
+      DateTime toWIB(DateTime d) => d.toUtc().add(const Duration(hours: 7));
+
       bytes.addAll(
         generator.text(
-          'Date: ${DateFormat('dd/MM/yyyy HH:mm').format(recap.printDate)}',
+          'Date: ${DateFormat('dd/MM/yyyy HH:mm').format(toWIB(recap.printDate))}',
           styles: const PosStyles(align: PosAlign.center),
         ),
       );
@@ -2731,7 +2749,7 @@ class ThermalPrinters {
       );
       bytes.addAll(
         generator.text(
-          '${DateFormat('dd/MM HH:mm').format(recap.startDate)} - ${DateFormat('dd/MM HH:mm').format(recap.endDate)}',
+          '${DateFormat('dd/MM HH:mm').format(toWIB(recap.startDate))} - ${DateFormat('dd/MM HH:mm').format(toWIB(recap.endDate))}',
         ),
       );
       bytes.addAll(generator.hr(ch: '-'));

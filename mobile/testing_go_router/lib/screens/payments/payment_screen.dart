@@ -20,6 +20,7 @@ import 'package:kasirbaraja/services/order_service.dart'; // ✅ NEW
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart'; // ✅ NEW
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/services/printer_service.dart'; // ✅ NEW
+import 'package:kasirbaraja/providers/orders/saved_order_provider.dart'; // ✅ NEW
 
 // Provider tipe pembayaran yang sudah kamu punya
 import 'package:kasirbaraja/providers/payment_provider.dart'
@@ -28,7 +29,7 @@ import 'package:kasirbaraja/providers/payment_provider.dart'
 // 🔹 Helper saran cash
 import 'package:kasirbaraja/helper/payment_helper.dart';
 import 'package:kasirbaraja/utils/payment_details_utils.dart';
-import 'package:kasirbaraja/enums/order_status.dart'; // ✅ NEW: Import OrderStatus enum
+import 'package:kasirbaraja/models/order_status.model.dart'; // ✅ NEW: Import OrderStatus model
 
 /// Mode pembayaran:
 /// - single: tanpa split, 1x bayar langsung lunas
@@ -675,6 +676,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         ref.invalidate(pendingOrderProvider);
         ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
         ref.invalidate(orderHistoryProvider);
+
+        // ✅ NEW: Delete local saved order if it exists
+        try {
+          await ref
+              .read(savedOrderProvider.notifier)
+              .deleteOrder(widget.order.orderId!);
+        } catch (e) {
+          debugPrint(
+            '⚠️ Konfirmasi close bill sukses, tapi gagal hapus lokal: $e',
+          );
+        }
+
         // ✅ FIXED: Build payment details manually from submitted data
         // Convert paymentDetails to Payment models
         final List<PaymentModel> payments = [];
@@ -749,7 +762,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
         // Create updated order with payment details
         final updatedOrder = widget.order.copyWith(
-          status: OrderStatus.completed,
+          status: OrderStatusModel.completed,
           paymentStatus: 'settlement',
           payments: payments, // ✅ Add payment details
           isSplitPayment: isSplitPayment,

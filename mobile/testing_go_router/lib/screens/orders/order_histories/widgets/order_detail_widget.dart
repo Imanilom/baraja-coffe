@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
+
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
-class OrderDetailWidget extends ConsumerWidget {
-  const OrderDetailWidget({super.key});
+class OrderDetailWidget extends StatelessWidget {
+  final OrderDetailModel? order;
+  final VoidCallback? onClose;
+
+  const OrderDetailWidget({super.key, this.order, this.onClose});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selectedOrder = ref.watch(historyDetailProvider);
-
-    if (selectedOrder == null) {
+  Widget build(BuildContext context) {
+    if (order == null) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -37,21 +38,20 @@ class OrderDetailWidget extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           //close,
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.grey),
-            onPressed: () {
-              ref.read(historyDetailProvider.notifier).clearHistoryDetail();
-            },
-          ),
-          _buildHeader(selectedOrder),
+          if (onClose != null)
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.grey),
+              onPressed: onClose,
+            ),
+          _buildHeader(order!),
           const SizedBox(height: 8),
-          _buildOrderInfo(selectedOrder),
+          _buildOrderInfo(order!),
           const SizedBox(height: 8),
-          _buildItemsList(selectedOrder),
+          _buildItemsList(order!),
           const SizedBox(height: 8),
-          _buildPromoDetails(selectedOrder),
+          _buildPromoDetails(order!),
           const SizedBox(height: 8),
-          _buildPricingDetails(selectedOrder),
+          _buildPricingDetails(order!),
         ],
       ),
     );

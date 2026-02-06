@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
@@ -189,23 +191,42 @@ class OrderDetailWidget extends ConsumerWidget {
               order.payments.isEmpty ||
               order.payments.any((p) => p.status!.toLowerCase() == "pending"))
             TextButton.icon(
-              style: TextButton.styleFrom(backgroundColor: Colors.green[50]),
+              style: TextButton.styleFrom(
+                backgroundColor:
+                    order.isOpenBill == true
+                        ? Colors.blue.withValues(alpha: 0.1)
+                        : Colors.green[50],
+              ),
               icon: Icon(
                 order.items.isEmpty ? Icons.add : Icons.edit,
-                color: Colors.green,
+                color: order.isOpenBill == true ? Colors.blue : Colors.green,
               ),
               label: Text(
-                order.items.isEmpty || order.isOpenBill == true
+                order.items.isEmpty
                     ? 'Add Order Item'
-                    : 'Edit Order Item',
-                style: TextStyle(color: Colors.green),
+                    : (order.isOpenBill == true
+                        ? 'Lanjutkan Open Bill'
+                        : 'Edit Order Item'),
+                style: TextStyle(
+                  color: order.isOpenBill == true ? Colors.blue : Colors.green,
+                ),
               ),
               onPressed: () {
-                context.pushNamed(
-                  'edit-order-item',
-                  pathParameters: {'id': order.id ?? ''},
-                  extra: order,
-                );
+                if (order.isOpenBill == true) {
+                  // Resume flow: Load to POS and switch tab
+                  ref
+                      .read(orderDetailProvider.notifier)
+                      .loadFromOpenBill(order);
+                  // Switch to Order Tab (Index 0)
+                  ref.read(currentPageIndexProvider.notifier).setIndex(0);
+                } else {
+                  // Standard edit flow
+                  context.pushNamed(
+                    'edit-order-item',
+                    pathParameters: {'id': order.id ?? ''},
+                    extra: order,
+                  );
+                }
               },
             ),
 
@@ -261,6 +282,7 @@ class OrderDetailWidget extends ConsumerWidget {
                       orderDetail: order,
                       printType: 'customer',
                       printers: customerPrinters,
+                      forceReprint: true, // Force reprint all items
                     );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -283,32 +305,8 @@ class OrderDetailWidget extends ConsumerWidget {
                 },
               ),
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: const Icon(Icons.receipt_long),
-                label: const Text(
-                  'CLOSE BILL',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onPressed: () {
-                  // ✅ Navigate to PaymentScreen (auto-detects close bill)
-                  context.pushNamed(
-                    'payment-method',
-                    extra: order, // ✅ Pass order directly, auto-detect inside
-                  );
-                },
-              ),
-            ),
+            // CLOSE BILL button dihapus untuk Open Bills - user harus klik 'Lanjutkan Open Bill' terlebih dahulu
+            // lalu bayar dari layar POS utama
           ],
         ],
       ),
@@ -615,6 +613,7 @@ class OrderDetailWidget extends ConsumerWidget {
             orderDetail: order,
             printType: printType,
             printers: supportedPrinters,
+            forceReprint: true, // Force reprint all items
           );
 
           if (context.mounted) {
