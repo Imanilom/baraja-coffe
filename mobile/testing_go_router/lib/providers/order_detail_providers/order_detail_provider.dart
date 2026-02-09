@@ -899,8 +899,26 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       debugPrint('💸 Total discount (before order discount): $totalDiscount');
 
       // 8b) Apply order-level custom discount AFTER other discounts
-      final orderCustomDiscount =
+      var orderCustomDiscount =
           state!.customDiscountDetails?.discountAmount ?? 0;
+
+      // RECALCULATE if percentage
+      if (state!.customDiscountDetails?.isActive == true &&
+          state!.customDiscountDetails?.discountType == 'percentage') {
+        final val = state!.customDiscountDetails?.discountValue ?? 0;
+        orderCustomDiscount = (totalAfterDiscount * val / 100).round();
+
+        // Update the model so UI shows correct amount
+        state = state!.copyWith(
+          customDiscountDetails: state!.customDiscountDetails!.copyWith(
+            discountAmount: orderCustomDiscount,
+          ),
+        );
+        debugPrint(
+          '🔄 Recalculated percentage discount: $val% -> Rp $orderCustomDiscount',
+        );
+      }
+
       final totalAfterAllDiscounts = (totalAfterDiscount - orderCustomDiscount)
           .clamp(0, 1 << 31);
 

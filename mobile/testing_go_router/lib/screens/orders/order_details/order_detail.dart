@@ -234,9 +234,7 @@ class OrderDetail extends ConsumerWidget {
                 ),
               ),
               child: Text(
-                (orderDetail.isOpenBill == true)
-                    ? 'Simpan & Print'
-                    : 'Open Bill',
+                (orderDetail.isOpenBill == true) ? 'Simpan' : 'Open Bill',
                 style: TextStyle(
                   color:
                       (orderDetail.isOpenBill == true)
@@ -257,9 +255,6 @@ class OrderDetail extends ConsumerWidget {
                   isLoading
                       ? null
                       : () {
-                        ref
-                            .read(orderDetailProvider.notifier)
-                            .updateIsOpenBill(false);
                         context.push('/payment-method', extra: orderDetail);
                       },
               style: TextButton.styleFrom(

@@ -473,6 +473,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'totalPrice': order.grandTotal,
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,
+    'openBillStartedAt': order.createdAt?.toIso8601String(),
     'isSplitPayment': order.isSplitPayment,
     'customAmountItems':
         order.customAmountItems != null
@@ -488,7 +489,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
             }).toList()
             : [],
     'paymentDetails':
-        order.isOpenBill == true
+        order.payments.isEmpty
             ? []
             : order.payments.map((payment) {
               final methodtype = PaymentDetails.buildPaymentMethodLabel(

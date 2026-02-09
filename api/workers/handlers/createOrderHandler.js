@@ -265,6 +265,8 @@ async function createOrderWithSimpleTransaction({
       paymentMethod,
       device_id,
       openBillStatus, // ✅ Extract openBillStatus
+      openBillClosedAt, // ✅ Extract openBillClosedAt
+      openBillStartedAt, // ✅ Extract openBillStartedAt
       ...cleanOrderData
     } = orderData;
 
@@ -335,7 +337,12 @@ async function createOrderWithSimpleTransaction({
     let paymentMethodData = 'Cash';
 
     if (source === 'Cashier') {
-      initialStatus = isOpenBill ? 'Waiting' : 'Waiting'; // ✅ Open bill needs "Waiting" status for workstation
+      // ✅ If closing Open Bill (Payment), status should be Completed
+      if (isOpenBill && openBillStatus === 'closed') {
+        initialStatus = 'Completed';
+      } else {
+        initialStatus = isOpenBill ? 'Waiting' : 'Waiting'; // ✅ Open bill needs "Waiting" status for workstation
+      }
 
       if (Array.isArray(orderPaymentDetails) && orderPaymentDetails.length > 0) {
         paymentMethodData = orderPaymentDetails[0].method || 'Multiple';
@@ -504,7 +511,10 @@ async function createOrderWithSimpleTransaction({
       source: source,
       source: source,
       isOpenBill: isOpenBill || false,
+      isOpenBill: isOpenBill || false,
       openBillStatus: openBillStatus || (isOpenBill ? 'active' : 'closed'), // ✅ Use passed status or default to active if open bill
+      openBillClosedAt: openBillClosedAt || null, // ✅ Add openBillClosedAt
+      openBillStartedAt: openBillStartedAt || null, // ✅ Add openBillStartedAt
       isSplitPayment: isSplitPayment,
       splitPaymentStatus: calculateSplitPaymentStatus(payments, totals.grandTotal),
       discounts: {
