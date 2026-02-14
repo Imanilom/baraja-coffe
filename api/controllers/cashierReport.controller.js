@@ -662,6 +662,8 @@ export const getSalesSummary = async (req, res) => {
  * API untuk Tab Detail Order - Order Details dengan pagination
  * GET /api/sales-report/orders
  */
+// ... (imports remain the same)
+
 export const getOrderDetails = async (req, res) => {
     try {
         const {
@@ -681,10 +683,12 @@ export const getOrderDetails = async (req, res) => {
         if (startDate || endDate) {
             filter.createdAt = {};
             if (startDate) {
-                filter.createdAt.$gte = moment(startDate).startOf('day').toDate();
+                const start = new Date(startDate);
+                filter.createdAt.$gte = start;
             }
             if (endDate) {
-                filter.createdAt.$lte = moment(endDate).endOf('day').toDate();
+                const end = new Date(endDate);
+                filter.createdAt.$lte = end;
             }
         }
 
@@ -709,8 +713,7 @@ export const getOrderDetails = async (req, res) => {
 
         const [orders, totalCount] = await Promise.all([
             Order.find(filter)
-                .populate('cashierId', 'name email')
-                // .populate('outlet', 'name')
+                .populate('cashierId', 'username email')
                 .populate('items.menuItem', 'name price mainCategory')
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -719,38 +722,21 @@ export const getOrderDetails = async (req, res) => {
             Order.countDocuments(filter)
         ]);
 
-        const formattedOrders = orders.map(order => ({
-            orderId: order.order_id,
-            createdAt: order.createdAt,
-            customerName: order.user,
-            cashier: order.cashierId?.username || 'Unknown',
-            outlet: order.outlet?.name || 'Unknown',
-            orderType: order.orderType,
-            tableNumber: order.tableNumber || '',
-            paymentMethod: order.paymentMethod,
-            status: order.status,
-            items: order.items.map(item => ({
-                name: item.menuItem?.name || 'Unknown Item',
-                quantity: item.quantity,
-                price: item.menuItem?.price || 0,
-                subtotal: item.subtotal,
-                category: item.menuItem?.mainCategory || '',
-                selectedAddons: item.selectedAddons?.map(addon => addon.name) || [],
-                notes: item.notes || ''
-            })),
-            pricing: {
-                totalBeforeDiscount: order.totalBeforeDiscount,
-                totalDiscount: order.discounts.autoPromoDiscount + order.discounts.manualDiscount + order.discounts.voucherDiscount,
-                totalTax: order.totalTax,
-                totalServiceFee: order.totalServiceFee,
-                grandTotal: order.grandTotal
-            }
-        }));
+        // No manual projection needed if we want full details. 
+        // The frontend OrderDetailModel.fromJson will handle the parsing.
+        // potentially might need renaming some fields if frontend model expects specific names 
+        // but based on OrderDetailModel.dart, it seems to expect standard field names or have @JsonKey.
+        // Let's checks one critical: 'user' vs 'customerName'. 
+        // OrderDetailModel has: @JsonKey(name: 'user_id') String? userId, @HiveField(2) @Default(null) String? user,
+        // The previous manual mapping mapped `user` -> `customerName`.
+        // However, looking at OrderDetailModel.dart:
+        // factory OrderDetailModel({ ... @HiveField(2) @Default(null) String? user, ... })
+        // It seems it accepts `user`.
 
         res.status(200).json({
             success: true,
             data: {
-                orders: formattedOrders,
+                orders: orders,
                 pagination: {
                     currentPage: parseInt(page),
                     totalPages: Math.ceil(totalCount / parseInt(limit)),

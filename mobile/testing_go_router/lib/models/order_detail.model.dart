@@ -3,8 +3,8 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/enums/location_type.dart';
-import 'package:kasirbaraja/enums/order_status.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_status.model.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/applied_promos.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
@@ -31,21 +31,21 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(4) @Default([]) List<OrderItemModel> items,
     @HiveField(5)
     @JsonKey(
-      fromJson: OrderStatusExtension.fromString,
-      toJson: OrderStatusExtension.orderStatusToJson,
+      fromJson: OrderStatusModel.fromString,
+      toJson: OrderStatusModel.toJsonString,
     )
-    @Default(OrderStatus.unknown)
-    OrderStatus status,
+    @Default(OrderStatusModel.unknown)
+    OrderStatusModel status,
 
     // Pembayaran & Tipe Order
     @HiveField(6) @Default(null) String? paymentMethod,
 
     @HiveField(7)
     @JsonKey(
-      fromJson: OrderTypeExtension.fromString,
-      toJson: OrderTypeExtension.orderTypeToJson,
+      fromJson: OrderTypeModel.fromString,
+      toJson: OrderTypeModel.toJsonString,
     )
-    required OrderType orderType,
+    required OrderTypeModel orderType,
 
     // Lokasi
     @HiveField(8) @Default('') String deliveryAddress,
@@ -53,11 +53,11 @@ abstract class OrderDetailModel with _$OrderDetailModel {
 
     @HiveField(10)
     @JsonKey(
-      fromJson: LocationTypeExtension.fromString,
-      toJson: LocationTypeExtension.locationTypeToJson,
+      fromJson: LocationTypeModel.fromString,
+      toJson: LocationTypeModel.toJsonString,
     )
-    @Default(LocationType.indoor)
-    LocationType type,
+    @Default(LocationTypeModel.indoor)
+    LocationTypeModel type,
 
     @HiveField(11) String? outlet,
 

@@ -2,10 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
 /// Centralized logging utility for the application.
-/// 
+///
 /// This logger provides debug-only logging in development mode and
 /// disables logging in production (release mode) for security and performance.
-/// 
+///
 /// Usage:
 /// ```dart
 /// AppLogger.debug('Debug message');
@@ -41,7 +41,11 @@ class AppLogger {
   }
 
   /// Log warning messages (only in debug mode)
-  static void warning(dynamic message, {Object? error, StackTrace? stackTrace}) {
+  static void warning(
+    dynamic message, {
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
     if (kDebugMode) {
       _logger.w(message, error: error, stackTrace: stackTrace);
     }

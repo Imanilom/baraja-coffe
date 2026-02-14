@@ -4,7 +4,10 @@ import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
@@ -189,23 +192,42 @@ class OrderDetailWidget extends ConsumerWidget {
               order.payments.isEmpty ||
               order.payments.any((p) => p.status!.toLowerCase() == "pending"))
             TextButton.icon(
-              style: TextButton.styleFrom(backgroundColor: Colors.green[50]),
+              style: TextButton.styleFrom(
+                backgroundColor:
+                    order.isOpenBill == true
+                        ? Colors.blue.withValues(alpha: 0.1)
+                        : Colors.green[50],
+              ),
               icon: Icon(
                 order.items.isEmpty ? Icons.add : Icons.edit,
-                color: Colors.green,
+                color: order.isOpenBill == true ? Colors.blue : Colors.green,
               ),
               label: Text(
-                order.items.isEmpty || order.isOpenBill == true
+                order.items.isEmpty
                     ? 'Add Order Item'
-                    : 'Edit Order Item',
-                style: TextStyle(color: Colors.green),
+                    : (order.isOpenBill == true
+                        ? 'Lanjutkan Open Bill'
+                        : 'Edit Order Item'),
+                style: TextStyle(
+                  color: order.isOpenBill == true ? Colors.blue : Colors.green,
+                ),
               ),
               onPressed: () {
-                context.pushNamed(
-                  'edit-order-item',
-                  pathParameters: {'id': order.id ?? ''},
-                  extra: order,
-                );
+                if (order.isOpenBill == true) {
+                  // Resume flow: Load to POS and switch tab
+                  ref
+                      .read(orderDetailProvider.notifier)
+                      .loadFromOpenBill(order);
+                  // Switch to Order Tab (Index 0)
+                  ref.read(currentPageIndexProvider.notifier).setIndex(0);
+                } else {
+                  // Standard edit flow
+                  context.pushNamed(
+                    'edit-order-item',
+                    pathParameters: {'id': order.id ?? ''},
+                    extra: order,
+                  );
+                }
               },
             ),
 
@@ -261,6 +283,7 @@ class OrderDetailWidget extends ConsumerWidget {
                       orderDetail: order,
                       printType: 'customer',
                       printers: customerPrinters,
+                      forceReprint: true, // Force reprint all items
                     );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -283,32 +306,8 @@ class OrderDetailWidget extends ConsumerWidget {
                 },
               ),
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: const Icon(Icons.receipt_long),
-                label: const Text(
-                  'CLOSE BILL',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onPressed: () {
-                  // ✅ Navigate to PaymentScreen (auto-detects close bill)
-                  context.pushNamed(
-                    'payment-method',
-                    extra: order, // ✅ Pass order directly, auto-detect inside
-                  );
-                },
-              ),
-            ),
+            // CLOSE BILL button dihapus untuk Open Bills - user harus klik 'Lanjutkan Open Bill' terlebih dahulu
+            // lalu bayar dari layar POS utama
           ],
         ],
       ),
@@ -403,14 +402,42 @@ class OrderDetailWidget extends ConsumerWidget {
             ),
           ],
           const SizedBox(),
+          const SizedBox(),
           Text(
             'Base Price: ${formatRupiah(item.menuItem.displayPrice())}',
             style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
+          if (item.customDiscount?.isActive == true)
+            Text(
+              'Diskon ${item.customDiscount!.discountType == 'percentage' ? '(${item.customDiscount!.discountValue}%)' : ''}: -${formatRupiah(item.customDiscount!.discountAmount)}',
+              style: TextStyle(
+                color: Colors.green[700],
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
           const SizedBox(height: 4),
-          Text(
-            'Subtotal: ${formatRupiah(item.subtotal)}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          Row(
+            children: [
+              if (item.customDiscount?.isActive == true) ...[
+                Text(
+                  formatRupiah(item.subtotal),
+                  style: const TextStyle(
+                    decoration: TextDecoration.lineThrough,
+                    fontSize: 11,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                'Subtotal: ${formatRupiah(item.subtotal - (item.customDiscount?.discountAmount ?? 0))}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -435,7 +462,61 @@ class OrderDetailWidget extends ConsumerWidget {
           const SizedBox(height: 12),
           _buildPriceRow('Subtotal', order.totalBeforeDiscount),
           _buildPriceRow('Tax', order.totalTax),
-          // _buildPriceRow('Discount', -order.discount!),
+
+          // Discount Display
+          if ((order.discounts?.totalDiscount ?? 0) > 0 ||
+              (order.customDiscountDetails?.discountAmount ?? 0) > 0) ...[
+            Builder(
+              builder: (context) {
+                final totalDiscount =
+                    (order.discounts?.autoPromoDiscount ?? 0) +
+                    (order.discounts?.manualDiscount ?? 0) +
+                    (order.discounts?.voucherDiscount ?? 0) +
+                    (order.discounts?.customDiscount ?? 0) +
+                    (order.customDiscountDetails?.discountAmount ?? 0);
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Total Diskon',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap:
+                              () => _showDiscountDetailsDialog(
+                                context,
+                                order,
+                                totalDiscount,
+                              ),
+                          child: const Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '- ${formatRupiah(totalDiscount)}',
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+
           const Divider(),
           _buildPriceRow(
             'Grand Total',
@@ -445,6 +526,116 @@ class OrderDetailWidget extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showDiscountDetailsDialog(
+    BuildContext context,
+    OrderDetailModel order,
+    int totalDiscount,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Detail Diskon'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Auto Promos (Broken down by promo)
+              if (order.appliedPromos != null &&
+                  order.appliedPromos!.isNotEmpty) ...[
+                if ((order.discounts?.autoPromoDiscount ?? 0) > 0) ...[
+                  // Header if needed, or just list them
+                  for (final promo in order.appliedPromos!)
+                    if ((promo.discount ?? 0) > 0)
+                      _DiscountDetailRow(
+                        label: promo.promoName,
+                        value: promo.discount!,
+                        percentage:
+                            (promo.affectedItems.isNotEmpty &&
+                                    (promo
+                                                .affectedItems
+                                                .first
+                                                .discountPercentage ??
+                                            0) >
+                                        0)
+                                ? '${promo.affectedItems.first.discountPercentage}%'
+                                : null,
+                      ),
+                ],
+              ] else if ((order.discounts?.autoPromoDiscount ?? 0) > 0) ...[
+                // Fallback for legacy or if appliedPromos is missing but total exists
+                _DiscountDetailRow(
+                  label: 'Promo Otomatis',
+                  value: order.discounts!.autoPromoDiscount,
+                ),
+              ],
+
+              // 2. Manual Discount
+              if ((order.discounts?.manualDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Diskon Manual',
+                  value: order.discounts!.manualDiscount,
+                ),
+
+              // 3. Voucher
+              if ((order.discounts?.voucherDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Voucher',
+                  value: order.discounts!.voucherDiscount,
+                  subtitle: order.appliedVoucher,
+                ),
+
+              // 4. Item Custom Discounts
+              if ((order.discounts?.customDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Diskon per Item',
+                  value: order.discounts!.customDiscount,
+                ),
+
+              // 5. Order Custom Discount
+              if (order.customDiscountDetails?.isActive == true)
+                _DiscountDetailRow(
+                  label: 'Diskon Order',
+                  value: order.customDiscountDetails!.discountAmount,
+                  subtitle: order.customDiscountDetails?.reason,
+                  percentage:
+                      order.customDiscountDetails?.discountType == 'percentage'
+                          ? '${order.customDiscountDetails?.discountValue}%'
+                          : null,
+                ),
+
+              const Divider(),
+
+              // Total
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    formatRupiah(totalDiscount),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -615,6 +806,7 @@ class OrderDetailWidget extends ConsumerWidget {
             orderDetail: order,
             printType: printType,
             printers: supportedPrinters,
+            forceReprint: true, // Force reprint all items
           );
 
           if (context.mounted) {
@@ -636,6 +828,73 @@ class OrderDetailWidget extends ConsumerWidget {
           }
         }
       },
+    );
+  }
+}
+
+class _DiscountDetailRow extends StatelessWidget {
+  final String label;
+  final int value;
+  final String? subtitle;
+  final String? percentage;
+
+  const _DiscountDetailRow({
+    required this.label,
+    required this.value,
+    this.subtitle,
+    this.percentage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 14)),
+                  if (percentage != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      '($percentage)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              Text(
+                formatRupiah(value),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+          if (subtitle != null && subtitle!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                subtitle!,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

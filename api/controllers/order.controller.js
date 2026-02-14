@@ -28,6 +28,7 @@ import { LockUtil } from '../utils/lock.util.js';
 import { validateAndNormalizePaymentDetails } from '../utils/payment.utils.js';
 import { Device } from '../models/Device.model.js';
 import { PrintLogger } from '../services/print-logger.service.js';
+import { generateCashierOrderId } from '../helpers/orderIdGenerator.js';
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
@@ -2693,37 +2694,91 @@ export const createUnifiedOrder = async (req, res) => {
         hasItems: req.body.items?.length || 0
       });
 
-      // ========== CASHIER: OPEN BILL CREATION ==========
+      // ========== CASHIER: OPEN BILL ==========
       if (source === 'Cashier' && isOpenBill) {
-        console.log('💰 Processing Open Bill creation with createOrderHandler');
+        // Check if this is an Open Bill WITH payment (payment scenario - stored locally then sent when paying)
+        const hasPaymentDetails = paymentDetails &&
+          (Array.isArray(paymentDetails) ? paymentDetails.length > 0 : Object.keys(paymentDetails).length > 0);
 
-        const result = await processOpenBillOrderWithHandler({
-          req,
-          orderId,
-          outletId,
-          cashierId,
-          tableNumber,
-          device_id,
-          customersCount,
-          cashierNotes,
-          serviceCharge,
-          taxPercentage,
-          items: req.body.items || [],
-          voucherCode,
-          customerType,
-          manualDiscount,
-          manualDiscountReason,
-          customerId,
-          loyaltyPointsToRedeem,
-          session // ✅ Pass session
-        });
+        if (hasPaymentDetails) {
+          // ========== OPEN BILL WITH PAYMENT → PROCESS AS REGULAR ORDER ==========
+          console.log('💰 Processing Open Bill WITH payment as regular order');
 
-        if (!committed) {
-          await session.commitTransaction();
-          committed = true;
+          // ✅ Generate ID if missing (Open Bill Payment)
+          let effectiveOrderId = orderId;
+          if (!effectiveOrderId) {
+            console.log('🆔 Generating new Order ID for Open Bill Payment...');
+            effectiveOrderId = await generateCashierOrderId({
+              outletId,
+              tableNumber,
+              deviceId: device_id
+            });
+            console.log('🆔 Generated ID:', effectiveOrderId);
+          }
+
+          const result = await processCashierOrderDirect({
+            req,
+            orderId: effectiveOrderId, // Use effective ID
+            outletId,
+            customAmountItems,
+            paymentDetails,
+            isSplitPayment,
+            cashierId,
+            tableNumber,
+            device_id,
+            customerId,
+            loyaltyPointsToRedeem,
+            orderType,
+            appliedPromos,
+            voucherCode,
+            customerType,
+            manualDiscount,
+            manualDiscountReason,
+            session, // ✅ Pass session
+            // ✅ Open Bill Payment Updates
+            openBillStatus: 'closed',
+            openBillClosedAt: new Date(),
+            openBillStartedAt: req.body.openBillStartedAt // From Payload
+          });
+
+          if (!committed) {
+            await session.commitTransaction();
+            committed = true;
+          }
+
+          return res.status(200).json(result);
+        } else {
+          // ========== OPEN BILL WITHOUT PAYMENT → CREATE OPEN BILL (legacy flow) ==========
+          console.log('💰 Processing Open Bill creation with createOrderHandler');
+
+          const result = await processOpenBillOrderWithHandler({
+            req,
+            orderId,
+            outletId,
+            cashierId,
+            tableNumber,
+            device_id,
+            customersCount,
+            cashierNotes,
+            serviceCharge,
+            taxPercentage,
+            items: req.body.items || [],
+            voucherCode,
+            customerType,
+            manualDiscount,
+            manualDiscountReason,
+            customerId,
+            loyaltyPointsToRedeem,
+            session // ✅ Pass session
+          });
+
+          if (!committed) {
+            await session.commitTransaction();
+            committed = true;
+          }
+
+          return res.status(200).json(result);
         }
-
-        return res.status(200).json(result);
       }
 
       // ========== CASHIER: REGULAR ORDER ==========
@@ -3093,7 +3148,13 @@ const processOpenBillOrderWithHandler = async ({
         quantity: item.quantity,
         dineType: item.dineType || 'Dine-In',
         notes: item.notes || '',
-        guestName: item.guestName || ''
+        guestName: item.guestName || '',
+        // ✅ Pass customDiscount for item
+        customDiscount: item.customDiscount || {
+          isActive: false,
+          discountValue: 0,
+          discountAmount: 0
+        }
       };
 
       // Format addons
@@ -3137,7 +3198,14 @@ const processOpenBillOrderWithHandler = async ({
       manualDiscount: manualDiscount || 0,
       manualDiscountReason: manualDiscountReason || '',
       cashierNotes,
-      customersCount
+      customersCount,
+      // ✅ Pass discount fields
+      discounts: req.body.discounts || {},
+      customDiscountDetails: req.body.customDiscountDetails || {
+        isActive: false,
+        discountValue: 0,
+        discountAmount: 0
+      }
     };
 
     // Gunakan createOrderHandler untuk membuat order
@@ -4226,7 +4294,11 @@ const processCashierOrderDirect = async ({
   customerId,
   loyaltyPointsToRedeem,
   orderType,
-  appliedPromos = [],
+  appointmentId, // ✅ Accept appointmentId (reservation)
+  openBillStatus, // ✅ Accept openBillStatus
+  openBillClosedAt, // ✅ Accept openBillClosedAt
+  openBillStartedAt, // ✅ Accept openBillStartedAt
+  appliedPromos = [], // ✅ Restore appliedPromos
   session = null // ✅ Accept session
 }) => {
   // Cek outlet
@@ -4285,7 +4357,11 @@ const processCashierOrderDirect = async ({
       isActive: false,
       discountValue: 0,
       discountAmount: 0
-    }
+    },
+    // ✅ Pass Open Bill params if present
+    openBillStatus,
+    openBillClosedAt,
+    openBillStartedAt
   };
 
   const validated = validateOrderData(validationData, 'Cashier');
@@ -8788,11 +8864,11 @@ const toISOJakartaWithOffset = (date) => {
 // Get Cashier Order History
 export const getCashierOrderHistory = async (req, res) => {
   try {
-    const cashierId = req.params.cashierId;
-    console.log(cashierId);
+    const deviceId = req.params.deviceId;
+    console.log(deviceId);
 
-    if (!cashierId) {
-      return res.status(400).json({ message: 'Cashier ID is required.' });
+    if (!deviceId) {
+      return res.status(400).json({ message: 'Device ID is required.' });
     }
 
     // Hitung tanggal 3 hari yang lalu
@@ -8801,9 +8877,9 @@ export const getCashierOrderHistory = async (req, res) => {
 
     const baseFilter = {
       $and: [
-        { cashierId: { $exists: true } },
-        { cashierId: { $ne: null } },
-        { cashierId: cashierId }, // Langsung tambahkan di sini
+        { device_id: { $exists: true } },
+        { device_id: { $ne: null } },
+        { device_id: deviceId },
         { createdAt: { $gte: threeDaysAgo } }, // Filter 3 hari terakhir
       ],
     };

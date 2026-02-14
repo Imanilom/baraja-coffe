@@ -32,10 +32,7 @@ class PersonCounter extends StatelessWidget {
         children: [
           const Text(
             'Jumlah Orang',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
 
@@ -44,10 +41,7 @@ class PersonCounter extends StatelessWidget {
             children: [
               Text(
                 'Maks. $maxPersons orang',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
               Row(
                 children: [
@@ -61,11 +55,12 @@ class PersonCounter extends StatelessWidget {
                     child: IconButton(
                       padding: EdgeInsets.zero,
                       icon: const Icon(Icons.remove, size: 16),
-                      onPressed: personCount > 1
-                          ? () {
-                        onPersonCountChanged(personCount - 1);
-                      }
-                          : null,
+                      onPressed:
+                          personCount > 1
+                              ? () {
+                                onPersonCountChanged(personCount - 1);
+                              }
+                              : null,
                     ),
                   ),
                   Padding(
@@ -88,11 +83,12 @@ class PersonCounter extends StatelessWidget {
                     child: IconButton(
                       padding: EdgeInsets.zero,
                       icon: const Icon(Icons.add, size: 16),
-                      onPressed: personCount < maxPersons
-                          ? () {
-                        onPersonCountChanged(personCount + 1);
-                      }
-                          : null,
+                      onPressed:
+                          personCount < maxPersons
+                              ? () {
+                                onPersonCountChanged(personCount + 1);
+                              }
+                              : null,
                     ),
                   ),
                 ],

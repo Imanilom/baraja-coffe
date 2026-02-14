@@ -175,7 +175,10 @@ Widget _buildStatisticsRow(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       gradient: LinearGradient(
-        colors: [Colors.blue.withValues(alpha: 0.08), Colors.blue.withValues(alpha: 0.04)],
+        colors: [
+          Colors.blue.withValues(alpha: 0.08),
+          Colors.blue.withValues(alpha: 0.04),
+        ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
@@ -222,7 +225,11 @@ Widget _buildStatisticsRow(
         ),
 
         // Divider
-        Container(width: 1, height: 40, color: Colors.blue.withValues(alpha: 0.2)),
+        Container(
+          width: 1,
+          height: 40,
+          color: Colors.blue.withValues(alpha: 0.2),
+        ),
 
         // Scan Qr code button,
         Padding(

@@ -4,12 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 
 class AddCustomAmountDialog extends ConsumerStatefulWidget {
   final Function(CustomAmountItemsModel) onAddCustomAmount;
   final VoidCallback onClose;
-  final OrderType? orderType;
+  final OrderTypeModel? orderType;
 
   const AddCustomAmountDialog({
     super.key,
@@ -27,7 +27,7 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
   late String name;
   late String description;
   late int amount;
-  late OrderType selectedOrderType;
+  late OrderTypeModel selectedOrderType;
 
   // final _nameController = TextEditingController();
   // final _amountController = TextEditingController();
@@ -38,7 +38,7 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
     name = 'Custom Amount';
     description = '';
     amount = 0;
-    selectedOrderType = widget.orderType ?? OrderType.dineIn;
+    selectedOrderType = widget.orderType ?? OrderTypeModel.dineIn;
   }
 
   // @override
@@ -373,25 +373,25 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
           ),
           const SizedBox(height: 8),
           Center(
-            child: SegmentedButton<OrderType>(
+            child: SegmentedButton<OrderTypeModel>(
               segments: [
-                ButtonSegment<OrderType>(
-                  value: OrderType.dineIn,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.dineIn,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.dineIn),
+                    OrderTypeModel.dineIn.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
-                ButtonSegment<OrderType>(
-                  value: OrderType.takeAway,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.takeAway,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.takeAway),
+                    OrderTypeModel.takeAway.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
               ],
               selected: {selectedOrderType},
-              onSelectionChanged: (Set<OrderType> newSelection) {
+              onSelectionChanged: (Set<OrderTypeModel> newSelection) {
                 setState(() {
                   selectedOrderType = newSelection.first;
                 });
@@ -405,22 +405,7 @@ class AddCustomAmountDialogState extends ConsumerState<AddCustomAmountDialog> {
     );
   }
 
-  String _getShortOrderTypeLabel(OrderType orderType) {
-    switch (orderType) {
-      case OrderType.dineIn:
-        return 'Dine-In';
-      case OrderType.pickup:
-        return 'Pickup';
-      case OrderType.delivery:
-        return 'Delivery';
-      case OrderType.takeAway:
-        return 'Take Away';
-      case OrderType.reservation:
-        return 'Reservation';
-      default:
-        return 'Unknown';
-    }
-  }
+  // String _getShortOrderTypeLabel removed as we use model properties
 
   Widget _descriptionAndTypeSection() {
     return Row(

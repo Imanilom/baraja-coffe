@@ -1,7 +1,7 @@
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
-import 'package:kasirbaraja/models/custom_amount_items.model.dart';
+
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/event.model.dart';
 import 'package:kasirbaraja/models/free_item.model.dart';
@@ -18,6 +18,11 @@ import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/auto_promo.model.dart';
+import 'package:kasirbaraja/models/order_type.model.dart'; // Add import
+import 'package:kasirbaraja/models/order_status.model.dart';
+import 'package:kasirbaraja/models/location_type.model.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
 class HiveService {
@@ -49,7 +54,15 @@ class HiveService {
     Hive.registerAdapter(FreeItemModelAdapter());
     Hive.registerAdapter(ScheduleModelAdapter());
     Hive.registerAdapter(PromoGroupModelAdapter());
+
     Hive.registerAdapter(PromoGroupLineModelAdapter());
+    Hive.registerAdapter(OrderTypeModelAdapter()); // Register new adapter
+    Hive.registerAdapter(ItemOrderTypeModelAdapter()); // Register new adapter
+
+    Hive.registerAdapter(OrderStatusModelAdapter());
+    Hive.registerAdapter(LocationTypeModelAdapter());
+    Hive.registerAdapter(DiscountModelAdapter());
+    Hive.registerAdapter(CustomDiscountModelAdapter());
 
     await _openBoxes();
   }
@@ -63,6 +76,7 @@ class HiveService {
     await Hive.openBox<Event>('eventsBox');
     await Hive.openBox<DeviceModel>('devices');
     await Hive.openBox<OrderDetailModel>('offlineOrdersBox');
+    await Hive.openBox<OrderDetailModel>('savedOrdersBox'); // Restore this
     await Hive.openBox<AutoPromoModel>('autoPromosBox');
     await Hive.openBox<PromoGroupModel>('promoGroupsBox');
     // await Hive.openBox<DeviceModel>('loginDeviceBox');
@@ -80,6 +94,9 @@ class HiveService {
   static Box<DeviceModel> get deviceBox => Hive.box<DeviceModel>('devices');
   static Box<OrderDetailModel> get offlineOrdersBox =>
       Hive.box<OrderDetailModel>('offlineOrdersBox');
+  static Box<OrderDetailModel> get savedOrdersBox =>
+      Hive.box<OrderDetailModel>('savedOrdersBox'); // Restore this
+
   static Box<AutoPromoModel> get autoPromosBox =>
       Hive.box<AutoPromoModel>('autoPromosBox');
   static Box<PromoGroupModel> get promoGroupsBox =>
@@ -231,4 +248,9 @@ class HiveService {
   //   final box = Hive.box('loginDeviceBox');
   //   return box.get('loginDevice') as DeviceModel?;
   // }
+
+  static Future<List<BluetoothPrinterModel>> getPrinters() async {
+    final box = Hive.box<BluetoothPrinterModel>('printers');
+    return box.values.toList();
+  }
 }
