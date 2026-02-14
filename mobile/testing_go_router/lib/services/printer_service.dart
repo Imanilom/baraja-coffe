@@ -2761,6 +2761,7 @@ class ThermalPrinters {
     required CashRecapModel recap,
     required BluetoothPrinterModel printer,
     required String cashierName,
+    required String deviceName,
     required String outletName,
   }) async {
     try {
@@ -2819,6 +2820,12 @@ class ThermalPrinters {
       bytes.addAll(
         generator.text(
           'Outlet: $outletName',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(
+        generator.text(
+          'Device: $deviceName',
           styles: const PosStyles(align: PosAlign.center),
         ),
       );
@@ -2925,6 +2932,17 @@ class ThermalPrinters {
       );
 
       bytes.addAll(generator.feed(2));
+
+      // Penyesuaian section
+      bytes.addAll(generator.hr(ch: '-'));
+      bytes.addAll(
+        generator.text('Penyesuaian:', styles: const PosStyles(bold: true)),
+      );
+      // 6 blank lines for handwritten notes
+      bytes.addAll(generator.feed(6));
+      bytes.addAll(generator.hr(ch: '-'));
+
+      bytes.addAll(generator.feed(1));
       bytes.addAll(
         generator.text(
           '( Tanda Tangan )',
