@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_ce_flutter/hive_flutter.dart';
-import 'package:kasirbaraja/models/cashier.model.dart';
-import 'package:kasirbaraja/models/user.model.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/report/order_detail_report.model.dart';
@@ -1966,21 +1964,21 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
     );
 
     try {
-      final box = Hive.box('userBox');
-      final user = box.get('user') as UserModel?;
-      final cashier = box.get('cashier') as CashierModel?;
+      final user = await HiveService.getUser();
+      final device = await HiveService.getDevice();
+      final cashier = await HiveService.getCashier();
 
       final outletId = user?.outletId ?? '';
       final outletName =
           'Baraja Coffee'; // Default since OutletModel is not available
 
-      if (cashier == null) throw Exception('Cashier not found');
+      if (device == null) throw Exception('Device not found');
 
       final service = ref.read(salesReportServiceProvider);
 
       final recap = await service.fetchCashRecap(
         outletId: outletId,
-        cashierId: cashier.id ?? '',
+        deviceId: device.id,
       );
 
       // Get saved printers from provider
@@ -2068,7 +2066,8 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
       final success = await ThermalPrinters.printCashRecap(
         recap: recap,
         printer: connectedPrinter,
-        cashierName: cashier.username ?? 'Unknown Cashier',
+        cashierName: cashier?.username ?? 'Unknown Cashier',
+        deviceName: device.deviceName,
         outletName: outletName,
       );
 

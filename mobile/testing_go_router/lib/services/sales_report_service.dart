@@ -204,13 +204,13 @@ class SalesReportService {
 
   Future<CashRecapModel> fetchCashRecap({
     required String outletId,
-    required String cashierId,
+    required String deviceId,
   }) async {
-    AppLogger.info('Fetching cash recap for cashierId: $cashierId');
+    AppLogger.info('Fetching cash recap for deviceId: $deviceId');
     try {
       Response response = await _dio.post(
         '/api/report/cash-recap',
-        data: {'outletId': outletId, 'cashierId': cashierId},
+        data: {'outletId': outletId, 'deviceId': deviceId},
         options: Options(
           headers: {
             'Content-Type': 'application/json',

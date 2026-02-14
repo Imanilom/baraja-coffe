@@ -29,14 +29,14 @@ const toObjectId = (id) => {
  */
 export const getCashRecap = async (req, res) => {
     try {
-        const { outletId, cashierId } = req.body;
+        const { outletId, deviceId } = req.body;
 
-        if (!outletId || !cashierId) {
-            return res.status(400).json({ success: false, message: "Outlet ID and Cashier ID are required" });
+        if (!outletId || !deviceId) {
+            return res.status(400).json({ success: false, message: "Outlet ID and Device ID are required" });
         }
 
         const outletObjectId = toObjectId(outletId);
-        const cashierObjectId = toObjectId(cashierId);
+        const deviceObjectId = toObjectId(deviceId);
 
         // 1. Calculate Time Range
         // Current time (WIB is handled by server time usually, but ensured via Date objects)
@@ -46,10 +46,10 @@ export const getCashRecap = async (req, res) => {
         const startOfDay = new Date(now);
         startOfDay.setHours(0, 0, 0, 0);
 
-        // Find last recap for this cashier & outlet TODAY
+        // Find last recap for this device & outlet TODAY
         const lastRecap = await CashRecapLog.findOne({
             outletId: outletObjectId,
-            cashierId: cashierObjectId,
+            deviceId: deviceObjectId,
             printedAt: { $gte: startOfDay } // Only look for recaps printed TODAY
         }).sort({ printedAt: -1 });
 
@@ -65,7 +65,7 @@ export const getCashRecap = async (req, res) => {
 
         // 2. Query Orders (Step 1: Base Filter)
         const baseFilter = {
-            cashierId: cashierObjectId,
+            device_id: deviceObjectId,
             outlet: outletObjectId, // Note: Order model usually uses 'outlet' or 'outletId' depending on schema, assumed 'outlet' from context
             createdAt: { $gte: startDate, $lte: endDate }
         };
@@ -139,7 +139,7 @@ export const getCashRecap = async (req, res) => {
         // 5. Save Log
         const newLog = new CashRecapLog({
             outletId: outletObjectId,
-            cashierId: cashierObjectId,
+            deviceId: deviceObjectId,
             rangeStartDate: startDate,
             rangeEndDate: endDate,
             totalCashAmount: totalCashAmount,

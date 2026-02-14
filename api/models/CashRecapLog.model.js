@@ -9,6 +9,12 @@ const CashRecapLogSchema = new mongoose.Schema({
     cashierId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
+        required: false,
+        default: null
+    },
+    deviceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Device',
         required: true
     },
     rangeStartDate: {
@@ -42,8 +48,8 @@ const CashRecapLogSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Index for efficient querying of last print per cashier/outlet
-CashRecapLogSchema.index({ outletId: 1, cashierId: 1, printedAt: -1 });
+// Index for efficient querying of last print per device/outlet
+CashRecapLogSchema.index({ outletId: 1, deviceId: 1, printedAt: -1 });
 
 const CashRecapLog = mongoose.model('CashRecapLog', CashRecapLogSchema);
 
