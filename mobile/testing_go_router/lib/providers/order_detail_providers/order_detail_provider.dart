@@ -384,8 +384,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       );
       updatedItems.removeAt(indexOldItem);
     } else {
-      // Replace item
-      updatedItems[indexOldItem] = newOrderItem;
+      // Replace item — preserve printedQuantity from old item for delta tracking
+      updatedItems[indexOldItem] = newOrderItem.copyWith(
+        printedQuantity: oldOrderItem.printedQuantity,
+      );
     }
 
     state = state!.copyWith(items: updatedItems);
@@ -793,10 +795,29 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       );
 
       // 1) Update subtotal setiap item
-      final updatedItems =
+      var updatedItems =
           state!.items
               .map((it) => it.copyWith(subtotal: it.countSubTotalPrice()))
               .toList();
+
+      // 1b) Recalculate item-level percentage discounts
+      // Fix: Ensure discount amount scales with quantity for percentage discounts
+      updatedItems =
+          updatedItems.map((item) {
+            if (item.customDiscount?.isActive == true &&
+                item.customDiscount?.discountType == 'percentage') {
+              final val = item.customDiscount!.discountValue;
+              // Calculate based on total subtotal (price * quantity)
+              final newAmount = (item.subtotal * val / 100).round();
+
+              return item.copyWith(
+                customDiscount: item.customDiscount!.copyWith(
+                  discountAmount: newAmount,
+                ),
+              );
+            }
+            return item;
+          }).toList();
 
       // 2) Total dari items
       final totalFromItems = updatedItems.fold<int>(

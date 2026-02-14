@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
-import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 // import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
@@ -430,6 +430,11 @@ class OrderDetail extends ConsumerWidget {
                                 hintText: 'Nomor Meja',
                               ),
                               controller: controller,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'[\x20-\x7E]'),
+                                ),
+                              ],
                               onChanged: (value) {
                                 final cursorPosition =
                                     controller.selection.base.offset;
@@ -532,6 +537,11 @@ class OrderDetail extends ConsumerWidget {
                                 hintText: 'Nama Pelanggan',
                               ),
                               controller: controller,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'[\x20-\x7E]'),
+                                ),
+                              ],
                             ),
                             actions: [
                               TextButton(
@@ -864,33 +874,43 @@ class OrderDetail extends ConsumerWidget {
                       value: formatRupiah(orderDetail.totalBeforeDiscount),
                     ),
 
-                    // Show regular discount (auto promo + manual + voucher)
-                    if (totalDiscount > 0)
-                      _OrderSummaryRow(
-                        label: 'Diskon',
-                        value: '- ${formatRupiah(totalDiscount)}',
-                      ),
-
-                    // Show item custom discounts separately
-                    if ((orderDetail.discounts?.customDiscount ?? 0) > 0)
-                      _OrderSummaryRow(
-                        label: 'Diskon Items',
-                        value:
-                            '- ${formatRupiah(orderDetail.discounts!.customDiscount)}',
-                        valueColor: Colors.green,
-                      ),
-
-                    // Show order-level custom discount separately
-                    if (orderDetail.customDiscountDetails?.isActive == true)
-                      _OrderSummaryRow(
-                        label: 'Diskon Order',
-                        value:
-                            '- ${formatRupiah(orderDetail.customDiscountDetails!.discountAmount)}',
-                        valueColor: Colors.green,
-                        subtitle:
-                            orderDetail.customDiscountDetails!.reason.isNotEmpty
-                                ? orderDetail.customDiscountDetails!.reason
-                                : null,
+                    // SIMPLIFIED DISCOUNT DISPLAY
+                    if (totalDiscount +
+                            (orderDetail
+                                    .customDiscountDetails
+                                    ?.discountAmount ??
+                                0) >
+                        0)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Text('Total Diskon'),
+                                const SizedBox(width: 4),
+                                GestureDetector(
+                                  onTap:
+                                      () => _showDiscountDetailsDialog(
+                                        context,
+                                        orderDetail,
+                                        totalDiscount,
+                                      ),
+                                  child: Icon(
+                                    Icons.info_outline,
+                                    size: 16,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '- ${formatRupiah(totalDiscount + (orderDetail.customDiscountDetails?.discountAmount ?? 0))}',
+                              style: const TextStyle(color: Colors.green),
+                            ),
+                          ],
+                        ),
                       ),
 
                     _OrderSummaryRow(
@@ -952,6 +972,119 @@ class OrderDetail extends ConsumerWidget {
   // ============================================================================
   // CUSTOM DISCOUNT DIALOG HELPERS
   // ============================================================================
+
+  void _showDiscountDetailsDialog(
+    BuildContext context,
+    OrderDetailModel order,
+    int totalDiscount,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Detail Diskon'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Auto Promos (Broken down by promo)
+              if (order.appliedPromos != null &&
+                  order.appliedPromos!.isNotEmpty) ...[
+                if ((order.discounts?.autoPromoDiscount ?? 0) > 0) ...[
+                  // Header if needed, or just list them
+                  for (final promo in order.appliedPromos!)
+                    if ((promo.discount ?? 0) > 0)
+                      _DiscountDetailRow(
+                        label: promo.promoName,
+                        value: promo.discount!,
+                        percentage:
+                            (promo.affectedItems.isNotEmpty &&
+                                    (promo
+                                                .affectedItems
+                                                .first
+                                                .discountPercentage ??
+                                            0) >
+                                        0)
+                                ? '${promo.affectedItems.first.discountPercentage}%'
+                                : null,
+                      ),
+                ],
+              ] else if ((order.discounts?.autoPromoDiscount ?? 0) > 0) ...[
+                // Fallback for legacy or if appliedPromos is missing but total exists
+                _DiscountDetailRow(
+                  label: 'Promo Otomatis',
+                  value: order.discounts!.autoPromoDiscount,
+                ),
+              ],
+
+              // 2. Manual Discount
+              if ((order.discounts?.manualDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Diskon Manual',
+                  value: order.discounts!.manualDiscount,
+                ),
+
+              // 3. Voucher
+              if ((order.discounts?.voucherDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Voucher',
+                  value: order.discounts!.voucherDiscount,
+                  subtitle: order.appliedVoucher,
+                ),
+
+              // 4. Item Custom Discounts
+              if ((order.discounts?.customDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Diskon per Item',
+                  value: order.discounts!.customDiscount,
+                ),
+
+              // 5. Order Custom Discount
+              if (order.customDiscountDetails?.isActive == true)
+                _DiscountDetailRow(
+                  label: 'Diskon Order',
+                  value: order.customDiscountDetails!.discountAmount,
+                  subtitle: order.customDiscountDetails?.reason,
+                  percentage:
+                      order.customDiscountDetails?.discountType == 'percentage'
+                          ? '${order.customDiscountDetails?.discountValue}%'
+                          : null,
+                ),
+
+              const Divider(),
+
+              // Total
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    formatRupiah(
+                      totalDiscount +
+                          (order.customDiscountDetails?.discountAmount ?? 0),
+                    ),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   void _showOrderDiscountDialog(BuildContext context, WidgetRef ref) {
     final orderDetail = ref.read(orderDetailProvider);
@@ -1030,6 +1163,9 @@ class OrderDetail extends ConsumerWidget {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => Navigator.pop(context, controller.text),
                 decoration: const InputDecoration(hintText: 'Contoh: Budi'),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\x20-\x7E]')),
+                ],
               ),
               actions: [
                 TextButton(
@@ -1127,6 +1263,9 @@ class OrderDetail extends ConsumerWidget {
                   Navigator.pop(context);
                 },
                 decoration: const InputDecoration(hintText: 'Contoh: A12'),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\x20-\x7E]')),
+                ],
                 onChanged: (value) {
                   final cursor = controller.selection.baseOffset;
                   controller.value = TextEditingValue(
@@ -1177,6 +1316,9 @@ class OrderDetail extends ConsumerWidget {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => Navigator.pop(context, controller.text),
                 decoration: const InputDecoration(hintText: 'Contoh: A12'),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\x20-\x7E]')),
+                ],
                 onChanged: (value) {
                   final cursor = controller.selection.baseOffset;
                   controller.value = TextEditingValue(
@@ -1337,15 +1479,11 @@ class _OrderSummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isBold;
-  final Color? valueColor;
-  final String? subtitle;
 
   const _OrderSummaryRow({
     required this.label,
     required this.value,
     this.isBold = false,
-    this.valueColor,
-    this.subtitle,
   });
 
   @override
@@ -1370,18 +1508,72 @@ class _OrderSummaryRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: isBold ? 16 : 14,
                   fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                  color: valueColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscountDetailRow extends StatelessWidget {
+  final String label;
+  final int value;
+  final String? subtitle;
+  final String? percentage;
+
+  const _DiscountDetailRow({
+    required this.label,
+    required this.value,
+    this.subtitle,
+    this.percentage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 14)),
+                  if (percentage != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      '($percentage)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              Text(
+                formatRupiah(value),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
                 ),
               ),
             ],
           ),
           if (subtitle != null && subtitle!.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(left: 8, top: 2),
+              padding: const EdgeInsets.only(top: 2),
               child: Text(
                 subtitle!,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontStyle: FontStyle.italic,
                   color: Colors.grey,
                 ),

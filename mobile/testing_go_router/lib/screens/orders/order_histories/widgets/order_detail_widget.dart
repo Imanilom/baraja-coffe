@@ -277,14 +277,42 @@ class OrderDetailWidget extends StatelessWidget {
             }),
           ],
           const SizedBox(),
+          const SizedBox(),
           Text(
             'Base Price: ${formatRupiah(item.menuItem.displayPrice())}',
             style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
+          if (item.customDiscount?.isActive == true)
+            Text(
+              'Diskon ${item.customDiscount!.discountType == 'percentage' ? '(${item.customDiscount!.discountValue}%)' : ''}: -${formatRupiah(item.customDiscount!.discountAmount)}',
+              style: TextStyle(
+                color: Colors.green[700],
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
           const SizedBox(height: 4),
-          Text(
-            'Subtotal: ${formatRupiah(item.subtotal)}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          Row(
+            children: [
+              if (item.customDiscount?.isActive == true) ...[
+                Text(
+                  formatRupiah(item.subtotal),
+                  style: const TextStyle(
+                    decoration: TextDecoration.lineThrough,
+                    fontSize: 11,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                'Subtotal: ${formatRupiah(item.subtotal - (item.customDiscount?.discountAmount ?? 0))}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -361,13 +389,61 @@ class OrderDetailWidget extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _buildPriceRow('Subtotal', order.totalBeforeDiscount),
-          //discount,
-          if (order.discounts == null || order.discounts?.totalDiscount != 0)
-            _buildPriceRow(
-              'Discount',
-              order.discounts?.totalDiscount ?? 0,
-              isDiscount: true,
+
+          // Discount Display
+          if ((order.discounts?.totalDiscount ?? 0) > 0 ||
+              (order.customDiscountDetails?.discountAmount ?? 0) > 0) ...[
+            Builder(
+              builder: (context) {
+                final totalDiscount =
+                    (order.discounts?.autoPromoDiscount ?? 0) +
+                    (order.discounts?.manualDiscount ?? 0) +
+                    (order.discounts?.voucherDiscount ?? 0) +
+                    (order.discounts?.customDiscount ?? 0) +
+                    (order.customDiscountDetails?.discountAmount ?? 0);
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Total Diskon',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap:
+                              () => _showDiscountDetailsDialog(
+                                context,
+                                order,
+                                totalDiscount,
+                              ),
+                          child: const Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '- ${formatRupiah(totalDiscount)}',
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
+          ],
+
           _buildPriceRow('Tax', order.totalTax),
           // _buildPriceRow('Discount', -order.discounts),
           const Divider(),
@@ -379,6 +455,116 @@ class OrderDetailWidget extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showDiscountDetailsDialog(
+    BuildContext context,
+    OrderDetailModel order,
+    int totalDiscount,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Detail Diskon'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Auto Promos (Broken down by promo)
+              if (order.appliedPromos != null &&
+                  order.appliedPromos!.isNotEmpty) ...[
+                if ((order.discounts?.autoPromoDiscount ?? 0) > 0) ...[
+                  // Header if needed, or just list them
+                  for (final promo in order.appliedPromos!)
+                    if ((promo.discount ?? 0) > 0)
+                      _DiscountDetailRow(
+                        label: promo.promoName,
+                        value: promo.discount!,
+                        percentage:
+                            (promo.affectedItems.isNotEmpty &&
+                                    (promo
+                                                .affectedItems
+                                                .first
+                                                .discountPercentage ??
+                                            0) >
+                                        0)
+                                ? '${promo.affectedItems.first.discountPercentage}%'
+                                : null,
+                      ),
+                ],
+              ] else if ((order.discounts?.autoPromoDiscount ?? 0) > 0) ...[
+                // Fallback for legacy or if appliedPromos is missing but total exists
+                _DiscountDetailRow(
+                  label: 'Promo Otomatis',
+                  value: order.discounts!.autoPromoDiscount,
+                ),
+              ],
+
+              // 2. Manual Discount
+              if ((order.discounts?.manualDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Diskon Manual',
+                  value: order.discounts!.manualDiscount,
+                ),
+
+              // 3. Voucher
+              if ((order.discounts?.voucherDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Voucher',
+                  value: order.discounts!.voucherDiscount,
+                  subtitle: order.appliedVoucher,
+                ),
+
+              // 4. Item Custom Discounts
+              if ((order.discounts?.customDiscount ?? 0) > 0)
+                _DiscountDetailRow(
+                  label: 'Diskon per Item',
+                  value: order.discounts!.customDiscount,
+                ),
+
+              // 5. Order Custom Discount
+              if (order.customDiscountDetails?.isActive == true)
+                _DiscountDetailRow(
+                  label: 'Diskon Order',
+                  value: order.customDiscountDetails!.discountAmount,
+                  subtitle: order.customDiscountDetails?.reason,
+                  percentage:
+                      order.customDiscountDetails?.discountType == 'percentage'
+                          ? '${order.customDiscountDetails?.discountValue}%'
+                          : null,
+                ),
+
+              const Divider(),
+
+              // Total
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    formatRupiah(totalDiscount),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -410,6 +596,73 @@ class OrderDetailWidget extends StatelessWidget {
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscountDetailRow extends StatelessWidget {
+  final String label;
+  final int value;
+  final String? subtitle;
+  final String? percentage;
+
+  const _DiscountDetailRow({
+    required this.label,
+    required this.value,
+    this.subtitle,
+    this.percentage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 14)),
+                  if (percentage != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      '($percentage)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              Text(
+                formatRupiah(value),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+          if (subtitle != null && subtitle!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                subtitle!,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
         ],
       ),
     );

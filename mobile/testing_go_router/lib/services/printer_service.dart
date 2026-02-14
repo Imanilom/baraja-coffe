@@ -7,9 +7,8 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
-import 'package:kasirbaraja/models/discount.model.dart';
+
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/report/cash_recap_model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
@@ -20,9 +19,14 @@ import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 
-import 'package:kasirbaraja/utils/format_rupiah.dart';
-
 class PrinterService {
+  /// Sanitize text for thermal printer - only allow ASCII characters
+  static String _sanitize(String? text) {
+    if (text == null || text.isEmpty) return '';
+    // Replace non-ASCII characters with closest ASCII or remove them
+    return text.replaceAll(RegExp(r'[^\x20-\x7E]'), '');
+  }
+
   // Tambahkan fungsi helper untuk mengecek apakah ada items untuk workstation tertentu
   static bool _hasItemsForWorkstation(
     OrderDetailModel orderDetail,
@@ -259,7 +263,9 @@ class PrinterService {
 
     // Label Batch
     final String label =
-        isVoid ? 'DIBATALKAN / VOID' : _batchLabel(orderDetail);
+        isVoid
+            ? 'DIBATALKAN / VOID'
+            : _batchLabel(orderDetail, forceReprint: forceReprint);
 
     for (final printer in supportedPrinters) {
       await _printSingleJob(
@@ -1029,7 +1035,10 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderId ?? "XXX-XXX-XXXX",
+          text:
+              _sanitize(orderId).isNotEmpty
+                  ? _sanitize(orderId)
+                  : 'XXX-XXX-XXXX',
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -1058,7 +1067,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: cashierName,
+          text: _sanitize(cashierName),
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -1072,7 +1081,10 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: customerName ?? "Pelanggan",
+          text:
+              _sanitize(customerName).isNotEmpty
+                  ? _sanitize(customerName)
+                  : 'Pelanggan',
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -1087,7 +1099,10 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
-            text: tableNumber ?? "Meja",
+            text:
+                _sanitize(tableNumber).isNotEmpty
+                    ? _sanitize(tableNumber)
+                    : 'Meja',
             width: 8,
             styles: const PosStyles(align: PosAlign.right),
           ),
@@ -1151,7 +1166,7 @@ class PrinterService {
     for (var item in orderdetail) {
       bytes.addAll(
         generator.text(
-          item.menuItem.name!,
+          _sanitize(item.menuItem.name),
           styles: PosStyles(bold: true, align: PosAlign.left),
         ),
       );
@@ -1172,7 +1187,7 @@ class PrinterService {
                     .map((x) {
                       final addon =
                           "${x.name}: ${x.options!.map((x) {
-                            final option = "${x.label}${x.price != 0 ? '(+${x.price})' : ''}";
+                            final option = "${x.label}";
                             return option;
                           }).join(', ')}";
                       return addon;
@@ -1202,7 +1217,7 @@ class PrinterService {
             PosColumn(
               text:
                   '+${item.selectedToppings.map((x) {
-                    final topping = "${x.name}${x.price != 0 ? '(+${x.price})' : ''}";
+                    final topping = "${x.name}";
                     return topping;
                   }).join(', ')}',
               width: 8,
@@ -1217,28 +1232,10 @@ class PrinterService {
         );
       }
 
-      if (item.notes != null &&
-          item.notes!.isNotEmpty &&
-          item.notes!.trim().isNotEmpty) {
-        bytes.addAll(
-          generator.row([
-            PosColumn(
-              text: '',
-              width: 1,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-            PosColumn(
-              text: '"${item.notes}" ',
-              width: 11,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-          ]),
-        );
-      }
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: item.menuItem.originalPrice.toString(),
+            text: formatPrice(item.subtotal ~/ item.quantity).toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.left),
           ),
@@ -1290,26 +1287,110 @@ class PrinterService {
         ),
       ]),
     );
-    if (orderDetail.discounts != null &&
-        orderDetail.discounts?.totalDiscount != 0) {
+    // === DISCOUNT BREAKDOWN ===
+    final discounts = orderDetail.discounts;
+
+    // 1) Auto Promo Discount
+    if (discounts != null && discounts.autoPromoDiscount > 0) {
+      final promoNames =
+          orderDetail.appliedPromos?.map((x) => x.promoName).join(', ') ??
+          'Promo';
       bytes.addAll(
         generator.row([
           PosColumn(
-            text:
-                orderDetail.appliedPromos?.map((x) => x.promoName).join(', ') ??
-                '',
+            text: promoNames,
             width: 6,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
-            text:
-                "- ${formatPrice(orderDetail.discounts?.totalDiscount ?? 0).toString()}",
+            text: "- ${formatPrice(discounts.autoPromoDiscount)}",
             width: 6,
             styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
       );
     }
+
+    // 2) Manual Discount
+    if (discounts != null && discounts.manualDiscount > 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Diskon Manual',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "- ${formatPrice(discounts.manualDiscount)}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    // 3) Voucher Discount
+    if (discounts != null && discounts.voucherDiscount > 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Voucher',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "- ${formatPrice(discounts.voucherDiscount)}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    // 4) Item-level Custom Discount
+    if (discounts != null && discounts.customDiscount > 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Diskon Item',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "- ${formatPrice(discounts.customDiscount)}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    // 5) Order-level Custom Discount
+    final orderDiscount = orderDetail.customDiscountDetails;
+    if (orderDiscount != null &&
+        orderDiscount.isActive &&
+        orderDiscount.discountAmount > 0) {
+      final label =
+          orderDiscount.discountType == 'percentage'
+              ? 'Diskon Order (${orderDiscount.discountValue}%)'
+              : 'Diskon Order';
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: label,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "- ${formatPrice(orderDiscount.discountAmount)}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    // === TAX & SERVICE ===
     bytes.addAll(
       generator.row([
         PosColumn(
@@ -1324,6 +1405,22 @@ class PrinterService {
         ),
       ]),
     );
+    if (orderDetail.totalServiceFee > 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Service',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: formatPrice(orderDetail.totalServiceFee).toString(),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
 
     bytes.addAll(generator.hr());
     bytes.addAll(
@@ -1613,7 +1710,7 @@ class PrinterService {
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
-              text: '  Catatan: ${item.notes}',
+              text: '  Catatan: ${_sanitize(item.notes)}',
               width: 10,
               styles: const PosStyles(align: PosAlign.left),
             ),
@@ -1817,7 +1914,7 @@ class PrinterService {
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
-              text: '  Catatan: ${item.notes}',
+              text: '  Catatan: ${_sanitize(item.notes)}',
               width: 10,
               styles: const PosStyles(align: PosAlign.left),
             ),
@@ -2189,10 +2286,11 @@ class PrinterService {
     return out;
   }
 
-  static String _batchLabel(OrderDetailModel od) {
-    return (od.printSequence > 0)
-        ? 'Cetak Tambahan #${od.printSequence + 1}'
-        : '';
+  static String _batchLabel(OrderDetailModel od, {bool forceReprint = false}) {
+    if (od.printSequence <= 0) return '';
+    return forceReprint
+        ? 'Cetak Ulang #${od.printSequence + 1}'
+        : 'Cetak Tambahan #${od.printSequence + 1}';
   }
 }
 

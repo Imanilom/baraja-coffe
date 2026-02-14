@@ -25,7 +25,7 @@ class OrderService {
   }) async {
     try {
       final payload = createOrderRequest(orderDetail);
-      AppLogger.debug('order request: $payload');
+      AppLogger.debug('order request discounts: ${orderDetail.discounts}');
       // print('PAYLOAD DISCOUNTS: ${payload['discounts']}');
 
       Response response = await _dio.post(

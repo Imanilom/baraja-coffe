@@ -17,7 +17,7 @@ import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/services/order_service.dart'; // ✅ NEW
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart'; // ✅ NEW
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
-import 'package:kasirbaraja/services/printer_service.dart'; // ✅ NEW
+import 'package:kasirbaraja/services/printer_service.dart';
 import 'package:kasirbaraja/providers/orders/saved_order_provider.dart'; // ✅ NEW
 // ✅ NEW: Import UUID
 
@@ -670,13 +670,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           }
         }
 
-        // 7. Print Receipt
+        // 7. Print Customer Receipt (forceReprint bypasses delta=0 after saveOpenBill sync)
         final printers = ref.read(savedPrintersProvider);
         if (printers.isNotEmpty) {
           await PrinterService.printDocuments(
-            orderDetail: finalOrder, // ✅ Use order with Backend ID
+            orderDetail: finalOrder,
             printType: 'customer',
             printers: printers,
+            forceReprint: true,
           );
         }
 

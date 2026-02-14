@@ -8864,11 +8864,11 @@ const toISOJakartaWithOffset = (date) => {
 // Get Cashier Order History
 export const getCashierOrderHistory = async (req, res) => {
   try {
-    const cashierId = req.params.cashierId;
-    console.log(cashierId);
+    const deviceId = req.params.deviceId;
+    console.log(deviceId);
 
-    if (!cashierId) {
-      return res.status(400).json({ message: 'Cashier ID is required.' });
+    if (!deviceId) {
+      return res.status(400).json({ message: 'Device ID is required.' });
     }
 
     // Hitung tanggal 3 hari yang lalu
@@ -8877,9 +8877,9 @@ export const getCashierOrderHistory = async (req, res) => {
 
     const baseFilter = {
       $and: [
-        { cashierId: { $exists: true } },
-        { cashierId: { $ne: null } },
-        { cashierId: cashierId }, // Langsung tambahkan di sini
+        { device_id: { $exists: true } },
+        { device_id: { $ne: null } },
+        { device_id: deviceId },
         { createdAt: { $gte: threeDaysAgo } }, // Filter 3 hari terakhir
       ],
     };

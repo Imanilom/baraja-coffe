@@ -482,8 +482,7 @@ async function createOrderWithSimpleTransaction({
         originalGrandTotal: totals.grandTotal,
         adjustedGrandTotal,
         itemCustomDiscounts: discounts.itemCustomDiscounts,
-        orderLevelCustomDiscount,
-        totalCustomDiscount: discounts.itemCustomDiscounts + orderLevelCustomDiscount  // ✅ Auto-calculated
+        orderLevelCustomDiscount
       });
     }
 
@@ -524,7 +523,7 @@ async function createOrderWithSimpleTransaction({
         voucherDiscount: discounts.voucherDiscount || 0,
         loyaltyDiscount: discounts.loyaltyDiscount || 0,
         customAmountDiscount: discounts.customAmountDiscount || 0,
-        customDiscount: discounts.itemCustomDiscounts + orderLevelCustomDiscount,  // ✅ AUTO-CALCULATED: item + order discounts
+        customDiscount: discounts.itemCustomDiscounts || 0,  // ✅ FIX: Item-level only (order-level stored in customDiscountDetails)
         total: discounts.total || 0
       },
       // ✅ NEW: Custom discount details from Flutter
