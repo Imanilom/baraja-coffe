@@ -515,6 +515,14 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
     // Calculate based on current total after item discounts and promos
     final baseAmount = state!.totalAfterDiscount;
+
+    // Validation
+    if (discountType == 'percentage' && discountValue > 100) {
+      debugPrint('⚠️ Discount percentage > 100, clamping to 100');
+      // ignore: parameter_assignments
+      discountValue = 100;
+    }
+
     final discountAmount =
         discountType == 'percentage'
             ? (baseAmount * discountValue / 100).round()
