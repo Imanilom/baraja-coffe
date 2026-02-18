@@ -449,6 +449,14 @@ async function createOrderWithSimpleTransaction({
       totalBeforeAdjustment: totals.afterDiscount
     });
 
+    // ✅ NEW: Validation - Max Cap for Order Level Custom Discount
+    // Ensure discount does not exceed the total after item-level discounts
+    if (orderLevelCustomDiscount > totals.afterDiscount) {
+      console.warn(`⚠️ Order custom discount (${orderLevelCustomDiscount}) exceeds total (${totals.afterDiscount}). Clamping to total.`);
+      // ignore: parameter_assignments
+      orderLevelCustomDiscount = totals.afterDiscount;
+    }
+
     // Adjust totals if order-level custom discount exists
     let adjustedTotalAfterDiscount = totals.afterDiscount;
     let adjustedGrandTotal = totals.grandTotal;
@@ -924,9 +932,20 @@ export async function processOrderItems({
         }
       }
       return item;
-    }).filter(item => item.quantity > 0);
+    }).filter(item => {
+      // ✅ Filter out items with 0 quantity
+      if (item.quantity <= 0) return false;
+
+      // ✅ NEW: Filter out items with active custom discount (Mutual Exclusion)
+      if (item.customDiscount?.isActive) {
+        return false;
+      }
+
+      return true;
+    });
   } else {
-    availableItemsForAutoPromo = [...orderItems];
+    // ✅ NEW: Filter out items with active custom discount (Mutual Exclusion)
+    availableItemsForAutoPromo = orderItems.filter(item => !item.customDiscount?.isActive);
   }
 
   // Tambahkan free items dari Buy X Get Y ke order items
