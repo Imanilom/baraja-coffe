@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 
 class OrderTypeSelectionDialog extends ConsumerWidget {
-  final OrderType? currentOrderType;
-  final Function(OrderType) onOrderTypeSelected;
+  final OrderTypeModel? currentOrderType;
+  final Function(OrderTypeModel) onOrderTypeSelected;
   final VoidCallback? onTakeAwaySelected; // Callback khusus untuk take away
 
   const OrderTypeSelectionDialog({
@@ -36,24 +36,24 @@ class OrderTypeSelectionDialog extends ConsumerWidget {
         children: [
           _buildOrderTypeOption(
             context: context,
-            orderType: OrderType.dineIn,
+            orderType: OrderTypeModel.dineIn,
             title: 'Dine-In',
             subtitle: 'Makan di tempat',
             icon: Icons.table_restaurant,
             onTap: () {
-              onOrderTypeSelected(OrderType.dineIn);
+              onOrderTypeSelected(OrderTypeModel.dineIn);
               Navigator.pop(context);
             },
           ),
           const SizedBox(height: 8),
           _buildOrderTypeOption(
             context: context,
-            orderType: OrderType.takeAway,
+            orderType: OrderTypeModel.takeAway,
             title: 'Take Away',
             subtitle: 'Bawa pulang',
             icon: Icons.takeout_dining,
             onTap: () {
-              onOrderTypeSelected(OrderType.takeAway);
+              onOrderTypeSelected(OrderTypeModel.takeAway);
               onTakeAwaySelected?.call(); // Panggil callback khusus jika ada
               Navigator.pop(context);
             },
@@ -72,7 +72,7 @@ class OrderTypeSelectionDialog extends ConsumerWidget {
 
   Widget _buildOrderTypeOption({
     required BuildContext context,
-    required OrderType orderType,
+    required OrderTypeModel orderType,
     required String title,
     required String subtitle,
     required IconData icon,
@@ -152,8 +152,8 @@ class OrderTypeSelectionDialog extends ConsumerWidget {
   // Static method untuk menampilkan dialog
   static Future<void> show({
     required BuildContext context,
-    required OrderType? currentOrderType,
-    required Function(OrderType) onOrderTypeSelected,
+    required OrderTypeModel? currentOrderType,
+    required Function(OrderTypeModel) onOrderTypeSelected,
     VoidCallback? onTakeAwaySelected,
   }) {
     return showDialog(

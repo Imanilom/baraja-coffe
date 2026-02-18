@@ -1,9 +1,10 @@
 // ignore_for_file: invalid_annotation_target
 
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -21,18 +22,20 @@ abstract class OrderItemModel with _$OrderItemModel {
     @HiveField(4) @Default("") String? notes,
     @HiveField(5) @Default(0) int subtotal,
     @HiveField(6)
-    @Default(OrderType.dineIn)
+    @Default(OrderTypeModel.dineIn)
     @JsonKey(
       name: 'dineType',
-      fromJson: OrderTypeExtension.fromString,
-      toJson: OrderTypeExtension.orderTypeToJson,
+      fromJson: OrderTypeModel.fromString,
+      toJson: OrderTypeModel.toJsonString,
     )
-    OrderType orderType,
+    OrderTypeModel orderType,
     @HiveField(7) @Default(null) String? orderItemid,
     @HiveField(8) @Default(false) bool isPrinted,
     @HiveField(9) @Default(0) int printedQuantity,
     @HiveField(10) @Default([]) List<String> printBatchIds,
     @HiveField(11) @Default(null) String? reservedPromoId,
+    // Custom discount untuk item ini
+    @HiveField(12) @Default(null) CustomDiscountModel? customDiscount,
   }) = _OrderItemModel;
 
   OrderItemModel._();
@@ -64,7 +67,7 @@ abstract class OrderItemModel with _$OrderItemModel {
     final toppingIds = (selectedToppings.map((t) => t.id).toList()..sort())
         .join('-');
     // Pastikan notes dan orderType juga masuk ke hash
-    return '${menuItem.id}-$addonIds-$toppingIds-${notes ?? ''}-${orderType.name}';
+    return '${menuItem.id}-$addonIds-$toppingIds-${notes ?? ''}-${orderType.name}-${customDiscount.toString()}';
   }
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) =>

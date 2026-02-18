@@ -645,9 +645,17 @@ export const createAppOrder = async (req, res) => {
                 dpBankInfo,
                 // ✅ FIX: Custom DP Amount from frontend
                 customDpAmount,
+                // ✅ NEW: Full Payment Already Paid (Sudah Lunas)
+                fullPaymentAlreadyPaid,
+                fullPaymentBankInfo,
                 // ✅ FIX: Tax data from frontend
                 taxDetails,
                 totalTax,
+                // ✅ FIX: Discount data from frontend
+                discounts: frontendDiscounts,
+                appliedPromos: frontendAppliedPromos,
+                selectedPromoIds,
+                customDiscountDetails,
             } = req.body;
             console.log('🚀 Optimized createAppOrder:', {
                 isGroMode,
@@ -942,9 +950,9 @@ export const createAppOrder = async (req, res) => {
                     // Otherwise fallback to database price calculation
                     let itemSubtotal;
                     if (item.totalprice && item.totalprice > 0) {
-                        // Frontend sent totalprice (price already discounted per unit)
-                        itemSubtotal = item.totalprice * item.quantity;
-                        console.log(`   📦 ${item.productName}: Original: ${originalSubtotal}, Discounted: ${itemSubtotal}`);
+                        // Frontend sent totalprice (Total Subtotal for the item line)
+                        itemSubtotal = item.totalprice;
+                        console.log(`   📦 ${item.productName}: Original: ${originalSubtotal}, Discounted (Custom): ${itemSubtotal}`);
                     } else {
                         // Fallback: calculate from database price (no discount)
                         itemSubtotal = originalSubtotal;
@@ -993,10 +1001,22 @@ export const createAppOrder = async (req, res) => {
             totalBeforeDiscount += totalCustomAmount;
             totalAfterDiscount += totalCustomAmount;
 
+            // ✅ FIX: Apply auto-promo and custom discounts from frontend
+            const frontendAutoPromoDiscount = frontendDiscounts?.autoPromoDiscount || 0;
+            const frontendItemCustomDiscount = frontendDiscounts?.customDiscount || 0;
+            const orderLevelCustomDiscount = customDiscountDetails?.isActive ? (customDiscountDetails?.discountAmount || 0) : 0;
+            const totalFrontendDiscount = frontendAutoPromoDiscount + frontendItemCustomDiscount + orderLevelCustomDiscount;
+
+            totalAfterDiscount -= totalFrontendDiscount;
+            if (totalAfterDiscount < 0) totalAfterDiscount = 0;
+
             console.log(`💰 Price Calculation:`);
             console.log(`   Original (DB) subtotal: ${orderItems.reduce((sum, item) => sum + (item.originalSubtotal || item.subtotal), 0)}`);
             console.log(`   Discounted subtotal: ${orderItems.reduce((sum, item) => sum + item.subtotal, 0)}`);
             console.log(`   Custom amounts: ${totalCustomAmount}`);
+            console.log(`   Auto promo discount (frontend): ${frontendAutoPromoDiscount}`);
+            console.log(`   Item custom discount (frontend): ${frontendItemCustomDiscount}`);
+            console.log(`   Order-level custom discount (frontend): ${orderLevelCustomDiscount}`);
             console.log(`   totalBeforeDiscount: ${totalBeforeDiscount}`);
             console.log(`   totalAfterDiscount: ${totalAfterDiscount}`);
 
@@ -1007,8 +1027,23 @@ export const createAppOrder = async (req, res) => {
             // Tax and service calculation - ✅ FIX: Tax is calculated on DISCOUNTED price
             let taxServiceCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
             if (totalAfterDiscount > 0) {
-                // ✅ FIX: Respect frontend "disable tax" toggle (totalTax 0 and empty details)
-                const isTaxDisabled = (totalTax === 0 && (!taxDetails || taxDetails.length === 0));
+                // ✅ DEBUG: Log tax-related inputs
+                console.log('📊 TAX CALCULATION DEBUG:');
+                console.log(`   totalTax from frontend: ${totalTax} (type: ${typeof totalTax})`);
+                console.log(`   taxDetails from frontend: ${JSON.stringify(taxDetails)}`);
+                console.log(`   taxDetails length: ${taxDetails?.length || 0}`);
+
+                // ✅ FIX: Only disable tax if totalTax is EXPLICITLY provided as 0 (number) or "0" (string)
+                // If undefined or null, we assume tax should be calculated normally.
+                let isTaxDisabled = false;
+                if (totalTax !== undefined && totalTax !== null) {
+                    const taxValue = Number(totalTax);
+                    if (!isNaN(taxValue) && taxValue === 0) {
+                        isTaxDisabled = true;
+                    }
+                }
+
+                console.log(`   isTaxDisabled: ${isTaxDisabled}`);
 
                 if (!isTaxDisabled) {
                     taxServiceCalculation = await calculateTaxAndServiceCached(
@@ -1017,8 +1052,9 @@ export const createAppOrder = async (req, res) => {
                         orderType === 'reservation',
                         effectiveIsOpenBill
                     );
+                    console.log(`   ✅ Tax calculated: ${taxServiceCalculation.totalTax}`);
                 } else {
-                    console.log('ℹ️ Tax explicitly disabled by frontend (GRO toggle) in Optimized Controller');
+                    console.log('ℹ️ Tax explicitly disabled by frontend (totalTax=0)');
                 }
             }
             // Apply voucher discount on top of menu discount
@@ -1030,6 +1066,11 @@ export const createAppOrder = async (req, res) => {
                 if (totalAfterDiscount < 0) totalAfterDiscount = 0;
             }
             const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
+            console.log('💰 GRAND TOTAL CALCULATION:');
+            console.log(`   totalAfterDiscount: ${totalAfterDiscount}`);
+            console.log(`   taxServiceCalculation.totalTax: ${taxServiceCalculation.totalTax}`);
+            console.log(`   taxServiceCalculation.totalServiceFee: ${taxServiceCalculation.totalServiceFee}`);
+            console.log(`   grandTotal: ${grandTotal}`);
             let newOrder;
             // ORDER CREATION - OPEN BILL FLOW
             if (effectiveIsOpenBill && existingOrder) {
@@ -1054,6 +1095,14 @@ export const createAppOrder = async (req, res) => {
                 const updatedTotalBeforeDiscount = existingOrder.totalBeforeDiscount + newItemsOriginalTotal + newCustomAmountsTotal;
                 let updatedTotalAfterDiscount = (existingOrder.totalAfterDiscount || existingOrder.totalBeforeDiscount) + newItemsDiscountedTotal + newCustomAmountsTotal;
 
+                // ✅ FIX: Apply frontend discounts to open bill total
+                const obAutoPromoDiscount = frontendDiscounts?.autoPromoDiscount || 0;
+                const obItemCustomDiscount = frontendDiscounts?.customDiscount || 0;
+                const obOrderCustomDiscount = customDiscountDetails?.isActive ? (customDiscountDetails?.discountAmount || 0) : 0;
+                const obTotalFrontendDiscount = obAutoPromoDiscount + obItemCustomDiscount + obOrderCustomDiscount;
+                updatedTotalAfterDiscount -= obTotalFrontendDiscount;
+                if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
+
                 // Apply voucher on discounted total
                 if (voucherId && discountType === 'percentage') {
                     updatedTotalAfterDiscount = updatedTotalAfterDiscount - (updatedTotalAfterDiscount * (voucherAmount / 100));
@@ -1063,20 +1112,51 @@ export const createAppOrder = async (req, res) => {
                 }
                 let updatedTaxCalculation = { totalTax: 0, totalServiceFee: 0, taxAndServiceDetails: [] };
                 if (updatedTotalAfterDiscount > 0) {
-                    updatedTaxCalculation = await calculateTaxAndServiceCached(
-                        updatedTotalAfterDiscount,
-                        outlet || "67cbc9560f025d897d69f889",
-                        orderType === 'reservation',
-                        true
-                    );
+                    // ✅ FIX: Match tax logic with new order flow
+                    let isTaxDisabled = false;
+                    if (totalTax !== undefined && totalTax !== null) {
+                        const taxValue = Number(totalTax);
+                        if (!isNaN(taxValue) && taxValue === 0) {
+                            isTaxDisabled = true;
+                        }
+                    }
+                    console.log(`   📊 Open Bill Tax Debug: isTaxDisabled=${isTaxDisabled}`);
+
+                    if (!isTaxDisabled) {
+                        updatedTaxCalculation = await calculateTaxAndServiceCached(
+                            updatedTotalAfterDiscount,
+                            outlet || "67cbc9560f025d897d69f889",
+                            orderType === 'reservation',
+                            true
+                        );
+                        console.log(`   ✅ Open Bill Tax calculated: ${updatedTaxCalculation.totalTax}`);
+                    } else {
+                        console.log('ℹ️ Tax explicitly disabled by frontend (totalTax=0) in Open Bill flow');
+                    }
                 }
                 existingOrder.totalBeforeDiscount = updatedTotalBeforeDiscount;
                 existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
                 existingOrder.totalTax = updatedTaxCalculation.totalTax;
                 existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
                 existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
-                existingOrder.totalCustomAmount = existingOrder.customAmountItems?.reduce((sum, ca) => sum + ca.amount, 0) || 0;
+                existingOrder.totalCustomAmount = (existingOrder.totalCustomAmount || 0) + newCustomAmountsTotal; // ✅ FIX: Increment existing custom amount
                 existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
+
+                // ✅ FIX: Update discount data from frontend on open bill
+                if (frontendDiscounts) {
+                    existingOrder.discounts = {
+                        autoPromoDiscount: frontendDiscounts.autoPromoDiscount || 0,
+                        manualDiscount: frontendDiscounts.manualDiscount || 0,
+                        voucherDiscount: frontendDiscounts.voucherDiscount || 0,
+                        customDiscount: frontendDiscounts.customDiscount || 0,
+                    };
+                }
+                if (frontendAppliedPromos && frontendAppliedPromos.length > 0) {
+                    existingOrder.appliedPromos = frontendAppliedPromos;
+                }
+                if (customDiscountDetails) {
+                    existingOrder.customDiscountDetails = customDiscountDetails;
+                }
                 if (voucherId) {
                     existingOrder.appliedVoucher = voucherId;
                     existingOrder.voucher = voucherId;
@@ -1103,7 +1183,7 @@ export const createAppOrder = async (req, res) => {
                     items: orderItems,
                     customAmountItems: processedCustomAmounts, // ✅ Add custom amounts
                     status: orderStatus,
-                    paymentMethod: paymentDetails.method,
+                    // paymentMethod: paymentDetails.method,
                     orderType: formattedOrderType,
                     deliveryAddress: deliveryAddress || '',
                     tableNumber: tableNumber || '',
@@ -1116,8 +1196,14 @@ export const createAppOrder = async (req, res) => {
                     totalTax: taxServiceCalculation.totalTax,
                     totalServiceFee: taxServiceCalculation.totalServiceFee,
                     totalCustomAmount, // ✅ Add total custom amount
-                    discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
-                    appliedPromos: [],
+                    discounts: {
+                        autoPromoDiscount: frontendDiscounts?.autoPromoDiscount || 0,
+                        manualDiscount: frontendDiscounts?.manualDiscount || 0,
+                        voucherDiscount: frontendDiscounts?.voucherDiscount || 0,
+                        customDiscount: frontendDiscounts?.customDiscount || 0,
+                    },
+                    appliedPromos: frontendAppliedPromos || [],
+                    customDiscountDetails: customDiscountDetails || undefined,
                     appliedManualPromo: null,
                     appliedVoucher: voucherId,
                     taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
@@ -1150,8 +1236,12 @@ export const createAppOrder = async (req, res) => {
                 duration: `${Date.now() - startTime}ms`
             });
             // RESERVATION CREATION
+            // Create reservation for:
+            // 1. Non-open bill reservation orders (customer flow)
+            // 2. GRO reservation orders when creating NEW order (not adding to existing)
             let reservationRecord = null;
-            if (orderType === 'reservation' && !effectiveIsOpenBill) {
+            const isNewGroReservation = isGroMode && orderType === 'reservation' && !existingOrder;
+            if (orderType === 'reservation' && (!effectiveIsOpenBill || isNewGroReservation)) {
                 try {
                     let parsedReservationDate;
                     if (reservationData.reservationDate) {
@@ -1224,6 +1314,15 @@ export const createAppOrder = async (req, res) => {
                 console.log('   Order ID:', newOrder.order_id);
                 console.log('   Custom DP Amount:', customDpAmount);
                 console.log('   Bank Info:', dpBankInfo?.bankName);
+            }
+
+            // ✅ NEW: Full Payment Already Paid (Sudah Lunas)
+            // Similar to DP, the frontend will call /api/charge with full_payment_already_paid=true
+            if (fullPaymentAlreadyPaid && isGroMode) {
+                console.log('💵 Full Payment Already Paid flag set - Payment will be created via /api/charge endpoint');
+                console.log('   Order ID:', newOrder.order_id);
+                console.log('   Grand Total:', newOrder.grandTotal);
+                console.log('   Bank Info:', fullPaymentBankInfo?.bankName);
             }
             // RESPONSE
             const responseData = {

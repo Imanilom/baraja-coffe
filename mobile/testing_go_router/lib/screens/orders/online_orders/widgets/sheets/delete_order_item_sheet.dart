@@ -32,7 +32,10 @@ class DeleteOrderItemSheetState extends ConsumerState<DeleteOrderItemSheet> {
             color: Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 12,
+              ),
             ],
           ),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),

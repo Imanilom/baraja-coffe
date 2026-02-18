@@ -248,9 +248,11 @@ const autoCompleteExpiredOnProcessOrders = async () => {
         log.info(`Checking for OnProcess orders from previous dates`);
 
         // Cari semua order dengan status OnProcess yang dibuat hari sebelumnya
+        // ✅ EXCLUDE orders dengan openBillStatus: "active" - tidak boleh di-auto-complete
         const expiredOnProcessOrders = await Order.find({
             status: 'OnProcess',
-            createdAtWIB: { $lt: today }
+            createdAtWIB: { $lt: today },
+            openBillStatus: { $ne: 'active' } // Skip open bill yang masih aktif
         }).lean();
 
         if (expiredOnProcessOrders.length === 0) {

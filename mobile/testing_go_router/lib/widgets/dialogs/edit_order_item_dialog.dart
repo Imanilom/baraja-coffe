@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
+import 'package:kasirbaraja/screens/orders/order_details/custom_discount_dialog.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 class EditOrderItemDialog extends StatefulWidget {
@@ -13,6 +15,7 @@ class EditOrderItemDialog extends StatefulWidget {
   final Function(OrderItemModel) onEditOrder;
   final Function() onClose;
   final Function()? onDeleteOrderItem;
+  final bool isLocked;
 
   const EditOrderItemDialog({
     super.key,
@@ -20,6 +23,7 @@ class EditOrderItemDialog extends StatefulWidget {
     required this.onEditOrder,
     required this.onClose,
     this.onDeleteOrderItem,
+    this.isLocked = false,
   });
 
   @override
@@ -31,7 +35,8 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   late List<AddonModel> selectedAddons;
   late int quantity;
   late String note;
-  late OrderType selectedOrderType;
+  late OrderTypeModel selectedOrderType;
+  CustomDiscountModel? customDiscount;
 
   @override
   void initState() {
@@ -41,7 +46,8 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     AppLogger.debug('selectedAddons: $selectedAddons');
     quantity = widget.orderItem.quantity;
     note = widget.orderItem.notes ?? '';
-    selectedOrderType = widget.orderItem.orderType ?? OrderType.dineIn;
+    selectedOrderType = widget.orderItem.orderType ?? OrderTypeModel.dineIn;
+    customDiscount = widget.orderItem.customDiscount;
   }
 
   @override
@@ -69,6 +75,31 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 children: [
+                  if (widget.isLocked)
+                    Container(
+                      margin: const EdgeInsets.only(top: 16),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.lock, size: 16, color: Colors.amber[800]),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Item ini sudah tersimpan. Hapus dan input ulang jika ingin mengubah.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.amber[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const SizedBox(height: 16),
                   _buildTopSection(menuItem),
                   const SizedBox(height: 16),
@@ -112,27 +143,31 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                  color: (widget.isLocked
+                          ? Colors.grey
+                          : const Color(0xFF4CAF50))
+                      .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Icon(
-                  Icons.edit,
-                  color: Color(0xFF4CAF50),
+                child: Icon(
+                  widget.isLocked ? Icons.lock : Icons.edit,
+                  color:
+                      widget.isLocked ? Colors.grey : const Color(0xFF4CAF50),
                   size: 16,
                 ),
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Edit Item',
-                  style: TextStyle(
+                  widget.isLocked ? 'Detail Item (Terkunci)' : 'Edit Item',
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1A1A1A),
                   ),
                 ),
               ),
-              _buildDeleteButton(),
+              if (widget.onDeleteOrderItem != null) _buildDeleteButton(),
             ],
           ),
         ],
@@ -226,6 +261,76 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () => _showDiscountDialog(menuItem),
+                            borderRadius: BorderRadius.circular(4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    customDiscount != null
+                                        ? Colors.green[50]
+                                        : Colors.grey[100],
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color:
+                                      customDiscount != null
+                                          ? const Color(0xFF4CAF50)
+                                          : Colors.grey[300]!,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.discount_outlined,
+                                    size: 14,
+                                    color:
+                                        customDiscount != null
+                                            ? Colors.green[700]
+                                            : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      customDiscount != null
+                                          ? '${customDiscount!.discountType == 'percentage' ? '${customDiscount!.discountValue}% ' : ''}-${formatRupiah(customDiscount!.discountAmount)}'
+                                          : 'Diskon',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color:
+                                            customDiscount != null
+                                                ? Colors.green[700]
+                                                : Colors.grey[600],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (customDiscount != null) ...[
+                                    const SizedBox(width: 4),
+                                    InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          customDiscount = null;
+                                        });
+                                      },
+                                      child: const Icon(
+                                        Icons.close,
+                                        size: 14,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -267,7 +372,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                       icon: Icons.remove,
                       onPressed:
                           quantity > 1
-                              ? () => setState(() => quantity--)
+                              ? () => _updateQuantity(quantity - 1)
                               : null,
                     ),
                     Padding(
@@ -299,7 +404,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                     ),
                     _buildQuantityButton(
                       icon: Icons.add,
-                      onPressed: () => setState(() => quantity++),
+                      onPressed: () => _updateQuantity(quantity + 1),
                     ),
                   ],
                 ),
@@ -400,7 +505,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         final parsed = int.tryParse(raw) ?? quantity;
         final sanitized = parsed.clamp(1, 9999); // batas atas opsional
         HapticFeedback.lightImpact();
-        setState(() => quantity = sanitized);
+        _updateQuantity(sanitized);
       }
       controller.dispose();
       focusNode.dispose();
@@ -422,7 +527,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     required IconData icon,
     required VoidCallback? onPressed,
   }) {
-    final enabled = onPressed != null;
+    final enabled = onPressed != null && !widget.isLocked;
     return Container(
       // width: 28,
       // height: 28,
@@ -445,6 +550,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     );
   }
 
+  // ---------- Notes ----------
   // ---------- Notes ----------
   Widget _buildNotesSection() {
     return Container(
@@ -477,7 +583,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           ),
           const SizedBox(height: 8),
           InkWell(
-            onTap: () => _showNoteDialog(),
+            onTap: widget.isLocked ? null : () => _showNoteDialog(),
             borderRadius: BorderRadius.circular(8),
             child: Container(
               width: double.infinity,
@@ -501,7 +607,12 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Icon(Icons.edit_outlined, size: 14, color: Colors.grey[600]),
+                  if (!widget.isLocked)
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 14,
+                      color: Colors.grey[600],
+                    ),
                 ],
               ),
             ),
@@ -616,16 +727,20 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         value: isSelected,
         activeColor: const Color(0xFF4CAF50),
         controlAffinity: ListTileControlAffinity.trailing,
-        onChanged: (value) {
-          HapticFeedback.lightImpact();
-          setState(() {
-            if (isSelected) {
-              selectedToppings.remove(topping);
-            } else {
-              selectedToppings.add(topping);
-            }
-          });
-        },
+        onChanged:
+            widget.isLocked
+                ? null
+                : (value) {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    if (isSelected) {
+                      selectedToppings.remove(topping);
+                    } else {
+                      selectedToppings.add(topping);
+                    }
+                    _recalculateDiscount();
+                  });
+                },
       ),
     );
   }
@@ -735,11 +850,14 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         value: option.id!, // ← pakai id
         groupValue: selectedOptionId, // ← pakai id terpilih
         activeColor: const Color(0xFF4CAF50),
-        onChanged: (val) {
-          if (val == null) return;
-          HapticFeedback.lightImpact();
-          _setSelectedOption(addon.id!, option, addon);
-        },
+        onChanged:
+            widget.isLocked
+                ? null
+                : (val) {
+                  if (val == null) return;
+                  HapticFeedback.lightImpact();
+                  _setSelectedOption(addon.id!, option, addon);
+                },
       ),
     );
   }
@@ -767,7 +885,9 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     } else {
       selectedAddons[idx] = updated;
     }
-    setState(() {});
+    setState(() {
+      _recalculateDiscount();
+    });
   }
 
   Widget _buildActionButtons() {
@@ -788,9 +908,9 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text(
-                'Batal',
-                style: TextStyle(
+              child: Text(
+                widget.isLocked ? 'Tutup' : 'Batal',
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF4CAF50),
@@ -798,37 +918,40 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                final editedOrderItem = OrderItemModel(
-                  menuItem: widget.orderItem.menuItem,
-                  quantity: quantity,
-                  selectedToppings: selectedToppings,
-                  selectedAddons: selectedAddons,
-                  notes: note.isEmpty ? null : note,
-                  orderType: selectedOrderType,
-                );
-                widget.onEditOrder(editedOrderItem);
-                widget.onClose();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+          if (!widget.isLocked) ...[
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  final editedOrderItem = OrderItemModel(
+                    menuItem: widget.orderItem.menuItem,
+                    quantity: quantity,
+                    selectedToppings: selectedToppings,
+                    selectedAddons: selectedAddons,
+                    notes: note.isEmpty ? null : note,
+                    orderType: selectedOrderType,
+                    customDiscount: customDiscount,
+                  );
+                  widget.onEditOrder(editedOrderItem);
+                  widget.onClose();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 2,
                 ),
-                elevation: 2,
-              ),
-              child: const Text(
-                'Simpan',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                child: const Text(
+                  'Simpan',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -1001,25 +1124,25 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           ),
           const SizedBox(height: 8),
           Center(
-            child: SegmentedButton<OrderType>(
+            child: SegmentedButton<OrderTypeModel>(
               segments: [
-                ButtonSegment<OrderType>(
-                  value: OrderType.dineIn,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.dineIn,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.dineIn),
+                    OrderTypeModel.dineIn.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
-                ButtonSegment<OrderType>(
-                  value: OrderType.takeAway,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.takeAway,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.takeAway),
+                    OrderTypeModel.takeAway.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
               ],
-              selected: {selectedOrderType ?? OrderType.dineIn},
-              onSelectionChanged: (Set<OrderType> newSelection) {
+              selected: {selectedOrderType},
+              onSelectionChanged: (Set<OrderTypeModel> newSelection) {
                 setState(() {
                   selectedOrderType = newSelection.first;
                 });
@@ -1033,23 +1156,6 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     );
   }
 
-  String _getShortOrderTypeLabel(OrderType orderType) {
-    switch (orderType) {
-      case OrderType.dineIn:
-        return 'Dine-In';
-      case OrderType.pickup:
-        return 'Pickup';
-      case OrderType.delivery:
-        return 'Delivery';
-      case OrderType.takeAway:
-        return 'Take Away';
-      case OrderType.reservation:
-        return 'Reservation';
-      default:
-        return 'Unknown';
-    }
-  }
-
   Widget _notesAndTypeSection() {
     return Row(
       spacing: 16,
@@ -1057,6 +1163,97 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         Expanded(child: _buildNotesSection()),
         Expanded(child: _buildOrderTypeSelector()),
       ],
+    );
+  }
+
+  // ---------- Discount & Quantity Helpers ----------
+
+  void _updateQuantity(int newQuantity) {
+    if (newQuantity < 1) return;
+
+    setState(() {
+      quantity = newQuantity;
+      _recalculateDiscount();
+    });
+  }
+
+  void _recalculateDiscount() {
+    if (customDiscount == null || !customDiscount!.isActive) return;
+
+    // Only recalculate amount for percentage discount
+    if (customDiscount!.discountType == 'percentage') {
+      final unitPrice = _calculateUnitBasePrice();
+      final currentSubtotal = unitPrice * quantity;
+
+      final newDiscountAmount =
+          (currentSubtotal * customDiscount!.discountValue / 100).round();
+
+      customDiscount = customDiscount!.copyWith(
+        discountAmount: newDiscountAmount,
+      );
+    }
+    // For fixed discount, the amount stays fixed as per requirement (or common behavior)
+    // If the user entered a nominal amount, it's usually a specific deduction they want.
+    // However, if they want "5000 per item", our current UI/Model structure (single amount field)
+    // suggests it's a total discount.
+  }
+
+  int _calculateUnitBasePrice() {
+    final menuItem = widget.orderItem.menuItem;
+    final double basePrice = (menuItem.originalPrice ?? 0).toDouble();
+
+    // Hitung total toppings
+    double toppingTotal = 0;
+    final selectedToppingIds = selectedToppings.map((t) => t.id).toSet();
+    final allToppings = menuItem.toppings ?? const [];
+    for (final t in allToppings) {
+      if (selectedToppingIds.contains(t.id)) {
+        toppingTotal += t.price ?? 0;
+      }
+    }
+
+    // Hitung total addons
+    double addonTotal = 0;
+    for (final addon in selectedAddons) {
+      if (addon.options != null && addon.options!.isNotEmpty) {
+        addonTotal += addon.options!.first.price ?? 0;
+      }
+    }
+
+    return (basePrice + toppingTotal + addonTotal).toInt();
+  }
+
+  void _showDiscountDialog(dynamic menuItem) {
+    final unitPrice = _calculateUnitBasePrice();
+    final currentSubtotal = unitPrice * quantity;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => CustomDiscountDialog(
+            title: 'Diskon Item',
+            itemSubtotal: currentSubtotal.toInt(),
+            initialDiscountType: customDiscount?.discountType,
+            initialDiscountValue: customDiscount?.discountValue,
+            initialReason: customDiscount?.reason,
+            onApply: (type, value, reason) {
+              final discountAmount =
+                  type == 'percentage'
+                      ? (currentSubtotal * value / 100).round()
+                      : value;
+
+              setState(() {
+                customDiscount = CustomDiscountModel(
+                  isActive: true,
+                  discountType: type,
+                  discountValue: value,
+                  discountAmount: discountAmount,
+                  reason: reason,
+                  appliedAt: DateTime.now(),
+                );
+              });
+            },
+          ),
     );
   }
 }

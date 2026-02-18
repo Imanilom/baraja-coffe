@@ -1446,6 +1446,7 @@ class DailyProfitController {
               select: 'name'
             }
           })
+          .populate('reservation')
           .populate('outlet')
           .populate({
             path: 'user_id',
@@ -1477,10 +1478,140 @@ class DailyProfitController {
 
       switch (mode) {
         case 'all':
-          const allOrdersQuery = buildQuery();
-          allOrdersQuery.maxTimeMS(60000);
-          orders = await allOrdersQuery.exec();
-          totalOrders = orders.length;
+          // ✅ STREAMING OPTIMIZATION: Process in batches to prevent OOM
+          // This keeps memory usage constant regardless of dataset size
+          res.setHeader('Content-Type', 'application/json');
+          res.write('{"success":true,"data":['); // Start JSON array
+
+          const batchSize = 100;
+          let batch = [];
+          let isFirstBatch = true;
+          let processedCount = 0;
+
+          const cursor = Order.find(filters)
+            .populate('outlet', 'name')
+            .populate('cashierId', 'username phone')
+            .sort({ createdAt: -1 })
+            .lean()
+            .cursor();
+
+          // Pre-fetch categories for mapping IDs to names
+          const categories = await Category.find({}).select('name').lean();
+          const categoryMap = categories.reduce((acc, cat) => {
+            acc[cat._id.toString()] = cat.name;
+            return acc;
+          }, {});
+
+          for await (const order of cursor) {
+            batch.push(order);
+
+            if (batch.length >= batchSize) {
+              await processAndWriteBatch(batch, categoryMap); // Pass categoryMap
+              batch = []; // Clear batch from memory
+            }
+          }
+
+          // Process remaining items
+          if (batch.length > 0) {
+            await processAndWriteBatch(batch, categoryMap);
+          }
+
+          res.write(']}'); // End JSON array
+          res.end();
+          return; // Return early, response is already sent
+
+          // Helper to process a batch of orders and write to stream
+          async function processAndWriteBatch(orderBatch, catMap) {
+            const batchOrderIds = orderBatch.map(o => o.order_id);
+            const batchPayments = await Payment.find({ order_id: { $in: batchOrderIds } }).lean();
+
+            const batchPaymentMap = {};
+            batchPayments.forEach(p => {
+              if (!batchPaymentMap[p.order_id]) batchPaymentMap[p.order_id] = [];
+              batchPaymentMap[p.order_id].push(p);
+            });
+
+            // Process orders
+            const processedOrders = orderBatch.map(order => {
+              // ... Reuse existing logic to process order ...
+
+              // Ensure menuItemData is properly populated
+              if (order.items && Array.isArray(order.items)) {
+                order.items = order.items.map(item => {
+                  if (!item.menuItemData) item.menuItemData = {};
+                  // Sync from populated menuItem (if any, though we optimized it out for export)
+                  if (item.menuItem && typeof item.menuItem === 'object') {
+                    item.menuItemData.name = item.menuItem.name || item.menuItemData.name || 'Unknown Item';
+                    item.menuItemData.price = item.menuItem.price || item.menuItemData.price || 0;
+                    if (item.menuItem.category && typeof item.menuItem.category === 'object') {
+                      item.menuItemData.category = item.menuItem.category.name;
+                    } else {
+                      item.menuItemData.category = item.menuItemData.category || 'Uncategorized';
+                    }
+                    item.menuItemData.sku = item.menuItem.sku || '';
+                    item.menuItemData.isActive = item.menuItem.isActive !== false;
+                  }
+
+                  // Fix Category: If it's an ID, map to Name
+                  if (item.menuItemData.category && catMap[item.menuItemData.category]) {
+                    item.menuItemData.category = catMap[item.menuItemData.category];
+                  }
+
+                  item.menuItemData.selectedAddons = item.addons || [];
+                  item.menuItemData.selectedToppings = item.toppings || [];
+                  return item;
+                });
+              }
+
+              // Get related payments from batch map
+              const relatedPayments = batchPaymentMap[order.order_id] || [];
+              let paymentDetails = null;
+
+              if (order.orderType !== "Reservation") {
+                paymentDetails = relatedPayments.find(p =>
+                  p.status === 'pending' || p.status === 'settlement' || p.status === 'partial'
+                );
+              } else {
+                paymentDetails = relatedPayments.find(p => p.status === 'pending') ||
+                  relatedPayments.find(p => p.status === 'partial') ||
+                  relatedPayments.find(p => p.status === 'settlement') ||
+                  relatedPayments.find(p =>
+                    p.paymentType === 'Final Payment' &&
+                    p.relatedPaymentId &&
+                    (p.status === 'pending' || p.status === 'settlement' || p.status === 'partial')
+                  );
+              }
+
+              if (paymentDetails) {
+                order.paymentMethod = paymentDetails.method_type || paymentDetails.paymentType;
+                order.paymentStatus = paymentDetails.status;
+                order.midtransId = paymentDetails.transactionId;
+              }
+
+              // Attach all payments for detail view if needed
+              order.payments = relatedPayments;
+
+              return order;
+            });
+
+            // Write to stream
+            let chunk = '';
+            processedOrders.forEach(order => {
+              if (!isFirstBatch) {
+                chunk += ',';
+              } else {
+                isFirstBatch = false; // First item of the first batch doesn't need comma
+              }
+              chunk += JSON.stringify(order);
+              isFirstBatch = false; // Subsequent items in this batch need commas
+            });
+
+            res.write(chunk);
+            processedCount += processedOrders.length;
+
+            // Clean up large objects explicitly if needed/helpful
+            // (Garbage collector should handle local variables)
+          }
           break;
 
         case 'recent':
@@ -1606,6 +1737,7 @@ class DailyProfitController {
           user_id: order.user_id || null,
           cashierId: order.cashierId || null,
           groId: order.groId || null,
+          payments: relatedPayments, // Include all payments
           paymentDetails: paymentDetails || null,
           actualPaymentMethod
         };

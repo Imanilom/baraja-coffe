@@ -1,6 +1,7 @@
 // lib/extensions/order_item_extensions.dart
-import 'package:kasirbaraja/enums/order_type.dart';
+
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
@@ -52,7 +53,8 @@ extension OrderItemModelExtensions on OrderItemModel {
         _areToppingsEqual(selectedToppings, other.selectedToppings) &&
         _areAddonsEqual(selectedAddons, other.selectedAddons) &&
         _areNotesEqual(notes, other.notes) &&
-        _areOrderItemOrderTypeEqual(orderType, other.orderType);
+        _areOrderItemOrderTypeEqual(orderType, other.orderType) &&
+        customDiscount == other.customDiscount;
   }
 
   /// Mengecek apakah dua list toppings sama
@@ -87,7 +89,10 @@ extension OrderItemModelExtensions on OrderItemModel {
     return note1 == note2;
   }
 
-  bool _areOrderItemOrderTypeEqual(OrderType orderType1, OrderType orderType2) {
+  bool _areOrderItemOrderTypeEqual(
+    OrderTypeModel orderType1,
+    OrderTypeModel orderType2,
+  ) {
     return orderType1 == orderType2;
   }
 
@@ -115,6 +120,9 @@ extension OrderItemModelExtensions on OrderItemModel {
       '  Addons equal: ${_areAddonsEqual(selectedAddons, other.selectedAddons)}',
     );
     AppLogger.debug('  Notes equal: ${_areNotesEqual(notes, other.notes)}');
+    AppLogger.debug(
+      '  Custom Discount equal: ${customDiscount == other.customDiscount}',
+    );
     AppLogger.debug('  Overall similar: ${isSimilarTo(other)}');
   }
 }

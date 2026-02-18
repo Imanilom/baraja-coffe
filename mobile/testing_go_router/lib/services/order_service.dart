@@ -1,6 +1,6 @@
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -11,6 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
 import 'package:kasirbaraja/models/payments/process_payment_request.dart';
 import 'package:kasirbaraja/utils/payment_details_utils.dart';
@@ -23,15 +24,13 @@ class OrderService {
     String? idempotencyKey,
   }) async {
     try {
-      AppLogger.debug('order request: ${createOrderRequest(orderDetail)}');
-      AppLogger.debug('log order: ${logOrder(orderDetail)}');
-      AppLogger.debug('log menu item: ${logMenuItem(orderDetail)}');
-      AppLogger.debug('log payments: ${logPayments(orderDetail)}');
-      AppLogger.debug('log appliedPromo: ${logAppliedPRomo(orderDetail)}');
+      final payload = createOrderRequest(orderDetail);
+      AppLogger.debug('order request discounts: ${orderDetail.discounts}');
+      // print('PAYLOAD DISCOUNTS: ${payload['discounts']}');
 
       Response response = await _dio.post(
         '/api/unified-order',
-        data: createOrderRequest(orderDetail),
+        data: payload,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -434,20 +433,47 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
+            // Include custom discount for item
+            if (item.customDiscount?.isActive == true)
+              'customDiscount': {
+                'isActive': item.customDiscount!.isActive,
+                'discountType': item.customDiscount!.discountType,
+                'discountValue': item.customDiscount!.discountValue,
+                'discountAmount': item.customDiscount!.discountAmount,
+                'appliedBy': item.customDiscount!.appliedBy,
+                'appliedAt': item.customDiscount!.appliedAt?.toIso8601String(),
+                'reason': item.customDiscount!.reason,
+              },
           };
         }).toList(),
-    'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
+    'orderType': OrderTypeModel.toJsonString(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'outletId': user.outletId,
     'outlet': user.outletId,
     'selectedPromoIds': order.selectedPromoIds,
     'appliedPromos': order.appliedPromos,
-    'discounts': order.discounts,
+    'discounts':
+        order.discounts?.copyWith(
+          customDiscount: 0, // Prevent double counting in backend
+        ) ??
+        DiscountModel(customDiscount: 0),
+    // Include order-level custom discount
+    if (order.customDiscountDetails?.isActive == true)
+      'customDiscountDetails': {
+        'isActive': order.customDiscountDetails!.isActive,
+        'discountType': order.customDiscountDetails!.discountType,
+        'discountValue': order.customDiscountDetails!.discountValue,
+        'discountAmount': order.customDiscountDetails!.discountAmount,
+        'appliedBy': order.customDiscountDetails!.appliedBy,
+        'appliedAt': order.customDiscountDetails!.appliedAt?.toIso8601String(),
+        'reason': order.customDiscountDetails!.reason,
+      },
     'totalPrice': order.grandTotal,
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,
+    'openBillStartedAt': order.createdAt?.toIso8601String(),
     'isSplitPayment': order.isSplitPayment,
     'customAmountItems':
         order.customAmountItems != null
@@ -456,14 +482,14 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                 'name': item.name,
                 'description': item.description,
                 'amount': item.amount,
-                'orderType': OrderTypeExtension.orderTypeToJson(
-                  item.orderType ?? OrderType.dineIn,
+                'orderType': OrderTypeModel.toJsonString(
+                  item.orderType ?? OrderTypeModel.dineIn,
                 ),
               };
             }).toList()
             : [],
     'paymentDetails':
-        order.isOpenBill == true
+        order.payments.isEmpty
             ? []
             : order.payments.map((payment) {
               final methodtype = PaymentDetails.buildPaymentMethodLabel(
@@ -494,7 +520,7 @@ Map<String, dynamic> logOrder(OrderDetailModel order) {
     'user': order.user,
     'cashierId': order.cashier?.id ?? '',
     'device_id': loginDevice.id,
-    'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
+    'orderType': OrderTypeModel.toJsonString(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'outletId': user.outletId,
@@ -512,8 +538,8 @@ Map<String, dynamic> logOrder(OrderDetailModel order) {
                 'name': item.name,
                 'description': item.description,
                 'amount': item.amount,
-                'orderType': OrderTypeExtension.orderTypeToJson(
-                  item.orderType ?? OrderType.dineIn,
+                'orderType': OrderTypeModel.toJsonString(
+                  item.orderType ?? OrderTypeModel.dineIn,
                 ),
               };
             }).toList()
@@ -543,7 +569,7 @@ Map<String, dynamic> logMenuItem(OrderDetailModel order) {
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
           };
         }).toList(),
   };
@@ -629,7 +655,7 @@ Map<String, dynamic> updateEditOrderRequest(
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
           };
         }).toList(),
   };

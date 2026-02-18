@@ -161,7 +161,30 @@ const OrderItemSchema = new mongoose.Schema({
   isCancelled: { type: Boolean, default: false },
   cancelledAt: { type: Date },
   cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  cancellationReason: { type: String }
+  cancellationReason: { type: String },
+
+  // ✅ NEW: Custom discount fields (populated by Flutter app - offline first)
+  customDiscount: {
+    isActive: { type: Boolean, default: false },
+    discountType: {
+      type: String,
+      enum: ['percentage', 'fixed']
+      // No default - will be undefined when discount not applied
+    },
+    discountValue: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 }, // Already calculated by Flutter
+    appliedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: false  // ✅ Optional - Flutter may not always send valid ObjectId
+    },
+    appliedAt: {
+      type: Date,
+      required: false  // ✅ Optional
+      // No default - only set when discount is actually applied
+    },
+    reason: { type: String, default: '' }
+  }
 });
 
 // Schema untuk selected promo bundles
@@ -284,7 +307,7 @@ const OrderSchema = new mongoose.Schema({
   openBillStatus: {
     type: String,
     enum: ['active', 'closed', 'pending_payment'],
-    default: 'active'
+    default: 'closed'
   },
   customersCount: {
     type: Number,
@@ -358,8 +381,33 @@ const OrderSchema = new mongoose.Schema({
     autoPromoDiscount: { type: Number, default: 0 },
     manualDiscount: { type: Number, default: 0 },
     voucherDiscount: { type: Number, default: 0 },
-    selectedBundleDiscount: { type: Number, default: 0 } // ✅ BARU: Total discount dari selected bundles
+    selectedBundleDiscount: { type: Number, default: 0 }, // ✅ BARU: Total discount dari selected bundles
+    customDiscount: { type: Number, default: 0 } // ✅ NEW: Custom discount from Flutter (offline-first)
   },
+
+  // ✅ NEW: Custom discount details (populated by Flutter app - offline first)
+  customDiscountDetails: {
+    isActive: { type: Boolean, default: false },
+    discountType: {
+      type: String,
+      enum: ['percentage', 'fixed']
+      // No default - will be undefined when discount not applied
+    },
+    discountValue: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 }, // Already calculated by Flutter
+    appliedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: false  // ✅ Optional - Flutter may not always send valid ObjectId
+    },
+    appliedAt: {
+      type: Date,
+      required: false  // ✅ Optional
+      // No default - only set when discount is actually applied
+    },
+    reason: { type: String, default: '' }
+  },
+
   appliedPromos: [{
     promoId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -865,22 +913,14 @@ OrderSchema.pre('save', async function (next) {
       this.totalCustomAmount = 0;
     }
 
-    // Untuk open bill: calculate tax dan grand total
-    // ✅ FIX: Skip recalculation jika bill sedang di-close
-    const isClosingBill = this.isModified('openBillStatus') && this.openBillStatus === 'closed';
-
-    if (this.isOpenBill && !isClosingBill) {
-      // Exclude cancelled items dari perhitungan
-      const activeItemsTotal = this.items.reduce((total, item) => {
-        if (item.isCancelled) return total;
-        return total + (item.subtotal || 0);
-      }, 0);
-
-      this.totalBeforeDiscount = activeItemsTotal;
-      this.totalAfterDiscount = activeItemsTotal;
-      this.taxAmount = activeItemsTotal * (this.taxPercentage / 100);
-      this.grandTotal = activeItemsTotal + this.taxAmount + this.serviceCharge;
-    }
+    // ✅ REMOVED: grandTotal recalculation
+    // Controller (testapporder.controller.js, order.controller.js) already calculates
+    // all totals correctly based on frontend input. Pre-save should NOT override
+    // those values as it causes bugs (e.g., tax toggle OFF but saved with tax).
+    // 
+    // Previously this code would recalculate grandTotal for open bill orders,
+    // but this created inconsistency between frontend display and saved values.
+    // Now we trust the controller to set correct values.
 
     // Update split payment status
     if (this.payments && Array.isArray(this.payments)) {

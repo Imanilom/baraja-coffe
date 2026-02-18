@@ -8,7 +8,8 @@ class NavigationNotifier extends StateNotifier<int> {
   }
 }
 
-final navigationProvider =
-    StateNotifierProvider<NavigationNotifier, int>((ref) {
+final navigationProvider = StateNotifierProvider<NavigationNotifier, int>((
+  ref,
+) {
   return NavigationNotifier();
 });

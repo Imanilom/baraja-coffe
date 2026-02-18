@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -246,7 +246,7 @@ class ReceiptWidget extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                '(${OrderTypeExtension.orderTypeToJson(item.orderType)}) ${item.menuItem.name!}',
+                '(${item.orderType.name}) ${item.menuItem.name!}',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,

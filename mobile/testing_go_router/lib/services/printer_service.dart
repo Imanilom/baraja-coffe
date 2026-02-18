@@ -7,18 +7,26 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
-import 'package:kasirbaraja/models/discount.model.dart';
+
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/report/cash_recap_model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:kasirbaraja/utils/payment_details_utils.dart';
+import 'package:intl/intl.dart';
+import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
-import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 class PrinterService {
+  /// Sanitize text for thermal printer - only allow ASCII characters
+  static String _sanitize(String? text) {
+    if (text == null || text.isEmpty) return '';
+    // Replace non-ASCII characters with closest ASCII or remove them
+    return text.replaceAll(RegExp(r'[^\x20-\x7E]'), '');
+  }
+
   // Tambahkan fungsi helper untuk mengecek apakah ada items untuk workstation tertentu
   static bool _hasItemsForWorkstation(
     OrderDetailModel orderDetail,
@@ -112,17 +120,18 @@ class PrinterService {
     required OrderDetailModel orderDetail,
     required String printType,
     required List<BluetoothPrinterModel> printers,
+    bool isVoid = false,
+    bool forceReprint = false, // NEW: bypass delta logic for reprint
   }) async {
     final jobs = _createPrintJobs(printType);
 
-    // AppLogger.debug('dokumen print ${orderDetail.items.toList()}');
-
     for (final job in jobs) {
-      // if (printers.any((element) => element.connectionType == 'bluetooth')) {
       await _printJobToSupportedPrinters(
         orderDetail: orderDetail,
         jobType: job,
         printers: printers,
+        isVoid: isVoid,
+        forceReprint: forceReprint,
       );
       // }
 
@@ -176,28 +185,57 @@ class PrinterService {
     }
   }
 
-  // Modifikasi fungsi _printJobToSupportedPrinters
   static Future<void> _printJobToSupportedPrinters({
     required OrderDetailModel orderDetail,
     required String jobType,
     required List<BluetoothPrinterModel> printers,
+    bool isVoid = false,
+    bool forceReprint = false, // NEW: bypass delta logic for reprint
   }) async {
-    // 1️⃣ Ambil daftar item yang punya delta quantity (belum tercetak)
-    final deltas = _selectDeltasForJob(orderDetail, jobType);
-    if (deltas.isEmpty) {
-      AppLogger.warning('⚠️ Tidak ada delta item untuk $jobType');
+    List<OrderItemModel> itemsToPrint;
+
+    if (forceReprint) {
+      // REPRINT: Print all items matching workstation (ignore delta)
+      itemsToPrint =
+          orderDetail.items.where((item) {
+            switch (jobType) {
+              case 'kitchen':
+                return item.menuItem.workstation?.toLowerCase().trim() ==
+                    'kitchen';
+              case 'bar':
+                return item.menuItem.workstation?.toLowerCase().trim() == 'bar';
+              case 'customer':
+              case 'waiter':
+                return true;
+              default:
+                return false;
+            }
+          }).toList();
+    } else {
+      // NORMAL: Only print items with delta quantity
+      final deltas = _selectDeltasForJob(
+        orderDetail,
+        jobType,
+        onlyVoids: isVoid,
+      );
+      if (deltas.isEmpty) {
+        return;
+      }
+      itemsToPrint =
+          deltas.map((t) {
+            final (idx, delta) = t;
+            final src = orderDetail.items[idx];
+            return src.copyWith(quantity: delta.abs());
+          }).toList();
+    }
+
+    if (itemsToPrint.isEmpty) {
+      AppLogger.warning('⚠️ Tidak ada item untuk $jobType');
       return;
     }
 
-    // 2️⃣ Buat daftar item dengan quantity hanya delta-nya
-    final itemsToPrint =
-        deltas.map((t) {
-          final (idx, delta) = t;
-          final src = orderDetail.items[idx];
-          return src.copyWith(quantity: delta);
-        }).toList();
+    // ... [printer filtering logic unchanged] ...
 
-    // 3️⃣ Cari printer yang mendukung jobType ini
     final supportedPrinters =
         printers.where((printer) {
           switch (jobType) {
@@ -215,42 +253,29 @@ class PrinterService {
         }).toList();
 
     if (supportedPrinters.isEmpty) {
-      AppLogger.warning('⚠️ Tidak ada printer yang mendukung $jobType');
+      // AppLogger.warning('⚠️ Tidak ada printer untuk $jobType');
       return;
     }
 
     AppLogger.info(
-      '📤 Mencetak $jobType di ${supportedPrinters.length} printer',
+      '📤 Mencetak $jobType (${isVoid ? "VOID" : "Normal"}) ke ${supportedPrinters.length} printer',
     );
 
-    // var anySuccess = false;
+    // Label Batch
+    final String label =
+        isVoid
+            ? 'DIBATALKAN / VOID'
+            : _batchLabel(orderDetail, forceReprint: forceReprint);
+
     for (final printer in supportedPrinters) {
-      AppLogger.debug(
-        '📤 Mencetak printer coba: $jobType di ${printer.connectionType} (${printer.address})',
-      );
       await _printSingleJob(
         orderDetail: orderDetail,
         printer: printer,
         jobType: jobType,
-        itemsToPrint: itemsToPrint, // 🔹 kirim item delta
-        batchLabel: _batchLabel(orderDetail), // 🔹 label Cetak Awal / Tambahan
+        itemsToPrint: itemsToPrint,
+        batchLabel: label,
       );
-      // anySuccess = anySuccess || ok;
     }
-
-    // 4️⃣ Jika cetak sukses → tandai printedQuantity bertambah
-    // if (anySuccess) {
-    //   for (final (idx, delta) in deltas) {
-    //     final cur = orderDetail.items[idx];
-    //     final newPrinted = (cur.printedQuantity ?? 0) + delta;
-    //     orderDetail.items[idx] = cur.copyWith(printedQuantity: newPrinted);
-    //     // optional: append batchId, mis. ts:
-    //     // orderDetail.items[idx].printBatchIds = [...cur.printBatchIds, batchId];
-    //   }
-    //   // orderDetail.printSequence =
-    //   //     (orderDetail.printSequence) + 1; // naikkan sequence
-    //   print('✅ Tambah printedQuantity & increment printSequence');
-    // }
   }
 
   static Future<bool> _printSingleJob({
@@ -1010,7 +1035,10 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderId ?? "XXX-XXX-XXXX",
+          text:
+              _sanitize(orderId).isNotEmpty
+                  ? _sanitize(orderId)
+                  : 'XXX-XXX-XXXX',
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -1039,7 +1067,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: cashierName,
+          text: _sanitize(cashierName),
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -1053,7 +1081,10 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: customerName ?? "Pelanggan",
+          text:
+              _sanitize(customerName).isNotEmpty
+                  ? _sanitize(customerName)
+                  : 'Pelanggan',
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -1068,7 +1099,10 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
-            text: tableNumber ?? "Meja",
+            text:
+                _sanitize(tableNumber).isNotEmpty
+                    ? _sanitize(tableNumber)
+                    : 'Meja',
             width: 8,
             styles: const PosStyles(align: PosAlign.right),
           ),
@@ -1119,7 +1153,7 @@ class PrinterService {
         paperSize,
         orderDetail.orderId,
         orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.orderType.name,
         orderDetail.tableNumber,
       ),
     );
@@ -1132,7 +1166,7 @@ class PrinterService {
     for (var item in orderdetail) {
       bytes.addAll(
         generator.text(
-          item.menuItem.name!,
+          _sanitize(item.menuItem.name),
           styles: PosStyles(bold: true, align: PosAlign.left),
         ),
       );
@@ -1153,7 +1187,7 @@ class PrinterService {
                     .map((x) {
                       final addon =
                           "${x.name}: ${x.options!.map((x) {
-                            final option = "${x.label}${x.price != 0 ? '(+${x.price})' : ''}";
+                            final option = "${x.label}";
                             return option;
                           }).join(', ')}";
                       return addon;
@@ -1183,7 +1217,7 @@ class PrinterService {
             PosColumn(
               text:
                   '+${item.selectedToppings.map((x) {
-                    final topping = "${x.name}${x.price != 0 ? '(+${x.price})' : ''}";
+                    final topping = "${x.name}";
                     return topping;
                   }).join(', ')}',
               width: 8,
@@ -1198,28 +1232,10 @@ class PrinterService {
         );
       }
 
-      if (item.notes != null &&
-          item.notes!.isNotEmpty &&
-          item.notes!.trim().isNotEmpty) {
-        bytes.addAll(
-          generator.row([
-            PosColumn(
-              text: '',
-              width: 1,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-            PosColumn(
-              text: '"${item.notes}" ',
-              width: 11,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-          ]),
-        );
-      }
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: item.menuItem.originalPrice.toString(),
+            text: formatPrice(item.subtotal ~/ item.quantity).toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.left),
           ),
@@ -1271,26 +1287,110 @@ class PrinterService {
         ),
       ]),
     );
-    if (orderDetail.discounts != null &&
-        orderDetail.discounts?.totalDiscount != 0) {
+    // === DISCOUNT BREAKDOWN ===
+    final discounts = orderDetail.discounts;
+
+    // 1) Auto Promo Discount
+    if (discounts != null && discounts.autoPromoDiscount > 0) {
+      final promoNames =
+          orderDetail.appliedPromos?.map((x) => x.promoName).join(', ') ??
+          'Promo';
       bytes.addAll(
         generator.row([
           PosColumn(
-            text:
-                orderDetail.appliedPromos?.map((x) => x.promoName).join(', ') ??
-                '',
+            text: promoNames,
             width: 6,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
-            text:
-                "- ${formatPrice(orderDetail.discounts?.totalDiscount ?? 0).toString()}",
+            text: "- ${formatPrice(discounts.autoPromoDiscount)}",
             width: 6,
             styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
       );
     }
+
+    // 2) Manual Discount
+    if (discounts != null && discounts.manualDiscount > 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Diskon Manual',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "- ${formatPrice(discounts.manualDiscount)}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    // 3) Voucher Discount
+    if (discounts != null && discounts.voucherDiscount > 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Voucher',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "- ${formatPrice(discounts.voucherDiscount)}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    // 4) Item-level Custom Discount
+    if (discounts != null && discounts.customDiscount > 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Diskon Item',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "- ${formatPrice(discounts.customDiscount)}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    // 5) Order-level Custom Discount
+    final orderDiscount = orderDetail.customDiscountDetails;
+    if (orderDiscount != null &&
+        orderDiscount.isActive &&
+        orderDiscount.discountAmount > 0) {
+      final label =
+          orderDiscount.discountType == 'percentage'
+              ? 'Diskon Order (${orderDiscount.discountValue}%)'
+              : 'Diskon Order';
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: label,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "- ${formatPrice(orderDiscount.discountAmount)}",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    // === TAX & SERVICE ===
     bytes.addAll(
       generator.row([
         PosColumn(
@@ -1305,6 +1405,22 @@ class PrinterService {
         ),
       ]),
     );
+    if (orderDetail.totalServiceFee > 0) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Service',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: formatPrice(orderDetail.totalServiceFee).toString(),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
 
     bytes.addAll(generator.hr());
     bytes.addAll(
@@ -1323,31 +1439,88 @@ class PrinterService {
     );
     bytes.addAll(generator.hr(ch: '='));
     AppLogger.debug('bersiap untuk menulis pembayaran');
-    if (isOrderDetailSplitPayment(orderDetail)) {
-      AppLogger.debug('isSplitPayment: ${orderDetail.isSplitPayment}');
-      bytes.addAll(generator.feed(1));
-      for (var payment in orderDetail.payments) {
+    // ✅ FIXED: Check order status for more accurate paid/unpaid determination
+    final bool isPaid =
+        orderDetail.status.id == 'Completed' ||
+        (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
+
+    if (isPaid) {
+      if (isOrderDetailSplitPayment(orderDetail)) {
+        AppLogger.debug('isSplitPayment: ${orderDetail.isSplitPayment}');
+        bytes.addAll(generator.feed(1));
+        for (var payment in orderDetail.payments) {
+          bytes.addAll(
+            generator.row([
+              PosColumn(
+                text: PaymentDetails.buildPaymentMethodLabel(payment),
+                width: 6,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+                text:
+                    formatPrice(
+                      payment.tenderedAmount == 0
+                          ? payment.amount
+                          : payment.tenderedAmount ?? 0,
+                    ).toString(),
+                width: 6,
+                styles: const PosStyles(align: PosAlign.right),
+              ),
+            ]),
+          );
+
+          bytes.addAll(generator.hr());
+
+          bytes.addAll(
+            generator.row([
+              PosColumn(
+                text: 'Kembalian',
+                width: 6,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                text: formatPrice(payment.changeAmount ?? 0).toString(),
+                width: 6,
+                styles: const PosStyles(align: PosAlign.right),
+              ),
+            ]),
+          );
+          bytes.addAll(generator.feed(1));
+        }
+      } else {
+        AppLogger.debug('brarti tidak ada order detail');
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: PaymentDetails.buildPaymentMethodLabel(payment),
+              text: 'Metode',
               width: 6,
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
               //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
               text:
-                  formatPrice(
-                    payment.tenderedAmount == 0
-                        ? payment.amount
-                        : payment.tenderedAmount ?? 0,
-                  ).toString(),
+                  "${orderDetail.paymentMethod ?? ""} ${orderDetail.paymentType ?? ""}",
               width: 6,
               styles: const PosStyles(align: PosAlign.right),
             ),
           ]),
         );
 
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Diterima',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: formatPrice(orderDetail.paymentAmount).toString(),
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
         bytes.addAll(generator.hr());
 
         bytes.addAll(
@@ -1358,63 +1531,13 @@ class PrinterService {
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
-              text: formatPrice(payment.changeAmount ?? 0).toString(),
+              text: formatPrice(orderDetail.changeAmount).toString(),
               width: 6,
               styles: const PosStyles(align: PosAlign.right),
             ),
           ]),
         );
-        bytes.addAll(generator.feed(1));
       }
-    } else {
-      AppLogger.debug('brarti tidak ada order detail');
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Metode',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
-            text:
-                "${orderDetail.paymentMethod ?? ""} ${orderDetail.paymentType ?? ""}",
-            width: 6,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
-
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Diterima',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text: formatPrice(orderDetail.paymentAmount).toString(),
-            width: 6,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
-      bytes.addAll(generator.hr());
-
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Kembalian',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text: formatPrice(orderDetail.changeAmount).toString(),
-            width: 6,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
     }
 
     bytes.addAll(generator.hr(ch: '='));
@@ -1485,7 +1608,7 @@ class PrinterService {
         paperSize,
         orderDetail.orderId,
         orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.orderType.name,
         orderDetail.tableNumber,
       ),
     );
@@ -1509,7 +1632,7 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
+            text: item.orderType.shortName,
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
@@ -1587,7 +1710,7 @@ class PrinterService {
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
-              text: '  Catatan: ${item.notes}',
+              text: '  Catatan: ${_sanitize(item.notes)}',
               width: 10,
               styles: const PosStyles(align: PosAlign.left),
             ),
@@ -1604,9 +1727,7 @@ class PrinterService {
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: OrderTypeExtension.orderTypeToShortJson(
-                customItem.orderType,
-              ),
+              text: customItem.orderType.shortName,
               width: 1,
               styles: const PosStyles(
                 align: PosAlign.left,
@@ -1692,7 +1813,7 @@ class PrinterService {
         paperSize,
         orderDetail.orderId,
         orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.orderType.name,
         orderDetail.tableNumber,
       ),
     );
@@ -1714,7 +1835,7 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
+            text: item.orderType.shortName,
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
@@ -1793,7 +1914,7 @@ class PrinterService {
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
-              text: '  Catatan: ${item.notes}',
+              text: '  Catatan: ${_sanitize(item.notes)}',
               width: 10,
               styles: const PosStyles(align: PosAlign.left),
             ),
@@ -1809,9 +1930,7 @@ class PrinterService {
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: OrderTypeExtension.orderTypeToShortJson(
-                customItem.orderType,
-              ),
+              text: customItem.orderType.shortName,
               width: 1,
               styles: const PosStyles(
                 align: PosAlign.left,
@@ -1869,14 +1988,15 @@ class PrinterService {
     // 2. Siapkan konten
     final List<int> bytes = [];
 
-    // Header
+    // Header - Payment Status
+    // ✅ FIXED: Check order status for more accurate paid/unpaid determination
+    final bool isPaid =
+        orderDetail.status.id == 'Completed' ||
+        (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
+
     bytes.addAll(
       generator.text(
-        orderDetail.paymentStatus == null
-            ? 'Pending'
-            : orderDetail.paymentStatus!.toLowerCase() == 'settlement'
-            ? 'Lunas'
-            : 'Belum Lunas',
+        isPaid ? 'Lunas' : 'Belum Lunas',
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
@@ -1931,7 +2051,7 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
+            text: item.orderType.shortName,
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
@@ -1959,9 +2079,7 @@ class PrinterService {
         bytes.addAll(
           generator.row([
             PosColumn(
-              text: OrderTypeExtension.orderTypeToShortJson(
-                customItem.orderType,
-              ),
+              text: customItem.orderType.shortName,
               width: 1,
               styles: const PosStyles(
                 align: PosAlign.left,
@@ -2023,9 +2141,10 @@ class PrinterService {
   ) async {
     final List<int> bytes = [];
     // Footer
+    // ✅ FIXED: Check order status for more accurate paid/unpaid determination
     final bool isLunas =
-        orderDetail.paymentStatus != null &&
-        orderDetail.paymentStatus!.toLowerCase() == 'settlement';
+        orderDetail.status.id == 'Completed' ||
+        (orderDetail.paymentStatus?.toLowerCase() == 'settlement');
 
     bytes.addAll(
       generator.text(
@@ -2142,8 +2261,9 @@ class PrinterService {
 
   static List<(int index, int deltaQty)> _selectDeltasForJob(
     OrderDetailModel od,
-    String jobType,
-  ) {
+    String jobType, {
+    bool onlyVoids = false,
+  }) {
     bool matchWS(String? ws) => switch (jobType) {
       'kitchen' => (ws?.toLowerCase().trim() == 'kitchen'),
       'bar' => (ws?.toLowerCase().trim() == 'bar'),
@@ -2156,15 +2276,21 @@ class PrinterService {
       final it = od.items[i];
       if (!matchWS(it.menuItem.workstation)) continue;
       final delta = (it.quantity - (it.printedQuantity ?? 0));
-      if (delta > 0) out.add((i, delta));
+
+      if (onlyVoids) {
+        if (delta < 0) out.add((i, delta));
+      } else {
+        if (delta > 0) out.add((i, delta));
+      }
     }
     return out;
   }
 
-  static String _batchLabel(OrderDetailModel od) {
-    return (od.printSequence > 0)
-        ? 'Cetak Tambahan #${od.printSequence + 1}'
-        : '';
+  static String _batchLabel(OrderDetailModel od, {bool forceReprint = false}) {
+    if (od.printSequence <= 0) return '';
+    return forceReprint
+        ? 'Cetak Ulang #${od.printSequence + 1}'
+        : 'Cetak Tambahan #${od.printSequence + 1}';
   }
 }
 
@@ -2628,5 +2754,216 @@ class ThermalPrinters {
     }
 
     return bytes;
+  }
+
+  // --- Print Cash Recap ---
+  static Future<bool> printCashRecap({
+    required CashRecapModel recap,
+    required BluetoothPrinterModel printer,
+    required String cashierName,
+    required String deviceName,
+    required String outletName,
+  }) async {
+    try {
+      await PrinterService.disconnectPrinter();
+      await PrinterService.connectPrinter(printer);
+
+      final profile = await CapabilityProfile.load();
+      PaperSize paperSize;
+      if (printer.paperSize == 'mm58') {
+        paperSize = PaperSize.mm58;
+      } else if (printer.paperSize == 'mm80') {
+        paperSize = PaperSize.mm80;
+      } else {
+        paperSize = PaperSize.mm72;
+      }
+      final generator = Generator(paperSize, profile);
+      final List<int> bytes = [];
+
+      // Bytes generation
+      // 1. Header
+      try {
+        bytes.addAll(
+          await PrinterService.generateOptimizedLogoBytes(
+            generator,
+            'assets/logo/logo_baraja.png',
+            paperSize,
+          ),
+        );
+      } catch (e) {
+        bytes.addAll(
+          generator.text(
+            'BARAJA COFFEE',
+            styles: const PosStyles(
+              align: PosAlign.center,
+              bold: true,
+              height: PosTextSize.size2,
+              width: PosTextSize.size2,
+            ),
+          ),
+        );
+      }
+
+      bytes.addAll(
+        generator.text(
+          'REKAP KASIR (CASH)',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
+        ),
+      );
+      bytes.addAll(generator.feed(1));
+
+      bytes.addAll(
+        generator.text(
+          'Outlet: $outletName',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(
+        generator.text(
+          'Device: $deviceName',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(
+        generator.text(
+          'Kasir: $cashierName',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      // Helper to force WIB (UTC+7)
+      DateTime toWIB(DateTime d) => d.toUtc().add(const Duration(hours: 7));
+
+      bytes.addAll(
+        generator.text(
+          'Date: ${DateFormat('dd/MM/yyyy HH:mm').format(toWIB(recap.printDate))}',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(generator.feed(1));
+
+      bytes.addAll(generator.hr(ch: '-'));
+
+      // 2. Period
+      bytes.addAll(
+        generator.text('Periode:', styles: const PosStyles(bold: true)),
+      );
+      bytes.addAll(
+        generator.text(
+          '${DateFormat('dd/MM HH:mm').format(toWIB(recap.startDate))} - ${DateFormat('dd/MM HH:mm').format(toWIB(recap.endDate))}',
+        ),
+      );
+      bytes.addAll(generator.hr(ch: '-'));
+
+      // 3. Orders List
+      bytes.addAll(
+        generator.row([
+          PosColumn(text: 'Jam', width: 3, styles: const PosStyles(bold: true)),
+          PosColumn(text: 'ID', width: 5, styles: const PosStyles(bold: true)),
+          PosColumn(
+            text: 'Total',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right, bold: true),
+          ),
+        ]),
+      );
+      bytes.addAll(generator.hr(ch: '.'));
+
+      for (var order in recap.orders) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(text: order.time, width: 3),
+            PosColumn(
+              text:
+                  order.id.length > 5
+                      ? '..${order.id.substring(order.id.length - 5)}'
+                      : order.id,
+              width: 5,
+            ), // Shorten ID
+            PosColumn(
+              text: formatRupiah(order.amount.toInt()),
+              width: 4,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+      }
+
+      bytes.addAll(generator.hr(ch: '-'));
+
+      // 4. Summary
+      bytes.addAll(
+        generator.row([
+          PosColumn(text: 'Total Order:', width: 6),
+          PosColumn(
+            text: '${recap.orderCount}',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right, bold: true),
+          ),
+        ]),
+      );
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'TOTAL CASH:',
+            width: 5,
+            styles: const PosStyles(
+              height: PosTextSize.size1,
+              width: PosTextSize.size1,
+              bold: true,
+            ),
+          ),
+          PosColumn(
+            text: formatRupiah(recap.totalCash.toInt()),
+            width: 7,
+            styles: const PosStyles(
+              align: PosAlign.right,
+              height: PosTextSize.size1,
+              width: PosTextSize.size1,
+              bold: true,
+            ),
+          ),
+        ]),
+      );
+
+      bytes.addAll(generator.feed(2));
+
+      // Penyesuaian section
+      bytes.addAll(generator.hr(ch: '-'));
+      bytes.addAll(
+        generator.text('Penyesuaian:', styles: const PosStyles(bold: true)),
+      );
+      // 6 blank lines for handwritten notes
+      bytes.addAll(generator.feed(6));
+      bytes.addAll(generator.hr(ch: '-'));
+
+      bytes.addAll(generator.feed(1));
+      bytes.addAll(
+        generator.text(
+          '( Tanda Tangan )',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+      bytes.addAll(generator.feed(3));
+      bytes.addAll(generator.cut());
+
+      // Print
+      final result = await PrintBluetoothThermal.writeBytes(
+        bytes,
+      ).then((_) => true).catchError((_) => false);
+
+      return result;
+    } catch (e) {
+      AppLogger.error('Failed to print cash recap', error: e);
+      return false;
+    } finally {
+      await Future.delayed(const Duration(seconds: 1));
+      await PrinterService.disconnectPrinter();
+    }
   }
 }

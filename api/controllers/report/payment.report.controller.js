@@ -56,8 +56,8 @@ export const generateSalesReport = async (req, res) => {
           totalSales: { $sum: '$grandTotal' },
           totalSalesWithoutTax: { $sum: { $ifNull: ['$totalAfterDiscount', '$grandTotal'] } },
           totalTransactions: { $sum: 1 },
-          totalTax: { $sum: '$tax' },
-          totalServiceFee: { $sum: '$serviceCharge' },
+          totalTax: { $sum: '$totalTax' },
+          totalServiceFee: { $sum: '$totalServiceFee' },
           totalItems: { $sum: { $size: '$items' } },
           avgOrderValue: { $avg: '$grandTotal' },
           avgOrderValueWithoutTax: { $avg: { $ifNull: ['$totalAfterDiscount', '$grandTotal'] } },
@@ -68,14 +68,13 @@ export const generateSalesReport = async (req, res) => {
           singlePaymentOrders: {
             $sum: { $cond: ['$isSplitPayment', 0, 1] }
           },
-          // ✅ TAMBAHAN: Kumpulkan order_id untuk validasi
           orderIds: { $addToSet: '$order_id' }
         }
       }
     ];
 
     // ============================================
-    // PAYMENT METHOD BREAKDOWN - FIXED VERSION
+    // PAYMENT METHOD BREAKDOWN - FIXED VERSION (WITH NULL)
     // ============================================
     const paymentBreakdownPipeline = [
       { $match: filter },
@@ -89,7 +88,7 @@ export const generateSalesReport = async (req, res) => {
       },
       {
         $addFields: {
-          // Get main payment method - hanya payment yang valid
+          // Get main payment method - termasuk yang null dengan fallback ke method
           mainPaymentMethod: {
             $let: {
               vars: {
@@ -107,27 +106,37 @@ export const generateSalesReport = async (req, res) => {
                 }
               },
               in: {
-                $arrayElemAt: [
-                  {
-                    $map: {
-                      input: '$$validPayments',
-                      as: 'p',
-                      in: '$$p.method_type'
+                $cond: {
+                  if: { $gt: [{ $size: '$$validPayments' }, 0] },
+                  then: {
+                    // ✅ PERBAIKAN: Fallback ke 'method' jika 'method_type' null
+                    $let: {
+                      vars: {
+                        firstPayment: { $arrayElemAt: ['$$validPayments', 0] }
+                      },
+                      in: {
+                        $ifNull: [
+                          '$$firstPayment.method_type',
+                          '$$firstPayment.method'
+                        ]
+                      }
                     }
                   },
-                  0
-                ]
+                  // Jika tidak ada payment valid, set sebagai null
+                  else: null
+                }
               }
             }
           }
         }
       },
-      {
-        $match: {
-          mainPaymentMethod: { $exists: true, $ne: null }
-        }
-      },
-      // ✅ PERBAIKAN: Group per order_id dulu untuk menghindari duplikasi
+      // ✅ PERBAIKAN: Tidak filter out yang null, biarkan lewat
+      // {
+      //   $match: {
+      //     mainPaymentMethod: { $exists: true, $ne: null }
+      //   }
+      // },
+      // Group per order_id dulu untuk menghindari duplikasi
       {
         $group: {
           _id: '$order_id',
@@ -137,10 +146,10 @@ export const generateSalesReport = async (req, res) => {
           isSplit: { $first: '$isSplitPayment' }
         }
       },
-      // ✅ Kemudian group per payment method
+      // Kemudian group per payment method (termasuk null)
       {
         $group: {
-          _id: '$paymentMethod',
+          _id: { $ifNull: ['$paymentMethod', 'null'] }, // ✅ Convert null to string 'null'
           totalAmountWithTax: { $sum: '$amountWithTax' },
           totalAmountWithoutTax: { $sum: '$amountWithoutTax' },
           transactionCount: { $sum: 1 },
@@ -165,7 +174,7 @@ export const generateSalesReport = async (req, res) => {
     ];
 
     // ============================================
-    // PERIOD BREAKDOWN AGGREGATION
+    // PERIOD BREAKDOWN AGGREGATION (WITH NULL)
     // ============================================
     let dateFormat;
     switch (groupBy) {
@@ -191,23 +200,44 @@ export const generateSalesReport = async (req, res) => {
       },
       {
         $addFields: {
+          // ✅ PERBAIKAN: Tangani case ketika tidak ada payment, dengan fallback ke method
           actualPaymentMethod: {
-            $arrayElemAt: [
-              {
-                $map: {
-                  input: {
-                    $filter: {
-                      input: '$payments',
-                      as: 'payment',
-                      cond: { $in: ['$$payment.status', ['settlement', 'paid', 'partial']] }
+            $cond: {
+              if: { $gt: [{ $size: '$payments' }, 0] },
+              then: {
+                $let: {
+                  vars: {
+                    validPayments: {
+                      $filter: {
+                        input: '$payments',
+                        as: 'payment',
+                        cond: { $in: ['$$payment.status', ['settlement', 'paid', 'partial']] }
+                      }
                     }
                   },
-                  as: 'p',
-                  in: '$$p.method_type'
+                  in: {
+                    $cond: {
+                      if: { $gt: [{ $size: '$$validPayments' }, 0] },
+                      then: {
+                        $let: {
+                          vars: {
+                            firstPayment: { $arrayElemAt: ['$$validPayments', 0] }
+                          },
+                          in: {
+                            $ifNull: [
+                              '$$firstPayment.method_type',
+                              '$$firstPayment.method'
+                            ]
+                          }
+                        }
+                      },
+                      else: null
+                    }
+                  }
                 }
               },
-              0
-            ]
+              else: null
+            }
           }
         }
       },
@@ -237,7 +267,7 @@ export const generateSalesReport = async (req, res) => {
           },
           paymentMethods: {
             $push: {
-              method: '$actualPaymentMethod',
+              method: { $ifNull: ['$actualPaymentMethod', 'null'] }, // ✅ Handle null
               amountWithTax: '$grandTotal',
               amountWithoutTax: { $ifNull: ['$totalAfterDiscount', '$grandTotal'] },
               isSplit: '$isSplitPayment'
@@ -334,7 +364,8 @@ export const generateSalesReport = async (req, res) => {
                 }
               },
               as: 'payment',
-              in: '$$payment.method_type'
+              // ✅ PERBAIKAN: Fallback ke method jika method_type null
+              in: { $ifNull: ['$$payment.method_type', '$$payment.method'] }
             }
           },
           paymentMethodsCombined: {
@@ -349,7 +380,8 @@ export const generateSalesReport = async (req, res) => {
                     }
                   },
                   as: 'payment',
-                  in: '$$payment.method_type'
+                  // ✅ PERBAIKAN: Fallback ke method jika method_type null
+                  in: { $ifNull: ['$$payment.method_type', '$$payment.method'] }
                 }
               },
               initialValue: '',
@@ -357,7 +389,7 @@ export const generateSalesReport = async (req, res) => {
                 $concat: [
                   '$$value',
                   { $cond: [{ $eq: ['$$value', ''] }, '', ' + '] },
-                  '$$this'
+                  { $ifNull: ['$$this', 'Unknown'] }
                 ]
               }
             }
@@ -411,11 +443,11 @@ export const generateSalesReport = async (req, res) => {
       orderIds: []
     };
 
-    // ✅ VALIDASI: Bandingkan total dari payment breakdown dengan summary
+    // Validasi: Bandingkan total dari payment breakdown dengan summary
     const totalPaymentAmount = paymentBreakdown.reduce((sum, pm) => sum + pm.totalAmount, 0);
     const expectedTotal = shouldIncludeTax ? summary.totalSales : summary.totalSalesWithoutTax;
 
-    // ✅ Log untuk debugging (bisa dihapus di production)
+    // Log untuk debugging
     console.log('Validation Check:');
     console.log('Summary Total:', expectedTotal);
     console.log('Payment Breakdown Total:', totalPaymentAmount);
@@ -423,30 +455,41 @@ export const generateSalesReport = async (req, res) => {
     console.log('Total Orders in Summary:', summary.totalTransactions);
     console.log('Total Orders in Payment Breakdown:', paymentBreakdown.reduce((sum, pm) => sum + pm.orderCount, 0));
 
-    // Format payment method
-    const paymentMethodData = paymentBreakdown.map(item => ({
-      method: item._id || 'Unknown',
-      displayName: item._id || 'Unknown',
-      originalMethod: item._id || 'Unknown',
+    // ✅ Merge payment methods yang memiliki nama sama setelah normalisasi
+    const mergedPaymentBreakdown = mergeNormalizedPaymentMethods(paymentBreakdown);
+
+    // Recalculate total after merge
+    const totalPaymentAmountAfterMerge = mergedPaymentBreakdown.reduce((sum, pm) => sum + pm.totalAmount, 0);
+
+    // ✅ Format payment method (termasuk null) dengan nama yang sudah dinormalisasi
+    const paymentMethodData = mergedPaymentBreakdown.map(item => ({
+      method: item._id === 'null' ? null : item._id,
+      displayName: item._id === 'null' ? 'Pembayaran Tidak Terdeteksi / Null' : item._id,
+      originalMethod: item._id === 'null' ? null : item._id,
+      originalNames: item.originalNames || [item._id], // Track original names before merge
       totalAmount: item.totalAmount,
       amount: item.totalAmount,
       transactionCount: item.transactionCount,
       count: item.transactionCount,
       orderCount: item.orderCount,
       orderIds: item.orderIds || [],
-      splitPaymentCount: item.splitPaymentCount || 0,
-      singlePaymentCount: item.singlePaymentCount || 0,
+      splitPaymentCount: item.splitPaymentCount || item.splitCount || 0,
+      singlePaymentCount: item.singlePaymentCount || (item.transactionCount - (item.splitCount || 0)),
       averageTransaction: item.transactionCount > 0 ? item.totalAmount / item.transactionCount : 0,
-      percentageOfTotal: totalPaymentAmount > 0 ? (item.totalAmount / totalPaymentAmount * 100) : 0,
-      percentage: totalPaymentAmount > 0 ? ((item.totalAmount / totalPaymentAmount * 100).toFixed(2)) : '0.00',
+      percentageOfTotal: totalPaymentAmountAfterMerge > 0 ? (item.totalAmount / totalPaymentAmountAfterMerge * 100) : 0,
+      percentage: totalPaymentAmountAfterMerge > 0 ? ((item.totalAmount / totalPaymentAmountAfterMerge * 100).toFixed(2)) : '0.00',
       breakdown: []
-    }));
+    })).sort((a, b) => b.totalAmount - a.totalAmount); // Sort by amount descending
 
     // Format period breakdown
     const periodBreakdownData = periodBreakdown.map(p => {
       const methodMap = new Map();
       p.paymentMethods.forEach(pm => {
-        const method = pm.method || 'Unknown';
+        // ✅ Normalisasi nama payment method
+        let rawMethod = pm.method === 'null' ? 'Pembayaran Tidak Terdeteksi / Null' : (pm.method || 'Unknown');
+        const method = rawMethod === 'Pembayaran Tidak Terdeteksi / Null'
+          ? rawMethod
+          : normalizePaymentMethodName(rawMethod);
         const amount = shouldIncludeTax ? pm.amountWithTax : pm.amountWithoutTax;
 
         if (!methodMap.has(method)) {
@@ -543,12 +586,11 @@ export const generateSalesReport = async (req, res) => {
       itemSales: itemSalesData,
       periodBreakdown: periodBreakdownData,
       rawDataCount: summary.totalTransactions,
-      // ✅ TAMBAHAN: Data validasi
       validation: {
         summaryTotal: expectedTotal,
         paymentBreakdownTotal: totalPaymentAmount,
         difference: Math.abs(expectedTotal - totalPaymentAmount),
-        isMatched: Math.abs(expectedTotal - totalPaymentAmount) < 1 // toleransi 1 rupiah untuk rounding
+        isMatched: Math.abs(expectedTotal - totalPaymentAmount) < 1
       }
     };
 
@@ -905,11 +947,17 @@ const generateItemSalesBreakdown = (orders) => {
 
 // Normalize payment method for reporting
 const normalizePaymentMethodForReport = (method) => {
+  if (!method) return 'Unknown';
   const methodLower = method.toLowerCase();
 
-  switch (methodLower) {
-    case 'cash':
+  if (methodLower.includes('cash')) {
+    const cleaned = methodLower.replace(/\s+/g, '');
+    if (cleaned === 'cash' || cleaned === 'cashcash') {
       return 'Cash';
+    }
+  }
+
+  switch (methodLower) {
     case 'qris':
       return 'QRIS';
     case 'debit':
@@ -929,6 +977,122 @@ const normalizePaymentMethodForReport = (method) => {
     default:
       return method.charAt(0).toUpperCase() + method.slice(1).toLowerCase();
   }
+};
+
+// ============================================
+// NORMALISASI NAMA METODE PEMBAYARAN
+// Hanya merge jika ada payment method + bank yang terbalik urutannya
+// Contoh: "BRI QRIS" dan "QRIS BRI" → digabung menjadi "QRIS BRI"
+// Entry lain seperti "BCA (PT SCN)" tetap ditampilkan apa adanya
+// ============================================
+const normalizePaymentMethodName = (methodName) => {
+  if (!methodName || methodName === 'null' || methodName === null) {
+    return methodName;
+  }
+
+  const name = methodName.trim();
+  const nameUpper = name.toUpperCase();
+
+  // Kasus khusus: Cash tetap Cash (termasuk variasi seperti "cash cash")
+  if (nameUpper.includes('CASH')) {
+    const cleaned = nameUpper.replace(/\s+/g, '');
+    if (cleaned === 'CASH' || cleaned === 'CASHCASH') {
+      return 'Cash';
+    }
+  }
+
+  // Daftar metode pembayaran yang dikenali (urut prioritas)
+  const paymentMethods = [
+    { key: 'QRIS', display: 'QRIS' },
+    { key: 'BANK TRANSFER', display: 'Bank Transfer' },
+    { key: 'DEBIT', display: 'Debit' },
+    { key: 'CREDIT', display: 'Credit' },
+    { key: 'E-WALLET', display: 'E-Wallet' },
+    { key: 'EWALLET', display: 'E-Wallet' }
+  ];
+
+  // Daftar bank/provider yang dikenali
+  const banks = [
+    { key: 'BRI', display: 'BRI' },
+    { key: 'BCA', display: 'BCA' },
+    { key: 'BNI', display: 'BNI' },
+    { key: 'MANDIRI', display: 'Mandiri' },
+    { key: 'CIMB', display: 'CIMB' },
+    { key: 'PERMATA', display: 'Permata' },
+    { key: 'BSI', display: 'BSI' },
+    { key: 'DANAMON', display: 'Danamon' },
+    { key: 'GOPAY', display: 'GoPay' },
+    { key: 'OVO', display: 'OVO' },
+    { key: 'DANA', display: 'Dana' },
+    { key: 'SHOPEEPAY', display: 'ShopeePay' },
+    { key: 'LINKAJA', display: 'LinkAja' }
+  ];
+
+  // Cari metode pembayaran dalam string
+  let foundMethod = null;
+  for (const method of paymentMethods) {
+    if (nameUpper.includes(method.key)) {
+      foundMethod = method;
+      break;
+    }
+  }
+
+  // Cari bank/provider dalam string
+  let foundBank = null;
+  for (const bank of banks) {
+    if (nameUpper.includes(bank.key)) {
+      foundBank = bank;
+      break;
+    }
+  }
+
+  // ✅ HANYA normalize jika KEDUA-DUANYA ditemukan (method + bank)
+  // Ini untuk merge kasus seperti "BRI QRIS" dan "QRIS BRI"
+  if (foundMethod && foundBank) {
+    return `${foundMethod.display} ${foundBank.display}`;
+  }
+
+  // ✅ Jika tidak ditemukan keduanya, kembalikan nama asli apa adanya
+  // Contoh: "BCA (PT SCN)", "Transfer", dll tetap ditampilkan asli
+  return name;
+};
+
+// Fungsi untuk merge payment methods yang memiliki nama sama setelah normalisasi
+const mergeNormalizedPaymentMethods = (paymentData) => {
+  const mergedMap = new Map();
+
+  paymentData.forEach(item => {
+    const originalId = item._id;
+    const normalizedName = normalizePaymentMethodName(originalId);
+    const key = normalizedName === null || normalizedName === 'null'
+      ? 'null'
+      : normalizedName;
+
+    if (mergedMap.has(key)) {
+      const existing = mergedMap.get(key);
+      existing.totalAmountWithTax += item.totalAmountWithTax || 0;
+      existing.totalAmountWithoutTax += item.totalAmountWithoutTax || 0;
+      existing.totalAmount += item.totalAmount || 0;
+      existing.transactionCount += item.transactionCount || 0;
+      existing.orderIds = [...(existing.orderIds || []), ...(item.orderIds || [])];
+      existing.splitCount += item.splitCount || 0;
+      existing.orderCount += item.orderCount || 0;
+      existing.originalNames.push(originalId);
+    } else {
+      mergedMap.set(key, {
+        ...item,
+        _id: key,
+        normalizedName: normalizedName,
+        originalNames: [originalId],
+        totalAmountWithTax: item.totalAmountWithTax || 0,
+        totalAmountWithoutTax: item.totalAmountWithoutTax || 0,
+        splitCount: item.splitCount || 0,
+        orderCount: item.orderCount || 0
+      });
+    }
+  });
+
+  return Array.from(mergedMap.values());
 };
 
 // Function getDisplayName untuk generate display name yang lebih deskriptif
@@ -964,151 +1128,194 @@ export const getPaymentDetails = async (req, res) => {
       paymentMethod,
       limit = 50,
       page = 1,
-      includeSplitDetails = false
+      includeTax = 'true'
     } = req.query;
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    const shouldIncludeTax = includeTax === 'true';
+
+    // Parse tanggal dengan timezone +07:00 (WIB)
+    const start = new Date(startDate + 'T00:00:00.000+07:00');
+    const end = new Date(endDate + 'T23:59:59.999+07:00');
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Format tanggal tidak valid'
+      });
+    }
 
     const skip = (page - 1) * limit;
 
-    // Build query untuk orders
-    const orderQuery = {
-      createdAt: { $gte: start, $lte: end },
-      status: { $in: ['Completed'] },
-      ...(outletId && { outlet: new mongoose.Types.ObjectId(outletId) })
+    // 1. Build Base Match Pipeline (Order Filters)
+    const baseMatch = {
+      status: 'Completed',
+      createdAt: { $gte: start, $lte: end }
     };
 
-    const orders = await Order.find(orderQuery)
-      .populate({
-        path: 'items.menuItem',
-        model: 'MenuItem',
-        select: 'name price isActive',
-        options: { allowNull: true }
-      })
-      .populate('outlet', 'name location')
-      .populate('cashierId', 'name username')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
+    if (outletId) {
+      baseMatch.outlet = new mongoose.Types.ObjectId(outletId);
+    }
 
-    // Process orders untuk payment details
-    const processedOrders = orders.map(order => {
-      // Process items
-      const processedItems = order.items.map(item => {
-        const menuItem = item.menuItem;
-
-        if (!menuItem) {
-          return {
-            ...item,
-            menuItem: {
-              _id: null,
-              name: 'Menu Item Deleted',
-              price: item.price || item.subtotal || 0,
-              isActive: false
-            }
-          };
+    // 2. Build Pipeline
+    const pipeline = [
+      { $match: baseMatch },
+      {
+        $lookup: {
+          from: 'payments',
+          localField: 'order_id',
+          foreignField: 'order_id',
+          as: 'paymentRecords'
         }
-
-        return {
-          ...item,
-          menuItem: {
-            _id: menuItem._id,
-            name: menuItem.name || 'Unknown Menu Item',
-            price: menuItem.price || item.price || 0,
-            isActive: menuItem.isActive !== false
+      },
+      {
+        $addFields: {
+          // Logic yang sama dengan generateSalesReport untuk menentukan mainPaymentMethod
+          validPayments: {
+            $filter: {
+              input: '$paymentRecords',
+              as: 'p',
+              cond: {
+                $and: [
+                  { $in: ['$$p.status', ['settlement', 'paid', 'partial']] },
+                  { $ne: ['$$p.isAdjustment', true] }
+                ]
+              }
+            }
           }
-        };
-      });
-
-      // Get payment details
-      let paymentDetails = [];
-
-      if (order.isSplitPayment && order.payments && Array.isArray(order.payments)) {
-        paymentDetails = order.payments.map(payment => ({
-          method: payment.paymentMethod || order.paymentMethod || 'Cash',
-          displayName: getDisplayName(
-            payment.paymentMethod || order.paymentMethod || 'Cash',
-            payment.va_numbers || [],
-            payment.actions || []
-          ),
-          amount: payment.amount || 0,
-          status: payment.status || 'completed',
-          isSplitPayment: true,
-          tenderedAmount: payment.paymentDetails?.cashTendered || payment.amount || 0,
-          changeAmount: payment.paymentDetails?.change || 0,
-          processedAt: payment.processedAt || order.createdAt
-        }));
-      } else {
-        paymentDetails = [{
-          method: order.paymentMethod || 'Cash',
-          displayName: getDisplayName(
-            order.paymentMethod || 'Cash',
-            order.payments?.[0]?.va_numbers || [],
-            order.payments?.[0]?.actions || []
-          ),
-          amount: order.grandTotal || 0,
-          status: 'completed',
-          isSplitPayment: false,
-          tenderedAmount: order.payments?.[0]?.paymentDetails?.cashTendered || order.grandTotal || 0,
-          changeAmount: order.payments?.[0]?.paymentDetails?.change || 0,
-          processedAt: order.createdAt
-        }];
+        }
+      },
+      {
+        $addFields: {
+          firstPayment: { $arrayElemAt: ['$validPayments', 0] }
+        }
+      },
+      {
+        $addFields: {
+          mainPaymentMethod: {
+            $ifNull: ['$firstPayment.method_type', '$firstPayment.method']
+          }
+        }
       }
+    ];
 
-      // Filter by payment method if specified
-      const filteredPaymentDetails = paymentMethod && paymentMethod !== 'all' ?
-        paymentDetails.filter(p => p.method.toLowerCase().includes(paymentMethod.toLowerCase())) :
-        paymentDetails;
+    // 3. Filter by Payment Method if provided
+    if (paymentMethod && paymentMethod !== 'all') {
+      if (paymentMethod === 'null' || paymentMethod === 'null') {
+        pipeline.push({
+          $match: {
+            mainPaymentMethod: { $in: [null, undefined] }
+          }
+        });
+      } else {
+        pipeline.push({
+          $match: {
+            mainPaymentMethod: { $regex: paymentMethod, $options: 'i' }
+          }
+        });
+      }
+    }
 
-      const totalPaid = filteredPaymentDetails.reduce((sum, p) => sum + p.amount, 0);
-
-      return {
-        order_id: order.order_id,
-        createdAt: order.createdAt,
-        user: order.user || 'Customer',
-        tableNumber: order.tableNumber || '-',
-        orderType: order.orderType || 'Dine-In',
-        outlet: order.outlet || {},
-        cashier: order.cashierId || {},
-        grandTotal: order.grandTotal || 0,
-        totalPaid: totalPaid,
-        hasSplitPayment: order.isSplitPayment || false,
-        paymentDetails: filteredPaymentDetails,
-        items: processedItems.map(item => ({
-          name: item.menuItem.name,
-          price: item.menuItem.price,
-          quantity: item.quantity,
-          subtotal: item.subtotal,
-          isActive: item.menuItem.isActive
-        }))
-      };
+    // 4. Enrich data and Pagination via $facet
+    pipeline.push({
+      $facet: {
+        metadata: [
+          { $count: 'total' },
+          { $addFields: { page: parseInt(page), limit: parseInt(limit) } }
+        ],
+        data: [
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: parseInt(limit) },
+          // Lookup and project needed fields
+          {
+            $lookup: {
+              from: 'outlets',
+              localField: 'outlet',
+              foreignField: '_id',
+              as: 'outletInfo'
+            }
+          },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'cashierId',
+              foreignField: '_id',
+              as: 'cashierInfo'
+            }
+          },
+          {
+            $project: {
+              order_id: 1,
+              createdAt: 1,
+              grandTotal: 1,
+              tax: { $ifNull: ['$totalTax', 0] },
+              serviceCharge: { $ifNull: ['$totalServiceFee', 0] },
+              discount: { $ifNull: ['$discount', 0] },
+              totalAfterDiscount: { $ifNull: ['$totalAfterDiscount', '$grandTotal'] },
+              subtotal: { $ifNull: ['$totalBeforeDiscount', 0] },
+              outlet: { $arrayElemAt: ['$outletInfo', 0] },
+              cashier: { $arrayElemAt: ['$cashierInfo', 0] },
+              mainPaymentMethod: 1,
+              issuer: { $ifNull: ['$firstPayment.bankName', { $ifNull: ['$firstPayment.ewalletProvider', ''] }] },
+              acquirer: { $ifNull: ['$firstPayment.acquirer', ''] },
+              paymentDetails: {
+                $map: {
+                  input: '$validPayments',
+                  as: 'pm',
+                  in: {
+                    method: { $ifNull: ['$$pm.method_type', '$$pm.method'] },
+                    amount: '$$pm.amount',
+                    issuer: { $ifNull: ['$$pm.bankName', { $ifNull: ['$$pm.ewalletProvider', ''] }] },
+                    acquirer: { $ifNull: ['$$pm.acquirer', ''] }
+                  }
+                }
+              },
+              isSplitPayment: 1,
+              itemsCount: { $size: { $ifNull: ['$items', []] } }
+            }
+          }
+        ]
+      }
     });
 
-    // Filter out orders with no matching payment method
-    const filteredOrders = paymentMethod && paymentMethod !== 'all' ?
-      processedOrders.filter(o => o.paymentDetails.length > 0) :
-      processedOrders;
+    const result = await Order.aggregate(pipeline).allowDiskUse(true);
+    const data = result[0].data;
+    const metadata = result[0].metadata[0] || { total: 0, page: parseInt(page), limit: parseInt(limit) };
 
-    const total = await Order.countDocuments(orderQuery);
+    const processedOrders = data.map(o => ({
+      order_id: o.order_id,
+      createdAt: o.createdAt,
+      outlet: { name: o.outlet?.name || '-' },
+      cashier: { name: o.cashier?.name || '-' },
+      itemsCount: o.itemsCount,
+      subtotal: o.subtotal,
+      tax: shouldIncludeTax ? o.tax : 0,
+      serviceCharge: shouldIncludeTax ? o.serviceCharge : 0,
+      discount: o.discount,
+      total: shouldIncludeTax ? o.grandTotal : o.totalAfterDiscount,
+      paymentMethod: normalizePaymentMethodName(o.mainPaymentMethod),
+      issuer: o.issuer,
+      acquirer: o.acquirer,
+      paymentDetails: o.paymentDetails,
+      isSplitPayment: o.isSplitPayment,
+      status: 'Completed'
+    }));
 
     return res.status(200).json({
       success: true,
       data: {
-        payments: filteredOrders,
+        payments: processedOrders,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit)
+          page: metadata.page,
+          limit: metadata.limit,
+          total: metadata.total,
+          pages: Math.ceil(metadata.total / metadata.limit)
         },
         summary: {
-          totalOrders: filteredOrders.length,
-          totalRevenue: filteredOrders.reduce((sum, o) => sum + o.totalPaid, 0),
-          splitPaymentOrders: filteredOrders.filter(o => o.hasSplitPayment).length,
-          singlePaymentOrders: filteredOrders.filter(o => !o.hasSplitPayment).length
+          totalOrders: metadata.total,
+          totalRevenue: processedOrders.reduce((sum, o) => sum + o.total, 0),
+          totalTax: processedOrders.reduce((sum, o) => sum + o.tax, 0),
+          totalServiceFee: processedOrders.reduce((sum, o) => sum + o.serviceCharge, 0)
         }
       }
     });

@@ -7,13 +7,15 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
+import 'package:kasirbaraja/models/custom_discount.model.dart';
+import 'package:kasirbaraja/screens/orders/order_details/custom_discount_dialog.dart';
 
 class AddOrderItemDialog extends ConsumerStatefulWidget {
   final OrderItemModel orderItem;
   final Function(OrderItemModel) onAddOrder;
   final VoidCallback onClose;
-  final OrderType? orderType;
+  final OrderTypeModel? orderType;
 
   const AddOrderItemDialog({
     super.key,
@@ -33,7 +35,8 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
   selectedAddonOptionIdByAddonId; // addonId -> optionId
   late int quantity;
   late String note;
-  late OrderType selectedOrderType;
+  late OrderTypeModel selectedOrderType;
+  CustomDiscountModel? customDiscount;
 
   @override
   void initState() {
@@ -53,7 +56,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
 
     quantity = widget.orderItem.quantity;
     note = widget.orderItem.notes ?? '';
-    selectedOrderType = widget.orderType ?? OrderType.dineIn;
+    selectedOrderType = widget.orderType ?? OrderTypeModel.dineIn;
   }
 
   @override
@@ -212,6 +215,76 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () => _showDiscountDialog(menuItem),
+                            borderRadius: BorderRadius.circular(4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    customDiscount != null
+                                        ? Colors.green[50]
+                                        : Colors.grey[100],
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color:
+                                      customDiscount != null
+                                          ? const Color(0xFF4CAF50)
+                                          : Colors.grey[300]!,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.discount_outlined,
+                                    size: 14,
+                                    color:
+                                        customDiscount != null
+                                            ? Colors.green[700]
+                                            : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      customDiscount != null
+                                          ? '${customDiscount!.discountType == 'percentage' ? '${customDiscount!.discountValue}% ' : ''}-${formatRupiah(customDiscount!.discountAmount)}'
+                                          : 'Diskon',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color:
+                                            customDiscount != null
+                                                ? Colors.green[700]
+                                                : Colors.grey[600],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (customDiscount != null) ...[
+                                    const SizedBox(width: 4),
+                                    InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          customDiscount = null;
+                                        });
+                                      },
+                                      child: const Icon(
+                                        Icons.close,
+                                        size: 14,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -251,7 +324,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
                       icon: Icons.remove,
                       onPressed:
                           quantity > 1
-                              ? () => setState(() => quantity--)
+                              ? () => _updateQuantity(quantity - 1)
                               : null,
                     ),
                     Padding(
@@ -283,7 +356,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
                     ),
                     _buildQuantityButton(
                       icon: Icons.add,
-                      onPressed: () => setState(() => quantity++),
+                      onPressed: () => _updateQuantity(quantity + 1),
                     ),
                   ],
                 ),
@@ -384,7 +457,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
         final parsed = int.tryParse(raw) ?? quantity;
         final sanitized = parsed.clamp(1, 9999); // batas atas opsional
         HapticFeedback.lightImpact();
-        setState(() => quantity = sanitized);
+        _updateQuantity(sanitized);
       }
       controller.dispose();
       focusNode.dispose();
@@ -584,6 +657,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
             } else {
               selectedToppingIds.add(id);
             }
+            _recalculateDiscount();
           });
         },
       ),
@@ -674,6 +748,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
           HapticFeedback.lightImpact();
           setState(() {
             selectedAddonOptionIdByAddonId[addonId] = val;
+            _recalculateDiscount();
           });
         },
       ),
@@ -763,6 +838,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
       selectedAddons: selectedAddons,
       notes: note.isEmpty ? null : note,
       orderType: selectedOrderType,
+      customDiscount: customDiscount,
     );
 
     AppLogger.debug('OrderItem orderType: ${edited.orderType}');
@@ -870,25 +946,25 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
           ),
           const SizedBox(height: 8),
           Center(
-            child: SegmentedButton<OrderType>(
+            child: SegmentedButton<OrderTypeModel>(
               segments: [
-                ButtonSegment<OrderType>(
-                  value: OrderType.dineIn,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.dineIn,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.dineIn),
+                    OrderTypeModel.dineIn.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
-                ButtonSegment<OrderType>(
-                  value: OrderType.takeAway,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.takeAway,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.takeAway),
+                    OrderTypeModel.takeAway.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
               ],
-              selected: {selectedOrderType ?? OrderType.dineIn},
-              onSelectionChanged: (Set<OrderType> newSelection) {
+              selected: {selectedOrderType},
+              onSelectionChanged: (Set<OrderTypeModel> newSelection) {
                 setState(() {
                   selectedOrderType = newSelection.first;
                 });
@@ -902,23 +978,6 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
     );
   }
 
-  String _getShortOrderTypeLabel(OrderType orderType) {
-    switch (orderType) {
-      case OrderType.dineIn:
-        return 'Dine-In';
-      case OrderType.pickup:
-        return 'Pickup';
-      case OrderType.delivery:
-        return 'Delivery';
-      case OrderType.takeAway:
-        return 'Take Away';
-      case OrderType.reservation:
-        return 'Reservation';
-      default:
-        return 'Unknown';
-    }
-  }
-
   Widget _notesAndTypeSection() {
     return Row(
       spacing: 16,
@@ -928,9 +987,103 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
       ],
     );
   }
+
+  // ---------- Discount & Quantity Helpers ----------
+
+  void _updateQuantity(int newQuantity) {
+    if (newQuantity < 1) return;
+
+    setState(() {
+      quantity = newQuantity;
+      _recalculateDiscount();
+    });
+  }
+
+  void _recalculateDiscount() {
+    if (customDiscount == null || !customDiscount!.isActive) return;
+
+    // Only recalculate amount for percentage discount
+    if (customDiscount!.discountType == 'percentage') {
+      final unitPrice = _calculateUnitBasePrice();
+      final currentSubtotal = unitPrice * quantity;
+
+      final newDiscountAmount =
+          (currentSubtotal * customDiscount!.discountValue / 100).round();
+
+      customDiscount = customDiscount!.copyWith(
+        discountAmount: newDiscountAmount,
+      );
+    }
+  }
+
+  int _calculateUnitBasePrice() {
+    final menuItem = widget.orderItem.menuItem;
+    final double basePrice = (menuItem.originalPrice ?? 0).toDouble();
+
+    // Hitung total toppings
+    double toppingTotal = 0;
+    final allToppings = menuItem.toppings ?? const [];
+    for (final t in allToppings) {
+      if (selectedToppingIds.contains(t.id)) {
+        toppingTotal += t.price ?? 0;
+      }
+    }
+
+    // Hitung total addons
+    double addonTotal = 0;
+    final allAddons = menuItem.addons ?? const [];
+    for (final addon in allAddons) {
+      final addonId = addon.id ?? '';
+      final selectedOptionId = selectedAddonOptionIdByAddonId[addonId];
+      if (selectedOptionId != null) {
+        final option = (addon.options ?? const <AddonOptionModel>[]).firstWhere(
+          (o) => o.id == selectedOptionId,
+          orElse: () => AddonOptionModel(id: '', label: '', price: 0),
+        );
+        addonTotal += option.price ?? 0;
+      }
+    }
+
+    return (basePrice + toppingTotal + addonTotal).toInt();
+  }
+
+  void _showDiscountDialog(dynamic menuItem) {
+    final unitPrice = _calculateUnitBasePrice();
+    final currentSubtotal = unitPrice * quantity;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => CustomDiscountDialog(
+            title: 'Diskon Item',
+            itemSubtotal: currentSubtotal.toInt(),
+            initialDiscountType: customDiscount?.discountType,
+            initialDiscountValue: customDiscount?.discountValue,
+            initialReason: customDiscount?.reason,
+            onApply: (type, value, reason) {
+              final discountAmount =
+                  type == 'percentage'
+                      ? (currentSubtotal * value / 100).round()
+                      : value;
+
+              setState(() {
+                customDiscount = CustomDiscountModel(
+                  isActive: true,
+                  discountType: type,
+                  discountValue: value,
+                  discountAmount: discountAmount,
+                  reason: reason,
+                  appliedAt: DateTime.now(),
+                );
+              });
+            },
+          ),
+    );
+  }
 }
 
 // ---------- Small helpers ----------
+
 class _SectionCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;

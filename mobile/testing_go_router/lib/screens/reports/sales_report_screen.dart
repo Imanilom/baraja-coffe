@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/report/order_detail_report.model.dart';
 import 'package:kasirbaraja/models/report/performance_report.model.dart';
 import 'package:kasirbaraja/providers/sales_report_provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+
+import 'package:kasirbaraja/services/printer_service.dart';
+import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/screens/orders/order_histories/widgets/order_list_widget.dart';
+import 'package:kasirbaraja/screens/orders/order_histories/widgets/order_detail_widget.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
 
 class SalesReportScreen extends ConsumerStatefulWidget {
   const SalesReportScreen({super.key});
@@ -21,6 +29,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
     startDate: DateTime.now().subtract(const Duration(days: 7)),
     endDate: DateTime.now(),
   );
+  OrderDetailModel? _selectedOrder;
 
   @override
   void initState() {
@@ -60,33 +69,43 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
             onSelected: _handleMenuSelection,
             itemBuilder:
                 (context) => [
+                  // const PopupMenuItem(
+                  //   value: 'export_csv',
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.download),
+                  //       SizedBox(width: 8),
+                  //       Text('Export CSV'),
+                  //     ],
+                  //   ),
+                  // ),
+                  // const PopupMenuItem(
+                  //   value: 'export_pdf',
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.picture_as_pdf),
+                  //       SizedBox(width: 8),
+                  //       Text('Export PDF'),
+                  //     ],
+                  //   ),
+                  // ),
+                  // const PopupMenuItem(
+                  //   value: 'print',
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.print),
+                  //       SizedBox(width: 8),
+                  //       Text('Print'),
+                  //     ],
+                  //   ),
+                  // ),
                   const PopupMenuItem(
-                    value: 'export_csv',
+                    value: 'print_cash_recap',
                     child: Row(
                       children: [
-                        Icon(Icons.download),
+                        Icon(Icons.receipt_long),
                         SizedBox(width: 8),
-                        Text('Export CSV'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'export_pdf',
-                    child: Row(
-                      children: [
-                        Icon(Icons.picture_as_pdf),
-                        SizedBox(width: 8),
-                        Text('Export PDF'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'print',
-                    child: Row(
-                      children: [
-                        Icon(Icons.print),
-                        SizedBox(width: 8),
-                        Text('Print'),
+                        Text('Print Rekap Kasir'),
                       ],
                     ),
                   ),
@@ -653,12 +672,49 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
         // Header dengan info pagination
         _buildDetailHeader(orderState.pagination),
 
-        // Table atau List
+        // Split View: List & Detail
         Expanded(
-          child:
-              orderState.orders.isEmpty
-                  ? _buildEmptyState()
-                  : _buildOrderTable(ref, orderState),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Left: Order List
+              Expanded(
+                flex: 4,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border(right: BorderSide(color: Colors.grey[300]!)),
+                  ),
+                  child: OrderListWidget(
+                    orders: orderState.orders,
+                    selectedOrder: _selectedOrder,
+                    onSelect: (order) {
+                      setState(() {
+                        _selectedOrder = order;
+                      });
+                    },
+                    onRefresh: () => ref.invalidate(orderDetailReportProvider),
+                  ),
+                ),
+              ),
+
+              // Right: Order Detail
+              Expanded(
+                flex: 6,
+                child: Container(
+                  color: Colors.white,
+                  child: OrderDetailWidget(
+                    order: _selectedOrder,
+                    onClose: () {
+                      setState(() {
+                        _selectedOrder = null;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
 
         // Loading more indicator
@@ -715,287 +771,6 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildOrderTable(WidgetRef ref, OrderDetailState orderState) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (ScrollNotification scrollInfo) {
-        if (scrollInfo.metrics.pixels == scrollInfo.metrics.maxScrollExtent &&
-            orderState.pagination.hasNext &&
-            !orderState.isLoadingMore) {
-          ref.read(orderDetailReportProvider.notifier).loadMore();
-        }
-        return true;
-      },
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withValues(alpha: 0.1),
-                spreadRadius: 1,
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(Colors.grey[100]),
-              horizontalMargin: 16,
-              columnSpacing: 16,
-              dataRowMaxHeight: 80,
-              columns: const [
-                DataColumn(
-                  label: Text(
-                    'Order ID',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Waktu',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Customer',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Kasir',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Tipe',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Meja',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Pembayaran',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Items',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Status',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Total',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                  numeric: true,
-                ),
-              ],
-              rows:
-                  orderState.orders
-                      .map((order) => _buildDataRow(order))
-                      .toList(),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  DataRow _buildDataRow(Order order) {
-    return DataRow(
-      cells: [
-        // Order ID
-        DataCell(
-          Container(
-            constraints: const BoxConstraints(maxWidth: 120),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                order.orderId,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ),
-
-        // Waktu
-        DataCell(
-          Text(
-            DateFormat('dd/MM\nHH:mm').format(order.createdAt),
-            style: const TextStyle(fontSize: 11),
-            textAlign: TextAlign.center,
-          ),
-        ),
-
-        // Customer
-        DataCell(
-          Container(
-            constraints: const BoxConstraints(maxWidth: 80),
-            child: Text(
-              order.customerName,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ),
-
-        // Kasir
-        DataCell(
-          Container(
-            constraints: const BoxConstraints(maxWidth: 70),
-            child: Text(
-              order.cashier,
-              style: const TextStyle(fontSize: 11),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ),
-
-        // Tipe Order
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: _getOrderTypeColor(order.orderType),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              order.orderType,
-              style: TextStyle(
-                fontSize: 10,
-                color: _getOrderTypeTextColor(order.orderType),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-
-        // Table Number
-        DataCell(
-          Text(
-            order.tableNumber.isEmpty ? '-' : order.tableNumber,
-            style: const TextStyle(fontSize: 11),
-          ),
-        ),
-
-        // Payment Method
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: _getPaymentMethodColor(order.paymentMethod),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              order.paymentMethod,
-              style: TextStyle(
-                fontSize: 10,
-                color: _getPaymentMethodTextColor(order.paymentMethod),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-
-        // Items
-        DataCell(
-          Container(
-            constraints: const BoxConstraints(maxWidth: 120),
-            child: InkWell(
-              onTap: () => _showItemsDialog(order.items),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    order.itemsDisplay,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (order.items.length > 1)
-                    Text(
-                      'Tap to view details',
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: Colors.blue[600],
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-
-        // Status
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: _getStatusColor(order.status),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              order.status,
-              style: TextStyle(
-                fontSize: 10,
-                color: _getStatusTextColor(order.status),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-
-        // Total
-        DataCell(
-          Text(
-            NumberFormat.currency(
-              locale: 'id',
-              symbol: 'Rp ',
-              decimalDigits: 0,
-            ).format(order.pricing.grandTotal),
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Colors.green,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1584,7 +1359,9 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: getCategoryColor(category).withValues(alpha: 0.1),
+                        color: getCategoryColor(
+                          category,
+                        ).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -1620,386 +1397,86 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
     );
   }
 
-  // Tab Performa
-  Widget _buildPerformanceTabs() {
+  Widget _buildPerformanceTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildCashierPerformance(),
-          const SizedBox(height: 16),
-          _buildDailyTrend(),
-        ],
-      ),
-    );
-  }
+          Consumer(
+            builder: (context, ref, child) {
+              final performanceAsync = ref.watch(performanceReportProvider);
 
-  Widget _buildCashierPerformance() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.person, color: Colors.indigo[600]),
-              const SizedBox(width: 8),
-              const Text(
-                'Performa Kasir',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildCashierPerformanceItem(
-            'jilo',
-            '1 transaksi',
-            'Rp 33.000',
-            'Rp 33.000',
-          ),
-          const SizedBox(height: 12),
-          _buildCashierPerformanceItem(
-            'uji',
-            '1 transaksi',
-            'Rp 33.000',
-            'Rp 33.000',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCashierPerformanceItem(
-    String name,
-    String transactions,
-    String total,
-    String average,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: Colors.indigo[100],
-            child: Text(
-              name[0].toUpperCase(),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.indigo[700],
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  transactions,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                total,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-              Text(
-                'Avg: $average',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDailyTrend() {
-    return Container(
-      height: 300,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.timeline, color: Colors.indigo[600]),
-              const SizedBox(width: 8),
-              const Text(
-                'Tren Penjualan Harian',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.show_chart, size: 64, color: Colors.grey[300]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Grafik Tren Penjualan',
-                    style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Gunakan library fl_chart untuk\nmenampilkan grafik interaktif',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPerformanceTab() {
-    return Consumer(
-      builder: (context, ref, child) {
-        final performanceAsync = ref.watch(performanceReportProvider);
-
-        return performanceAsync.when(
-          data: (performanceResponse) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildCashierPerformanceFromAPI(
-                    performanceResponse.data.cashierPerformance,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildDailyTrendFromAPI(
+              return performanceAsync.when(
+                data: (performanceResponse) {
+                  return _buildDailyTrendFromAPI(
                     performanceResponse.data.dailyPerformanceTrend,
-                  ),
-                ],
-              ),
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error:
-              (error, stackTrace) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error memuat data performa',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.red[600],
-                        fontWeight: FontWeight.w600,
+                  );
+                },
+                loading:
+                    () => Container(
+                      height: 350,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                error:
+                    (error, stackTrace) => Container(
+                      height: 350,
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red[200]!),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error memuat data performa',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.red[600],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            error.toString(),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.red[500],
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed:
+                                () => ref.refresh(performanceReportProvider),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[600],
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Coba Lagi'),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      error.toString(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: Colors.red[500]),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => ref.refresh(performanceReportProvider),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[600],
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Coba Lagi'),
-                    ),
-                  ],
-                ),
-              ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCashierPerformanceFromAPI(
-    List<CashierPerformanceData> cashierPerformances,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.person, color: Colors.indigo[600]),
-              const SizedBox(width: 8),
-              const Text(
-                'Performa Kasir',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
+              );
+            },
           ),
           const SizedBox(height: 16),
-          if (cashierPerformances.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.person_off, size: 48, color: Colors.grey[400]),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Tidak ada data performa kasir',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            ...cashierPerformances.asMap().entries.map((entry) {
-              final index = entry.key;
-              final cashierData = entry.value;
-              return Column(
-                children: [
-                  _buildCashierPerformanceItemFromAPI(cashierData),
-                  if (index < cashierPerformances.length - 1)
-                    const SizedBox(height: 12),
-                ],
-              );
-            }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCashierPerformanceItemFromAPI(
-    CashierPerformanceData cashierData,
-  ) {
-    final cashier = cashierData.cashier;
-    final performance = cashierData.performance;
-
-    // Handle nama kasir yang kosong
-    final displayName = cashier.name.isNotEmpty ? cashier.name : 'Unknown';
-    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: Colors.indigo[100],
-            child: Text(
-              initial,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.indigo[700],
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  '${performance.totalTransactions} transaksi',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-                Text(
-                  '${performance.totalItems} item (avg: ${performance.avgItemsPerOrder}/order)',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                formatCurrency(performance.totalSales),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-              Text(
-                'Avg: ${formatCurrency(performance.avgOrderValue)}',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
-          ),
+          _buildTopSellingItems(),
         ],
       ),
     );
@@ -2473,6 +1950,153 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
       case 'print':
         _printReport();
         break;
+      case 'print_cash_recap':
+        _printCashRecap();
+        break;
+    }
+  }
+
+  Future<void> _printCashRecap() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final user = await HiveService.getUser();
+      final device = await HiveService.getDevice();
+      final cashier = await HiveService.getCashier();
+
+      final outletId = user?.outletId ?? '';
+      final outletName =
+          'Baraja Coffee'; // Default since OutletModel is not available
+
+      if (device == null) throw Exception('Device not found');
+
+      final service = ref.read(salesReportServiceProvider);
+
+      final recap = await service.fetchCashRecap(
+        outletId: outletId,
+        deviceId: device.id,
+      );
+
+      // Get saved printers from provider
+      final savedPrinters = ref.read(savedPrintersProvider);
+      final connectionStatuses = ref.read(printerConnectionProvider);
+
+      if (savedPrinters.isEmpty) {
+        throw Exception('Tidak ada printer yang tersimpan');
+      }
+
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Show printer selection dialog
+      final BluetoothPrinterModel? selectedPrinter =
+          await showDialog<BluetoothPrinterModel>(
+            context: context,
+            builder:
+                (context) => SimpleDialog(
+                  title: const Text('Pilih Printer'),
+                  children:
+                      savedPrinters.map((printer) {
+                        final isConnected =
+                            connectionStatuses[printer.address]?.state ==
+                            PrinterConnectionState.connected;
+                        return SimpleDialogOption(
+                          onPressed: () => Navigator.pop(context, printer),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.print),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        printer.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Text(
+                                        printer.address,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isConnected)
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+          );
+
+      if (selectedPrinter == null) {
+        return; // User cancelled
+      }
+
+      // Show loading again for printing process
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (context) => const Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      final connectedPrinter = selectedPrinter;
+
+      final success = await ThermalPrinters.printCashRecap(
+        recap: recap,
+        printer: connectedPrinter,
+        cashierName: cashier?.username ?? 'Unknown Cashier',
+        deviceName: device.deviceName,
+        outletName: outletName,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Berhasil mencetak rekap kasir'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal mencetak rekap kasir'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // Hide loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -2534,250 +2158,6 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
   }
 
   // Helper methods untuk styling
-  Color _getOrderTypeColor(String orderType) {
-    switch (orderType.toLowerCase()) {
-      case 'dine-in':
-        return Colors.green[50]!;
-      case 'take away':
-        return Colors.orange[50]!;
-      case 'delivery':
-        return Colors.blue[50]!;
-      case 'pickup':
-        return Colors.purple[50]!;
-      default:
-        return Colors.grey[50]!;
-    }
-  }
-
-  Color _getOrderTypeTextColor(String orderType) {
-    switch (orderType.toLowerCase()) {
-      case 'dine-in':
-        return Colors.green[700]!;
-      case 'take away':
-        return Colors.orange[700]!;
-      case 'delivery':
-        return Colors.blue[700]!;
-      case 'pickup':
-        return Colors.purple[700]!;
-      default:
-        return Colors.grey[700]!;
-    }
-  }
-
-  Color _getPaymentMethodColor(String paymentMethod) {
-    switch (paymentMethod.toLowerCase()) {
-      case 'cash':
-        return Colors.green[50]!;
-      case 'debit':
-        return Colors.blue[50]!;
-      case 'credit':
-        return Colors.purple[50]!;
-      case 'qris':
-        return Colors.orange[50]!;
-      case 'e-wallet':
-        return Colors.indigo[50]!;
-      default:
-        return Colors.grey[50]!;
-    }
-  }
-
-  Color _getPaymentMethodTextColor(String paymentMethod) {
-    switch (paymentMethod.toLowerCase()) {
-      case 'cash':
-        return Colors.green[700]!;
-      case 'debit':
-        return Colors.blue[700]!;
-      case 'credit':
-        return Colors.purple[700]!;
-      case 'qris':
-        return Colors.orange[700]!;
-      case 'e-wallet':
-        return Colors.indigo[700]!;
-      default:
-        return Colors.grey[700]!;
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return Colors.green[50]!;
-      case 'pending':
-        return Colors.orange[50]!;
-      case 'cancelled':
-        return Colors.red[50]!;
-      default:
-        return Colors.grey[50]!;
-    }
-  }
-
-  Color _getStatusTextColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return Colors.green[700]!;
-      case 'pending':
-        return Colors.orange[700]!;
-      case 'cancelled':
-        return Colors.red[700]!;
-      default:
-        return Colors.grey[700]!;
-    }
-  }
-
-  // Dialog untuk menampilkan detail items
-  void _showItemsDialog(List<OrderItem> items) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.restaurant_menu, color: Colors.indigo[600]),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Detail Items',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const Divider(),
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      item.name,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.indigo[100],
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      item.category,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.indigo[700],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Qty: ${item.quantity}',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  Text(
-                                    'Price: ${NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(item.price)}',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  Text(
-                                    'Subtotal: ${NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(item.subtotal)}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (item.notes.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Notes: ${item.notes}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey[600],
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'Tidak ada data order',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coba ubah filter atau periode waktu',
-            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildErrorState(WidgetRef ref, String error) {
     return Center(

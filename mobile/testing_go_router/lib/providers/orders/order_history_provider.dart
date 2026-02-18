@@ -1,5 +1,4 @@
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/repositories/order_history_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
@@ -30,13 +29,12 @@ class OrderHistoryNotifier extends AsyncNotifier<List<OrderDetailModel>> {
   //fetch order history
   Future<List<OrderDetailModel>> fetchOrderHistory() async {
     try {
-      // ✅ FIX #4: Get cashierId from authCashierProvider
-      final cashier = await HiveService.getCashier();
-      if (cashier!.id == null) {
-        throw Exception('Cashier not authenticated');
+      final device = await HiveService.getDevice();
+      if (device?.id == null) {
+        throw Exception('Device not found');
       }
 
-      final orderHistory = await _repository.fetchOrderHistory(cashier.id!);
+      final orderHistory = await _repository.fetchOrderHistory(device!.id);
 
       return orderHistory;
     } catch (e) {
@@ -46,19 +44,15 @@ class OrderHistoryNotifier extends AsyncNotifier<List<OrderDetailModel>> {
   }
 
   Future<void> refreshHistory() async {
-    // ✅ FIX #4: Get cashierId and pass to repository
-    final cashier = await HiveService.getCashier();
-    if (cashier?.id == null) {
-      state = AsyncError(
-        Exception('Cashier not authenticated'),
-        StackTrace.current,
-      );
+    final device = await HiveService.getDevice();
+    if (device?.id == null) {
+      state = AsyncError(Exception('Device not found'), StackTrace.current);
       return;
     }
 
     state = const AsyncLoading();
     state = await AsyncValue.guard(
-      () => _repository.fetchOrderHistory(cashier!.id!),
+      () => _repository.fetchOrderHistory(device!.id),
     );
   }
 }

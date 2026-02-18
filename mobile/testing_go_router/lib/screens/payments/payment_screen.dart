@@ -16,7 +16,10 @@ import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/services/order_service.dart'; // ✅ NEW
 import 'package:kasirbaraja/providers/orders/pending_order_provider.dart'; // ✅ NEW
-import 'package:kasirbaraja/services/printer_service.dart'; // ✅ NEW
+import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
+import 'package:kasirbaraja/services/printer_service.dart';
+import 'package:kasirbaraja/providers/orders/saved_order_provider.dart'; // ✅ NEW
+// ✅ NEW: Import UUID
 
 // Provider tipe pembayaran yang sudah kamu punya
 import 'package:kasirbaraja/providers/payment_provider.dart'
@@ -25,6 +28,7 @@ import 'package:kasirbaraja/providers/payment_provider.dart'
 // 🔹 Helper saran cash
 import 'package:kasirbaraja/helper/payment_helper.dart';
 import 'package:kasirbaraja/utils/payment_details_utils.dart';
+import 'package:kasirbaraja/models/order_status.model.dart'; // ✅ NEW: Import OrderStatus model
 
 /// Mode pembayaran:
 /// - single: tanpa split, 1x bayar langsung lunas
@@ -566,7 +570,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
   }
 
-  // ✅ NEW: Submit close bill with payment details
+  // ✅ NEW: Submit close bill with payment details via Unified Order
   Future<void> _submitCloseBill() async {
     try {
       final cashier = await Hive.box('userBox').get('cashier');
@@ -574,111 +578,126 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         throw Exception('Cashier not authenticated');
       }
 
-      // Prepare payment details from _payments
-      final paymentDetails =
-          _payments.map((p) {
-            final Map<String, dynamic> payment = {
-              'method': p.method,
-              'amount': p.amount,
-              'status': 'settlement',
-            };
-
-            // Only include methodType for non-cash payments (EDC, QRIS, etc)
-            if (p.paymentType != null &&
-                p.paymentType != 'Full' &&
-                p.method?.toLowerCase() != 'cash') {
-              payment['methodType'] = p.paymentType;
-            }
-
-            // Include cash-specific fields
-            if (p.tenderedAmount != null) {
-              payment['tenderedAmount'] = p.tenderedAmount;
-            }
-            if (p.changeAmount != null) {
-              payment['changeAmount'] = p.changeAmount;
-            }
-
-            return payment;
-          }).toList();
-
-      final isSplitPayment = _payments.length > 1;
-
-      // ✅ FIX: Adjust total payment to match exact grand total
-      // Calculate current total payment
-      int totalPayment = paymentDetails.fold<int>(
-        0,
-        (sum, p) => sum + (p['amount'] as int? ?? 0),
-      );
-
-      // If there's a difference due to rounding, adjust the last payment
-      final grandTotal = widget.order.grandTotal;
-      if (totalPayment != grandTotal && paymentDetails.isNotEmpty) {
-        final difference = grandTotal - totalPayment;
-        debugPrint('⚠️ Payment adjustment needed: $difference');
-        debugPrint('Total Payment: $totalPayment, Grand Total: $grandTotal');
-
-        // Adjust last payment amount
-        final lastPayment = paymentDetails.last;
-        lastPayment['amount'] = (lastPayment['amount'] as int) + difference;
-
-        debugPrint('✅ Adjusted last payment to: ${lastPayment['amount']}');
+      // 1. Prepare Payment Models locally (untuk update UI & Receipt)
+      final List<PaymentModel> payments = [];
+      if (_mode == PaymentMode.split) {
+        // Multiple payments
+        for (var p in _payments) {
+          payments.add(p);
+        }
+      } else {
+        // Single payment
+        if (_payments.isNotEmpty) {
+          payments.add(_payments.first);
+        }
       }
 
-      // ✅ FIXED: Direct instantiation
-      final orderService = OrderService();
+      // 2. Adjust total payment to match exact grand total
+      // (Logic adjustment payment amount existing di payment_screen sudah handle ini via _payments management biasanya,
+      // tapi kita pastikan lagi jika backend butuh exact match)
 
-      // 🐛 DEBUG: Print payment data
-      debugPrint('=== CLOSE BILL DEBUG ===');
-      debugPrint('Order ID: ${widget.order.orderId}');
-      debugPrint('Cashier ID: ${cashier.id}');
-      debugPrint('Payment Details: $paymentDetails');
-      debugPrint('Is Split: $isSplitPayment');
-      debugPrint('========================');
+      // 3. Prepare Cloned Order for Submission
+      // ⚠️ PENTING: Set Order ID ke empty agar backend generate ID baru
+      // Logic ID generation dipindah ke backend (order.controller.js)
 
-      final result = await orderService.closeOpenBill(
-        orderId: widget.order.orderId!,
-        cashierId: cashier.id!,
-        paymentDetails: isSplitPayment ? paymentDetails : paymentDetails.first,
-        isSplitPayment: isSplitPayment,
+      // Simpan ID lama untuk hapus data lokal nanti
+      final oldOrderId = widget.order.orderId;
+      final idempotencyKey =
+          '${oldOrderId}_${DateTime.now().millisecondsSinceEpoch}';
+
+      debugPrint(
+        '🔀 Switching Order ID for submission: $oldOrderId -> Backend Generated',
       );
 
-      if (result['success'] == true) {
+      final orderToSubmit = widget.order.copyWith(
+        orderId: '', // Empty string to trigger backend generation
+        status: OrderStatusModel.completed,
+        paymentStatus: 'settlement',
+        payments: payments,
+        // Ensure creation/update time is fresh for this transaction
+        updatedAt: DateTime.now(),
+        isSplitPayment: _payments.length > 1,
+        // Kirim original createdAt sebagai openBillStartedAt?
+        // Tidak ada field khusus di model, tapi backend controller bisa baca dari created_at open bill asli jika kita kirim.
+        // Tapi createOrderRequest pakai order detail ini.
+        // Kita bisa pass original date via field lain atau biarkan backend handle.
+        cashier: widget.order.cashier ?? cashier,
+      );
+
+      // 4. Submit via Unified Order Endpoint (createOrder)
+      // Ini akan trigger logic backend: isOpenBill=true + hasPayment -> processCashierOrderDirect
+      final orderService = OrderService();
+
+      debugPrint('🚀 Submitting Open Bill as Unified Order...');
+      final result = await orderService.createOrder(
+        orderToSubmit,
+        idempotencyKey: idempotencyKey, // Use generated key
+      );
+
+      // 5. Success Handling
+      // Cek result valid. Backend return { success: true, data: orderObject, ... }
+      // atau langsung orderObject tergantung implementasi service.
+      // Kita assumsikan result adalah Map dari JSON response.
+      final responseData = result['data'] ?? result['order'] ?? result;
+      final newBackendId = responseData['order_id'] ?? responseData['orderId'];
+
+      if (newBackendId != null) {
         setState(() {
           _submitStatus = SubmitStatus.success;
         });
 
-        // Close loading dialog
-        if (mounted) Navigator.pop(context);
+        // Update orderToSubmit dengan ID dari backend untuk keperluan print & navigasi
+        final finalOrder = orderToSubmit.copyWith(
+          orderId: newBackendId,
+          // Update timestamps jika perlu, tapi backend mungkin kirim format string Date yang perlu diparse.
+          // Untuk aman, kita pakai timestamp lokal untuk UI, atau parse dari response jika kritikal.
+          // Kita pakai newBackendId saja sudah cukup untuk struk.
+        );
 
-        // Refresh pending orders
+        // Refresh providers
         ref.invalidate(pendingOrderProvider);
+        ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
+        ref.invalidate(orderHistoryProvider);
+        ref.invalidate(savedOrderProvider); // Refresh list saved orders
 
-        // Print receipt
+        // 6. Delete OLD Local Order (Open Bill Local)
+        if (oldOrderId != null) {
+          try {
+            await ref.read(savedOrderProvider.notifier).deleteOrder(oldOrderId);
+            debugPrint('🗑️ Deleted local open bill: $oldOrderId');
+          } catch (e) {
+            debugPrint('⚠️ Gagal hapus lokal open bill lama: $e');
+          }
+        }
+
+        // 7. Print Customer Receipt (forceReprint bypasses delta=0 after saveOpenBill sync)
         final printers = ref.read(savedPrintersProvider);
         if (printers.isNotEmpty) {
           await PrinterService.printDocuments(
-            orderDetail: widget.order,
+            orderDetail: finalOrder,
             printType: 'customer',
             printers: printers,
+            forceReprint: true,
           );
         }
 
-        // Navigate to success screen
+        // 8. Navigate Success
         if (mounted) {
+          Navigator.pop(context); // Close loading dialog
           context.goNamed(
             'payment-success',
             extra: {
-              'orderDetail': widget.order,
-              'isCloseBill': true, // Flag to show different message
-            },
+              'orderDetail': finalOrder,
+              'isCloseBill': true,
+            }, // ✅ Use order with Backend ID
           );
         }
       } else {
-        throw Exception(result['message'] ?? 'Failed to close bill');
+        throw Exception('Failed to create order: Valid response missing');
       }
     } catch (e) {
-      debugPrint('Error closing bill: $e');
-      rethrow;
+      debugPrint('❌ Error submitting open bill: $e');
+      rethrow; // Akan ditangkap catch di _finishOrderToBackend
     }
   }
 
@@ -1440,10 +1459,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Widget _buildNonCashTypesSingle(PaymentMethodModel method) {
-    final activeTypes =
-        method.paymentTypes
-            .where((t) => t.isActive && !t.isDigital == false || true)
-            .toList();
+    final activeTypes = method.paymentTypes.where((t) => t.isActive).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

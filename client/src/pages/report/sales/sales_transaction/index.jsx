@@ -570,7 +570,7 @@ const SalesTransaction = () => {
             let allData = [];
             try {
                 const response = await axios.get(`/api/report/orders?${params.toString()}`, {
-                    timeout: 180000 // 3 minutes
+                    timeout: 900000 // 15 minutes
                 });
                 allData = Array.isArray(response.data?.data) ? response.data.data : [];
                 console.log(`✅ Fetched ${allData.length} orders`);

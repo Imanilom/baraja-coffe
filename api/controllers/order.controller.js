@@ -28,6 +28,7 @@ import { LockUtil } from '../utils/lock.util.js';
 import { validateAndNormalizePaymentDetails } from '../utils/payment.utils.js';
 import { Device } from '../models/Device.model.js';
 import { PrintLogger } from '../services/print-logger.service.js';
+import { generateCashierOrderId } from '../helpers/orderIdGenerator.js';
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
@@ -2693,37 +2694,91 @@ export const createUnifiedOrder = async (req, res) => {
         hasItems: req.body.items?.length || 0
       });
 
-      // ========== CASHIER: OPEN BILL CREATION ==========
+      // ========== CASHIER: OPEN BILL ==========
       if (source === 'Cashier' && isOpenBill) {
-        console.log('💰 Processing Open Bill creation with createOrderHandler');
+        // Check if this is an Open Bill WITH payment (payment scenario - stored locally then sent when paying)
+        const hasPaymentDetails = paymentDetails &&
+          (Array.isArray(paymentDetails) ? paymentDetails.length > 0 : Object.keys(paymentDetails).length > 0);
 
-        const result = await processOpenBillOrderWithHandler({
-          req,
-          orderId,
-          outletId,
-          cashierId,
-          tableNumber,
-          device_id,
-          customersCount,
-          cashierNotes,
-          serviceCharge,
-          taxPercentage,
-          items: req.body.items || [],
-          voucherCode,
-          customerType,
-          manualDiscount,
-          manualDiscountReason,
-          customerId,
-          loyaltyPointsToRedeem,
-          session // ✅ Pass session
-        });
+        if (hasPaymentDetails) {
+          // ========== OPEN BILL WITH PAYMENT → PROCESS AS REGULAR ORDER ==========
+          console.log('💰 Processing Open Bill WITH payment as regular order');
 
-        if (!committed) {
-          await session.commitTransaction();
-          committed = true;
+          // ✅ Generate ID if missing (Open Bill Payment)
+          let effectiveOrderId = orderId;
+          if (!effectiveOrderId) {
+            console.log('🆔 Generating new Order ID for Open Bill Payment...');
+            effectiveOrderId = await generateCashierOrderId({
+              outletId,
+              tableNumber,
+              deviceId: device_id
+            });
+            console.log('🆔 Generated ID:', effectiveOrderId);
+          }
+
+          const result = await processCashierOrderDirect({
+            req,
+            orderId: effectiveOrderId, // Use effective ID
+            outletId,
+            customAmountItems,
+            paymentDetails,
+            isSplitPayment,
+            cashierId,
+            tableNumber,
+            device_id,
+            customerId,
+            loyaltyPointsToRedeem,
+            orderType,
+            appliedPromos,
+            voucherCode,
+            customerType,
+            manualDiscount,
+            manualDiscountReason,
+            session, // ✅ Pass session
+            // ✅ Open Bill Payment Updates
+            openBillStatus: 'closed',
+            openBillClosedAt: new Date(),
+            openBillStartedAt: req.body.openBillStartedAt // From Payload
+          });
+
+          if (!committed) {
+            await session.commitTransaction();
+            committed = true;
+          }
+
+          return res.status(200).json(result);
+        } else {
+          // ========== OPEN BILL WITHOUT PAYMENT → CREATE OPEN BILL (legacy flow) ==========
+          console.log('💰 Processing Open Bill creation with createOrderHandler');
+
+          const result = await processOpenBillOrderWithHandler({
+            req,
+            orderId,
+            outletId,
+            cashierId,
+            tableNumber,
+            device_id,
+            customersCount,
+            cashierNotes,
+            serviceCharge,
+            taxPercentage,
+            items: req.body.items || [],
+            voucherCode,
+            customerType,
+            manualDiscount,
+            manualDiscountReason,
+            customerId,
+            loyaltyPointsToRedeem,
+            session // ✅ Pass session
+          });
+
+          if (!committed) {
+            await session.commitTransaction();
+            committed = true;
+          }
+
+          return res.status(200).json(result);
         }
-
-        return res.status(200).json(result);
       }
 
       // ========== CASHIER: REGULAR ORDER ==========
@@ -3093,7 +3148,13 @@ const processOpenBillOrderWithHandler = async ({
         quantity: item.quantity,
         dineType: item.dineType || 'Dine-In',
         notes: item.notes || '',
-        guestName: item.guestName || ''
+        guestName: item.guestName || '',
+        // ✅ Pass customDiscount for item
+        customDiscount: item.customDiscount || {
+          isActive: false,
+          discountValue: 0,
+          discountAmount: 0
+        }
       };
 
       // Format addons
@@ -3133,10 +3194,18 @@ const processOpenBillOrderWithHandler = async ({
       isSplitPayment: false,
       source: 'Cashier',
       isOpenBill: true,
+      openBillStatus: 'active', // ✅ Set status active
       manualDiscount: manualDiscount || 0,
       manualDiscountReason: manualDiscountReason || '',
       cashierNotes,
-      customersCount
+      customersCount,
+      // ✅ Pass discount fields
+      discounts: req.body.discounts || {},
+      customDiscountDetails: req.body.customDiscountDetails || {
+        isActive: false,
+        discountValue: 0,
+        discountAmount: 0
+      }
     };
 
     // Gunakan createOrderHandler untuk membuat order
@@ -4225,7 +4294,11 @@ const processCashierOrderDirect = async ({
   customerId,
   loyaltyPointsToRedeem,
   orderType,
-  appliedPromos = [],
+  appointmentId, // ✅ Accept appointmentId (reservation)
+  openBillStatus, // ✅ Accept openBillStatus
+  openBillClosedAt, // ✅ Accept openBillClosedAt
+  openBillStartedAt, // ✅ Accept openBillStartedAt
+  appliedPromos = [], // ✅ Restore appliedPromos
   session = null // ✅ Accept session
 }) => {
   // Cek outlet
@@ -4277,7 +4350,18 @@ const processCashierOrderDirect = async ({
     source: 'Cashier',
     outletId: outletId,
     user: req.body.user || 'Cashier',
-    contact: req.body.contact || { phone: '081234567890' }
+    contact: req.body.contact || { phone: '081234567890' },
+    // ✅ NEW: Pass through custom discount fields from Flutter
+    discounts: req.body.discounts || {},
+    customDiscountDetails: req.body.customDiscountDetails || {
+      isActive: false,
+      discountValue: 0,
+      discountAmount: 0
+    },
+    // ✅ Pass Open Bill params if present
+    openBillStatus,
+    openBillClosedAt,
+    openBillStartedAt
   };
 
   const validated = validateOrderData(validationData, 'Cashier');
@@ -4775,6 +4859,7 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
           is_down_payment: false,
           tendered_amount: payment.tenderedAmount || payment.amount,
           change_amount: payment.changeAmount || 0,
+          remaining_amount: payment.remainingAmount, // ✅ NEW: Pass remainingAmount from frontend
           is_split_payment: true,
           split_payment_index: index,
           va_numbers: payment.vaNumbers,
@@ -4835,6 +4920,7 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
         remaining_payment: paymentDetails?.remainingPayment,
         tendered_amount: paymentDetails?.tenderedAmount,
         change_amount: paymentDetails?.changeAmount,
+        remaining_amount: paymentDetails?.remainingAmount, // ✅ NEW: Pass remainingAmount from frontend
         is_split_payment: false,
         va_numbers: paymentDetails?.vaNumbers,
         actions: paymentDetails?.actions,
@@ -6167,7 +6253,10 @@ export const charge = async (req, res) => {
 
       // ✅ FIX: Handle DP Already Paid (Manual Bank Transfer via Cash Flow)
       // Jika dp_already_paid = true, status langsung settlement & method disesuaikan
-      const isInstantSettlement = req.body.dp_already_paid === true || req.body.dp_already_paid === 'true';
+      // ✅ NEW: Also handle full_payment_already_paid for instant settlement
+      const isDpInstantSettlement = req.body.dp_already_paid === true || req.body.dp_already_paid === 'true';
+      const isFullPaymentInstantSettlement = req.body.full_payment_already_paid === true || req.body.full_payment_already_paid === 'true';
+      const isInstantSettlement = isDpInstantSettlement || isFullPaymentInstantSettlement;
       const initialStatus = isInstantSettlement ? 'settlement' : 'pending';
 
       // ✅ FIX: Method tetap 'cash', nama bank masuk ke method_type saja
@@ -6176,6 +6265,7 @@ export const charge = async (req, res) => {
 
       if (isInstantSettlement && req.body.bank_info && req.body.bank_info.bankName) {
         console.log('✅ Instant Settlement detected. Bank info:', req.body.bank_info.bankName);
+        console.log('   Settlement type:', isDpInstantSettlement ? 'DP Already Paid' : 'Full Payment Already Paid');
         console.log('   Method stays as:', effectiveMethod);
         console.log('   Bank name will be saved to method_type');
       }
@@ -8774,11 +8864,11 @@ const toISOJakartaWithOffset = (date) => {
 // Get Cashier Order History
 export const getCashierOrderHistory = async (req, res) => {
   try {
-    const cashierId = req.params.cashierId;
-    console.log(cashierId);
+    const deviceId = req.params.deviceId;
+    console.log(deviceId);
 
-    if (!cashierId) {
-      return res.status(400).json({ message: 'Cashier ID is required.' });
+    if (!deviceId) {
+      return res.status(400).json({ message: 'Device ID is required.' });
     }
 
     // Hitung tanggal 3 hari yang lalu
@@ -8787,9 +8877,9 @@ export const getCashierOrderHistory = async (req, res) => {
 
     const baseFilter = {
       $and: [
-        { cashierId: { $exists: true } },
-        { cashierId: { $ne: null } },
-        { cashierId: cashierId }, // Langsung tambahkan di sini
+        { device_id: { $exists: true } },
+        { device_id: { $ne: null } },
+        { device_id: deviceId },
         { createdAt: { $gte: threeDaysAgo } }, // Filter 3 hari terakhir
       ],
     };
@@ -9042,7 +9132,8 @@ export const cashierCharge = async (req, res) => {
       split_payment_index = 0,
       va_numbers,
       actions,
-      method_type
+      method_type,
+      remaining_amount // ✅ NEW: Accept remainingAmount from frontend
     } = req.body;
 
     console.log('Cashier Charge - Processing Payment:', {
@@ -9054,6 +9145,7 @@ export const cashierCharge = async (req, res) => {
       split_payment_index,
       tendered_amount,
       change_amount,
+      remaining_amount, // ✅ NEW: Log remainingAmount
       va_numbers,
       actions
     });
@@ -9165,7 +9257,10 @@ export const cashierCharge = async (req, res) => {
       paymentType: is_down_payment ? 'Down Payment' : 'Full',
       amount: gross_amount,
       totalAmount: updatedOrder.grandTotal,
-      remainingAmount: Math.max(0, updatedOrder.grandTotal - totalPaid),
+      // ✅ UPDATED: Use remainingAmount from frontend if provided, otherwise calculate
+      remainingAmount: remaining_amount !== undefined
+        ? remaining_amount
+        : Math.max(0, updatedOrder.grandTotal - totalPaid),
       tendered_amount: tendered_amount || gross_amount,
       change_amount: change_amount || 0,
       fraud_status: 'accept',
@@ -9177,6 +9272,18 @@ export const cashierCharge = async (req, res) => {
       actions: actions,
       method_type: method_type
     };
+
+    // 🐛 DEBUG: Log frontend vs backend remainingAmount comparison
+    const calculatedRemaining = Math.max(0, updatedOrder.grandTotal - totalPaid);
+    if (remaining_amount !== undefined && remaining_amount !== calculatedRemaining) {
+      console.log('⚠️ RemainingAmount Mismatch:', {
+        order_id,
+        frontendValue: remaining_amount,
+        backendCalculated: calculatedRemaining,
+        difference: Math.abs(remaining_amount - calculatedRemaining),
+        usingValue: paymentData.remainingAmount
+      });
+    }
 
     const payment = await Payment.create(paymentData);
 

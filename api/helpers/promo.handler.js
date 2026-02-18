@@ -107,7 +107,7 @@ export async function processSelectedPromos(promoSelections, orderItems, outlet,
                     promoName: promo.name,
                     promoType: promo.promoType,
                     bundleSets: promoSelection.bundleSets,
-                    appliedDiscount: promoResult.discount,
+                    discount: promoResult.discount, // ✅ FIX: Match schema field name
                     affectedItems: promoResult.affectedItems || [],
                     freeItems: promoResult.freeItems || []
                 };

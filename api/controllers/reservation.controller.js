@@ -7,6 +7,7 @@ import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
 import { createMidtransSnapTransaction } from '../validators/order.validator.js';
 import { LockUtil } from '../utils/lock.util.js';
+import { MenuItem } from '../models/MenuItem.model.js';
 
 // Helper untuk get WIB time sekarang
 const getWIBNow = () => {
@@ -75,35 +76,35 @@ const createReservationWithOrderSchema = Joi.object({
 // Helper function untuk parse date dengan timezone Indonesia
 const parseFoodServingTime = (dateString, reservationDate, reservationTime) => {
   if (!dateString) return null;
-  
+
   try {
     // Jika format "01/11/2025, 17.34"
     if (dateString.includes('/') && dateString.includes(',')) {
       const [datePart, timePart] = dateString.split(', ');
       const [day, month, year] = datePart.split('/');
       const [hour, minute] = timePart.split('.');
-      
+
       // Create date dengan timezone Indonesia (UTC+7)
       const date = new Date(
-        parseInt(year), 
+        parseInt(year),
         parseInt(month) - 1,
-        parseInt(day), 
-        parseInt(hour), 
+        parseInt(day),
+        parseInt(hour),
         parseInt(minute)
       );
-      
+
       // Adjust untuk timezone (UTC+7)
       const timezoneOffset = 7 * 60; // minutes
       const localTime = new Date(date.getTime() + timezoneOffset * 60 * 1000);
-      
+
       return localTime;
     }
-    
+
     // Jika sudah format ISO, langsung return
     if (dateString.includes('T')) {
       return new Date(dateString);
     }
-    
+
     // Fallback: gunakan reservation date + time
     if (reservationDate && reservationTime) {
       const [hours, minutes] = reservationTime.split(':');
@@ -111,7 +112,7 @@ const parseFoodServingTime = (dateString, reservationDate, reservationTime) => {
       date.setHours(parseInt(hours), parseInt(minutes));
       return date;
     }
-    
+
     return new Date(dateString);
   } catch (error) {
     console.warn('Error parsing food_serving_time:', error);
@@ -139,12 +140,12 @@ export const createReservation = async (req, res) => {
       session.startTransaction();
 
       try {
-        const { 
-          reservation_date, 
-          reservation_time, 
-          area_id, 
-          guest_count, 
-          table_ids, 
+        const {
+          reservation_date,
+          reservation_time,
+          area_id,
+          guest_count,
+          table_ids,
           notes,
           agenda,
           agenda_description,
@@ -292,7 +293,7 @@ export const createReservationWithOrder = async (req, res) => {
 
     // Pre-process data sebelum validation
     let processedBody = { ...req.body };
-    
+
     // Parse food_serving_time dengan timezone correction
     if (processedBody.food_serving_time && typeof processedBody.food_serving_time === 'string') {
       const parsedDate = parseFoodServingTime(
@@ -300,7 +301,7 @@ export const createReservationWithOrder = async (req, res) => {
         processedBody.reservation_date,
         processedBody.reservation_time
       );
-      
+
       if (parsedDate && !isNaN(parsedDate.getTime())) {
         processedBody.food_serving_time = parsedDate;
         console.log('✅ Successfully parsed food_serving_time:', {
@@ -318,7 +319,7 @@ export const createReservationWithOrder = async (req, res) => {
     if (!processedBody.customer_name && processedBody.guest_number) {
       processedBody.customer_name = `Guest-${processedBody.guest_number}`;
     }
-    
+
     if (!processedBody.customer_phone && processedBody.guest_number) {
       processedBody.customer_phone = processedBody.guest_number;
     }
@@ -343,12 +344,12 @@ export const createReservationWithOrder = async (req, res) => {
       try {
         await session.startTransaction();
 
-        const { 
-          reservation_date, 
-          reservation_time, 
-          area_id, 
-          guest_count, 
-          table_ids, 
+        const {
+          reservation_date,
+          reservation_time,
+          area_id,
+          guest_count,
+          table_ids,
           notes,
           agenda,
           agenda_description,
@@ -420,7 +421,7 @@ export const createReservationWithOrder = async (req, res) => {
               }
             });
           });
-          
+
           const conflictingTables = await Table.find({
             _id: { $in: conflictingTableIds }
           });
@@ -475,39 +476,74 @@ export const createReservationWithOrder = async (req, res) => {
         let order = null;
         let paymentRecord = null;
         let midtransResponse = null;
-        
+
         // Create order if there are order items
         if (order_items && order_items.length > 0) {
           // Generate order ID yang aman
           const orderSequence = await getNextOrderSequence(session);
           const orderId = `ORD-${reservation.reservation_code}-${orderSequence.toString().padStart(3, '0')}`;
-          
-          // Prepare order items
-          const formattedOrderItems = order_items.map(item => ({
-            menuItem: item.menuItem,
-            quantity: item.quantity,
-            subtotal: item.subtotal,
-            notes: item.notes || '',
-            guestName: item.guestName || '',
-            dineType: 'Dine-In',
-            addedAt: getWIBNow(),
-            kitchenStatus: 'pending',
-            isPrinted: false,
-            batchNumber: 1
-          }));
+
+          // Fetch menu items info from DB to ensure prices are correct
+          const menuItemIds = order_items.map(item => item.menuItem);
+          const menuItemsDocs = await MenuItem.find({ _id: { $in: menuItemIds } }).session(session);
+          const menuItemsMap = new Map(menuItemsDocs.map(doc => [doc._id.toString(), doc]));
+
+          // Prepare order items with BACKEND CALCULATED subtotal
+          const formattedOrderItems = order_items.map(item => {
+            const menuItemDoc = menuItemsMap.get(item.menuItem.toString());
+
+            // Fallback price if not found (shouldn't happen due to previous checks usually, but safe)
+            // or maybe throw error if strict
+            if (!menuItemDoc) {
+              throw new Error(`Menu item not found: ${item.menuItem}`);
+            }
+
+            const realPrice = menuItemDoc.price || 0;
+            const calculatedSubtotal = realPrice * item.quantity;
+
+            console.log(`💰 Recalculating item: ${menuItemDoc.name} | Qty: ${item.quantity} | Frontend Subtotal: ${item.subtotal} | Backend Subtotal: ${calculatedSubtotal}`);
+
+            return {
+              menuItem: item.menuItem,
+              quantity: item.quantity,
+              subtotal: calculatedSubtotal, // ✅ USE CALCULATED SUBTOTAL
+              notes: item.notes || '',
+              guestName: item.guestName || '',
+              dineType: 'Dine-In',
+              addedAt: getWIBNow(),
+              kitchenStatus: 'pending',
+              isPrinted: false,
+              batchNumber: 1,
+              // Store snapshot of data at time of order
+              menuItemData: {
+                name: menuItemDoc.name,
+                price: realPrice,
+                category: menuItemDoc.category,
+                sku: menuItemDoc.sku,
+                isActive: menuItemDoc.isActive
+              }
+            };
+          });
 
           // Calculate totals
           const orderTotal = order_items.reduce((sum, item) => sum + item.subtotal, 0);
-          
+
+          // Calculate tax (10% of order total)
+          const taxAmount = Math.round(orderTotal * 0.10);
+
+          // Grand total = items + tax (NOT + DP!)
+          const grandTotal = orderTotal + taxAmount;
+
           // TENTUKAN APAKAH PERLU DP ATAU TIDAK
           let dpAmount = 0;
-          let remainingAmount = orderTotal;
+          let remainingAmount = grandTotal;
           let customAmountItems = [];
-          
+
           if (require_dp) {
-            dpAmount = down_payment_amount || Math.round(orderTotal * 0.30);
-            remainingAmount = orderTotal - dpAmount;
-            
+            // DP bisa dari input user atau default 30% dari grand total
+            dpAmount = down_payment_amount || Math.round(grandTotal * 0.30);
+            remainingAmount = grandTotal - dpAmount;
+
             customAmountItems = [{
               amount: dpAmount,
               name: 'Down Payment (30%)',
@@ -533,7 +569,7 @@ export const createReservationWithOrder = async (req, res) => {
             totalBeforeDiscount: orderTotal,
             totalAfterDiscount: orderTotal,
             totalCustomAmount: dpAmount,
-            grandTotal: orderTotal + dpAmount,
+            grandTotal: grandTotal,  // ✅ FIX: items + tax, NOT + DP
             source: 'Web',
             reservation: reservation._id,
             isOpenBill: true,
@@ -543,7 +579,7 @@ export const createReservationWithOrder = async (req, res) => {
               voucherDiscount: 0
             },
             appliedPromos: [],
-            totalTax: 0,
+            totalTax: taxAmount,  // ✅ FIX: Store calculated tax
             totalServiceFee: 0,
             change: 0,
             created_by: {
@@ -555,7 +591,12 @@ export const createReservationWithOrder = async (req, res) => {
             deliveryStatus: "false",
             deliveryProvider: "false",
             isSplitPayment: false,
-            taxAndServiceDetails: [],
+            taxAndServiceDetails: [{
+              type: 'tax',
+              name: 'PPN',
+              amount: taxAmount,
+              _id: new mongoose.Types.ObjectId()
+            }],
             kitchenNotifications: [],
             transferHistory: []
           });
@@ -567,7 +608,7 @@ export const createReservationWithOrder = async (req, res) => {
             // Generate payment code yang aman
             const paymentSequence = await getNextPaymentSequence(session);
             const paymentCode = `PAY-${reservation.reservation_code}-${paymentSequence.toString().padStart(3, '0')}`;
-            
+
             paymentRecord = new Payment({
               order_id: order.order_id,
               payment_code: paymentCode,
@@ -575,8 +616,8 @@ export const createReservationWithOrder = async (req, res) => {
               status: 'pending',
               paymentType: 'Down Payment',
               amount: dpAmount,
-              totalAmount: orderTotal,
-              remainingAmount: remainingAmount,
+              totalAmount: grandTotal,  // ✅ FIX: Use grand total (items + tax)
+              remainingAmount: remainingAmount,  // ✅ Already correct: grandTotal - dpAmount
               phone: customer_phone || '',
               currency: 'IDR'
             });
@@ -587,7 +628,7 @@ export const createReservationWithOrder = async (req, res) => {
             // Create Midtrans transaction HANYA JIKA PERLU DP
             try {
               console.log('🔄 Creating Midtrans transaction for DP with LOCK...');
-              
+
               const customerData = {
                 first_name: customer_name ? customer_name.split(' ')[0] : 'Customer',
                 last_name: customer_name ? customer_name.split(' ').slice(1).join(' ') : '',
@@ -617,7 +658,7 @@ export const createReservationWithOrder = async (req, res) => {
                 paymentRecord.transaction_id = midtransResponse.transaction_id || `MID-${paymentSequence}`;
                 paymentRecord.midtransRedirectUrl = midtransResponse.redirect_url;
                 paymentRecord.raw_response = midtransResponse;
-                
+
                 await paymentRecord.save({ session });
               }
 
@@ -628,7 +669,7 @@ export const createReservationWithOrder = async (req, res) => {
                 status: 'failed'
               };
               await paymentRecord.save({ session });
-              
+
               midtransResponse = {
                 success: false,
                 error: midtransError.message,
@@ -643,9 +684,12 @@ export const createReservationWithOrder = async (req, res) => {
 
           console.log('✅ Order created successfully with LOCK:', {
             order_id: order.order_id,
-            total: order.grandTotal,
+            items_total: orderTotal,
+            tax: taxAmount,
+            grand_total: order.grandTotal,
             dp_required: require_dp,
-            dp_amount: dpAmount
+            dp_amount: dpAmount,
+            remaining: remainingAmount
           });
         }
 
@@ -689,8 +733,8 @@ export const createReservationWithOrder = async (req, res) => {
     // Prepare SUCCESS response data
     const responseData = {
       success: true,
-      message: result.require_dp ? 
-        'Reservation created successfully. Please complete the down payment.' : 
+      message: result.require_dp ?
+        'Reservation created successfully. Please complete the down payment.' :
         'Reservation created successfully. No down payment required.',
       data: {
         reservation: {
@@ -733,7 +777,7 @@ export const createReservationWithOrder = async (req, res) => {
         down_payment_amount: result.require_dp ? (result.down_payment_amount || Math.round(result.total_amount * 0.30)) : 0,
         payment_method: result.payment_method || (result.require_dp ? 'E-Wallet' : 'Cash')
       };
-      
+
       // Add payment record info hanya jika ada DP
       if (result.paymentRecord) {
         responseData.data.payment_record = {
@@ -745,7 +789,7 @@ export const createReservationWithOrder = async (req, res) => {
           payment_type: result.paymentRecord.paymentType
         };
       }
-      
+
       // Add Midtrans response hanya jika perlu DP dan berhasil
       if (result.require_dp && result.midtransResponse && result.midtransResponse.token) {
         responseData.data.payment = {
@@ -753,7 +797,7 @@ export const createReservationWithOrder = async (req, res) => {
           redirect_url: result.midtransResponse.redirect_url,
           status: 'waiting_payment'
         };
-        
+
         responseData.redirect_url = result.midtransResponse.redirect_url;
         responseData.payment_url = result.midtransResponse.redirect_url;
       }
@@ -764,10 +808,10 @@ export const createReservationWithOrder = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error creating reservation with order:', error);
-    
+
     let statusCode = 500;
     let errorMessage = 'Error creating reservation';
-    
+
     if (error.message.includes('Area not found') || error.message.includes('tables not found')) {
       statusCode = 400;
       errorMessage = error.message;
@@ -797,7 +841,7 @@ export const createReservationWithOrder = async (req, res) => {
 const generateReservationCode = async (session) => {
   const today = new Date();
   const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
-  
+
   try {
     // Gunakan atomic operation untuk sequence dengan error handling
     const counterDoc = await Reservation.findOneAndUpdate(
@@ -823,7 +867,7 @@ const generateReservationCode = async (session) => {
     }
 
     const sequence = counterDoc._tempSequence;
-    
+
     // Validasi sequence adalah number yang valid
     if (typeof sequence !== 'number' || isNaN(sequence)) {
       throw new Error('Invalid sequence generated');
@@ -832,7 +876,7 @@ const generateReservationCode = async (session) => {
     return `RSV-${dateString}-${sequence.toString().padStart(3, '0')}`;
   } catch (error) {
     console.error('❌ Error generating reservation code:', error);
-    
+
     // Fallback: gunakan timestamp sebagai backup
     const fallbackSequence = Date.now().toString().slice(-3);
     return `RSV-${dateString}-${fallbackSequence}`;
@@ -842,7 +886,7 @@ const generateReservationCode = async (session) => {
 // Helper function untuk mendapatkan sequence order berikutnya dengan LOCK - FIXED
 const getNextOrderSequence = async (session) => {
   const today = new Date();
-  
+
   try {
     const counterDoc = await Order.findOneAndUpdate(
       {
@@ -875,7 +919,7 @@ const getNextOrderSequence = async (session) => {
 // Helper function untuk mendapatkan sequence payment berikutnya dengan LOCK - FIXED
 const getNextPaymentSequence = async (session) => {
   const today = new Date();
-  
+
   try {
     const counterDoc = await Payment.findOneAndUpdate(
       {
@@ -909,20 +953,20 @@ const getNextPaymentSequence = async (session) => {
 export const getReservations = async (req, res) => {
   try {
     const { date, status, page = 1, limit = 10 } = req.query;
-    
+
     let query = {};
-    
+
     if (date) {
       const startDate = new Date(date);
       const endDate = new Date(date);
       endDate.setDate(endDate.getDate() + 1);
-      
+
       query.reservation_date = {
         $gte: startDate,
         $lt: endDate
       };
     }
-    
+
     if (status) {
       query.status = status;
     }
@@ -1159,7 +1203,7 @@ export const checkAvailability = async (req, res) => {
       // If specific tables are requested, check table availability
       if (table_ids) {
         const requestedTableIds = Array.isArray(table_ids) ? table_ids : table_ids.split(',').map(id => id.trim());
-        
+
         const tables = await Table.find({
           _id: { $in: requestedTableIds },
           area_id: area_id,

@@ -25,20 +25,25 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       quantity: fields[3] == null ? 1 : (fields[3] as num).toInt(),
       notes: fields[4] == null ? '' : fields[4] as String?,
       subtotal: fields[5] == null ? 0 : (fields[5] as num).toInt(),
-      orderType: fields[6] == null ? OrderType.dineIn : fields[6] as OrderType,
+      orderType:
+          fields[6] == null
+              ? OrderTypeModel.dineIn
+              : fields[6] as OrderTypeModel,
       orderItemid: fields[7] == null ? null : fields[7] as String?,
       isPrinted: fields[8] == null ? false : fields[8] as bool,
       printedQuantity: fields[9] == null ? 0 : (fields[9] as num).toInt(),
       printBatchIds:
           fields[10] == null ? [] : (fields[10] as List).cast<String>(),
       reservedPromoId: fields[11] == null ? null : fields[11] as String?,
+      customDiscount:
+          fields[12] == null ? null : fields[12] as CustomDiscountModel?,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderItemModel obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.menuItem)
       ..writeByte(1)
@@ -62,7 +67,9 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       ..writeByte(10)
       ..write(obj.printBatchIds)
       ..writeByte(11)
-      ..write(obj.reservedPromoId);
+      ..write(obj.reservedPromoId)
+      ..writeByte(12)
+      ..write(obj.customDiscount);
   }
 
   @override
@@ -100,8 +107,8 @@ _OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
       subtotal: (json['subtotal'] as num?)?.toInt() ?? 0,
       orderType:
           json['dineType'] == null
-              ? OrderType.dineIn
-              : OrderTypeExtension.fromString(json['dineType'] as String),
+              ? OrderTypeModel.dineIn
+              : OrderTypeModel.fromString(json['dineType'] as String),
       orderItemid: json['orderItemid'] as String? ?? null,
       isPrinted: json['isPrinted'] as bool? ?? false,
       printedQuantity: (json['printedQuantity'] as num?)?.toInt() ?? 0,
@@ -111,6 +118,12 @@ _OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
               .toList() ??
           const [],
       reservedPromoId: json['reservedPromoId'] as String? ?? null,
+      customDiscount:
+          json['customDiscount'] == null
+              ? null
+              : CustomDiscountModel.fromJson(
+                json['customDiscount'] as Map<String, dynamic>,
+              ),
     );
 
 Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
@@ -121,10 +134,11 @@ Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
       'quantity': instance.quantity,
       'notes': instance.notes,
       'subtotal': instance.subtotal,
-      'dineType': OrderTypeExtension.orderTypeToJson(instance.orderType),
+      'dineType': OrderTypeModel.toJsonString(instance.orderType),
       'orderItemid': instance.orderItemid,
       'isPrinted': instance.isPrinted,
       'printedQuantity': instance.printedQuantity,
       'printBatchIds': instance.printBatchIds,
       'reservedPromoId': instance.reservedPromoId,
+      'customDiscount': instance.customDiscount,
     };

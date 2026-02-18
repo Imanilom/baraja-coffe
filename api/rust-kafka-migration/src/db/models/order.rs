@@ -170,6 +170,8 @@ pub struct MenuItemData {
     pub selected_toppings: Vec<OrderItemTopping>,
     #[serde(rename = "isActive", default = "default_true")]
     pub is_active: bool,
+    #[serde(default)]
+    pub workstation: Option<String>,
 }
 
 fn default_true() -> bool { true }

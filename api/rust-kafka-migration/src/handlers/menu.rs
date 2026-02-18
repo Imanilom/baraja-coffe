@@ -154,3 +154,50 @@ pub async fn list_collections_debug(
     }))))
 }
 
+
+/// ===============================
+/// GET /api/menu/customer
+/// Get menu items for customer view (filtered by stock availability)
+/// ===============================
+pub async fn get_customer_menu(
+    State(state): State<Arc<AppState>>,
+) -> AppResult<Json<ApiResponse<Vec<MenuItem>>>> {
+    let items = state
+        .menu_service
+        .get_customer_menu_items()
+        .await?;
+
+    Ok(Json(ApiResponse::success(items)))
+}
+
+
+/// ===============================
+/// GET /api/menu/cashier
+/// Get menu items for cashier/POS (all active items, optimized)
+/// ===============================
+pub async fn get_cashier_menu(
+    State(state): State<Arc<AppState>>,
+) -> AppResult<Json<ApiResponse<Vec<MenuItem>>>> {
+    let items = state
+        .menu_service
+        .get_cashier_menu_items()
+        .await?;
+
+    Ok(Json(ApiResponse::success(items)))
+}
+
+
+/// ===============================
+/// GET /api/menu/backoffice
+/// Get menu items for backoffice (all items including inactive, optimized)
+/// ===============================
+pub async fn get_backoffice_menu(
+    State(state): State<Arc<AppState>>,
+) -> AppResult<Json<ApiResponse<Vec<MenuItem>>>> {
+    let items = state
+        .menu_service
+        .get_backoffice_menu_items()
+        .await?;
+
+    Ok(Json(ApiResponse::success(items)))
+}
