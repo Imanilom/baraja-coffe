@@ -126,7 +126,14 @@ export const getCashRecap = async (req, res) => {
                     (p.method?.toLowerCase() === 'cash' || p.payment_type?.toLowerCase() === 'cash');
             });
 
-            const cashAmount = validCashPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+            let cashAmount = 0;
+            if (!order.isSplitPayment) {
+                // ✅ FIX: Use grandTotal directly to match DB (handles discounts/custom amounts correctly)
+                cashAmount = order.grandTotal;
+            } else {
+                // If split payment, sum only the cash portions
+                cashAmount = validCashPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+            }
             totalCashAmount += cashAmount;
 
             return {

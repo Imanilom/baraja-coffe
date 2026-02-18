@@ -78,7 +78,7 @@ export async function createOrderHandler({
       itemsCount: verifiedOrder.items.length,
       customAmountItemsCount: verifiedOrder.customAmountItems.length,
       selectedPromosCount: verifiedOrder.selectedPromos?.length || 0,
-      selectedPromoDiscount: verifiedOrder.discounts?.selectedPromoDiscount || 0,
+      selectedBundleDiscount: verifiedOrder.discounts?.selectedBundleDiscount || 0,
       paymentsTotal: verifiedOrder.payments.reduce((sum, p) => sum + p.amount, 0)
     });
 
@@ -525,8 +525,8 @@ async function createOrderWithSimpleTransaction({
       isSplitPayment: isSplitPayment,
       splitPaymentStatus: calculateSplitPaymentStatus(payments, totals.grandTotal),
       discounts: {
-        selectedPromoDiscount: discounts.selectedPromoDiscount || 0,  // ✅ RENAME FIELD
-        autoPromoDiscount: discounts.autoPromoDiscount || 0,
+        selectedBundleDiscount: 0,
+        autoPromoDiscount: (discounts.autoPromoDiscount || 0) + (discounts.selectedPromoDiscount || 0),  // ✅ FIX: Include bundling promo discount
         manualDiscount: discounts.manualDiscount || 0,
         voucherDiscount: discounts.voucherDiscount || 0,
         loyaltyDiscount: discounts.loyaltyDiscount || 0,
@@ -618,7 +618,7 @@ async function createOrderWithSimpleTransaction({
       status: baseOrderData.status,
       totalMenuItems: baseOrderData.items.length,
       selectedPromosCount: baseOrderData.selectedPromos?.length || 0,
-      selectedPromoDiscount: baseOrderData.discounts.selectedPromoDiscount,
+      selectedBundleDiscount: baseOrderData.discounts.selectedBundleDiscount,
       grandTotal: baseOrderData.grandTotal,
       paymentsCount: baseOrderData.payments.length
     });
@@ -671,7 +671,7 @@ async function createOrderWithSimpleTransaction({
     if (newOrder.selectedPromos && newOrder.selectedPromos.length > 0) {
       console.log(`🎁 Selected Promos: ${newOrder.selectedPromos.length} promos`);
       newOrder.selectedPromos.forEach(promo => {
-        console.log(`   • ${promo.promoName} (${promo.promoType}): Discount: Rp ${promo.appliedDiscount.toLocaleString('id-ID')}`);
+        console.log(`   • ${promo.promoName} (${promo.promoType}): Discount: Rp ${promo.discount.toLocaleString('id-ID')}`);
       });
     }
 
@@ -696,7 +696,7 @@ async function createOrderWithSimpleTransaction({
       orderType: newOrder.orderType,
       status: newOrder.status,
       selectedPromosCount: newOrder.selectedPromos?.length || 0,
-      selectedPromoDiscount: newOrder.discounts.selectedPromoDiscount,
+      selectedBundleDiscount: newOrder.discounts.selectedBundleDiscount,
       grandTotal: newOrder.grandTotal,
       isSplitPayment: newOrder.isSplitPayment,
       paymentsCount: newOrder.payments.length
