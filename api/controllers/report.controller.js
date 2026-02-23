@@ -74,7 +74,9 @@ export const getCashRecap = async (req, res) => {
         // If 'outletId' is used in schema, adapt accordingly. Based on cashierReport, it uses 'outlet'.
         // Also handling Open Bill logic from getCashierOrderHistory
 
-        const candidateOrders = await Order.find(baseFilter).lean();
+        const candidateOrders = await Order.find(baseFilter)
+            .select('order_id createdAt grandTotal status openBillStatus isOpenBill isSplitPayment') // ✅ OPTIMIZE: Select only needed fields
+            .lean();
 
         // 3. Filter Logic (Matching getCashierOrderHistory)
         const orderIds = candidateOrders.map(o => o.order_id);
@@ -83,7 +85,9 @@ export const getCashRecap = async (req, res) => {
         const payments = await Payment.find({
             order_id: { $in: orderIds },
             status: { $ne: 'void' }
-        }).lean();
+        })
+            .select('order_id status method payment_type amount') // ✅ OPTIMIZE: Select only needed fields
+            .lean();
 
         // Filter Function
         const validOrders = candidateOrders.filter(order => {
@@ -126,14 +130,10 @@ export const getCashRecap = async (req, res) => {
                     (p.method?.toLowerCase() === 'cash' || p.payment_type?.toLowerCase() === 'cash');
             });
 
-            let cashAmount = 0;
-            if (!order.isSplitPayment) {
-                // ✅ FIX: Use grandTotal directly to match DB (handles discounts/custom amounts correctly)
-                cashAmount = order.grandTotal;
-            } else {
-                // If split payment, sum only the cash portions
-                cashAmount = validCashPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-            }
+            // If split payment or exact cash payment, sum only the cash portions
+            // This properly handles both single cash payments, and partial cash in split payments.
+            const cashAmount = validCashPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
             totalCashAmount += cashAmount;
 
             return {
@@ -143,21 +143,7 @@ export const getCashRecap = async (req, res) => {
             };
         });
 
-        // 5. Save Log
-        const newLog = new CashRecapLog({
-            outletId: outletObjectId,
-            deviceId: deviceObjectId,
-            rangeStartDate: startDate,
-            rangeEndDate: endDate,
-            totalCashAmount: totalCashAmount,
-            orderCount: processedOrders.length,
-            orders: processedOrders,
-            printedAt: now
-        });
-
-        await newLog.save();
-
-        // 6. Return Data
+        // 5. Return Data (No Saving yet!)
         res.status(200).json({
             success: true,
             data: {
@@ -178,6 +164,101 @@ export const getCashRecap = async (req, res) => {
 
     } catch (error) {
         console.error('Error in getCashRecap:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Reprint Last Cash Recap
+ * Retrieves the latest CashRecapLog for the given device/outlet
+ */
+export const reprintLastRecap = async (req, res) => {
+    try {
+        const { outletId, deviceId } = req.body;
+
+        if (!outletId || !deviceId) {
+            return res.status(400).json({ success: false, message: "Outlet ID and Device ID are required" });
+        }
+
+        const outletObjectId = toObjectId(outletId);
+        const deviceObjectId = toObjectId(deviceId);
+
+        // Find last recap
+        const lastRecap = await CashRecapLog.findOne({
+            outletId: outletObjectId,
+            deviceId: deviceObjectId
+        }).sort({ printedAt: -1 });
+
+        if (!lastRecap) {
+            return res.status(404).json({ success: false, message: "No previous cash recap found for this device." });
+        }
+
+        // Return Data (matching getCashRecap structure)
+        res.status(200).json({
+            success: true,
+            data: {
+                period: {
+                    start: lastRecap.rangeStartDate,
+                    end: lastRecap.rangeEndDate
+                },
+                printDate: lastRecap.printedAt,
+                totalCash: lastRecap.totalCashAmount,
+                orderCount: lastRecap.orderCount,
+                orders: lastRecap.orders.map(o => ({
+                    id: o.orderId,
+                    time: moment(o.time).format('HH:mm'),
+                    amount: o.amount
+                })),
+                isReprint: true // Flag to indicate this is a reprint
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in reprintLastRecap:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Save Cash Recap Log
+ * Called by frontend AFTER successful print to lock the data.
+ */
+export const saveCashRecap = async (req, res) => {
+    try {
+        const { outletId, deviceId, period, totalCash, orderCount, orders } = req.body;
+
+        if (!outletId || deviceId === undefined) {
+            return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        const outletObjectId = toObjectId(outletId);
+        const deviceObjectId = toObjectId(deviceId);
+
+        const newLog = new CashRecapLog({
+            outletId: outletObjectId,
+            deviceId: deviceObjectId,
+            rangeStartDate: new Date(period.start),
+            rangeEndDate: new Date(period.end),
+            totalCashAmount: totalCash,
+            orderCount: orderCount,
+            orders: orders.map(o => ({
+                orderId: o.id,
+                time: moment(o.time, 'HH:mm').toDate(), // Assuming current day context
+                amount: o.amount
+            })),
+            printedAt: new Date()
+        });
+
+        await newLog.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Cash recap log saved successfully",
+            data: newLog
+        });
+
+    } catch (error) {
+        console.error('Error in saveCashRecap:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

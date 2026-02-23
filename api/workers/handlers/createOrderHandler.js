@@ -494,6 +494,44 @@ async function createOrderWithSimpleTransaction({
       });
     }
 
+    // ✅ FIX: Sync payments amount with adjustedGrandTotal (post-discount)
+    // Payments array was built BEFORE discount recalculation, so amounts may be stale
+    if (payments.length > 0) {
+      if (!isSplitPayment) {
+        // Single payment: amount harus = adjustedGrandTotal
+        const oldAmount = payments[0].amount;
+        payments[0].amount = adjustedGrandTotal;
+        if (oldAmount !== adjustedGrandTotal) {
+          console.log('💰 FIX: Synced single payment amount with adjusted grand total:', {
+            oldAmount,
+            newAmount: adjustedGrandTotal,
+            difference: oldAmount - adjustedGrandTotal
+          });
+        }
+      } else {
+        // Split payment: proporsional adjustment jika total berbeda
+        const currentTotal = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+        if (Math.abs(currentTotal - adjustedGrandTotal) > 1) {
+          const ratio = adjustedGrandTotal / currentTotal;
+          let runningTotal = 0;
+          payments.forEach((p, i) => {
+            if (i === payments.length - 1) {
+              // Last payment gets the remainder to avoid rounding issues
+              p.amount = adjustedGrandTotal - runningTotal;
+            } else {
+              p.amount = Math.round(p.amount * ratio);
+              runningTotal += p.amount;
+            }
+          });
+          console.log('💰 FIX: Synced split payment amounts with adjusted grand total:', {
+            oldTotal: currentTotal,
+            newTotal: adjustedGrandTotal,
+            payments: payments.map(p => ({ method: p.paymentMethod, amount: p.amount }))
+          });
+        }
+      }
+    }
+
     // Prepare base order data
     const baseOrderData = {
       order_id: orderId,
@@ -523,7 +561,7 @@ async function createOrderWithSimpleTransaction({
       openBillClosedAt: openBillClosedAt || null, // ✅ Add openBillClosedAt
       openBillStartedAt: openBillStartedAt || null, // ✅ Add openBillStartedAt
       isSplitPayment: isSplitPayment,
-      splitPaymentStatus: calculateSplitPaymentStatus(payments, totals.grandTotal),
+      splitPaymentStatus: calculateSplitPaymentStatus(payments, adjustedGrandTotal),
       discounts: {
         selectedBundleDiscount: 0,
         autoPromoDiscount: (discounts.autoPromoDiscount || 0) + (discounts.selectedPromoDiscount || 0),  // ✅ FIX: Include bundling promo discount
@@ -714,7 +752,13 @@ async function createOrderWithSimpleTransaction({
       orderNumber: orderId,
       processedItems: orderItems,
       customAmountItems: processedCustomAmountItems,
-      totals: totals,
+      totals: {
+        ...totals,
+        afterDiscount: adjustedTotalAfterDiscount,
+        totalTax: adjustedTaxAmount,
+        totalServiceFee: adjustedServiceFee,
+        grandTotal: adjustedGrandTotal,
+      },
       loyalty: loyalty,
       selectedPromos: selectedPromos,  // ✅ RETURN SELECTED PROMOS
       isSplitPayment: isSplitPayment,
