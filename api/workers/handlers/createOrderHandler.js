@@ -48,7 +48,7 @@ export async function createOrderHandler({
     }
 
     const orderResult = await createOrderWithSimpleTransaction({
-      session: shouldUseTransaction ? session : null,
+      session: session ? session : (shouldUseTransaction ? session : null),
       orderId,
       orderData,
       source,
@@ -66,7 +66,9 @@ export async function createOrderHandler({
     console.log('🔄 Verifying order in database...');
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    const verifiedOrder = await Order.findOne({ order_id: orderId });
+    const query = Order.findOne({ order_id: orderId });
+    if (session) query.session(session);
+    const verifiedOrder = await query;
     if (!verifiedOrder) {
       throw new Error(`Order ${orderId} not found in database after creation`);
     }
@@ -692,7 +694,7 @@ async function createOrderWithSimpleTransaction({
     }
 
     // Save dengan session
-    const saveOptions = useTransaction && session ? { session } : {};
+    const saveOptions = session ? { session } : {};
     await newOrder.save(saveOptions);
 
     // Log order creation success
