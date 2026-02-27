@@ -5140,9 +5140,19 @@ const checkOutletOperatingHours = (outlet) => {
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
+  const { cashierId, jobId, deviceId } = req.body;
 
   try {
     const result = await confirmOrderHelper(orderId);
+
+    // Save cashierId and deviceId if provided
+    if (cashierId || deviceId) {
+      const updateData = {};
+      if (cashierId) updateData.cashierId = cashierId;
+      if (deviceId) updateData.device_id = deviceId;
+
+      await Order.findOneAndUpdate({ order_id: orderId }, { $set: updateData });
+    }
 
     return res.status(200).json({
       success: true,
@@ -9591,7 +9601,7 @@ export const cashierCharge = async (req, res) => {
 
 export const confirmOrderViaCashier = async (req, res) => {
   try {
-    const { order_id, source, cashier_id } = req.body;
+    const { order_id, source, cashier_id, device_id } = req.body;
 
     // Validasi input
     if (!order_id || !cashier_id) {
@@ -9652,6 +9662,9 @@ export const confirmOrderViaCashier = async (req, res) => {
 
     // Update status order menjadi "Waiting"
     order.cashierId = cashier._id;
+    if (device_id) {
+      order.device_id = device_id;
+    }
     // await order.save({ session });
     if (order.orderType === 'Reservation') {
       order.status = 'Completed';
@@ -9851,7 +9864,7 @@ export const processPaymentCashier = async (req, res) => {
       //   payment.remainingAmount = 0;
       // }
       const paymentMethodandtype =
-        [payment_type, payment_method]
+        [payment_method, payment_type]
           .filter(Boolean)
           .join(' ')
           .trim();

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
@@ -54,6 +55,11 @@ class NotificationService {
         enableVibration: true,
       ),
     );
+
+    // Meminta izin menggunakan permission_handler (lebih handal di Android 13+)
+    if (await Permission.notification.isDenied) {
+      await Permission.notification.request();
+    }
 
     // iOS: izinkan tampil saat app foreground (biar kelihatan)
     await _plugin

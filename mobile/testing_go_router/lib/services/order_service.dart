@@ -112,6 +112,7 @@ class OrderService {
     final box = Hive.box('userBox');
     final cashierId = box.get('cashier').id;
     final cashierbox = await HiveService.getCashier();
+    final loginDevice = box.get('device') as DeviceModel;
 
     try {
       if (cashierId == null) {
@@ -122,6 +123,7 @@ class OrderService {
         data: {
           'order_id': request.orderId,
           'cashier_id': cashierbox!.id ?? cashierId,
+          'device_id': loginDevice.id,
           'source': request.source,
         },
         options: Options(
@@ -153,9 +155,14 @@ class OrderService {
   ) async {
     AppLogger.debug('process payment request: ${request.toJson()}');
     try {
+      final box = Hive.box('userBox');
+      final loginDevice = box.get('device') as DeviceModel;
+      final payload = request.toJson();
+      payload['device_id'] = loginDevice.id;
+
       Response response = await _dio.post(
         '/api/order/cashier/process-payment',
-        data: request.toJson(),
+        data: payload,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -186,6 +193,7 @@ class OrderService {
   ) async {
     final box = Hive.box('userBox');
     final cashierId = box.get('cashier').id;
+    final loginDevice = box.get('device') as DeviceModel;
 
     AppLogger.debug('cashierId: $cashierId , orderId: ${orderDetail.orderId}');
 
@@ -198,6 +206,7 @@ class OrderService {
         data: {
           //cashierId dari authCashierProvider
           'cashierId': cashierId,
+          'deviceId': loginDevice.id,
           'jobId': orderDetail.orderId,
         },
         options: Options(
