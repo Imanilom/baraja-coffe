@@ -44,6 +44,7 @@ dependencies:
   fl_chart: ^1.0.0
   uuid: ^4.5.1
   logger: ^2.5.0
+  firebase_core: ^4.4.0
 
 dependency_overrides:
   # Override to use latest image package for better performance

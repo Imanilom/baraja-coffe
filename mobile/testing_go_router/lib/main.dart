@@ -12,6 +12,8 @@ import 'package:kasirbaraja/services/notification_service.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/providers/router_provider.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 Future<void> _safe(String label, Future<void> Function() run) async {
   try {
@@ -24,6 +26,7 @@ Future<void> _safe(String label, Future<void> Function() run) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Tangkap error framework
   FlutterError.onError = (details) {
