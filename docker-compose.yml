@@ -1,0 +1,50 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: baraja_redis
+    network_mode: "host"
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    command: redis-server --port 6379 --bind 127.0.0.1
+
+  app:
+    build: .
+    image: barajacoffee/barajahub:latest
+    container_name: barajahub
+    network_mode: "host"
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://127.0.0.1:6379
+      - REDIS_HOST=127.0.0.1
+      - REDIS_PORT=6379
+      - HOST=0.0.0.0
+      - PORT=3000
+      - NODE_ENV=production
+    ulimits: # 🚀 biar tidak mentok di koneksi/file descriptor
+      nofile:
+        soft: 65535
+        hard: 65535
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    init: true
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./dockerconfigjson:/config.json
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: "180"
+      DOCKER_CONFIG: "/config.json"

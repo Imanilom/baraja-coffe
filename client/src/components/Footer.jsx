@@ -1,6 +1,5 @@
-import React from 'react';
-import { FaYoutube, FaTwitter, FaInstagram, FaLinkedin, FaPhoneAlt, FaWhatsapp } from 'react-icons/fa';
-
+import React from "react";
+import { FaYoutube, FaTwitter, FaInstagram, FaLinkedin, FaPhoneAlt, FaWhatsapp } from "react-icons/fa";
 
 const Footer = () => {
   return (
@@ -8,9 +7,9 @@ const Footer = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Logo and Copyright */}
         <div className="flex flex-col items-start">
-          <img 
-            src="https://via.placeholder.com/100x50" 
-            alt="Baraja Coffee Logo" 
+          <img
+            src="https://placehold.co/120x40/png"
+            alt="Baraja Coffee Logo"
             className="mb-4"
           />
           <p className="text-sm">© 2023 Baraja Coffee, All Rights Reserved</p>
@@ -26,7 +25,7 @@ const Footer = () => {
             Jawa Barat
           </p>
           <p className="text-sm mt-2 flex items-center">
-          <FaPhoneAlt size={16} className="mr-4"/>
+            <FaPhoneAlt size={16} className="mr-4" />
             0856-2323-231
           </p>
         </div>
@@ -40,7 +39,7 @@ const Footer = () => {
             Directorate General of Consumer Protection and Trade Compliance, Ministry of Trade of the Republic of Indonesia
           </p>
           <p className="text-sm mt-2 flex items-center">
-          <FaWhatsapp size={24} className="mr-4"/>
+            <FaWhatsapp size={24} className="mr-4" />
             Ditjen PKTN: 0853-1111-1010
           </p>
         </div>
