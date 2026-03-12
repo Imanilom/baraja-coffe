@@ -71,9 +71,6 @@ class OrderDetailEdit extends ConsumerWidget {
                         physics: const BouncingScrollPhysics(),
                         itemBuilder: (context, index) {
                           final orderItem = items[index];
-                          final isLocked =
-                              orderItem.orderItemid != null &&
-                              orderItem.orderItemid!.isNotEmpty;
                           return ListTile(
                             horizontalTitleGap: 4,
                             visualDensity: const VisualDensity(
@@ -88,40 +85,16 @@ class OrderDetailEdit extends ConsumerWidget {
                             leading: CircleAvatar(
                               child: Text(orderItem.quantity.toString()),
                             ),
-                            title: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    orderItem.menuItem.name ?? '-',
-                                    style: TextStyle(
-                                      color:
-                                          isLocked ? Colors.grey : Colors.black,
-                                    ),
-                                  ),
-                                ),
-                                if (isLocked)
-                                  const Icon(
-                                    Icons.lock,
-                                    size: 16,
-                                    color: Colors.grey,
-                                  ),
-                              ],
-                            ),
+                            title: Text(orderItem.menuItem.name ?? '-'),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   'workstation: ${orderItem.menuItem.workstation ?? '-'}',
-                                  style: TextStyle(
-                                    color: isLocked ? Colors.grey : null,
-                                  ),
                                 ),
                                 if (orderItem.selectedToppings.isNotEmpty)
                                   Text(
                                     'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',
-                                    style: TextStyle(
-                                      color: isLocked ? Colors.grey : null,
-                                    ),
                                   ),
                                 if (orderItem.selectedAddons.isNotEmpty)
                                   if (orderItem.selectedAddons.first.options !=
@@ -133,27 +106,18 @@ class OrderDetailEdit extends ConsumerWidget {
                                           .isNotEmpty)
                                     Text(
                                       'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
-                                      style: TextStyle(
-                                        color: isLocked ? Colors.grey : null,
-                                      ),
                                     ),
                                 if ((orderItem.notes ?? '').isNotEmpty)
                                   Text(
                                     'Catatan: ${orderItem.notes}',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontStyle: FontStyle.italic,
-                                      color:
-                                          isLocked ? Colors.grey : Colors.grey,
+                                      color: Colors.grey,
                                     ),
                                   ),
                               ],
                             ),
-                            trailing: Text(
-                              formatRupiah(orderItem.subtotal),
-                              style: TextStyle(
-                                color: isLocked ? Colors.grey : null,
-                              ),
-                            ),
+                            trailing: Text(formatRupiah(orderItem.subtotal)),
                             onTap: () {
                               showModalBottomSheet(
                                 context: context,
@@ -162,53 +126,16 @@ class OrderDetailEdit extends ConsumerWidget {
                                 builder:
                                     (context) => EditOrderItemDialog(
                                       orderItem: orderItem,
-                                      isLocked: isLocked, // Pass lock status
                                       onEditOrder: (editedOrderItem) {
-                                        if (isLocked)
-                                          return; // Prevent edits if locked
                                         notifier.editOrderItem(
                                           orderItem,
                                           editedOrderItem,
                                         );
                                       },
-                                      onDeleteOrderItem: () async {
-                                        if (isLocked) {
-                                          // Delete existing item via API
-                                          final success = await notifier
-                                              .deleteExistingItem(orderItem);
-                                          if (context.mounted) {
-                                            if (success) {
-                                              Navigator.pop(context);
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'Item berhasil dihapus',
-                                                  ),
-                                                  backgroundColor: Colors.green,
-                                                ),
-                                              );
-                                            } else {
-                                              // Error is handled in provider/state
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'Gagal menghapus item',
-                                                  ),
-                                                  backgroundColor: Colors.red,
-                                                ),
-                                              );
-                                            }
-                                          }
-                                        } else {
-                                          // Remove local new item
-                                          notifier.removeItem(orderItem);
-                                          if (context.mounted) {
-                                            Navigator.pop(context);
-                                          }
+                                      onDeleteOrderItem: () {
+                                        notifier.removeItem(orderItem);
+                                        if (context.mounted) {
+                                          Navigator.pop(context);
                                         }
                                       },
                                       onClose: () => Navigator.pop(context),

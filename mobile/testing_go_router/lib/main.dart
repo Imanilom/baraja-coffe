@@ -13,20 +13,25 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/providers/router_provider.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
+import 'package:kasirbaraja/services/fcm_service.dart';
 
 Future<void> _safe(String label, Future<void> Function() run) async {
   try {
     await run();
   } catch (e, st) {
     // Jangan biarkan init gagal menghentikan runApp di release
-    debugPrint('INIT FAILED [$label]: $e\n$st');
+    AppLogger.error('INIT FAILED [$label]: $e\n$st');
   }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Daftarkan handler untuk pesan FCM di background/terminated
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   // Tangkap error framework
   FlutterError.onError = (details) {
@@ -37,7 +42,6 @@ Future<void> main() async {
   await runZonedGuarded<Future<void>>(
     () async {
       await _safe('dotenv', () async {
-        // Pastikan .env dibundel di pubspec.yaml (lihat bagian 3)
         await dotenv.load(fileName: '.env');
       });
 
@@ -48,10 +52,6 @@ Future<void> main() async {
 
       await _safe('intl', () async {
         await initializeDateFormatting('id_ID', null);
-      });
-
-      await _safe('notification', () async {
-        await NotificationService.init();
       });
 
       await _safe('orientation', () async {
@@ -78,9 +78,23 @@ Future<void> main() async {
           child: const OverlaySupport.global(child: MyApp()),
         ),
       );
+
+      // ⚡ PENTING: Inisialisasi notifikasi & FCM SETELAH runApp()
+      // agar Android Activity sudah siap untuk menampilkan dialog izin.
+      // Di debug mode ini tidak masalah, tapi di APK build Activity
+      // belum ter-attach sebelum runApp() dipanggil.
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _safe('notification', () async {
+          await NotificationService.init();
+        });
+
+        await _safe('fcm', () async {
+          await FcmService.init();
+        });
+      });
     },
     (e, st) {
-      debugPrint('UNCAUGHT ERROR: $e\n$st');
+      AppLogger.error('UNCAUGHT ERROR: $e\n$st');
     },
   );
 }

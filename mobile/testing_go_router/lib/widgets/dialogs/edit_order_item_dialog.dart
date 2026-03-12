@@ -15,7 +15,6 @@ class EditOrderItemDialog extends StatefulWidget {
   final Function(OrderItemModel) onEditOrder;
   final Function() onClose;
   final Function()? onDeleteOrderItem;
-  final bool isLocked;
 
   const EditOrderItemDialog({
     super.key,
@@ -23,7 +22,6 @@ class EditOrderItemDialog extends StatefulWidget {
     required this.onEditOrder,
     required this.onClose,
     this.onDeleteOrderItem,
-    this.isLocked = false,
   });
 
   @override
@@ -75,31 +73,6 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 children: [
-                  if (widget.isLocked)
-                    Container(
-                      margin: const EdgeInsets.only(top: 16),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.amber[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.lock, size: 16, color: Colors.amber[800]),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Item ini sudah tersimpan. Hapus dan input ulang jika ingin mengubah.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.amber[900],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   const SizedBox(height: 16),
                   _buildTopSection(menuItem),
                   const SizedBox(height: 16),
@@ -143,24 +116,20 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: (widget.isLocked
-                          ? Colors.grey
-                          : const Color(0xFF4CAF50))
-                      .withValues(alpha: 0.1),
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Icon(
-                  widget.isLocked ? Icons.lock : Icons.edit,
-                  color:
-                      widget.isLocked ? Colors.grey : const Color(0xFF4CAF50),
+                child: const Icon(
+                  Icons.edit,
+                  color: Color(0xFF4CAF50),
                   size: 16,
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
+              const Expanded(
                 child: Text(
-                  widget.isLocked ? 'Detail Item (Terkunci)' : 'Edit Item',
-                  style: const TextStyle(
+                  'Edit Item',
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1A1A1A),
@@ -527,7 +496,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     required IconData icon,
     required VoidCallback? onPressed,
   }) {
-    final enabled = onPressed != null && !widget.isLocked;
+    final enabled = onPressed != null;
     return Container(
       // width: 28,
       // height: 28,
@@ -583,7 +552,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           ),
           const SizedBox(height: 8),
           InkWell(
-            onTap: widget.isLocked ? null : () => _showNoteDialog(),
+            onTap: () => _showNoteDialog(),
             borderRadius: BorderRadius.circular(8),
             child: Container(
               width: double.infinity,
@@ -607,12 +576,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (!widget.isLocked)
-                    Icon(
-                      Icons.edit_outlined,
-                      size: 14,
-                      color: Colors.grey[600],
-                    ),
+                  Icon(Icons.edit_outlined, size: 14, color: Colors.grey[600]),
                 ],
               ),
             ),
@@ -727,20 +691,17 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         value: isSelected,
         activeColor: const Color(0xFF4CAF50),
         controlAffinity: ListTileControlAffinity.trailing,
-        onChanged:
-            widget.isLocked
-                ? null
-                : (value) {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    if (isSelected) {
-                      selectedToppings.remove(topping);
-                    } else {
-                      selectedToppings.add(topping);
-                    }
-                    _recalculateDiscount();
-                  });
-                },
+        onChanged: (value) {
+          HapticFeedback.lightImpact();
+          setState(() {
+            if (isSelected) {
+              selectedToppings.remove(topping);
+            } else {
+              selectedToppings.add(topping);
+            }
+            _recalculateDiscount();
+          });
+        },
       ),
     );
   }
@@ -850,14 +811,11 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         value: option.id!, // ← pakai id
         groupValue: selectedOptionId, // ← pakai id terpilih
         activeColor: const Color(0xFF4CAF50),
-        onChanged:
-            widget.isLocked
-                ? null
-                : (val) {
-                  if (val == null) return;
-                  HapticFeedback.lightImpact();
-                  _setSelectedOption(addon.id!, option, addon);
-                },
+        onChanged: (val) {
+          if (val == null) return;
+          HapticFeedback.lightImpact();
+          _setSelectedOption(addon.id!, option, addon);
+        },
       ),
     );
   }
@@ -909,7 +867,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                 ),
               ),
               child: Text(
-                widget.isLocked ? 'Tutup' : 'Batal',
+                'Batal',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -918,40 +876,38 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               ),
             ),
           ),
-          if (!widget.isLocked) ...[
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  final editedOrderItem = OrderItemModel(
-                    menuItem: widget.orderItem.menuItem,
-                    quantity: quantity,
-                    selectedToppings: selectedToppings,
-                    selectedAddons: selectedAddons,
-                    notes: note.isEmpty ? null : note,
-                    orderType: selectedOrderType,
-                    customDiscount: customDiscount,
-                  );
-                  widget.onEditOrder(editedOrderItem);
-                  widget.onClose();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 2,
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                final editedOrderItem = OrderItemModel(
+                  menuItem: widget.orderItem.menuItem,
+                  quantity: quantity,
+                  selectedToppings: selectedToppings,
+                  selectedAddons: selectedAddons,
+                  notes: note.isEmpty ? null : note,
+                  orderType: selectedOrderType,
+                  customDiscount: customDiscount,
+                );
+                widget.onEditOrder(editedOrderItem);
+                widget.onClose();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text(
-                  'Simpan',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
+                elevation: 2,
+              ),
+              child: const Text(
+                'Simpan',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -1004,9 +960,9 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               ElevatedButton(
                 onPressed: () {
                   HapticFeedback.lightImpact();
-                  widget.onDeleteOrderItem?.call();
-                  Navigator.of(context).pop();
-                  widget.onClose();
+                  Navigator.of(context).pop(); // Tutup confirmation dialog
+                  widget.onDeleteOrderItem
+                      ?.call(); // Hapus item + tutup bottom sheet
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red[600],

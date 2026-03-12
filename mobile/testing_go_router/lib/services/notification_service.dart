@@ -1,11 +1,13 @@
 import 'dart:math';
-import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:kasirbaraja/utils/app_logger.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+
+  static bool _initialized = false;
 
   // Gunakan konstanta channel yang STABIL (jangan diubah di update berikutnya)
   static const String _channelId = 'orders_channel';
@@ -14,11 +16,11 @@ class NotificationService {
 
   // Inisialisasi (panggil sekali, mis. saat login kasir atau app start)
   static Future<void> init() async {
+    // Gunakan icon yang sama dengan AndroidManifest.xml
     const AndroidInitializationSettings androidInit =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('@mipmap/launcher_icon');
 
     const DarwinInitializationSettings iosInit = DarwinInitializationSettings(
-      // iOS 10+: minta izin alert/badge/sound saat init (boleh juga kamu pindah ke halaman login)
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -31,10 +33,8 @@ class NotificationService {
 
     await _plugin.initialize(
       settings,
-      // Opsional: handle ketika notifikasi ditekan
       onDidReceiveNotificationResponse: (resp) {
-        debugPrint('Tapped notification with payload: ${resp.payload}');
-        // TODO: arahkan ke halaman yang diinginkan
+        AppLogger.debug('Tapped notification with payload: ${resp.payload}');
       },
     );
 
@@ -58,7 +58,8 @@ class NotificationService {
 
     // Meminta izin menggunakan permission_handler (lebih handal di Android 13+)
     if (await Permission.notification.isDenied) {
-      await Permission.notification.request();
+      final status = await Permission.notification.request();
+      AppLogger.info('🔔 Notification permission: $status');
     }
 
     // iOS: izinkan tampil saat app foreground (biar kelihatan)
@@ -67,6 +68,9 @@ class NotificationService {
           IOSFlutterLocalNotificationsPlugin
         >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
+
+    _initialized = true;
+    AppLogger.info('✅ NotificationService initialized');
   }
 
   // Notifikasi sistem (keluar OS). Kembalikan Future dan pakai await di pemanggil.
@@ -76,33 +80,43 @@ class NotificationService {
     String? payload,
     int? id, // kalau null, auto-random agar tidak menimpa
   }) async {
-    final notifId = id ?? Random().nextInt(1 << 31);
+    try {
+      // Kalau belum init, coba init dulu
+      if (!_initialized) {
+        AppLogger.warning('⚠️ NotificationService belum init, mencoba init...');
+        await init();
+      }
 
-    const android = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: _channelDesc,
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-    );
+      final notifId = id ?? Random().nextInt(1 << 31);
 
-    const ios = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
+      const android = AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDesc,
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        icon: '@mipmap/launcher_icon',
+      );
 
-    await _plugin.show(
-      notifId,
-      title,
-      body,
-      const NotificationDetails(android: android, iOS: ios),
-      payload: payload,
-    );
+      const ios = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+
+      await _plugin.show(
+        notifId,
+        title,
+        body,
+        const NotificationDetails(android: android, iOS: ios),
+        payload: payload,
+      );
+
+      AppLogger.debug('📢 Notification shown: $title');
+    } catch (e, st) {
+      AppLogger.error('❌ Gagal menampilkan notifikasi: $e\n$st');
+    }
   }
-
-  // Notifikasi in-app (opsional, pakai overlay/toast sendiri kalau mau)
-  // Kamu bisa pakai overlay_support di tempat lain; sengaja dihapus di sini biar fokus ke sistem.
 }

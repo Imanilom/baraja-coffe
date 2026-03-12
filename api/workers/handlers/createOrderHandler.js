@@ -352,8 +352,16 @@ async function createOrderWithSimpleTransaction({
         paymentMethodData = paymentMethod || 'Cash';
       }
     } else if (source === 'App' || source === 'Web') {
+      // Changed to set status to 'Pending' for all Web orders regardless of payment method
       const isCashPayment = orderPaymentDetails?.method?.toLowerCase() === 'cash';
-      initialStatus = isCashPayment ? 'Pending' : 'Waiting';
+
+      if (source === 'Web') {
+        initialStatus = 'Pending';
+      } else {
+        // App logic remains the same
+        initialStatus = isCashPayment ? 'Pending' : 'Waiting';
+      }
+
       paymentMethodData = orderPaymentDetails?.method;
     }
 

@@ -331,12 +331,12 @@ async function recalcTotals(orderDoc) {
 //     return result;
 // }
 
-function isLockedItem(it) {
-    return LOCKED_STATES.has(it.kitchenStatus);
-}
+// isLockedItem dihapus: kasir sekarang bebas mengedit semua item
+// karena cetak ke dapur hanya terjadi setelah konfirmasi kasir.
 
 // normalize dari payload Flutter → ke bentuk order.items kamu
-async function normalizeIncomingItem(raw) {
+// existingItemsMap: Map<string, existingItemObject> untuk preserve state item lama
+async function normalizeIncomingItem(raw, existingItemsMap = new Map()) {
     const menu = await MenuItem.findById(raw.id).lean();
     if (!menu) {
         throw new Error(`Menu ${raw.id} tidak ditemukan`);
@@ -363,7 +363,6 @@ async function normalizeIncomingItem(raw) {
                 });
             }
         } else {
-            // kalau addon kamu memang harus pilih option, yang ini boleh di-skip
             addons.push({
                 name: def.name,
                 price: 0,
@@ -390,21 +389,26 @@ async function normalizeIncomingItem(raw) {
     const qty = Number(raw.quantity || 1);
     const subtotal = each * qty;
 
+    // Jika item sudah ada sebelumnya (orderItemid cocok), preserve state penting
+    const existing = raw.orderItemid ? existingItemsMap.get(raw.orderItemid) : null;
+
     return {
+        // Preserve _id dari item lama agar referensi tidak berubah
+        ...(existing?._id ? { _id: existing._id } : {}),
         menuItem: raw.id,
         quantity: qty,
         subtotal,
         addons,
         toppings,
         notes: raw.notes || '',
-        batchNumber: raw.batchNumber || 1,
-        addedAt: new Date(),
-        kitchenStatus: 'pending',
-        isPrinted: false,
-        dineType: raw.dineType || 'Dine-In',
-        outletId: raw.outletId || null,
-        outletName: raw.outletName || null,
-        payment_id: raw.payment_id || null,
+        batchNumber: existing?.batchNumber || raw.batchNumber || 1,
+        addedAt: existing?.addedAt || new Date(),
+        kitchenStatus: existing?.kitchenStatus || 'pending',
+        isPrinted: existing?.isPrinted || false,
+        dineType: raw.dineType || existing?.dineType || 'Dine-In',
+        outletId: raw.outletId || existing?.outletId || null,
+        outletName: raw.outletName || existing?.outletName || null,
+        payment_id: existing?.payment_id || raw.payment_id || null,
     };
 }
 
@@ -431,8 +435,7 @@ export async function replaceOrderItemsAndAllocate({
         const orderDoc = await Order.findById(orderId).session(session);
         if (!orderDoc) throw new Error('Order tidak ditemukan');
 
-        // 1. pisahkan locked dan editable
-        const lockedItems = orderDoc.items.filter(isLockedItem);
+        // 1. Simpan totals dan items sebelum perubahan (untuk revision & delta)
         const beforeTotals = {
             totalBeforeDiscount: Number(orderDoc.totalBeforeDiscount || 0),
             totalAfterDiscount: Number(orderDoc.totalAfterDiscount || 0),
@@ -442,36 +445,36 @@ export async function replaceOrderItemsAndAllocate({
         };
         const beforeItems = orderDoc.items.map(it => it.toObject());
 
-        // 3. gabungkan locked + incoming (replace penuh bagian editable)
+        // 2. Buat map dari item DB yang sudah ada (key: _id string)
+        //    Ini dipakai normalizeIncomingItem untuk preserve state lama
+        const existingItemsMap = new Map();
+        for (const it of orderDoc.items) {
+            const obj = it.toObject ? it.toObject() : it;
+            existingItemsMap.set(String(obj._id), obj);
+        }
+
+        // 3. Replace items: semua item dari frontend menjadi sumber kebenaran
         if (orderDoc.isOpenBill) {
             // KHUSUS OPEN BILL: Hanya boleh tambah.
             const newItemList = [];
             for (const r of items) {
-                // Item tanpa orderItemid dianggap item BARU
                 if (!r.orderItemid) {
-                    const n = await normalizeIncomingItem(r);
+                    const n = await normalizeIncomingItem(r, existingItemsMap);
                     newItemList.push(n);
                 }
             }
-            // Kita HANYA menambahkan yang benar-benar baru ke list yang sudah ada di DB.
-            // PERINGATAN: Jika frontend mengirim kembali item yang sudah didefinisikan di DB
-            // tapi TANPA orderItemid, maka akan terjadi duplikasi. 
-            // Itulah mengapa orderItemid sangat krusial di DTO dan Payload.
             orderDoc.items = [
                 ...orderDoc.items,
                 ...newItemList,
             ];
         } else {
-            // REGULAR ORDER: Logika lama (Locked + All Normalized Incoming)
+            // REGULAR / ONLINE ORDER: Full replace, kasir bebas edit semua item
             const normalizedIncoming = [];
             for (const r of items) {
-                const n = await normalizeIncomingItem(r);
+                const n = await normalizeIncomingItem(r, existingItemsMap);
                 normalizedIncoming.push(n);
             }
-            orderDoc.items = [
-                ...lockedItems,
-                ...normalizedIncoming,
-            ];
+            orderDoc.items = normalizedIncoming;
         }
 
         // 4. recalc total (pakai rasio pajak lama kayak tadi)

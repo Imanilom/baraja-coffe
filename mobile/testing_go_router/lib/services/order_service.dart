@@ -648,6 +648,8 @@ Map<String, dynamic> updateEditOrderRequest(
         orderItems.map((item) {
           return {
             'id': item.menuItem.id, // Ambil id menu aja
+            'orderItemid':
+                item.orderItemid, // Kirim orderItemid agar backend preserve state item lama
             'quantity': item.quantity,
             'selectedAddons':
                 item.selectedAddons.map((addon) {
