@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"order_id":{"$numberInt":"1"}},"name":"order_id_1","background":true,"unique":true}],"uuid":"93ab04e132254a579535d737c2970fd6","collectionName":"gosendbookings","type":"collection"}

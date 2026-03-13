@@ -1,0 +1,995 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import axios from "axios";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+import { Link, useSearchParams } from "react-router-dom";
+import { FaChevronRight, FaDownload } from "react-icons/fa";
+import { exportToExcel } from "../../../../utils/exportHelper";
+import { useReactToPrint } from "react-to-print";
+import SalesTransactionTable from "./table";
+import SalesTransactionTableSkeleton from "./skeleton";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
+
+const SalesTransaction = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
+
+    const [products, setProducts] = useState([]);
+    const [outlets, setOutlets] = useState([]);
+    const [selectedTrx, setSelectedTrx] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [isExporting, setIsExporting] = useState(false);
+
+    const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [dateRange, setDateRange] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalOrders, setTotalOrders] = useState(0);
+    const [limit, setLimit] = useState(20);
+
+    // ============================================
+    // NEW STATES FOR DELETE FUNCTIONALITY
+    // ============================================
+    const [selectedItems, setSelectedItems] = useState([]);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const dropdownRef = useRef(null);
+    const receiptRef = useRef();
+    const handlePrint = useReactToPrint({
+        content: () => receiptRef.current,
+        documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
+    });
+
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
+    };
+
+    const parseDateFromURL = (dateStr) => {
+        if (!dateStr) return null;
+        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
+    };
+
+    useEffect(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outletId');
+        const searchParam = searchParams.get('search');
+        const pageParam = searchParams.get('page');
+        const limitParam = searchParams.get('limit');
+
+        if (startDateParam && endDateParam) {
+            setDateRange({
+                startDate: parseDateFromURL(startDateParam),
+                endDate: parseDateFromURL(endDateParam),
+            });
+        } else {
+            const today = dayjs().tz(DEFAULT_TIMEZONE);
+            const newDateRange = {
+                startDate: today,
+                endDate: today
+            };
+            setDateRange(newDateRange);
+
+            updateURLParams(newDateRange, outletParam || "", searchParam || "",
+                parseInt(pageParam, 10) || 1, parseInt(limitParam, 10) || 20);
+        }
+
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+
+        if (searchParam) {
+            setSearchTerm(searchParam);
+        }
+
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
+
+        if (limitParam) {
+            setLimit(parseInt(limitParam, 10));
+        }
+    }, []);
+
+    const updateURLParams = (newDateRange, newOutlet, newSearch, newPage, newLimit) => {
+        const params = new URLSearchParams();
+
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
+        }
+
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
+        }
+
+        if (newSearch) {
+            params.set('search', newSearch);
+        }
+
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
+        }
+
+        if (newLimit && newLimit !== 20) {
+            params.set('limit', newLimit.toString());
+        }
+
+        setSearchParams(params);
+    };
+
+    const fetchProducts = async () => {
+        if (!dateRange?.startDate || !dateRange?.endDate) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const params = new URLSearchParams();
+
+            params.append('mode', 'paginated');
+            params.append('page', currentPage);
+            params.append('limit', limit);
+            params.append('status', 'Completed');
+
+            if (selectedOutlet) {
+                params.append('outlet', selectedOutlet);
+            }
+
+            if (dateRange?.startDate && dateRange?.endDate) {
+                params.append('startDate', formatDateForAPI(dateRange.startDate));
+                params.append('endDate', formatDateForAPI(dateRange.endDate));
+            }
+
+            const response = await axios.get(`/api/report/orders?${params.toString()}`);
+
+            const productsData = Array.isArray(response.data?.data)
+                ? response.data.data
+                : [];
+
+            setProducts(productsData);
+
+            if (response.data?.pagination) {
+                setTotalPages(response.data.pagination.totalPages);
+                setTotalOrders(response.data.pagination.totalOrders);
+            }
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching products:", err);
+            setError("Failed to load products.");
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchOutlets = async () => {
+        try {
+            const response = await axios.get('/api/outlet');
+
+            const outletsData = Array.isArray(response.data)
+                ? response.data
+                : (response.data && Array.isArray(response.data.data))
+                    ? response.data.data
+                    : [];
+
+            setOutlets(outletsData);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setError("Failed to load outlets. Please try again later.");
+            setOutlets([]);
+        }
+    };
+
+    useEffect(() => {
+        setSelectedItems([]); // Clear selection when filters change
+        fetchProducts();
+    }, [currentPage, limit, selectedOutlet, dateRange]);
+
+    useEffect(() => {
+        fetchOutlets();
+    }, []);
+
+    const options = [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ];
+
+    const handleDateRangeChange = (newValue) => {
+        setDateRange(newValue);
+        setCurrentPage(1);
+        updateURLParams(newValue, selectedOutlet, searchTerm, 1, limit);
+    };
+
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected.value;
+        setSelectedOutlet(newOutlet);
+        setCurrentPage(1);
+        updateURLParams(dateRange, newOutlet, searchTerm, 1, limit);
+    };
+
+    const handleSearchChange = (newSearch) => {
+        setSearchTerm(newSearch);
+        updateURLParams(dateRange, selectedOutlet, newSearch, currentPage, limit);
+    };
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage, limit);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleLimitChange = (newLimit) => {
+        setLimit(newLimit);
+        setCurrentPage(1);
+        updateURLParams(dateRange, selectedOutlet, searchTerm, 1, newLimit);
+    };
+
+    const applyFilter = useCallback((data, search) => {
+        if (!search) return data;
+
+        const searchTermLower = search.toLowerCase();
+        return data.filter(product => {
+            try {
+                const receipt = (product.order_id || '').toLowerCase();
+                if (receipt.includes(searchTermLower)) return true;
+
+                const customer = (product.user || '').toLowerCase();
+                if (customer.includes(searchTermLower)) return true;
+
+                const itemsMatch = product.items?.some(item => {
+                    const menuItemDataName = (item?.menuItemData?.name || '').toLowerCase();
+                    if (menuItemDataName.includes(searchTermLower)) return true;
+
+                    const menuItemName = (item?.menuItem?.name || '').toLowerCase();
+                    if (menuItemName.includes(searchTermLower)) return true;
+
+                    if (Array.isArray(item?.addons)) {
+                        return item.addons.some(addon => {
+                            if (Array.isArray(addon?.options)) {
+                                return addon.options.some(option => {
+                                    const label = (option?.label || '').toLowerCase();
+                                    return label.includes(searchTermLower);
+                                });
+                            }
+                            return false;
+                        });
+                    }
+
+                    return false;
+                });
+
+                if (itemsMatch) return true;
+
+                const customAmountMatch = product.customAmountItems?.some(customItem => {
+                    const customName = (customItem?.name || '').toLowerCase();
+                    return customName.includes(searchTermLower);
+                });
+
+                return customAmountMatch;
+            } catch (err) {
+                console.error("Error filtering by search:", err);
+                return false;
+            }
+        });
+    }, []);
+
+    const filteredData = useMemo(() => {
+        return applyFilter(products, searchTerm);
+    }, [products, searchTerm, applyFilter]);
+
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    };
+
+    const formatDateTime = (datetime) => {
+        return dayjs(datetime).tz(DEFAULT_TIMEZONE).format('DD/MM/YYYY HH:mm:ss');
+    };
+
+    const { grandTotalFinal } = useMemo(() => {
+        const totals = { grandTotalFinal: 0 };
+        if (!Array.isArray(filteredData)) return totals;
+        filteredData.forEach(product => {
+            try {
+                const grandTotal = Math.round(Number(product?.grandTotal) || 0);
+                totals.grandTotalFinal += grandTotal;
+            } catch (err) {
+                console.error("Error calculating totals for product:", err);
+            }
+        });
+        return totals;
+    }, [filteredData]);
+
+    // ============================================
+    // DELETE MULTIPLE FUNCTIONS
+    // ============================================
+
+    /**
+     * Handle Select Single Item
+     */
+    const handleSelectItem = (orderId) => {
+        setSelectedItems(prev => {
+            if (prev.includes(orderId)) {
+                return prev.filter(id => id !== orderId);
+            } else {
+                return [...prev, orderId];
+            }
+        });
+    };
+
+    /**
+     * Handle Select All Items (current page only)
+     */
+    const handleSelectAll = () => {
+        if (selectedItems.length === filteredData.length) {
+            setSelectedItems([]);
+        } else {
+            setSelectedItems(filteredData.map(item => item._id));
+        }
+    };
+
+    /**
+     * Clear Selection
+     */
+    const handleClearSelection = () => {
+        setSelectedItems([]);
+    };
+
+    /**
+     * Delete Multiple Orders
+     */
+    const handleDeleteMultiple = async () => {
+        if (selectedItems.length === 0) {
+            alert('Pilih minimal satu transaksi untuk dihapus');
+            return;
+        }
+
+        // Konfirmasi dengan detail
+        const confirmMessage =
+            `⚠️ PERINGATAN PENGHAPUSAN ⚠️\n\n` +
+            `Anda akan menghapus ${selectedItems.length} transaksi.\n\n` +
+            `Tindakan ini akan:\n` +
+            `• Menghapus data transaksi dari sistem\n` +
+            `• Mempengaruhi laporan penjualan\n` +
+            `• Tidak dapat dibatalkan\n\n` +
+            `Apakah Anda yakin ingin melanjutkan?`;
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
+        setIsDeleting(true);
+
+        try {
+            // Kirim request bulk delete
+            const response = await axios.delete('/api/report/sales-report/bulk', {
+                data: { orderIds: selectedItems },
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.success) {
+                const { deletedCount, notFoundCount } = response.data.data;
+
+                // Success message
+                let message = `✅ Berhasil menghapus ${deletedCount} transaksi`;
+                if (notFoundCount > 0) {
+                    message += `\n⚠️ ${notFoundCount} transaksi tidak ditemukan`;
+                }
+
+                alert(message);
+
+                // Reset selection
+                setSelectedItems([]);
+
+                // Refresh data
+                await fetchProducts();
+
+                // Jika halaman saat ini kosong setelah delete, kembali ke halaman sebelumnya
+                if (filteredData.length === selectedItems.length && currentPage > 1) {
+                    handlePageChange(currentPage - 1);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error deleting multiple orders:', error);
+
+            let errorMessage = 'Gagal menghapus transaksi.\n\n';
+
+            if (error.response) {
+                // Server responded with error
+                switch (error.response.status) {
+                    case 400:
+                        errorMessage += error.response.data.message || 'Data tidak valid';
+                        if (error.response.data.protectedOrderIds) {
+                            errorMessage += `\n\nBeberapa transaksi tidak dapat dihapus karena masih dalam proses.`;
+                        }
+                        break;
+                    case 403:
+                        errorMessage += 'Anda tidak memiliki izin untuk menghapus transaksi';
+                        break;
+                    case 404:
+                        errorMessage += 'Transaksi tidak ditemukan';
+                        break;
+                    case 500:
+                        errorMessage += 'Terjadi kesalahan pada server';
+                        break;
+                    default:
+                        errorMessage += error.response.data.message || 'Terjadi kesalahan';
+                }
+            } else if (error.request) {
+                // Request made but no response
+                errorMessage += 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
+            } else {
+                // Something else happened
+                errorMessage += error.message;
+            }
+
+            alert(errorMessage);
+
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    // SIMPLIFIED & STABLE Export Handler
+
+    const handleExport = async () => {
+        setIsExporting(true);
+
+        try {
+            if (outlets.length === 0) {
+                await fetchOutlets();
+            }
+
+            // 1. GET TOTAL COUNT FIRST
+            console.log('🔄 Step 1: Getting total count...');
+            const countParams = new URLSearchParams();
+            countParams.append('mode', 'count');
+            countParams.append('status', 'Completed');
+
+            if (selectedOutlet) {
+                countParams.append('outlet', selectedOutlet);
+            }
+
+            if (dateRange?.startDate && dateRange?.endDate) {
+                countParams.append('startDate', formatDateForAPI(dateRange.startDate));
+                countParams.append('endDate', formatDateForAPI(dateRange.endDate));
+            }
+
+            if (searchTerm) {
+                countParams.append('search', searchTerm);
+            }
+
+            let totalCount = 0;
+            try {
+                const countResponse = await axios.get(`/api/report/orders?${countParams.toString()}`);
+                totalCount = countResponse.data.count || 0;
+                console.log(`✅ Total count: ${totalCount}`);
+            } catch (countError) {
+                console.error('❌ Error getting count:', countError);
+                alert('Gagal mendapatkan jumlah data. Silakan coba lagi.');
+                setIsExporting(false);
+                return;
+            }
+
+            // 2. VALIDATE DATA SIZE
+            if (totalCount === 0) {
+                alert('Tidak ada data untuk di-export.');
+                setIsExporting(false);
+                return;
+            }
+
+            // Warning untuk data besar
+            if (totalCount > 5000) {
+                const proceed = window.confirm(
+                    `⚠️ Peringatan: Anda akan mengekspor ${totalCount.toLocaleString()} transaksi.\n\n` +
+                    `Data ini cukup besar dan mungkin memakan waktu 2-5 menit.\n\n` +
+                    `Tips: Untuk export lebih cepat, gunakan filter tanggal/outlet yang lebih spesifik.\n\n` +
+                    `Apakah Anda ingin melanjutkan?`
+                );
+                if (!proceed) {
+                    setIsExporting(false);
+                    return;
+                }
+            }
+
+            // 3. FETCH ALL DATA
+            console.log('🔄 Step 2: Fetching all data...');
+            const params = new URLSearchParams();
+            params.append('mode', 'all');
+            params.append('status', 'Completed');
+
+            if (selectedOutlet) {
+                params.append('outlet', selectedOutlet);
+            }
+
+            if (dateRange?.startDate && dateRange?.endDate) {
+                params.append('startDate', formatDateForAPI(dateRange.startDate));
+                params.append('endDate', formatDateForAPI(dateRange.endDate));
+            }
+
+            if (searchTerm) {
+                params.append('search', searchTerm);
+            }
+
+            let allData = [];
+            try {
+                const response = await axios.get(`/api/report/orders?${params.toString()}`, {
+                    timeout: 900000 // 15 minutes
+                });
+                allData = Array.isArray(response.data?.data) ? response.data.data : [];
+                console.log(`✅ Fetched ${allData.length} orders`);
+            } catch (fetchError) {
+                console.error('❌ Error fetching data:', fetchError);
+
+                let errorMsg = 'Gagal mengambil data.\n\n';
+                if (fetchError.code === 'ECONNABORTED') {
+                    errorMsg += 'Timeout: Proses memakan waktu terlalu lama.\n\n' +
+                        'Solusi:\n' +
+                        '• Kurangi range tanggal (misal: per bulan)\n' +
+                        '• Pilih outlet spesifik\n' +
+                        '• Export di waktu server tidak sibuk';
+                } else if (fetchError.response?.status === 500) {
+                    errorMsg += 'Server Error: ' + (fetchError.response?.data?.error || 'Unknown error');
+                } else {
+                    errorMsg += fetchError.message;
+                }
+
+                alert(errorMsg);
+                setIsExporting(false);
+                return;
+            }
+
+            // 4. VALIDATE FETCHED DATA
+            if (allData.length === 0) {
+                alert('Tidak ada data yang berhasil di-fetch.');
+                setIsExporting(false);
+                return;
+            }
+
+            // Validate vs expected count
+            if (allData.length < totalCount * 0.8) {
+                console.warn(`⚠️ WARNING: Expected ${totalCount} but got ${allData.length}`);
+                const proceed = window.confirm(
+                    `⚠️ Data tidak lengkap!\n\n` +
+                    `Diharapkan: ${totalCount} transaksi\n` +
+                    `Didapat: ${allData.length} transaksi\n\n` +
+                    `Kemungkinan ada masalah koneksi atau server.\n\n` +
+                    `Apakah tetap ingin melanjutkan export dengan data yang ada?`
+                );
+                if (!proceed) {
+                    setIsExporting(false);
+                    return;
+                }
+            }
+
+            // Filter valid orders
+            const validOrders = allData.filter(order => {
+                return order.items && Array.isArray(order.items) && order.items.length > 0;
+            });
+
+            if (validOrders.length === 0) {
+                alert('Tidak ada transaksi valid untuk di-export.');
+                setIsExporting(false);
+                return;
+            }
+
+            console.log(`✅ Valid orders: ${validOrders.length}`);
+
+            // 5. PROCESS DATA
+            console.log('🔄 Step 3: Processing data...');
+            const formatDateTimeExport = (isoString) => {
+                return dayjs(isoString).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY HH:mm:ss');
+            };
+
+            // Build outlet lookup map
+            const outletMap = {};
+            outlets.forEach(outlet => {
+                outletMap[outlet._id] = outlet;
+            });
+
+            const formattedExportData = [];
+
+            // Process each order
+            validOrders.forEach((order, orderIndex) => {
+                try {
+                    const outletId = order.outlet?._id || order.outlet;
+                    const outletObj = outletMap[outletId];
+                    const outletName = outletObj?.name || 'Unknown Outlet';
+                    const outletCode = outletObj?._id || '-';
+
+                    const paymentMethod = order.actualPaymentMethod || order.paymentMethod || '-';
+                    const paymentStatus = order.paymentDetails?.status || order.status || '-';
+                    const paymentCode = order.paymentDetails?.payment_code || '-';
+                    const transactionId = order.paymentDetails?.transaction_id || '-';
+
+                    // Calculate totals
+                    const itemsSubtotal = order.items.reduce((acc, item) => {
+                        return acc + (Number(item.subtotal) || 0);
+                    }, 0);
+
+                    const customAmountSubtotal = (order.customAmountItems || []).reduce((acc, customItem) => {
+                        return acc + (Number(customItem.amount) || 0);
+                    }, 0);
+
+                    const filteredItemsSubtotal = itemsSubtotal + customAmountSubtotal;
+                    const proportionalTax = order.totalTax || 0;
+                    const proportionalServiceCharge = order.totalServiceFee || 0;
+                    const totalDiscount = (order.discounts?.autoPromoDiscount || 0) +
+                        (order.discounts?.manualDiscount || 0) +
+                        (order.discounts?.voucherDiscount || 0);
+
+                    const filteredGrandTotal = order.grandTotal;
+
+
+                    // Process items
+                    order.items.forEach((item, index) => {
+                        const itemName = item.menuItemData?.name || item.menuItem?.name || 'Produk tidak diketahui';
+                        const itemSKU = item.menuItemData?.sku || item.menuItem?.sku || '-';
+                        const itemPrice = item.menuItemData?.price || item.menuItem?.price || 0;
+
+                        let itemCategory = '-';
+                        if (item.menuItemData?.category) {
+                            itemCategory = typeof item.menuItemData.category === 'object'
+                                ? item.menuItemData.category.name
+                                : item.menuItemData.category;
+                        } else if (item.menuItem?.category) {
+                            itemCategory = typeof item.menuItem.category === 'object'
+                                ? item.menuItem.category.name
+                                : item.menuItem.category;
+                        } else if (item.menuItem?.mainCategory) {
+                            itemCategory = item.menuItem.mainCategory;
+                        }
+
+                        // Build addons
+                        const addonLabels = [];
+                        const processAddons = (addons) => {
+                            if (!Array.isArray(addons)) return;
+                            addons.forEach(addon => {
+                                if (Array.isArray(addon?.options)) {
+                                    addon.options.forEach(option => {
+                                        if (option?.label && !addonLabels.includes(option.label)) {
+                                            addonLabels.push(option.label);
+                                        }
+                                    });
+                                }
+                            });
+                        };
+
+                        processAddons(item?.addons);
+                        processAddons(item?.menuItemData?.selectedAddons);
+
+                        const fullProductName = addonLabels.length > 0
+                            ? `${itemName} ( ${addonLabels.join(', ')} )`
+                            : itemName;
+
+                        formattedExportData.push({
+                            "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
+                            "ID Struk": order.order_id || '-',
+                            "Status Order": order.status || '-',
+                            "Status Pembayaran": paymentStatus,
+                            "ID / Kode Outlet": outletCode,
+                            "Outlet": outletName,
+                            "Tipe Penjualan": order.orderType || '-',
+                            "Kasir": order.cashierId?.username || '-',
+                            "No. Hp Pelanggan": order.cashierId?.phone || '-',
+                            "Nama Pelanggan": order.user || '-',
+                            "SKU": itemSKU,
+                            "Nama Produk": fullProductName,
+                            "Kategori": itemCategory,
+                            "Jumlah Produk": item.quantity || 0,
+                            "Harga Produk": itemPrice,
+                            "Penjualan Kotor": Number(item.subtotal) || 0,
+                            "Diskon Produk": 0,
+                            "Subtotal": index === 0 ? filteredItemsSubtotal : '',
+                            "Diskon Transaksi": index === 0 ? totalDiscount : '',
+                            "Pajak": index === 0 ? Math.round(proportionalTax) : '',
+                            "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '',
+                            "Pembulatan": 0,
+                            "Poin Ditukar": 0,
+                            "Biaya Admin": 0,
+                            "Total": index === 0 ? Math.round(filteredGrandTotal) : '',
+                            "Metode Pembayaran": index === 0 ? paymentMethod : '',
+                            "Kode Pembayaran": index === 0 ? paymentCode : '',
+                            "Transaction ID": index === 0 ? transactionId : '',
+                            "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
+                            "Kode Voucher": order.appliedVoucher?.code || '-'
+                        });
+                    });
+
+                    // Process custom amount items
+                    (order.customAmountItems || []).forEach((customItem, index) => {
+                        const isFirstRow = index === 0 && order.items.length === 0;
+
+                        formattedExportData.push({
+                            "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
+                            "ID Struk": order.order_id || '-',
+                            "Status Order": order.status || '-',
+                            "Status Pembayaran": paymentStatus,
+                            "ID / Kode Outlet": outletCode,
+                            "Outlet": outletName,
+                            "Tipe Penjualan": order.orderType || '-',
+                            "Kasir": order.cashierId?.username || '-',
+                            "No. Hp Pelanggan": order.cashierId?.phone || '-',
+                            "Nama Pelanggan": order.user || '-',
+                            "SKU": '-',
+                            "Nama Produk": `[Custom] ${customItem.name || 'Custom Amount'}`,
+                            "Kategori": 'Custom Amount',
+                            "Jumlah Produk": 1,
+                            "Harga Produk": Number(customItem.amount) || 0,
+                            "Penjualan Kotor": Number(customItem.amount) || 0,
+                            "Diskon Produk": 0,
+                            "Subtotal": isFirstRow ? filteredItemsSubtotal : '',
+                            "Diskon Transaksi": isFirstRow ? totalDiscount : '',
+                            "Pajak": isFirstRow ? Math.round(proportionalTax) : '',
+                            "Service Charge": isFirstRow ? Math.round(proportionalServiceCharge) : '',
+                            "Pembulatan": 0,
+                            "Poin Ditukar": 0,
+                            "Biaya Admin": 0,
+                            "Total": isFirstRow ? Math.round(filteredGrandTotal) : '',
+                            "Metode Pembayaran": isFirstRow ? paymentMethod : '',
+                            "Kode Pembayaran": isFirstRow ? paymentCode : '',
+                            "Transaction ID": isFirstRow ? transactionId : '',
+                            "Pembayaran": isFirstRow ? Math.round(filteredGrandTotal) : '',
+                            "Kode Voucher": order.appliedVoucher?.code || '-'
+                        });
+                    });
+
+                    // Progress log every 100 orders
+                    if ((orderIndex + 1) % 100 === 0) {
+                        console.log(`Processing: ${orderIndex + 1}/${validOrders.length}`);
+                    }
+
+                } catch (err) {
+                    console.error('Error processing order:', order.order_id, err);
+                }
+            });
+
+            if (formattedExportData.length === 0) {
+                alert('Tidak ada data untuk di-export setelah processing.');
+                setIsExporting(false);
+                return;
+            }
+
+            console.log(`✅ Processed ${formattedExportData.length} rows`);
+
+            // 6. GENERATE EXCEL
+            console.log('🔄 Step 4: Generating Excel file...');
+            const formatDate = (dateObj) => {
+                if (!dateObj) return "semua-tanggal";
+                return dayjs(dateObj).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY');
+            };
+
+            const startLabel = formatDate(dateRange?.startDate);
+            const endLabel = formatDate(dateRange?.endDate);
+            const fileName = `Penjualan_${startLabel}_${endLabel}.xlsx`;
+
+            const outletLabel = selectedOutlet
+                ? outlets.find(o => o._id === selectedOutlet)?.name || "Semua Outlet"
+                : "Semua Outlet";
+
+            const headerInfo = [
+                ["Tanggal", `${startLabel} - ${endLabel}`],
+                ["Outlet", outletLabel],
+                ["Status Transaksi", "Completed"],
+                ["Total Transaksi", `${validOrders.length} transaksi`],
+                ["Total Baris Data", `${formattedExportData.length} baris`],
+            ];
+
+            if (searchTerm) {
+                headerInfo.splice(2, 0, ["Filter Pencarian", searchTerm]);
+            }
+
+            try {
+                await exportToExcel(formattedExportData, fileName, headerInfo);
+                console.log(`✅ Export completed successfully!`);
+                alert(`✅ Export berhasil!\n\n${validOrders.length} transaksi telah diekspor ke file:\n${fileName}`);
+            } catch (excelError) {
+                console.error('❌ Error generating Excel:', excelError);
+                alert('Gagal membuat file Excel.\n\n' + excelError.message);
+            }
+
+        } catch (error) {
+            console.error('❌ Export error:', error);
+            alert('Terjadi kesalahan saat export.\n\n' + error.message);
+
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    if (error) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div className="text-red-500 text-center">
+                    <p className="text-xl font-semibold mb-2">Error</p>
+                    <p>{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                    >
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mb-[50px]">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Laporan</span>
+                    <FaChevronRight />
+                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
+                    <FaChevronRight />
+                    <span>Data Transaksi Penjualan</span>
+                </h1>
+
+                <button
+                    onClick={handleExport}
+                    disabled={isExporting || filteredData.length === 0}
+                    className={`px-4 py-2 rounded flex items-center gap-2 text-sm ${isExporting || filteredData.length === 0
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-[#005429] text-white hover:bg-[#003d1f]'
+                        }`}
+                >
+                    {isExporting ? (
+                        <>
+                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Mengekspor...</span>
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload />
+                            Ekspor
+                        </>
+                    )}
+                </button>
+            </div>
+
+            {/* ============================================ */}
+            {/* DELETE MULTIPLE ACTION BAR */}
+            {/* ============================================ */}
+            {/* {selectedItems.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mx-6 mb-4 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-sm font-semibold text-blue-900">
+                                {selectedItems.length} transaksi dipilih
+                            </span>
+                        </div>
+                        <button
+                            onClick={handleClearSelection}
+                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-all"
+                        >
+                            Batal Pilih
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={handleDeleteMultiple}
+                        disabled={isDeleting}
+                        className={`px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-all ${isDeleting
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
+                            }`}
+                    >
+                        {isDeleting ? (
+                            <>
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Menghapus...</span>
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Hapus ({selectedItems.length})</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            )} */}
+
+            {loading ? (
+                <SalesTransactionTableSkeleton />
+            ) : (
+                <SalesTransactionTable
+                    paginatedData={filteredData}
+                    grandTotalFinal={grandTotalFinal}
+                    setSelectedTrx={setSelectedTrx}
+                    selectedTrx={selectedTrx}
+                    formatDateTime={formatDateTime}
+                    formatCurrency={formatCurrency}
+                    options={options}
+                    selectedOutlet={selectedOutlet}
+                    handleOutletChange={handleOutletChange}
+                    dateRange={dateRange}
+                    handleDateRangeChange={handleDateRangeChange}
+                    searchTerm={searchTerm}
+                    handleSearchChange={handleSearchChange}
+                    customSelectStyles={customSelectStyles}
+                    receiptRef={receiptRef}
+                    currentPage={currentPage}
+                    handlePageChange={handlePageChange}
+                    totalPages={totalPages}
+                    ITEMS_PER_PAGE={limit}
+                    filteredData={filteredData}
+                    handleLimitChange={handleLimitChange}
+                    totalOrders={totalOrders}
+                    selectedItems={selectedItems}
+                    handleSelectItem={handleSelectItem}
+                    handleSelectAll={handleSelectAll}
+                    isDeleting={isDeleting}
+                />
+            )}
+        </div>
+    );
+};
+
+export default SalesTransaction;
