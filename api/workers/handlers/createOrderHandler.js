@@ -1018,18 +1018,6 @@ export async function processOrderItems({
     });
   }
 
-  // PROSES AUTO PROMO HANYA UNTUK ITEMS YANG BELUM TERPAKAI
-  const autoPromoResult = await checkAutoPromos(
-    availableItemsForAutoPromo,
-    outlet,
-    orderType
-  );
-
-  console.log('🎯 AUTO PROMO AFTER SELECTED PROMOS:', {
-    totalDiscount: autoPromoResult.totalDiscount,
-    appliedPromosCount: autoPromoResult.appliedPromos.length,
-    itemsUsed: availableItemsForAutoPromo.length
-  });
 
   // MANUAL PROMO & VOUCHER
   const promotionResults = await processAllDiscountsBeforeTax({
@@ -1064,7 +1052,6 @@ export async function processOrderItems({
   // TOTAL SEMUA DISKON
   const totalAllDiscounts =
     selectedPromoResult.totalDiscount +
-    autoPromoResult.totalDiscount +
     loyaltyDiscount +
     promotionResults.autoPromoDiscount +
     promotionResults.manualDiscount +
@@ -1075,7 +1062,7 @@ export async function processOrderItems({
 
   console.log('🎯 DISCOUNT BREAKDOWN:', {
     selectedPromoDiscount: selectedPromoResult.totalDiscount,
-    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    autoPromoDiscount: promotionResults.autoPromoDiscount,
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     loyaltyDiscount,
@@ -1130,7 +1117,7 @@ export async function processOrderItems({
     customAmountTotal: totalCustomAmount,
     combinedTotalBeforeDiscount,
     selectedPromoDiscount: selectedPromoResult.totalDiscount,
-    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    autoPromoDiscount: promotionResults.autoPromoDiscount,
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     loyaltyDiscount,
@@ -1157,7 +1144,7 @@ export async function processOrderItems({
     },
     discounts: {
       selectedPromoDiscount: selectedPromoResult.totalDiscount,  // ✅ RENAME FIELD
-      autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+      autoPromoDiscount: promotionResults.autoPromoDiscount,
       manualDiscount: promotionResults.manualDiscount,
       voucherDiscount: promotionResults.voucherDiscount,
       loyaltyDiscount: loyaltyDiscount,
@@ -1166,7 +1153,7 @@ export async function processOrderItems({
       total: totalAllDiscounts
     },
     promotions: {
-      appliedPromos: [...promotionResults.appliedPromos, ...autoPromoResult.appliedPromos],
+      appliedPromos: [...promotionResults.appliedPromos],
       appliedManualPromo: promotionResults.appliedPromo,
       appliedVoucher: promotionResults.voucher
     },
@@ -1352,7 +1339,12 @@ export async function processAllDiscountsBeforeTax({
   const canUsePromo = source === 'app' || source === 'cashier' || source === 'Cashier';
 
   // 1. APPLY AUTO PROMO
-  const autoPromoResult = await checkAutoPromos(orderItems, outlet, orderType);
+  let autoPromoResult = { totalDiscount: 0, appliedPromos: [] };
+  
+  // Kasir yang tidak memilih promo tidak boleh dipaksakan auto promo
+  if (source !== 'Cashier' && source !== 'cashier') {
+    autoPromoResult = await checkAutoPromos(orderItems, outlet, orderType);
+  }
   const autoPromoDiscount = autoPromoResult.totalDiscount;
 
   // 2. APPLY MANUAL PROMO
