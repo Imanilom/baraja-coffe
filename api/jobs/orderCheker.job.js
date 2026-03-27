@@ -4,8 +4,12 @@ import Payment from '../models/Payment.model.js';
 import cron from 'node-cron';
 
 // Helper function untuk mendapatkan waktu WIB sekarang
+// ✅ FIXED: Harus sama dengan order.model.js (manual +7 jam offset)
+// Sebelumnya menggunakan toLocaleString() yang di server WIB menghasilkan waktu UTC sebenarnya,
+// menyebabkan mismatch 7 jam dengan createdAtWIB yang disimpan di database.
 const getWIBNow = () => {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  const now = new Date();
+  return new Date(now.getTime() + (7 * 60 * 60 * 1000));
 };
 
 /**

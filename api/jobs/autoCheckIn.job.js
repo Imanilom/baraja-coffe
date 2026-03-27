@@ -15,8 +15,10 @@ import { io } from '../index.js';
 let isRunning = false;
 
 // Helper: Get WIB now
+// ✅ FIXED: Harus sama dengan order.model.js (manual +7 jam offset)
 const getWIBNow = () => {
-    return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    const now = new Date();
+    return new Date(now.getTime() + (7 * 60 * 60 * 1000));
 };
 
 /**

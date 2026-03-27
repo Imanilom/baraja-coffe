@@ -46,18 +46,9 @@ export const getCashRecap = async (req, res) => {
         const startOfDay = new Date(now);
         startOfDay.setHours(0, 0, 0, 0);
 
-        // Find last recap for this device & outlet TODAY
-        const lastRecap = await CashRecapLog.findOne({
-            outletId: outletObjectId,
-            deviceId: deviceObjectId,
-            printedAt: { $gte: startOfDay } // Only look for recaps printed TODAY
-        }).sort({ printedAt: -1 });
-
-        // Determine Start Date
+        // Determine Start Date: Always start from 00:00:00 WIB of the current day
+        // as requested, ignoring any previous prints on the same day.
         let startDate = startOfDay;
-        if (lastRecap) {
-            startDate = lastRecap.rangeEndDate;
-        }
 
         const endDate = now;
 
