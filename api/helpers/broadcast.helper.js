@@ -164,6 +164,7 @@
 import { getAreaGroup } from '../utils/areaGrouping.js';
 import { io } from '../index.js';
 import { PrintLogger } from '../services/print-logger.service.js';
+import { sendPushToOutletDevices } from './firebase.helper.js';
 
 // 🔥 NEW: Trigger immediate print tanpa menunggu apapun
 export const triggerImmediatePrint = async (orderInfo) => {
@@ -532,6 +533,22 @@ export const broadcastNewOrderToAreas = async (orderInfo) => {
 
     } else {
       console.warn('❌ Socket IO not available for broadcasting');
+    }
+
+    // ✅ FCM: Kirim Push Notification ke semua device kasir di outlet ini
+    // Agar notifikasi tetap muncul meski aplikasi di-minimize/kill
+    // HANYA untuk online order (Web/App), BUKAN untuk pesanan kasir
+    if (source && source !== 'Cashier') {
+      try {
+        await sendPushToOutletDevices(
+          outletId,
+          `🆕 Pesanan Baru - ${source}`,
+          `Ada pesanan baru dari ${source} untuk Meja ${tableNumber}`,
+          { orderId: String(orderId), tableNumber: String(tableNumber), source }
+        );
+      } catch (fcmError) {
+        console.error('⚠️ FCM push failed (non-critical):', fcmError.message);
+      }
     }
 
   } catch (error) {

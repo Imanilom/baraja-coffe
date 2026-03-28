@@ -4461,11 +4461,12 @@ const processCashierOrderDirect = async ({
 
   console.log("💰 Updated payment details after tax adjustment:", adjustedPaymentDetails);
 
-  // Process payment
+  // Process payment (with session for atomic transaction)
   const paymentResult = await processCashierPayment(
     orderId,
     adjustedPaymentDetails,
-    orderResult
+    orderResult,
+    session
   );
 
   return {
@@ -4831,7 +4832,7 @@ const processWebAppOrder = async ({
 };
 
 // ========== HELPER: CASHIER PAYMENT PROCESSING ==========
-const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
+const processCashierPayment = async (orderId, paymentDetails, orderResult, session = null) => {
   if (!paymentDetails) {
     throw new Error('Payment details are required');
   }
@@ -4865,7 +4866,8 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
           va_numbers: payment.vaNumbers,
           actions: payment.actions,
           method_type: payment.methodType
-        }
+        },
+        sessionDb: session // ✅ FIX: Inject Mongoose session for atomic transaction
       };
 
       try {
@@ -4925,7 +4927,8 @@ const processCashierPayment = async (orderId, paymentDetails, orderResult) => {
         va_numbers: paymentDetails?.vaNumbers,
         actions: paymentDetails?.actions,
         method_type: paymentDetails?.methodType
-      }
+      },
+      sessionDb: session // ✅ FIX: Inject Mongoose session for atomic transaction
     };
     console.log("coba cek va numbers in single payment:", chargeRequest);
     return new Promise((resolve, reject) => {
@@ -5137,9 +5140,19 @@ const checkOutletOperatingHours = (outlet) => {
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
+  const { cashierId, jobId, deviceId } = req.body;
 
   try {
     const result = await confirmOrderHelper(orderId);
+
+    // Save cashierId and deviceId if provided
+    if (cashierId || deviceId) {
+      const updateData = {};
+      if (cashierId) updateData.cashierId = cashierId;
+      if (deviceId) updateData.device_id = deviceId;
+
+      await Order.findOneAndUpdate({ order_id: orderId }, { $set: updateData });
+    }
 
     return res.status(200).json({
       success: true,
@@ -8079,8 +8092,8 @@ export const getPendingOrders = async (req, res) => {
           menuItem: menuItem
             ? {
               id: menuItem._id,
-              name: menuItem.name,
-              originalPrice: menuItem.price,
+              name: item.menuItemData?.name || menuItem.name,
+              originalPrice: item.menuItemData?.price ?? menuItem.price,
               workstation: menuItem.workstation,
             }
             : null,
@@ -8382,8 +8395,8 @@ export const getCashierOrderById = async (req, res) => {
       return {
         menuItem: menuItem ? {
           id: menuItem._id,
-          name: menuItem.name,
-          originalPrice: menuItem.price,
+          name: item.menuItemData?.name || menuItem.name,
+          originalPrice: item.menuItemData?.price ?? menuItem.price,
           workstation: menuItem.workstation
         } : null,
         selectedToppings: item.toppings || [],
@@ -9002,7 +9015,11 @@ export const getCashierOrderHistory = async (req, res) => {
           isPrinted: item.isPrinted,
           menuItem: {
             ...item.menuItem,
-            category: item.category ? {
+            name: item.menuItemData?.name || item.menuItem?.name || 'Unknown Item',
+            category: item.menuItemData?.category ? {
+              id: null, // We don't have the category ID in the snapshot
+              name: item.menuItemData.category
+            } : item.category ? {
               id: item.category._id,
               name: item.category.name
             } : null,
@@ -9010,8 +9027,8 @@ export const getCashierOrderHistory = async (req, res) => {
               id: item.subCategory._id,
               name: item.subCategory.name
             } : null,
-            originalPrice: item.menuItem.price ?? 0,
-            discountedprice: item.menuItem.discountedPrice ?? item.menuItem.price,
+            originalPrice: item.menuItemData?.price ?? item.menuItem?.price ?? 0,
+            discountedprice: item.menuItemData?.price ?? item.menuItem?.discountedPrice ?? item.menuItem?.price ?? 0,
           },
           selectedAddons: item.addons.length > 0 ? item.addons.map(
             addon => {
@@ -9150,8 +9167,13 @@ export const cashierCharge = async (req, res) => {
       actions
     });
 
-    // Cari order
-    const order = await Order.findOne({ order_id });
+    // ✅ FIX: Use session from internal caller (processCashierPayment) if available
+    const sessionDb = req.sessionDb || null;
+
+    // Cari order (with session if available for atomic transaction)
+    const order = sessionDb
+      ? await Order.findOne({ order_id }).session(sessionDb)
+      : await Order.findOne({ order_id });
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -9185,7 +9207,7 @@ export const cashierCharge = async (req, res) => {
         };
       }
 
-      await order.save();
+      await order.save(sessionDb ? { session: sessionDb } : {});
 
       console.log('Split payment updated successfully:', {
         order_id,
@@ -9208,12 +9230,14 @@ export const cashierCharge = async (req, res) => {
           };
         }
 
-        await order.save();
+        await order.save(sessionDb ? { session: sessionDb } : {});
       }
     }
 
-    // Reload order untuk mendapatkan data terbaru
-    const updatedOrder = await Order.findOne({ order_id });
+    // Reload order untuk mendapatkan data terbaru (with session if available)
+    const updatedOrder = sessionDb
+      ? await Order.findOne({ order_id }).session(sessionDb)
+      : await Order.findOne({ order_id });
 
     // 🐛 DEBUG: Log all payments
     console.log('🔍 All payments in order:', {
@@ -9285,7 +9309,9 @@ export const cashierCharge = async (req, res) => {
       });
     }
 
-    const payment = await Payment.create(paymentData);
+    const payment = sessionDb
+      ? (await Payment.create([paymentData], { session: sessionDb }))[0]
+      : await Payment.create(paymentData);
 
     console.log('Payment record created:', {
       payment_id: payment._id,
@@ -9575,7 +9601,7 @@ export const cashierCharge = async (req, res) => {
 
 export const confirmOrderViaCashier = async (req, res) => {
   try {
-    const { order_id, source, cashier_id } = req.body;
+    const { order_id, source, cashier_id, device_id } = req.body;
 
     // Validasi input
     if (!order_id || !cashier_id) {
@@ -9636,6 +9662,9 @@ export const confirmOrderViaCashier = async (req, res) => {
 
     // Update status order menjadi "Waiting"
     order.cashierId = cashier._id;
+    if (device_id) {
+      order.device_id = device_id;
+    }
     // await order.save({ session });
     if (order.orderType === 'Reservation') {
       order.status = 'Completed';
@@ -9835,7 +9864,7 @@ export const processPaymentCashier = async (req, res) => {
       //   payment.remainingAmount = 0;
       // }
       const paymentMethodandtype =
-        [payment_type, payment_method]
+        [payment_method, payment_type]
           .filter(Boolean)
           .join(' ')
           .trim();
@@ -10281,8 +10310,8 @@ export function toOrderDTO(orderDoc, paymentDocs = []) {
     return {
       menuItem: {
         id: mi ? toStr(mi._id ?? mi.id) : toStr(it.menuItem),
-        name: mi?.name ?? it.name ?? '',
-        originalPrice: Number(mi?.price ?? it.price ?? 0), // biarkan number (bisa int/float)
+        name: it.menuItemData?.name || mi?.name || it.name || '',
+        originalPrice: Number(it.menuItemData?.price ?? mi?.price ?? it.price ?? 0), // biarkan number (bisa int/float)
       },
       selectedToppings: Array.isArray(it.toppings)
         ? it.toppings.map((t) => ({

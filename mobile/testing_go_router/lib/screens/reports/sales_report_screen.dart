@@ -109,6 +109,16 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
                       ],
                     ),
                   ),
+                  const PopupMenuItem(
+                    value: 'reprint_cash_recap',
+                    child: Row(
+                      children: [
+                        Icon(Icons.print_outlined),
+                        SizedBox(width: 8),
+                        Text('Reprint Rekap Terakhir'),
+                      ],
+                    ),
+                  ),
                 ],
           ),
         ],
@@ -1953,6 +1963,9 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
       case 'print_cash_recap':
         _printCashRecap();
         break;
+      case 'reprint_cash_recap':
+        _reprintCashRecap();
+        break;
     }
   }
 
@@ -2075,16 +2088,218 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
 
       if (mounted) {
         if (success) {
+          // Physical confirmation before locking the data
+          final bool? confirmSave = await showDialog<bool>(
+            context: context,
+            builder:
+                (context) => AlertDialog(
+                  title: const Text('Print Berhasil?'),
+                  content: const Text(
+                    'Apakah rekap kasir berhasil dicetak dengan benar? Jika "Ya", data akan disimpan dan periode rekap akan dimajukan.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Tidak (Ulang)'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Ya, Simpan'),
+                    ),
+                  ],
+                ),
+          );
+
+          if (confirmSave == true) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder:
+                    (context) =>
+                        const Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            await service.confirmSaveCashRecap(
+              recap: recap,
+              outletId: outletId,
+              deviceId: device.id,
+            );
+
+            if (mounted) Navigator.pop(context); // Close Saving loading
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Berhasil merekap kasir'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Data belum disimpan. Silakan klik Print kembali jika ingin mengulang.',
+                  ),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+          }
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Berhasil mencetak rekap kasir'),
+              content: Text('Gagal mencetak rekap kasir'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // Hide loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _reprintCashRecap() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final user = await HiveService.getUser();
+      final device = await HiveService.getDevice();
+      final cashier = await HiveService.getCashier();
+
+      final outletId = user?.outletId ?? '';
+      final outletName = 'Baraja Coffee';
+
+      if (device == null) throw Exception('Device not found');
+
+      final service = ref.read(salesReportServiceProvider);
+
+      final recap = await service.reprintCashRecap(
+        outletId: outletId,
+        deviceId: device.id,
+      );
+
+      // Get saved printers from provider
+      final savedPrinters = ref.read(savedPrintersProvider);
+      final connectionStatuses = ref.read(printerConnectionProvider);
+
+      if (savedPrinters.isEmpty) {
+        throw Exception('Tidak ada printer yang tersimpan');
+      }
+
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Show printer selection dialog
+      final BluetoothPrinterModel? selectedPrinter =
+          await showDialog<BluetoothPrinterModel>(
+            context: context,
+            builder:
+                (context) => SimpleDialog(
+                  title: const Text('Pilih Printer (Reprint)'),
+                  children:
+                      savedPrinters.map((printer) {
+                        final isConnected =
+                            connectionStatuses[printer.address]?.state ==
+                            PrinterConnectionState.connected;
+                        return SimpleDialogOption(
+                          onPressed: () => Navigator.pop(context, printer),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.print),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        printer.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Text(
+                                        printer.address,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isConnected)
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+          );
+
+      if (selectedPrinter == null) {
+        return; // User cancelled
+      }
+
+      // Show loading again for printing process
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (context) => const Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      final connectedPrinter = selectedPrinter;
+
+      final success = await ThermalPrinters.printCashRecap(
+        recap: recap,
+        printer: connectedPrinter,
+        cashierName: cashier?.username ?? 'Unknown Cashier',
+        deviceName: device.deviceName,
+        outletName: outletName,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Berhasil mereprint rekap kasir'),
               backgroundColor: Colors.green,
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Gagal mencetak rekap kasir'),
+              content: Text('Gagal mereprint rekap kasir'),
               backgroundColor: Colors.red,
             ),
           );

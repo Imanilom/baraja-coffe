@@ -45,6 +45,10 @@ const DeviceSessionSchema = new mongoose.Schema({
   userAgent: {
     type: String,
     default: ''
+  },
+  fcmToken: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true

@@ -274,8 +274,8 @@ export const getOrderPrintHistory = async (req, res) => {
 // ============================================
 
 export const getWorkstationOrders = async (req, res) => {
+  const { workstationType } = req.params;
   try {
-    const { workstationType } = req.params;
     const { location: deviceLocation } = req.query; // 🔧 NEW: Accept location query param
     const startTime = Date.now();
 

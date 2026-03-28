@@ -10,8 +10,12 @@ import { triggerImmediatePrint } from '../helpers/broadcast.helper.js';
 import mongoose from 'mongoose';
 
 // Helper function untuk mendapatkan waktu WIB sekarang
+// ✅ FIXED: Harus sama dengan order.model.js (manual +7 jam offset)
+// Sebelumnya menggunakan toLocaleString() yang di server WIB menghasilkan waktu UTC sebenarnya,
+// menyebabkan mismatch 7 jam dengan createdAtWIB yang disimpan di database.
 const getWIBNow = () => {
-    return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    const now = new Date();
+    return new Date(now.getTime() + (7 * 60 * 60 * 1000));
 };
 
 // Logger dengan level
@@ -243,7 +247,10 @@ const releaseTableForCanceledOrder = async (order, session = null, retryCount = 
 const autoCompleteExpiredOnProcessOrders = async () => {
     try {
         const now = getWIBNow();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        // ✅ FIXED: Gunakan UTC methods karena getWIBNow() menghasilkan Date yang di-shift +7 jam.
+        // getFullYear/getMonth/getDate akan menerapkan offset lokal lagi (double offset pada server WIB).
+        // Dengan getUTCFullYear/getUTCMonth/getUTCDate kita ambil komponen WIB yang benar dari shifted Date.
+        const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
 
         log.info(`Checking for OnProcess orders from previous dates`);
 

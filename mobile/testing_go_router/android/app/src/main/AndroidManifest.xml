@@ -71,11 +71,18 @@
         <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.FlutterLocalNotificationsReceiver"/>
-        <!-- <service
-            android:name="com.dexterous.flutterlocalnotifications.ForegroundService"
-            android:exported="false"
-            android:stopWithTask="false"
-            android:foregroundServiceType="<foreground service types>"> -->
+        <!-- FCM: Default notification channel untuk notifikasi saat app terminated/killed -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="orders_channel" />
+        <!-- FCM: Default icon untuk notifikasi -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/launcher_icon" />
+        <!-- FCM: High priority notification -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

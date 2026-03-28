@@ -1,6 +1,14 @@
 import mongoose from 'mongoose';
 
+// Helper function untuk mendapatkan waktu WIB sekarang
+const getWIBNow = () => {
+  const now = new Date();
+  // Convert to WIB (UTC+7)
+  return new Date(now.getTime() + (7 * 60 * 60 * 1000));
+};
+
 const PaymentSchema = new mongoose.Schema({
+
   // Basic payment info
   order_id: { type: String, ref: 'Order', required: true },
   payment_code: { type: String },
@@ -79,6 +87,16 @@ const PaymentSchema = new mongoose.Schema({
   },
   notes: {
     type: String
+  },
+
+  // Waktu dalam WIB
+  createdAtWIB: {
+    type: Date,
+    default: () => getWIBNow()
+  },
+  updatedAtWIB: {
+    type: Date,
+    default: () => getWIBNow()
   }
 }, {
   timestamps: true
