@@ -594,6 +594,51 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+
+  // ✅ NEW: Modification history for audit trail
+  modificationHistory: [{
+    action: {
+      type: String,
+      enum: ['item_deleted', 'item_added', 'item_modified', 'status_changed', 'payment_processed'],
+      required: true
+    },
+    itemId: mongoose.Schema.Types.ObjectId,
+    itemDetails: {
+      menuItemId: mongoose.Schema.Types.ObjectId,
+      menuItemName: String,
+      quantity: Number,
+      subtotal: Number,
+      deletedAt: Date
+    },
+    reason: String,
+    cashierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    timestamp: {
+      type: Date,
+      default: () => getWIBNow()
+    },
+    deletedItemPrice: Number,
+    itemQuantity: Number,
+    details: mongoose.Schema.Types.Mixed // Flexible field for other action details
+  }],
+
+  // ✅ FRAUD PREVENTION: Audit fields untuk close bill
+  closedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  closedByName: {
+    type: String,
+    default: null
+  },
+  paidAmount: {
+    type: Number,
+    default: 0
+  },
+
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

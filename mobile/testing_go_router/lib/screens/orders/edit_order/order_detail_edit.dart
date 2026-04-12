@@ -20,6 +20,10 @@ class OrderDetailEdit extends ConsumerWidget {
     final order = editState.order;
     final items = order?.items ?? const [];
 
+    // ✅ NEW: Check if order is finalized/paid (FIX #6)
+    final finalStatuses = ['Completed', 'completed', 'Paid', 'paid', 'Settled', 'settled', 'Closed', 'closed'];
+    final isOrderFinalized = order != null && (finalStatuses.contains(order.status.name) || order.payments.isNotEmpty);
+
     final hasChanges = notifier.hasItemChanges; // <- ini kuncinya
     final isSubmitting = editState.isSubmitting;
 
@@ -118,7 +122,20 @@ class OrderDetailEdit extends ConsumerWidget {
                               ],
                             ),
                             trailing: Text(formatRupiah(orderItem.subtotal)),
-                            onTap: () {
+                            onTap:
+                                // ✅ NEW: Disable editing if order is finalized (FIX #6)
+                                isOrderFinalized
+                                    ? () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            '❌ Tidak dapat mengedit order yang sudah dibayar/ditutup',
+                                          ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                    : () {
                               showModalBottomSheet(
                                 context: context,
                                 isScrollControlled: true,

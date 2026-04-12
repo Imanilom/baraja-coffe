@@ -45,11 +45,13 @@ class OnlineOrderRepository {
   Future<OrderDetailModel> deleteOrderItem({
     required String orderId,
     required String menuItemId,
+    String? reason, // ✅ NEW: Pass reason through repository (FIX #7)
   }) async {
     try {
       final response = await _orderService.deleteOrderItemAtOrder(
         orderId: orderId,
         menuItemId: menuItemId,
+        reason: reason, // ✅ NEW: Pass reason to service
       );
 
       final json = response['data']?['order'] ?? response['data'] ?? response;

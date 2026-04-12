@@ -205,6 +205,44 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return false;
   }
 
+  // ✅ NEW: Verify items haven't been modified during payment (FIX #4)
+  /// Check that order items match what was originally shown
+  /// Prevents fraud where items are deleted during payment screen
+  bool _verifyOrderItemsNotModified() {
+    // Get the current order from provider to detect changes
+    final currentOrder = ref.read(orderDetailProvider);
+    if (currentOrder == null) return true; // Allow if can't verify
+    
+    final originalItemCount = widget.order.items.length;
+    final currentItemCount = currentOrder.items.length;
+    
+    // If item count differs → FRAUD DETECTED
+    if (originalItemCount != currentItemCount) {
+      debugPrint(
+        '❌ FRAUD ALERT: Item count changed during payment: $originalItemCount → $currentItemCount',
+      );
+      return false;
+    }
+    
+    // Check each item still exists and hasn't been modified
+    for (int i = 0; i < originalItemCount; i++) {
+      final original = widget.order.items[i];
+      final current = currentOrder.items[i];
+      
+      // Compare item IDs and quantities
+      if (original.menuItem.id != current.menuItem.id ||
+          original.quantity != current.quantity) {
+        debugPrint(
+          '❌ FRAUD ALERT: Item modified during payment: ${original.menuItem.id} qty${original.quantity} → ${current.menuItem.id} qty${current.quantity}',
+        );
+        return false;
+      }
+    }
+    
+    // All checks passed - items haven't been modified
+    return true;
+  }
+
   // ======= SPLIT PAYMENT: HELPER =======
 
   List<SplitCard> get _unpaidSplitCards =>
@@ -485,6 +523,23 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   Future<void> _finishOrderToBackend() async {
     final sw = Stopwatch()..start();
+    
+    // ✅ NEW: Verify items haven't been deleted during payment screen (FIX #4)
+    if (!_verifyOrderItemsNotModified()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '❌ Item pesanan telah berubah. Pembayaran dibatalkan. Silakan periksa item kembali.',
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,

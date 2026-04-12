@@ -18,9 +18,84 @@ class DeleteOrderItemSheetState extends ConsumerState<DeleteOrderItemSheet> {
   String? selectedMenuItemId;
   bool submitting = false;
 
+  /// ✅ NEW: Check if order is finalized (Completed, Paid, etc)
+  /// Prevents deletion from paid orders
+  bool _isOrderFinalizedOrPaid(OrderDetailModel order) {
+    final finalStatuses = [
+      'Completed',
+      'completed', // in case backend has inconsistency
+      'Paid',
+      'paid',
+      'Settled',
+      'settled',
+      'Closed',
+      'closed',
+    ];
+
+    final isFinalized = finalStatuses.contains(order.status);
+    final hasPaid = order.payments.isNotEmpty;
+
+    // If EITHER status is finalized OR has payments, block deletion
+    return isFinalized || hasPaid;
+  }
+
+  /// ✅ NEW: Show reason dialog before delete
+  Future<String?> _showReasonDialog(BuildContext context) async {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Alasan Penghapusan Item'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Pilih alasan untuk menghapus item ini:',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ...[
+                  ('stock_issue', '📦 Stok Habis / Item Tidak Tersedia'),
+                  ('duplicate', '🔄 Duplikasi Pesanan'),
+                  ('customer_request', '👤 Permintaan Pelanggan'),
+                  ('menu_mistake', '❌ Kesalahan Menu'),
+                  ('quality_issue', '⚠️ Masalah Kualitas'),
+                  ('other', '📝 Lainnya'),
+                ].map((e) => Container(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    title: Text(e.$2),
+                    dense: true,
+                    tileColor: Colors.grey[100],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    onTap: () => Navigator.pop(context, e.$1),
+                  ),
+                )),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
+
+    // ✅ NEW: Check if order is paid/completed
+    final isPaidOrComplete = _isOrderFinalizedOrPaid(order);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.65,
@@ -140,9 +215,29 @@ class DeleteOrderItemSheetState extends ConsumerState<DeleteOrderItemSheet> {
                               : const Icon(Icons.delete_forever),
                       label: const Text('Hapus'),
                       onPressed:
-                          (selectedMenuItemId == null || submitting)
+                          (selectedMenuItemId == null || submitting || isPaidOrComplete)
                               ? null
                               : () async {
+                                // ✅ NEW: Check if order is paid/completed
+                                if (isPaidOrComplete) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          '❌ Tidak bisa menghapus item dari order yang sudah dibayar',
+                                        ),
+                                        backgroundColor: Colors.red,
+                              duration: Duration(seconds: 3),
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+
+                                // ✅ NEW: Show reason dialog
+                                final reason = await _showReasonDialog(context);
+                                if (reason == null || !context.mounted) return;
+
                                 setState(() => submitting = true);
                                 try {
                                   await ref
@@ -150,6 +245,7 @@ class DeleteOrderItemSheetState extends ConsumerState<DeleteOrderItemSheet> {
                                       .deleteItemFromOrder(
                                         orderId: order.orderId!,
                                         menuItemId: selectedMenuItemId!,
+                                        reason: reason, // ✅ Pass reason to backend
                                       );
 
                                   if (context.mounted) {

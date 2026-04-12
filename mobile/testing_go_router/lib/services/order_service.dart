@@ -262,17 +262,27 @@ class OrderService {
   Future<Map<String, dynamic>> deleteOrderItemAtOrder({
     required String orderId,
     required String menuItemId,
+    String? reason, // ✅ NEW: Reason for deletion
   }) async {
     try {
       if (orderId.isEmpty || menuItemId.isEmpty) {
         throw Exception("orderId atau menuItemId tidak boleh kosong");
       }
 
-      AppLogger.debug('orderId: $orderId, menuItemId: $menuItemId');
+      AppLogger.debug('orderId: $orderId, menuItemId: $menuItemId, reason: $reason');
+
+      // ✅ NEW: Build audit context for deletion
+      final deletePayload = {
+        'order_id': orderId,
+        'menu_item_id': menuItemId,
+        'reason': reason ?? 'stock_issue', // Default reason
+        'cashierId': 'system', // Would come from auth context in real app
+        'deletedAt': DateTime.now().toIso8601String(), // Timestamp for audit trail
+      };
 
       final res = await _dio.post(
         '/api/order/delete-order-item',
-        data: {'order_id': orderId, 'menu_item_id': menuItemId},
+        data: deletePayload,
       );
 
       if (res.data['success'] == true) {

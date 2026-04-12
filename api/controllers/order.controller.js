@@ -3121,12 +3121,14 @@ const processOpenBillOrderWithHandler = async ({
     }
 
     // Cek apakah meja sudah ada open bill aktif
+    // ✅ CRITICAL FIX: Include 'Completed' and 'Paid' status in query
+    // Reason: Was missing 'Completed' status, so completed bills still appeared as active
     const existingOpenBill = await Order.findOne({
       tableNumber,
       outletId,
       isOpenBill: true,
       openBillStatus: 'active',
-      status: { $in: ['Pending', 'OnProcess'] }
+      status: { $in: ['Pending', 'OnProcess', 'Completed', 'Paid'] }
     }).session(session); // ✅ Use session
 
     if (existingOpenBill) {
@@ -3420,12 +3422,14 @@ const closeOpenBillHandler = async ({
 
     // ✅ FIXED: Set isSplitPayment and update payments array BEFORE processCashierPayment
     // to avoid race condition with order.save() inside cashierCharge
+    // ✅ CRITICAL FIX: Use 'Completed' (uppercase) NOT 'completed' (lowercase)
+    // Reason: openBill.controller.js checks for === 'Completed', case-sensitive!
     if (Array.isArray(validatedPaymentDetails)) {
       validatedPaymentDetails.forEach((payment, index) => {
         order.payments.push({
           paymentMethod: payment.method || 'Cash',
           amount: payment.amount || 0,
-          status: 'completed',
+          status: 'Completed',
           processedBy: cashierId,
           processedAt: new Date(),
           notes: `Split payment ${index + 1} of ${validatedPaymentDetails.length}`
@@ -3436,7 +3440,7 @@ const closeOpenBillHandler = async ({
       order.payments.push({
         paymentMethod: validatedPaymentDetails.method || 'Cash',
         amount: validatedPaymentDetails.amount || 0,
-        status: 'completed',
+        status: 'Completed',
         processedBy: cashierId,
         processedAt: new Date(),
         notes: 'Final payment for open bill'

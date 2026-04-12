@@ -37,6 +37,9 @@ class OrderDetailWidget extends ConsumerWidget {
           const SizedBox(height: 8),
           _buildHeader(order),
           const SizedBox(height: 8),
+          // ✅ NEW: Show payment status warning (FIX #5)
+          _buildPaidOrderWarning(order),
+          const SizedBox(height: 8),
           _buildOrderInfo(order),
           const SizedBox(height: 8),
           _buildItemsList(context, order, ref),
@@ -103,6 +106,55 @@ class OrderDetailWidget extends ConsumerWidget {
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Show warning for paid/completed orders (FIX #5)
+  Widget _buildPaidOrderWarning(OrderDetailModel order) {
+    final finalStatuses = ['Completed', 'completed', 'Paid', 'paid', 'Settled', 'settled', 'Closed', 'closed'];
+    final isFinalized = finalStatuses.contains(order.status.name);
+    final hasPaid = order.payments.isNotEmpty;
+    
+    // Don't show warning if order is open/pending
+    if (!isFinalized && !hasPaid) {
+      return const SizedBox.shrink();
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red[300]!),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock, color: Colors.red[700], size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '🔒 Order Sudah Dibayar / Ditutup',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red[900],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Item tidak dapat dihapus dari order yang sudah dibayar',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.red[700],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
