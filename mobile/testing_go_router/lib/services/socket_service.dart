@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/services/fcm_service.dart';
 import 'package:kasirbaraja/services/notification_service.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 // import 'package:dio/dio.dart';
@@ -16,7 +17,23 @@ class SocketService {
   final Ref ref;
   Timer? _debounce;
 
+  /// Set untuk deduplikasi notifikasi berdasarkan orderId.
+  /// Mencegah notifikasi duplikat dari beberapa socket event untuk order yang sama.
+  final Set<String> _notifiedOrderIds = {};
+
   SocketService(this.ref);
+
+  /// Cek apakah orderId ini belum pernah di-notify.
+  /// Jika belum, tambahkan ke set dan auto-remove setelah 10 detik.
+  bool _shouldNotify(dynamic orderId) {
+    if (orderId == null)
+      return true; // fallback: izinkan jika tidak ada orderId
+    final id = orderId.toString();
+    if (_notifiedOrderIds.contains(id)) return false;
+    _notifiedOrderIds.add(id);
+    Timer(const Duration(seconds: 10), () => _notifiedOrderIds.remove(id));
+    return true;
+  }
 
   void connect(String cashierId) {
     socket = IO.io(_serverUrl, {
@@ -36,16 +53,42 @@ class SocketService {
         AppLogger.debug('mencoba join area');
         joinArea(device.assignedAreas[0]);
       }
+
+      // Kirim FCM token ke backend agar server bisa mengirim push notification
+      try {
+        final fcmToken = await FcmService.getToken();
+        if (fcmToken != null) {
+          socket.emit('register_fcm_token', {
+            'cashierId': cashierId,
+            'deviceId': device?.id,
+            'fcmToken': fcmToken,
+          });
+          AppLogger.info('📲 FCM token sent to server');
+        }
+      } catch (e) {
+        AppLogger.error('Failed to send FCM token', error: e);
+      }
     });
     socket.onDisconnect((_) => AppLogger.warning('DISCONNECTED'));
     socket.onError((err) => AppLogger.error('ERROR', error: err));
 
     socket.on('order_created', (data) {
       AppLogger.info('order_created: $data');
-      NotificationService.showSystemNotification(
-        'Pesanan Baru',
-        'Hello World!',
-      );
+      final source =
+          data is Map ? (data['source'] ?? data['data']?['source']) : null;
+      final orderId =
+          data is Map
+              ? (data['orderId'] ??
+                  data['data']?['orderId'] ??
+                  data['order_id'] ??
+                  data['data']?['order_id'])
+              : null;
+      if (source != 'Cashier' && _shouldNotify(orderId)) {
+        NotificationService.showSystemNotification(
+          'Pesanan Baru',
+          'Ada pesanan online baru masuk.',
+        );
+      }
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 500), () {
         ref.invalidate(onlineOrderProvider);
@@ -54,10 +97,21 @@ class SocketService {
 
     socket.on('new_order', (data) {
       AppLogger.info('new_order at my device: $data');
-      NotificationService.showSystemNotification(
-        'Pesanan Baru',
-        'Hello World! new_order',
-      );
+      final source =
+          data is Map ? (data['source'] ?? data['data']?['source']) : null;
+      final orderId =
+          data is Map
+              ? (data['orderId'] ??
+                  data['data']?['orderId'] ??
+                  data['order_id'] ??
+                  data['data']?['order_id'])
+              : null;
+      if (source != 'Cashier' && _shouldNotify(orderId)) {
+        NotificationService.showSystemNotification(
+          'Pesanan Baru',
+          'Ada pesanan online baru masuk.',
+        );
+      }
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 500), () {
         ref.invalidate(onlineOrderProvider);
@@ -66,10 +120,21 @@ class SocketService {
 
     socket.on('new_order_created', (data) {
       AppLogger.info('new_order_created at my device: $data');
-      NotificationService.showSystemNotification(
-        'Pesanan Baru dari area device anda,',
-        "cek detail di menu 'pesanan online'",
-      );
+      final source =
+          data is Map ? (data['source'] ?? data['data']?['source']) : null;
+      final orderId =
+          data is Map
+              ? (data['orderId'] ??
+                  data['data']?['orderId'] ??
+                  data['order_id'] ??
+                  data['data']?['order_id'])
+              : null;
+      if (source != 'Cashier' && _shouldNotify(orderId)) {
+        NotificationService.showSystemNotification(
+          'Pesanan Baru dari area device anda',
+          "cek detail di menu 'pesanan online'",
+        );
+      }
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 500), () {
         ref.invalidate(onlineOrderProvider);

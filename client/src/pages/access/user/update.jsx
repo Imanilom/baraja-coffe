@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from '@/lib/axios';
 import React, { useState, useEffect } from "react";
 import Select from "react-select";
 import {
@@ -117,9 +117,7 @@ const UpdateUser = () => {
 
     const fetchRoles = async (userRole = null) => {
         try {
-            const res = await axios.get("/api/roles", {
-                headers: { Authorization: `Bearer ${currentUser.token}` },
-            });
+            const res = await axios.get("/api/roles");
 
             // Filter roles berdasarkan tab aktif
             let filtered = res.data;
@@ -149,9 +147,7 @@ const UpdateUser = () => {
     const fetchUser = async () => {
         setLoading(true);
         try {
-            const res = await axios.get(`/api/user/getUSerById/${id}`, {
-                headers: { Authorization: `Bearer ${currentUser.token}` },
-            });
+            const res = await axios.get(`/api/user/getUSerById/${id}`);
             const u = res.data;
 
             setUsername(u.username || "");
@@ -225,7 +221,6 @@ const UpdateUser = () => {
         if (!employeeType) errors.employeeType = "Pilih role wajib.";
         if (!username) errors.username = "Username wajib diisi.";
         if (!email) errors.email = "Email wajib diisi.";
-        if (!phone) errors.phone = "Nomor telepon wajib diisi.";
 
         // Validasi cashier type untuk tab cashier
         if (activeTab === "cashier" && !cashierType) {
@@ -237,8 +232,10 @@ const UpdateUser = () => {
             errors.pin = "PIN harus 4 digit.";
         }
 
-        if (selectedOutlets.length === 0)
+        // Outlet wajib hanya untuk cashier
+        if (activeTab === "cashier" && selectedOutlets.length === 0) {
             errors.outlets = "Minimal pilih 1 outlet.";
+        }
 
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -248,14 +245,30 @@ const UpdateUser = () => {
         e.preventDefault();
         if (!validateForm()) return;
 
+        // Guard: pastikan token tersedia
+        if (!currentUser?.token) {
+            alert("Sesi login Anda sudah habis. Silakan login ulang.");
+            navigate("/sign-in", { replace: true });
+            return;
+        }
+
+        // Bangun payload — hanya kirim field yang punya nilai
         const payload = {
             username,
             email,
-            phone,
             role: employeeType,
-            outlets: selectedOutlets,
-            cashierType: activeTab === "cashier" ? cashierType : null
         };
+
+        // Hanya kirim phone jika ada isinya
+        if (phone) payload.phone = phone;
+
+        // Hanya kirim outlets jika ada yang dipilih
+        if (selectedOutlets.length > 0) payload.outlets = selectedOutlets;
+
+        // Hanya kirim cashierType untuk tab cashier
+        if (activeTab === "cashier" && cashierType) {
+            payload.cashierType = cashierType;
+        }
 
         // Hanya kirim password jika diisi
         if (activeTab === "cashier" && pin) {
@@ -265,13 +278,8 @@ const UpdateUser = () => {
         }
 
         try {
-            await axios.put(
-                `/api/user/update/${id}`,
-                payload,
-                {
-                    headers: { Authorization: `Bearer ${currentUser.token}` },
-                }
-            );
+            // Endpoint admin update: /api/user/update/:id (bukan /:id yang hanya toggle status)
+            const res = await axios.put(`/api/user/update/${id}`, payload);
 
             if (submitAction === "exit") {
                 navigate("/admin/access-settings/user", {
@@ -283,7 +291,14 @@ const UpdateUser = () => {
                 setPin("");
             }
         } catch (err) {
-            alert(err.response?.data?.message || "Gagal update user");
+            console.error("Error updating user:", err.response?.data || err.message);
+            const status = err.response?.status;
+            if (status === 401) {
+                alert("Sesi login Anda sudah habis. Silakan login ulang.");
+                navigate("/sign-in", { replace: true });
+            } else {
+                alert(err.response?.data?.message || "Gagal update user");
+            }
         }
     };
 

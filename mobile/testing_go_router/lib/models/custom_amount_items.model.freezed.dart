@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$CustomAmountItemsModel {
 
-@HiveField(0) int get amount;@HiveField(1) String? get name;@HiveField(2) String? get description;@HiveField(3) OrderType? get orderType;
+@HiveField(0) int get amount;@HiveField(1) String? get name;@HiveField(2) String? get description;@HiveField(3)@JsonKey(fromJson: OrderTypeModel.fromString, toJson: OrderTypeModel.toJsonString) OrderTypeModel? get orderType;
 /// Create a copy of CustomAmountItemsModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,11 +48,11 @@ abstract mixin class $CustomAmountItemsModelCopyWith<$Res>  {
   factory $CustomAmountItemsModelCopyWith(CustomAmountItemsModel value, $Res Function(CustomAmountItemsModel) _then) = _$CustomAmountItemsModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) int amount,@HiveField(1) String? name,@HiveField(2) String? description,@HiveField(3) OrderType? orderType
+@HiveField(0) int amount,@HiveField(1) String? name,@HiveField(2) String? description,@HiveField(3)@JsonKey(fromJson: OrderTypeModel.fromString, toJson: OrderTypeModel.toJsonString) OrderTypeModel? orderType
 });
 
 
-
+$OrderTypeModelCopyWith<$Res>? get orderType;
 
 }
 /// @nodoc
@@ -71,10 +71,22 @@ amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_n
 as int,name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,orderType: freezed == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
-as OrderType?,
+as OrderTypeModel?,
   ));
 }
+/// Create a copy of CustomAmountItemsModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$OrderTypeModelCopyWith<$Res>? get orderType {
+    if (_self.orderType == null) {
+    return null;
+  }
 
+  return $OrderTypeModelCopyWith<$Res>(_self.orderType!, (value) {
+    return _then(_self.copyWith(orderType: value));
+  });
+}
 }
 
 
@@ -156,7 +168,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  int amount, @HiveField(1)  String? name, @HiveField(2)  String? description, @HiveField(3)  OrderType? orderType)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@HiveField(0)  int amount, @HiveField(1)  String? name, @HiveField(2)  String? description, @HiveField(3)@JsonKey(fromJson: OrderTypeModel.fromString, toJson: OrderTypeModel.toJsonString)  OrderTypeModel? orderType)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CustomAmountItemsModel() when $default != null:
 return $default(_that.amount,_that.name,_that.description,_that.orderType);case _:
@@ -177,7 +189,7 @@ return $default(_that.amount,_that.name,_that.description,_that.orderType);case 
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  int amount, @HiveField(1)  String? name, @HiveField(2)  String? description, @HiveField(3)  OrderType? orderType)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@HiveField(0)  int amount, @HiveField(1)  String? name, @HiveField(2)  String? description, @HiveField(3)@JsonKey(fromJson: OrderTypeModel.fromString, toJson: OrderTypeModel.toJsonString)  OrderTypeModel? orderType)  $default,) {final _that = this;
 switch (_that) {
 case _CustomAmountItemsModel():
 return $default(_that.amount,_that.name,_that.description,_that.orderType);case _:
@@ -197,7 +209,7 @@ return $default(_that.amount,_that.name,_that.description,_that.orderType);case 
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  int amount, @HiveField(1)  String? name, @HiveField(2)  String? description, @HiveField(3)  OrderType? orderType)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@HiveField(0)  int amount, @HiveField(1)  String? name, @HiveField(2)  String? description, @HiveField(3)@JsonKey(fromJson: OrderTypeModel.fromString, toJson: OrderTypeModel.toJsonString)  OrderTypeModel? orderType)?  $default,) {final _that = this;
 switch (_that) {
 case _CustomAmountItemsModel() when $default != null:
 return $default(_that.amount,_that.name,_that.description,_that.orderType);case _:
@@ -212,13 +224,13 @@ return $default(_that.amount,_that.name,_that.description,_that.orderType);case 
 @JsonSerializable()
 
 class _CustomAmountItemsModel extends CustomAmountItemsModel {
-   _CustomAmountItemsModel({@HiveField(0) this.amount = 0, @HiveField(1) this.name = 'Custom Amount', @HiveField(2) this.description = null, @HiveField(3) this.orderType = OrderType.dineIn}): super._();
+   _CustomAmountItemsModel({@HiveField(0) this.amount = 0, @HiveField(1) this.name = 'Custom Amount', @HiveField(2) this.description = null, @HiveField(3)@JsonKey(fromJson: OrderTypeModel.fromString, toJson: OrderTypeModel.toJsonString) this.orderType = OrderTypeModel.dineIn}): super._();
   factory _CustomAmountItemsModel.fromJson(Map<String, dynamic> json) => _$CustomAmountItemsModelFromJson(json);
 
 @override@JsonKey()@HiveField(0) final  int amount;
 @override@JsonKey()@HiveField(1) final  String? name;
 @override@JsonKey()@HiveField(2) final  String? description;
-@override@JsonKey()@HiveField(3) final  OrderType? orderType;
+@override@HiveField(3)@JsonKey(fromJson: OrderTypeModel.fromString, toJson: OrderTypeModel.toJsonString) final  OrderTypeModel? orderType;
 
 /// Create a copy of CustomAmountItemsModel
 /// with the given fields replaced by the non-null parameter values.
@@ -253,11 +265,11 @@ abstract mixin class _$CustomAmountItemsModelCopyWith<$Res> implements $CustomAm
   factory _$CustomAmountItemsModelCopyWith(_CustomAmountItemsModel value, $Res Function(_CustomAmountItemsModel) _then) = __$CustomAmountItemsModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) int amount,@HiveField(1) String? name,@HiveField(2) String? description,@HiveField(3) OrderType? orderType
+@HiveField(0) int amount,@HiveField(1) String? name,@HiveField(2) String? description,@HiveField(3)@JsonKey(fromJson: OrderTypeModel.fromString, toJson: OrderTypeModel.toJsonString) OrderTypeModel? orderType
 });
 
 
-
+@override $OrderTypeModelCopyWith<$Res>? get orderType;
 
 }
 /// @nodoc
@@ -276,11 +288,23 @@ amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_n
 as int,name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,orderType: freezed == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
-as OrderType?,
+as OrderTypeModel?,
   ));
 }
 
+/// Create a copy of CustomAmountItemsModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$OrderTypeModelCopyWith<$Res>? get orderType {
+    if (_self.orderType == null) {
+    return null;
+  }
 
+  return $OrderTypeModelCopyWith<$Res>(_self.orderType!, (value) {
+    return _then(_self.copyWith(orderType: value));
+  });
+}
 }
 
 // dart format on

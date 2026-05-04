@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { useNavigate, useParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaBell, FaUser, FaSearch, FaChevronRight } from "react-icons/fa";
@@ -76,7 +76,7 @@ const CreateManageOutlet = () => {
             const payload = {
                 appliesToOutlets: selectedOutlets, // ← ini akan menggantikan semua outlet sebelumnya
             };
-            console.log(payload);
+            // console.log(payload);
             await axios.put(`/api/tax-service/${id}`, payload);
             // alert("Outlet berhasil diperbarui.");
             navigate("/admin/tax-and-service");

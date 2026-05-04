@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { FaPlus } from 'react-icons/fa';
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
 import MessageAlert from "../../../components/messageAlert";
 import MenuTable from "./component/table";
@@ -9,34 +9,57 @@ const Menu = () => {
     const customStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db',
-            minHeight: '34px',
+            backgroundColor: '#f8fafc',
+            borderColor: state.isFocused ? '#005429' : '#e2e8f0',
+            minHeight: '42px',
             fontSize: '13px',
-            color: '#6b7280',
+            fontWeight: '700',
+            color: '#1e293b',
             boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            borderRadius: '0.75rem',
+            padding: '2px',
             '&:hover': {
-                borderColor: '#9ca3af',
+                borderColor: '#005429',
+                backgroundColor: '#ffffff',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280',
+            color: '#1e293b',
+            fontWeight: '700',
         }),
         input: (provided) => ({
             ...provided,
-            color: '#6b7280',
+            color: '#1e293b',
         }),
         placeholder: (provided) => ({
             ...provided,
-            color: '#9ca3af',
-            fontSize: '13px',
+            color: '#94a3b8',
+            fontSize: '12px',
+            fontWeight: '800',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+        }),
+        menu: (provided) => ({
+            ...provided,
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid #e2e8f0',
+            borderRadius: '1rem',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
+            zIndex: 9999,
+            overflow: 'hidden',
+            padding: '4px',
         }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151',
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            fontWeight: '600',
+            color: state.isSelected ? 'white' : '#334155',
+            backgroundColor: state.isSelected ? '#005429' : state.isFocused ? '#f1f5f9' : 'transparent',
+            borderRadius: '0.5rem',
             cursor: 'pointer',
+            margin: '2px 0',
         }),
     };
 
@@ -137,7 +160,7 @@ const Menu = () => {
     }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery, selectedWorkstation, recipeFilter]);
 
     const outletOptions = useMemo(() => [
-        { value: '', label: 'Outlet' },
+        { value: '', label: 'Semua Outlet' },
         ...outlets.map(outlet => ({ value: outlet.name, label: outlet.name }))
     ], [outlets]);
 
@@ -147,13 +170,13 @@ const Menu = () => {
     ], [category]);
 
     const statusOptions = [
-        { value: '', label: 'Status' },
+        { value: '', label: 'Semua Status' },
         { value: true, label: 'Aktif' },
         { value: false, label: 'Tidak Aktif' },
     ];
 
     const workstationOptions = [
-        { value: '', label: 'Tempat' },
+        { value: '', label: 'Semua Tempat' },
         { value: 'bar', label: 'Bar' },
         { value: 'kitchen', label: 'Dapur' },
     ];
@@ -242,13 +265,13 @@ const Menu = () => {
 
     if (error) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
+            <div className="flex justify-center items-center h-screen bg-transparent">
+                <div className="text-red-500 text-center bg-white/50 backdrop-blur p-6 rounded-xl border border-red-100 shadow-lg">
                     <p className="text-xl font-semibold mb-2">Error</p>
                     <p>{error}</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded-lg shadow hover:bg-[#004220] transition-colors"
                     >
                         Refresh
                     </button>
@@ -265,17 +288,18 @@ const Menu = () => {
                 message={alertMessage}
             />
 
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    Menu
-                </h1>
+            <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col">
+                    <h1 className="text-2xl font-black text-slate-800 tracking-tight font-['Outfit',sans-serif]">Daftar Menu</h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">Kelola informasi produk dan harga</p>
+                </div>
                 <div className="flex items-center gap-3">
                     <Link
                         to="/admin/menu-create"
                         state={{ returnPage: currentPage, returnTab: 'menu' }}
-                        className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+                        className="bg-[#005429] hover:bg-[#004220] text-white px-5 py-2.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-sm font-semibold"
                     >
-                        <FaPlus /> Tambah
+                        <FaPlus /> Tambah Produk
                     </Link>
                 </div>
             </div>

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { FaTimes, FaChevronLeft, FaChevronRight, FaDownload } from 'react-icons/fa';
 import * as XLSX from 'xlsx';
 
-const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletId, formatCurrency, includeTax }) => {
+const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, overallSummary, dateRange, outletId, formatCurrency, includeTax }) => {
     const [detailData, setDetailData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -12,7 +12,18 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
     const [filterIssuer, setFilterIssuer] = useState('all');
     const [filterAcquirer, setFilterAcquirer] = useState('all');
     const [pagination, setPagination] = useState({ total: 0, pages: 0 });
+    const [apiSummary, setApiSummary] = useState(null);
     const ITEMS_PER_PAGE = 50;
+
+    // Helper to format date without UTC shift
+    const formatDateLocal = (date) => {
+        if (!date) return '';
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     // Fetch detail transactions for specific payment method
     const fetchDetailTransactions = async (page = 1) => {
@@ -23,23 +34,23 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
 
         try {
             const params = {
-                startDate: new Date(dateRange.startDate).toISOString().split('T')[0],
-                endDate: new Date(dateRange.endDate).toISOString().split('T')[0],
+                startDate: formatDateLocal(dateRange.startDate),
+                endDate: formatDateLocal(dateRange.endDate),
                 paymentMethod: paymentMethod === 'Pembayaran Tidak Terdeteksi / Null' ? 'null' : paymentMethod,
                 includeTax: includeTax.toString(),
+                status: 'Completed',
                 page: page,
                 limit: ITEMS_PER_PAGE
             };
-
             if (outletId) {
                 params.outletId = outletId;
             }
 
             const response = await axios.get('/api/report/sales-report/payment-detail', { params });
-
             if (response.data?.success && response.data?.data) {
                 setDetailData(response.data.data.payments || []);
                 setPagination(response.data.data.pagination || { total: 0, pages: 0 });
+                setApiSummary(response.data.data.summary || null);
             }
         } catch (err) {
             console.error('Error fetching detail transactions:', err);
@@ -88,7 +99,7 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
     const totalPages = pagination.pages;
 
     // Summary calculations (for current page)
-    const summary = useMemo(() => {
+    const localSummary = useMemo(() => {
         return filteredData.reduce((acc, order) => {
             acc.totalTransactions += 1;
             acc.totalAmount += order.total;
@@ -99,13 +110,40 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
             return acc;
         }, {
             totalTransactions: 0,
-            totalAmount: 0,
-            totalDiscount: 0,
             totalTax: 0,
             totalServiceCharge: 0,
-            totalSubtotal: 0
+            totalSubtotal: 0,
+            totalDiscount: 0,
+            totalAmount: 0 // Will be derived
         });
     }, [filteredData]);
+
+    // Simplified display summary logic
+    const isFiltered = filterIssuer !== 'all' || filterAcquirer !== 'all';
+    // Final summary for display - prioritized from breakdown row/API
+    const displaySummary = useMemo(() => {
+        // If filtered locally, always use local summary
+        if (isFiltered) return localSummary;
+
+        // Merge Row data (overallSummary) with Detail API data (apiSummary)
+        const row = overallSummary || {};
+        const api = apiSummary || {};
+
+        const totalTransactions = row.count || api.totalTransactions || api.total_transactions || api.count || pagination.total || 0;
+        const totalTax = row.tax || api.totalTax || api.total_tax || 0;
+        const totalServiceCharge = row.serviceCharge || api.totalServiceCharge || api.total_service_fee || 0;
+        const totalSubtotal = row.subtotal || api.totalSubtotal || api.total_subtotal || 0;
+        const totalDiscount = row.discount || api.totalDiscount || api.total_discount || 0;
+
+        return {
+            totalTransactions,
+            totalTax,
+            totalServiceCharge,
+            totalSubtotal,
+            totalDiscount,
+            totalAmount: totalSubtotal + (includeTax ? (totalTax + totalServiceCharge) : 0)
+        };
+    }, [isFiltered, overallSummary, apiSummary, localSummary, pagination.total, includeTax]);
 
     // Export to Excel (All data for current view)
     const exportToExcel = () => {
@@ -149,12 +187,12 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                 col3: '',
                 col4: '',
                 col5: '',
-                col6: `${summary.totalTransactions} Transaksi`,
-                col7: summary.totalSubtotal,
-                col8: summary.totalDiscount,
-                col9: summary.totalTax,
-                col10: summary.totalServiceCharge,
-                col11: summary.totalAmount
+                col6: `${localSummary.totalTransactions} Transaksi`,
+                col7: localSummary.totalSubtotal,
+                col8: localSummary.totalDiscount,
+                col9: localSummary.totalTax,
+                col10: localSummary.totalServiceCharge,
+                col11: localSummary.totalAmount
             });
 
             const ws = XLSX.utils.json_to_sheet(rows, {
@@ -190,7 +228,7 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
     };
 
     const renderPageNumbers = () => {
-        let pages = [];
+        const pages = [];
         const maxVisiblePages = 5;
         let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
         let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
@@ -201,17 +239,9 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
 
         if (startPage > 1) {
             pages.push(
-                <button
-                    key={1}
-                    onClick={() => handlePageChange(1)}
-                    className="px-3 py-1 border border-green-900 rounded text-green-900 hover:bg-green-900 hover:text-white"
-                >
-                    1
-                </button>
+                <button key={1} onClick={() => handlePageChange(1)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-primary hover:text-primary transition-all text-[13px] font-medium bg-white">1</button>
             );
-            if (startPage > 2) {
-                pages.push(<span key="ellipsis1" className="px-2 text-green-900">...</span>);
-            }
+            if (startPage > 2) pages.push(<span key="ellipsis1" className="px-1 text-gray-400">...</span>);
         }
 
         for (let i = startPage; i <= endPage; i++) {
@@ -219,10 +249,7 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                 <button
                     key={i}
                     onClick={() => handlePageChange(i)}
-                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
-                        ? "bg-green-900 text-white"
-                        : "text-green-900 hover:bg-green-900 hover:text-white"
-                        }`}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all text-[13px] font-medium ${currentPage === i ? "bg-primary border-primary text-white shadow-sm shadow-primary/20" : "bg-white border-gray-200 text-gray-600 hover:border-primary hover:text-primary"}`}
                 >
                     {i}
                 </button>
@@ -230,17 +257,9 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
         }
 
         if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                pages.push(<span key="ellipsis2" className="px-2 text-green-900">...</span>);
-            }
+            if (endPage < totalPages - 1) pages.push(<span key="ellipsis2" className="px-1 text-gray-400">...</span>);
             pages.push(
-                <button
-                    key={totalPages}
-                    onClick={() => handlePageChange(totalPages)}
-                    className="px-3 py-1 border border-green-900 rounded text-green-900 hover:bg-green-900 hover:text-white"
-                >
-                    {totalPages}
-                </button>
+                <button key={totalPages} onClick={() => handlePageChange(totalPages)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-primary hover:text-primary transition-all text-[13px] font-medium bg-white">{totalPages}</button>
             );
         }
 
@@ -251,27 +270,30 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] flex flex-col overflow-hidden border border-gray-100">
                 {/* Header */}
-                <div className="flex justify-between items-center p-6 border-b">
+                <div className="flex justify-between items-center p-6 border-b border-gray-50 bg-gray-50/30">
                     <div>
-                        <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-3">
-                            Detail Transaksi - <span className="text-green-900">{paymentMethod}</span>
-                            <span className={`text-xs px-2 py-1 rounded-full ${includeTax ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-3">
+                            Detail Transaksi - <span className="text-primary">{paymentMethod}</span>
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg ${includeTax ? 'bg-primary/10 text-primary' : 'bg-orange-100 text-orange-600'}`}>
                                 {includeTax ? 'Gross (Inc. Tax)' : 'Nett (Exc. Tax)'}
                             </span>
                         </h2>
-                        <p className="text-sm text-gray-500 mt-1">
-                            {dateRange?.startDate && dateRange?.endDate && (
-                                `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-                            )}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40"></div>
+                            <p className="text-sm font-medium text-gray-400">
+                                {dateRange?.startDate && dateRange?.endDate && (
+                                    `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
+                                )}
+                            </p>
+                        </div>
                     </div>
-                    <div className="flex gap-2 text-sm font-medium">
+                    <div className="flex gap-3 text-sm font-medium">
                         <button
                             onClick={exportToExcel}
                             disabled={isExporting || filteredData.length === 0}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-900 text-white rounded hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-primary hover:bg-primary/90 text-white text-[13px] px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95"
                         >
                             {isExporting ? (
                                 <>
@@ -280,13 +302,13 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                                 </>
                             ) : (
                                 <>
-                                    <FaDownload /> Ekspor Halaman Ini
+                                    <FaDownload /> Ekspor Excel
                                 </>
                             )}
                         </button>
                         <button
                             onClick={onClose}
-                            className="text-gray-500 hover:text-gray-700 p-2 border rounded"
+                            className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors border border-gray-100"
                         >
                             <FaTimes size={20} />
                         </button>
@@ -294,35 +316,35 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                 </div>
 
                 {/* Summary & Filters */}
-                <div className="bg-gray-50 border-b">
-                    <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-gray-50/50 border-b border-gray-100">
+                    <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Filters */}
-                        <div className="flex flex-wrap gap-4 items-center">
+                        <div className="flex flex-wrap gap-3 items-center">
                             {(uniqueIssuers.length > 0 || uniqueAcquirers.length > 0) && (
                                 <>
                                     {uniqueIssuers.length > 0 && (
-                                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded border">
-                                            <label className="text-xs font-semibold text-gray-600">Issuer:</label>
+                                        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/5">
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Issuer</label>
                                             <select
                                                 value={filterIssuer}
                                                 onChange={(e) => setFilterIssuer(e.target.value)}
-                                                className="bg-transparent text-sm focus:outline-none"
+                                                className="bg-transparent text-[13px] font-bold text-gray-700 focus:outline-none cursor-pointer pr-4"
                                             >
-                                                <option value="all">Semua</option>
-                                                {uniqueIssuers.map(i => <option key={i} value={i}>{i}</option>)}
+                                                <option value="all">SEMUA</option>
+                                                {uniqueIssuers.map(i => <option key={i} value={i}>{i.toUpperCase()}</option>)}
                                             </select>
                                         </div>
                                     )}
                                     {uniqueAcquirers.length > 0 && (
-                                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded border">
-                                            <label className="text-xs font-semibold text-gray-600">Acquirer:</label>
+                                        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/5">
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Acquirer</label>
                                             <select
                                                 value={filterAcquirer}
                                                 onChange={(e) => setFilterAcquirer(e.target.value)}
-                                                className="bg-transparent text-sm focus:outline-none"
+                                                className="bg-transparent text-[13px] font-bold text-gray-700 focus:outline-none cursor-pointer pr-4"
                                             >
-                                                <option value="all">Semua</option>
-                                                {uniqueAcquirers.map(a => <option key={a} value={a}>{a}</option>)}
+                                                <option value="all">SEMUA</option>
+                                                {uniqueAcquirers.map(a => <option key={a} value={a}>{a.toUpperCase()}</option>)}
                                             </select>
                                         </div>
                                     )}
@@ -331,77 +353,87 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                         </div>
 
                         {/* Summary Stats */}
-                        <div className="grid grid-cols-4 gap-3">
-                            <div className="bg-white p-2 rounded border shadow-sm text-center">
-                                <p className="text-[10px] uppercase text-gray-400 font-bold">Pajak</p>
-                                <p className="text-sm font-bold text-blue-600">{formatCurrency(summary.totalTax)}</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm group hover:border-blue-200 transition-all">
+                                <p className="text-[9px] uppercase text-gray-400 font-black tracking-widest mb-1">Pajak (PB1)</p>
+                                <p className="text-sm font-extrabold text-blue-600 group-hover:scale-105 transition-transform origin-left">{formatCurrency(displaySummary.totalTax)}</p>
                             </div>
-                            <div className="bg-white p-2 rounded border shadow-sm text-center">
-                                <p className="text-[10px] uppercase text-gray-400 font-bold">Service</p>
-                                <p className="text-sm font-bold text-purple-600">{formatCurrency(summary.totalServiceCharge)}</p>
+                            <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm group hover:border-purple-200 transition-all">
+                                <p className="text-[9px] uppercase text-gray-400 font-black tracking-widest mb-1">Service</p>
+                                <p className="text-sm font-extrabold text-purple-600 group-hover:scale-105 transition-transform origin-left">{formatCurrency(displaySummary.totalServiceCharge)}</p>
                             </div>
-                            <div className="bg-white p-2 rounded border shadow-sm text-center">
-                                <p className="text-[10px] uppercase text-gray-400 font-bold">Subtotal</p>
-                                <p className="text-sm font-bold text-gray-700">{formatCurrency(summary.totalSubtotal)}</p>
+                            <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm group hover:border-gray-300 transition-all">
+                                <p className="text-[9px] uppercase text-gray-400 font-black tracking-widest mb-1">Subtotal</p>
+                                <p className="text-sm font-extrabold text-gray-700 group-hover:scale-105 transition-transform origin-left">{formatCurrency(displaySummary.totalSubtotal)}</p>
                             </div>
-                            <div className="bg-white p-2 rounded border shadow-sm text-center">
-                                <p className="text-[10px] uppercase text-gray-400 font-bold">Total</p>
-                                <p className="text-sm font-bold text-green-900">{formatCurrency(summary.totalAmount)}</p>
+                            <div className="bg-white p-3 rounded-xl border border-primary/20 shadow-md shadow-primary/5 group hover:shadow-lg transition-all">
+                                <p className="text-[9px] uppercase text-gray-400 font-black tracking-widest mb-1">Total</p>
+                                <p className="text-sm font-extrabold text-primary group-hover:scale-105 transition-transform origin-left">{formatCurrency(displaySummary.totalAmount)}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Content Table */}
-                <div className="flex-1 overflow-auto p-4">
+                <div className="flex-1 overflow-auto p-6 bg-white">
                     {loading ? (
-                        <div className="flex justify-center items-center h-64">
-                            <div className="animate-spin rounded-full h-10 w-10 border-4 border-green-900 border-t-transparent"></div>
+                        <div className="flex flex-col justify-center items-center h-64 gap-4">
+                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Memuat detail...</p>
                         </div>
                     ) : error ? (
-                        <div className="text-center text-red-500 py-12">
-                            <p className="font-bold">{error}</p>
-                            <button onClick={() => fetchDetailTransactions(currentPage)} className="mt-4 text-green-900 underline">Coba Lagi</button>
+                        <div className="text-center bg-red-50 p-8 rounded-2xl border border-red-100">
+                            <p className="font-bold text-red-500 text-lg mb-2">Terjadi Kesalahan</p>
+                            <p className="text-red-400 text-sm mb-6">{error}</p>
+                            <button 
+                                onClick={() => fetchDetailTransactions(currentPage)} 
+                                className="bg-red-500 text-white px-6 py-2 rounded-xl text-[13px] font-bold hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                            >
+                                COBA LAGI
+                            </button>
                         </div>
                     ) : filteredData.length === 0 ? (
-                        <div className="text-center text-gray-400 py-12">Tidak ada data ditemukan.</div>
+                        <div className="text-center py-20 border-2 border-dashed border-gray-100 rounded-3xl">
+                            <p className="text-gray-300 font-bold uppercase tracking-widest text-xs">Tidak ada data ditemukan</p>
+                        </div>
                     ) : (
-                        <div className="overflow-x-auto rounded border">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50 text-[11px] uppercase text-gray-500 font-bold tracking-wider">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">No</th>
-                                        <th className="px-4 py-3 text-left">Order ID</th>
-                                        <th className="px-4 py-3 text-left">Tanggal</th>
-                                        <th className="px-4 py-3 text-left">Outlet</th>
-                                        <th className="px-4 py-3 text-left">Detail Bayar</th>
-                                        <th className="px-4 py-3 text-right">Subtotal</th>
-                                        <th className="px-4 py-3 text-right text-red-500">Diskon</th>
-                                        <th className="px-4 py-3 text-right text-blue-600">Pajak</th>
-                                        <th className="px-4 py-3 text-right text-purple-600">Service</th>
-                                        <th className="px-4 py-3 text-right text-green-900">Total</th>
+                        <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+                            <table className="min-w-full divide-y divide-gray-50">
+                                <thead className="bg-gray-50/50">
+                                    <tr className="text-[10px] uppercase text-gray-400 font-black tracking-[0.15em] border-b border-gray-100">
+                                        <th className="px-6 py-4 text-left">No</th>
+                                        <th className="px-6 py-4 text-left">Order ID</th>
+                                        <th className="px-6 py-4 text-left">Waktu</th>
+                                        <th className="px-6 py-4 text-left">Outlet</th>
+                                        <th className="px-6 py-4 text-left">Metode</th>
+                                        <th className="px-6 py-4 text-right">Subtotal</th>
+                                        <th className="px-6 py-4 text-right text-red-400">Disc</th>
+                                        <th className="px-6 py-4 text-right text-blue-400">Pajak</th>
+                                        <th className="px-6 py-4 text-right text-purple-400">Svc</th>
+                                        <th className="px-6 py-4 text-right text-primary">Total</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200 text-[13px] text-gray-600">
+                                <tbody className="bg-white divide-y divide-gray-50 text-[13px] text-gray-600">
                                     {filteredData.map((order, index) => (
-                                        <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-4 py-3">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
-                                            <td className="px-4 py-3 font-semibold text-gray-800">{order.order_id}</td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                                {new Date(order.createdAt).toLocaleDateString('id-ID')} <span className="text-gray-400 text-xs ml-1">{new Date(order.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                                        <tr key={index} className="hover:bg-primary/5 transition-colors group">
+                                            <td className="px-6 py-4 opacity-40">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
+                                            <td className="px-6 py-4 font-black text-gray-800 tracking-tight">{order.order_id}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="font-bold text-gray-700">{new Date(order.createdAt).toLocaleDateString('id-ID')}</span>
+                                                <span className="text-[10px] text-gray-300 ml-2 font-mono group-hover:text-primary transition-colors">{new Date(order.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                                             </td>
-                                            <td className="px-4 py-3">{order.outlet?.name}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium text-xs">{order.issuer || 'Default'}</span>
-                                                    {order.acquirer && <span className="text-[10px] text-gray-400">via {order.acquirer}</span>}
+                                            <td className="px-6 py-4 font-medium">{order.outlet?.name}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col group-hover:transform group-hover:translate-x-1 transition-transform">
+                                                    <span className="font-bold text-[11px] text-gray-700 uppercase tracking-tight">{order.issuer || 'Default'}</span>
+                                                    {order.acquirer && <span className="text-[9px] text-gray-300 font-black uppercase tracking-tighter">via {order.acquirer}</span>}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-right font-mono">{formatCurrency(order.subtotal)}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-red-500">-{formatCurrency(order.discount)}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(order.tax)}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-purple-600">{formatCurrency(order.serviceCharge)}</td>
-                                            <td className="px-4 py-3 text-right font-bold text-green-900 font-mono">{formatCurrency(order.total)}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-gray-500">{formatCurrency(order.subtotal)}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-red-500">-{formatCurrency(order.discount)}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-blue-600">{formatCurrency(order.tax)}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-purple-600">{formatCurrency(order.serviceCharge)}</td>
+                                            <td className="px-6 py-4 text-right font-black text-primary text-sm">{formatCurrency(order.total)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -411,26 +443,26 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                 </div>
 
                 {/* Footer Pagination */}
-                <div className="p-4 border-t bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div className="text-xs text-gray-500 font-medium">
-                        Menampilkan <span className="text-gray-900 border px-1.5 py-0.5 rounded">{filteredData.length}</span> dari <span className="text-gray-900 font-bold">{pagination.total}</span> transaksi
+                <div className="p-6 border-t border-gray-100 bg-gray-50/30 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                        Menampilkan <span className="text-primary px-2 py-0.5 bg-primary/5 rounded-lg font-black">{filteredData.length}</span> / <span className="text-gray-900 font-black">{pagination.total}</span> Transaksi
                     </div>
                     {totalPages > 1 && (
-                        <div className="flex gap-1.5 items-center">
+                        <div className="flex gap-2 items-center">
                             <button
                                 onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
                                 disabled={currentPage === 1}
-                                className="p-1.5 rounded border bg-white hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-100 bg-white text-gray-400 hover:text-primary hover:border-primary disabled:opacity-30 transition-all shadow-sm active:scale-95"
                             >
-                                <FaChevronLeft size={14} />
+                                <FaChevronLeft size={10} />
                             </button>
-                            <div className="flex gap-1.5">{renderPageNumbers()}</div>
+                            <div className="flex gap-2">{renderPageNumbers()}</div>
                             <button
                                 onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
                                 disabled={currentPage === totalPages}
-                                className="p-1.5 rounded border bg-white hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-100 bg-white text-gray-400 hover:text-primary hover:border-primary disabled:opacity-30 transition-all shadow-sm active:scale-95"
                             >
-                                <FaChevronRight size={14} />
+                                <FaChevronRight size={10} />
                             </button>
                         </div>
                     )}

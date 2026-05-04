@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { FaChevronRight, FaReceipt } from "react-icons/fa";
 

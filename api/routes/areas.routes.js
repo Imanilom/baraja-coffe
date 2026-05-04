@@ -24,8 +24,43 @@ router.post('/tables', async (req, res) => {
             });
         }
 
-        const exists = await Table.findOne({ table_number: table_number.toUpperCase(), area_id });
-        if (exists) return res.status(400).json({ success: false, message: 'Table number already exists in this area' });
+        // const exists = await Table.findOne({ table_number: table_number.toUpperCase(), area_id });
+        // if (exists) return res.status(400).json({ success: false, message: 'Table number already exists in this area' });
+
+        const existingTable = await Table.findOne({
+            table_number: table_number.toUpperCase(),
+            area_id
+        });
+
+        // 👉 KALAU MEJA PERNAH ADA
+        if (existingTable) {
+
+        // 🔁 KALAU SUDAH DIHAPUS (SOFT DELETE)
+        if (!existingTable.is_active) {
+            existingTable.is_active = true;
+            existingTable.is_available = true;
+            existingTable.status = 'available';
+            existingTable.seats = seats || existingTable.seats;
+            existingTable.table_type = table_type || existingTable.table_type;
+            existingTable.shape = shape || existingTable.shape;
+            existingTable.position = position || existingTable.position;
+
+            const restored = await existingTable.save();
+
+            return res.status(200).json({
+            success: true,
+            message: 'Table restored successfully',
+            data: restored
+            });
+        }
+
+        // 🚫 KALAU MASIH AKTIF → TOLAK
+        return res.status(400).json({
+            success: false,
+            message: 'Table number already exists in this area'
+        });
+        }
+
 
         const newTable = new Table({
             table_number: table_number.toUpperCase(),

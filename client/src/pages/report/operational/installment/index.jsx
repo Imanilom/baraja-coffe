@@ -1,116 +1,168 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
-import dayjs from "dayjs";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaChevronLeft } from "react-icons/fa";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import axios from '@/lib/axios';
+import { Link, useSearchParams } from "react-router-dom";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSync, FaFileExcel, FaSearch, FaExclamationTriangle, FaCheckCircle, FaMoneyBillWave } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-import Header from "../../../admin/header";
-
+import Select from "react-select";
+import dayjs from "dayjs";
+import { useSelector, useDispatch } from "react-redux";
+import useDebounce from "@/hooks/useDebounce";
+import { setReportData } from "@/redux/report/reportSlice";
+import Paginated from "@/components/paginated";
 
 const InstallmentManagement = () => {
-    const [checked, setChecked] = useState(false);
-    const [debt, setDebt] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const dispatch = useDispatch();
+    const { outlets } = useSelector((state) => state.outlet);
+    const { operational } = useSelector((state) => state.report);
+    const cachedData = operational.installment.data;
+
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [showPaid, setShowPaid] = useState(searchParams.get('paid') === 'true');
 
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState({
-        startDate: dayjs().format("YYYY-MM-DD"),
-        endDate: dayjs().format("YYYY-MM-DD"),
+    // Initial state from URL
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().startOf('month').toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
     });
-    const [tempSearch, setTempSearch] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || "");
+    const debouncedSearch = useDebounce(searchTerm, 500);
 
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1);
     const ITEMS_PER_PAGE = 50;
 
-    const dropdownRef = useRef(null);
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
+    const outletOptions = useMemo(() => [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ], [outlets]);
 
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedOutlet) params.set('outletId', selectedOutlet);
+        if (debouncedSearch) params.set('q', debouncedSearch);
+        if (showPaid) params.set('paid', 'true');
+        if (currentPage > 1) params.set('page', currentPage.toString());
+        setSearchParams(params, { replace: true });
+    }, [dateRange, selectedOutlet, debouncedSearch, showPaid, currentPage, setSearchParams]);
 
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
-
-    // Fetch debt and outlets data
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch debt data
-                const debtResponse = await axios.get("/api/marketlist/debts");
-                const debtData = debtResponse.data.data ? debtResponse.data.data : debtResponse.data;
+        updateURLParams();
+    }, [updateURLParams]);
 
-                setDebt(debtData);
-                setFilteredData(debtData); // Initialize filtered data with all debt
+    const fetchData = useCallback(async (force = false) => {
+        // If not forced and we have cached data, don't fetch if it's "fresh" enough
+        // For simplicity here, we just check if data exists if not forced
+        if (!force && cachedData.length > 0) return;
 
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
+        setLoading(true);
+        try {
+            const params = {
+                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD'),
+            };
+            if (selectedOutlet) params.outletId = selectedOutlet;
 
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
+            const response = await axios.get('/api/marketlist/debts', { params });
+            const data = response.data.data || response.data || [];
+            const result = Array.isArray(data) ? data : [];
 
-                setOutlets(outletsData);
+            dispatch(setReportData({ category: 'operational', type: 'installment', data: result }));
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching debt data:", err);
+            setError("Gagal memuat data hutang.");
+        } finally {
+            setLoading(false);
+        }
+    }, [dateRange, selectedOutlet, cachedData.length, dispatch]);
 
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setDebt([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
+    useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+    const handleRefresh = () => {
+        fetchData(true);
+    };
 
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    const filteredData = useMemo(() => {
+        let result = cachedData;
 
-    // Paginate the filtered data
-    const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
+        if (!showPaid) {
+            result = result.filter(item => (item.amount - item.paidAmount) > 0);
         }
 
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
+        if (debouncedSearch) {
+            const s = debouncedSearch.toLowerCase();
+            result = result.filter(item => {
+                const supplier = (item.supplierName || "").toLowerCase();
+                const notes = (item.notes || "").toLowerCase();
+                const id = (item._id || "").toLowerCase();
+                return supplier.includes(s) || notes.includes(s) || id.includes(s);
+            });
+        }
+
         return result;
-    }, [currentPage, filteredData]);
+    }, [cachedData, debouncedSearch, showPaid]);
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredData, currentPage]);
+
+    const totals = useMemo(() => {
+        return filteredData.reduce((acc, curr) => ({
+            totalAmount: acc.totalAmount + (curr.amount || 0),
+            totalPaid: acc.totalPaid + (curr.paidAmount || 0),
+            totalRemaining: acc.totalRemaining + ((curr.amount || 0) - (curr.paidAmount || 0))
+        }), { totalAmount: 0, totalPaid: 0, totalRemaining: 0 });
+    }, [filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -118,465 +170,246 @@ const InstallmentManagement = () => {
             currency: 'IDR',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
-        }).format(amount);
+        }).format(amount || 0);
     };
 
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-    };
-
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    // Calculate grand totals for filtered data
-    const {
-        grandTotalAmount,
-        grandTotal,
-        grandTotalPaidAmount
-    } = useMemo(() => {
-        const totals = {
-            grandTotalAmount: 0,
-            grandTotal: 0,
-            grandTotalPaidAmount: 0,
-        };
-
-        if (!Array.isArray(filteredData)) {
-            return totals;
-        }
-
-        filteredData.forEach(debt => {
-            try {
-                const amount = Number(debt.amount) || 0;
-                const paidAmount = Number(debt.paidAmount) || 0;
-
-                totals.grandTotalAmount += amount;
-                totals.grandTotal += amount - paidAmount;
-                totals.grandTotalPaidAmount += paidAmount;
-            } catch (err) {
-                console.error("Error calculating totals for debt:", err);
-            }
-        });
-        return totals;
-    }, [filteredData]);
-
-    // Apply filter function
-    const applyFilter = () => {
-
-        // Make sure debt is an array before attempting to filter
-        let filtered = ensureArray([...debt]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    };
-
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(debt));
-        setCurrentPage(1);
-    };
-
-    // Export current data to Excel
     const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
+        const exportData = filteredData.map(item => ({
+            "Tanggal": dayjs(item.date).format('DD-MM-YYYY'),
+            "Supplier": item.supplierName || "-",
+            "ID Struk": item._id || "-",
+            "Status": item.status || "-",
+            "Total Tagihan": item.amount || 0,
+            "Telah Dibayar": item.paidAmount || 0,
+            "Sisa Tagihan": (item.amount || 0) - (item.paidAmount || 0),
+            "Keterangan": item.notes || "-"
         }));
-        worksheet['!cols'] = columnWidths;
 
+        const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Hutang");
+        XLSX.writeFile(wb, `Laporan_Hutang_${dayjs().format('YYYYMMDD')}.xlsx`);
     };
 
-
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+    return (
+        <div className="min-h-screen bg-gray-50 pb-10">
+            {/* Header */}
+            <div className="flex justify-end px-6 items-center py-4 space-x-4 border-b bg-white">
+                <FaBell className="text-gray-400 cursor-pointer" />
+                <span className="text-sm font-medium">Hi Baraja</span>
+                <Link to="/admin/menu" className="text-gray-400">
+                    <FaUser size={24} />
+                </Link>
             </div>
-        );
-    }
 
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            {/* Breadcrumb & Actions */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaClipboardList className="mr-2" />
+                    <span>Laporan</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <Link to="/admin/operational-menu" className="hover:text-green-900 transition-colors">Laporan Operasional</Link>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900 font-semibold">Hutang (Installment)</span>
+                </div>
+                <div className="flex gap-2">
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
+                        <FaSync className={loading ? "animate-spin" : ""} />
                         Refresh
+                    </button>
+                    <button
+                        onClick={exportToExcel}
+                        disabled={loading || filteredData.length === 0}
+                        className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors disabled:opacity-50"
+                    >
+                        <FaFileExcel />
+                        Ekspor Excel
                     </button>
                 </div>
             </div>
-        );
-    }
 
-    return (
-        <div className="min-h-screen flex flex-col">
-            {/* Header */}
-            <Header />
-
-            {/* Breadcrumb */}
-            <div className="px-3 py-2 flex flex-wrap justify-between items-center border-b">
-                <div className="flex flex-wrap items-center space-x-2 text-sm">
-                    <FaClipboardList size={18} className="text-gray-500" />
-                    <p className="text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-gray-500">
-                        Laporan Operasional
-                    </Link>
-                    <FaChevronRight className="text-gray-500" />
-                    <span className="text-[#005429]">Hutang</span>
-                </div>
-                <button className="mt-2 sm:mt-0 bg-[#005429] text-white text-[13px] px-4 py-2 rounded">
-                    Ekspor
-                </button>
-            </div>
-
-            {/* Filters */}
-            <div className="px-3 pb-16 flex-1">
-                <div className="my-3 py-3 px-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-11 gap-3 items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-
-                    {/* Tanggal */}
-                    <div className="flex flex-col col-span-1 sm:col-span-2 lg:col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500">
+            <div className="p-6">
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
                             <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={(val) => {
+                                    setDateRange(val);
+                                    setCurrentPage(1);
+                                }}
+                                showShortcuts={true}
+                                showFooter={true}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
                                 popoverDirection="down"
+                                separator="sampai"
                             />
                         </div>
-                    </div>
-
-                    {/* Spacer */}
-                    <div className="hidden lg:block col-span-3"></div>
-
-                    {/* Cari */}
-                    <div className="flex flex-col col-span-1 sm:col-span-2 lg:col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Cari"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Outlet</label>
+                            <Select
+                                options={outletOptions}
+                                value={outletOptions.find(opt => opt.value === selectedOutlet) || outletOptions[0]}
+                                onChange={(selected) => {
+                                    setSelectedOutlet(selected.value);
+                                    setCurrentPage(1);
+                                }}
+                                styles={customSelectStyles}
+                                isSearchable
+                                placeholder="Pilih Outlet"
                             />
                         </div>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex justify-start sm:justify-end space-x-2 items-end col-span-1 sm:col-span-2 lg:col-span-2">
-                        <button
-                            onClick={applyFilter}
-                            className="bg-[#005429] text-white text-[13px] px-4 py-2 rounded"
-                        >
-                            Terapkan
-                        </button>
-                        <button
-                            onClick={resetFilter}
-                            className="text-gray-400 border text-[13px] px-4 py-2 rounded"
-                        >
-                            Reset
-                        </button>
-                    </div>
-                </div>
-
-                {/* Switch */}
-                <div className="flex flex-wrap gap-3 items-center mt-3">
-                    <span className="text-gray-500 text-[14px]">Tampilkan Data Lunas:</span>
-                    <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                        <span className="w-[40px]">{checked ? "Ya" : "Tidak"}</span>
-                        <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => setChecked(e.target.checked)}
-                            className="sr-only peer"
-                        />
-                        <div className="relative w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                    </label>
-                </div>
-
-                {/* Table */}
-
-                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
-                    <table className="min-w-full text-smmin-w-full table-fixed text-xs sm:text-sm border-collapse">
-                        <thead className="bg-slate-50 text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-medium">Tanggal</th>
-                                <th className="px-4 py-3 font-medium">ID Struk</th>
-                                <th className="px-4 py-3 font-medium">Supplier</th>
-                                <th className="px-4 py-3 font-medium">Status</th>
-                                <th className="px-4 py-3 font-medium text-right truncate">Total Tagihan</th>
-                                <th className="px-4 py-3 font-medium text-right truncate">Sisa Tagihan</th>
-                                <th className="px-4 py-3 font-medium text-right truncate">Dibayar Tagihan</th>
-                                <th className="px-4 py-3 font-medium">Keterangan</th>
-                            </tr>
-                        </thead>
-                        {paginatedData.length > 0 ? (
-                            <tbody className="text-gray-500 divide-y">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3 truncate">
-                                                    {formatDateTime(data.date) || []}
-                                                </td>
-                                                <td className="px-4 py-3 truncate">
-                                                    {data._id || []}
-                                                </td>
-                                                <td className="px-4 py-3 truncate">
-                                                    {data.supplierName || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.status || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.amount) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.amount - data.paidAmount) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.paidAmount) || []}
-                                                </td>
-                                                <td className="px-4 py-3 max-w-[150px] truncate" title={data.notes || "-"}>
-                                                    {data.notes || []}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="7" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={8}>Tidak ada data ditemukan</td>
-                                </tr>
-                            </tbody>
-                        )}
-
-                        <tfoot className="border-t font-semibold text-sm">
-                            <tr>
-                                <td className="px-4 py-2" colSpan="4">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded truncate" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalAmount.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded truncate" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotal.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded truncate" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalPaidAmount.toLocaleString()}</p></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                {/* Pagination */}
-
-                {paginatedData.length > 0 && (
-                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-2 sm:space-y-0">
-                        <span className="text-sm text-gray-600 text-center sm:text-left">
-                            Menampilkan{" "}
-                            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari{" "}
-                            {filteredData.length} data
-                        </span>
-                        <div className="flex flex-wrap justify-center sm:justify-end space-x-1">
-                            <button
-                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="px-3 py-2 border rounded disabled:opacity-50"
-                            >
-                                <FaChevronLeft />
-                            </button>
-                            {[...Array(totalPages)].map((_, index) => {
-                                const page = index + 1;
-                                if (
-                                    page === 1 ||
-                                    page === totalPages ||
-                                    (page >= currentPage - 2 && page <= currentPage + 2)
-                                ) {
-                                    return (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`px-3 py-1 rounded border ${currentPage === page
-                                                ? "bg-[#005429] text-white"
-                                                : "bg-white"
-                                                }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    );
-                                }
-                                if (
-                                    (page === currentPage - 3 && page > 1) ||
-                                    (page === currentPage + 3 && page < totalPages)
-                                ) {
-                                    return (
-                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
-                                            ...
-                                        </span>
-                                    );
-                                }
-                                return null;
-                            })}
-                            <button
-                                onClick={() =>
-                                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                                }
-                                disabled={currentPage === totalPages}
-                                className="px-3 py-2 border rounded disabled:opacity-50"
-                            >
-                                <FaChevronRight />
-                            </button>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Cari Supplier / ID</label>
+                            <div className="relative">
+                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Nama Supplier / ID Struk"
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full text-[13px] border border-gray-200 py-2 pl-10 pr-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
+                                />
+                            </div>
                         </div>
+                        <div className="flex flex-col justify-end">
+                            <label className="flex items-center cursor-pointer select-none py-2">
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only"
+                                        checked={showPaid}
+                                        onChange={(e) => {
+                                            setShowPaid(e.target.checked);
+                                            setCurrentPage(1);
+                                        }}
+                                    />
+                                    <div className={`block w-10 h-6 rounded-full transition-colors ${showPaid ? 'bg-green-900' : 'bg-gray-300'}`}></div>
+                                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${showPaid ? 'translate-x-4' : ''}`}></div>
+                                </div>
+                                <span className="ml-3 text-[13px] font-medium text-gray-700">Tampilkan Data Lunas</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Summary Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center">
+                        <div className="p-3 bg-red-50 rounded-full mr-4">
+                            <FaExclamationTriangle className="text-red-600 text-xl" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Sisa Tagihan</p>
+                            <p className="text-xl font-bold text-gray-900">{formatCurrency(totals.totalRemaining)}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center">
+                        <div className="p-3 bg-green-50 rounded-full mr-4">
+                            <FaCheckCircle className="text-green-600 text-xl" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Telah Dibayar</p>
+                            <p className="text-xl font-bold text-gray-900">{formatCurrency(totals.totalPaid)}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center">
+                        <div className="p-3 bg-blue-50 rounded-full mr-4">
+                            <FaMoneyBillWave className="text-blue-600 text-xl" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Total Tagihan</p>
+                            <p className="text-xl font-bold text-gray-900">{formatCurrency(totals.totalAmount)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {error && (
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
                     </div>
                 )}
-            </div>
 
-            {/* Footer Fixed */}
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]" />
+                {/* Table */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <tr>
+                                    <th className="px-6 py-4">Waktu</th>
+                                    <th className="px-6 py-4">Supplier / ID Struk</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4 text-right">Total Tagihan</th>
+                                    <th className="px-6 py-4 text-right">Sisa Tagihan</th>
+                                    <th className="px-6 py-4 text-right">Telah Dibayar</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-[13px] divide-y divide-gray-50 text-gray-600">
+                                {loading && cachedData.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="py-20 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
+                                        </td>
+                                    </tr>
+                                ) : paginatedData.length > 0 ? (
+                                    paginatedData.map((item, index) => (
+                                        <tr key={index} className="hover:bg-green-50/20 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="text-gray-900">{dayjs(item.date).format('DD MMM YYYY')}</div>
+                                                <div className="text-[11px] text-gray-400">{dayjs(item.date).format('HH:mm:ss')}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-semibold text-gray-900">{item.supplierName || "-"}</div>
+                                                <div className="text-[11px] text-gray-400 font-mono">ID: {item._id}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${(item.amount - item.paidAmount) <= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                                    }`}>
+                                                    {(item.amount - item.paidAmount) <= 0 ? 'Lunas' : 'Belum Lunas'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-medium text-gray-900">{formatCurrency(item.amount)}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-red-600">{formatCurrency(item.amount - item.paidAmount)}</td>
+                                            <td className="px-6 py-4 text-right text-green-700">{formatCurrency(item.paidAmount)}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={6} className="py-20 text-center text-gray-400 font-medium italic">Tidak ada data hutang ditemukan</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                            {filteredData.length > 0 && (
+                                <tfoot className="bg-gray-50 font-bold border-t border-gray-100 text-[13px]">
+                                    <tr>
+                                        <td className="px-6 py-4" colSpan={3}>GRAND TOTAL</td>
+                                        <td className="px-6 py-4 text-right text-gray-900">{formatCurrency(totals.totalAmount)}</td>
+                                        <td className="px-6 py-4 text-right text-red-700">{formatCurrency(totals.totalRemaining)}</td>
+                                        <td className="px-6 py-4 text-right text-green-900">{formatCurrency(totals.totalPaid)}</td>
+                                    </tr>
+                                </tfoot>
+                            )}
+                        </table>
+                    </div>
+                </div>
+
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
             </div>
         </div>
-
     );
 };
 

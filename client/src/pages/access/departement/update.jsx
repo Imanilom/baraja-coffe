@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { useSelector } from "react-redux";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import Header from "../../admin/header";
@@ -106,7 +106,7 @@ const UpdateDepartemen = () => {
         }
     };
 
-    console.log(formData);
+    // console.log(formData);
 
     return (
         <>

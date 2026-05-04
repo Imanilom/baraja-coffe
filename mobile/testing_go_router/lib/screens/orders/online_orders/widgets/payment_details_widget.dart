@@ -200,7 +200,9 @@ class PaymentDetailsWidget extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: Colors.orange.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: Colors.orange.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -368,8 +370,12 @@ class PaymentDetailsWidget extends ConsumerWidget {
                                   border: Border.all(
                                     color:
                                         isPending
-                                            ? Colors.orange.withValues(alpha: 0.3)
-                                            : Colors.green.withValues(alpha: 0.3),
+                                            ? Colors.orange.withValues(
+                                              alpha: 0.3,
+                                            )
+                                            : Colors.green.withValues(
+                                              alpha: 0.3,
+                                            ),
                                   ),
                                 ),
                                 child: Row(
@@ -467,7 +473,9 @@ class PaymentDetailsWidget extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: primaryColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: primaryColor.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -504,7 +512,9 @@ class PaymentDetailsWidget extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: Colors.grey.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+                    border: Border.all(
+                      color: Colors.grey.withValues(alpha: 0.1),
+                    ),
                   ),
                   child: Column(
                     children: [

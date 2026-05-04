@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { FaArrowLeft, FaCalculator, FaUsers } from "react-icons/fa";
 
 const SalaryCalculator = ({ onBack }) => {

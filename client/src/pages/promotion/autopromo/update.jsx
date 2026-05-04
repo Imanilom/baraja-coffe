@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { FaTimes } from "react-icons/fa";
-import axios from "axios";
+import axios from '@/lib/axios';
 import Select from "react-select";
 import { toast } from "react-toastify";
 import BundlingForm from "./bundlingform";

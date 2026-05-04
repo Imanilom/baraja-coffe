@@ -62,13 +62,13 @@ export const handleDownloadPDF = async (transactionData, formatDateTime, formatC
                 resolve();
             };
             logoImg.onerror = () => {
-                console.log("Logo not found, skipping...");
+                console.warn("Logo not found, skipping...");
                 resolve(); // Continue without logo
             };
             logoImg.src = "/images/logo_resi.png";
         });
     } catch (error) {
-        console.log("Error loading logo:", error);
+        console.error("Error loading logo:", error);
     }
 
     addText(transactionData.cashierId?.outlet?.[0]?.outletId?.name || "Restoran", 10, 'bold', 'center');

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { FaSearch, FaChevronRight, FaPencilAlt } from 'react-icons/fa';
-import axios from "axios";
+import axios from '@/lib/axios';
 import ExportInventory from "../exportInventory";
 import UpdateStockForm from "./update";
 import { useSelector } from "react-redux";
@@ -102,7 +102,7 @@ const CurrentStockManagement = () => {
             prev.map((p) => (p._id === updated._id ? updated : p))
         );
         setSelectedOriginal(null);
-        console.log("✅ Data tersimpan:", updated);
+        // console.log("✅ Data tersimpan:", updated);
     };
 
     const paginatedData = useMemo(() => {

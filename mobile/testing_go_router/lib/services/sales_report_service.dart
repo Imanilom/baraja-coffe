@@ -5,6 +5,7 @@ import 'package:kasirbaraja/models/report/analytic_report.model.dart';
 import 'package:kasirbaraja/models/report/order_detail_report.model.dart';
 import 'package:kasirbaraja/models/report/summary_report.model.dart';
 import 'package:kasirbaraja/models/report/performance_report.model.dart';
+import 'package:kasirbaraja/models/report/cash_recap_model.dart';
 
 class SalesReportService {
   // This class would contain methods to generate sales reports
@@ -194,6 +195,93 @@ class SalesReportService {
       );
 
       return PerformanceReportModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<CashRecapModel> fetchCashRecap({
+    required String outletId,
+    required String deviceId,
+  }) async {
+    AppLogger.info('Fetching cash recap for deviceId: $deviceId');
+    try {
+      Response response = await _dio.post(
+        '/api/report/cash-recap',
+        data: {'outletId': outletId, 'deviceId': deviceId},
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      return CashRecapModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<CashRecapModel> reprintCashRecap({
+    required String outletId,
+    required String deviceId,
+  }) async {
+    AppLogger.info('Reprinting cash recap for deviceId: $deviceId');
+    try {
+      Response response = await _dio.post(
+        '/api/report/cash-recap/reprint',
+        data: {'outletId': outletId, 'deviceId': deviceId},
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      return CashRecapModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<void> confirmSaveCashRecap({
+    required CashRecapModel recap,
+    required String outletId,
+    required String deviceId,
+  }) async {
+    AppLogger.info('Confirming and saving cash recap for deviceId: $deviceId');
+    try {
+      await _dio.post(
+        '/api/report/cash-recap/save',
+        data: {
+          'outletId': outletId,
+          'deviceId': deviceId,
+          'period': {
+            'start': recap.startDate.toIso8601String(),
+            'end': recap.endDate.toIso8601String(),
+          },
+          'totalCash': recap.totalCash,
+          'orderCount': recap.orderCount,
+          'orders':
+              recap.orders
+                  .map((o) => {'id': o.id, 'time': o.time, 'amount': o.amount})
+                  .toList(),
+        },
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {

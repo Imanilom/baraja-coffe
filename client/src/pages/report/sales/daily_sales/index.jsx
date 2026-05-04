@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import { useSelector } from "react-redux";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import DailySalesSkeleton from "./skeleton";
@@ -17,44 +17,62 @@ dayjs.extend(isSameOrBefore);
 
 const DailySales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
 
     const [products, setProducts] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [grandTotalItems, setGrandTotalItems] = useState([]);
-    const [grandTotalPenjualan, setGrandTotalPenjualan] = useState([]);
+    const [grandTotalItems, setGrandTotalItems] = useState(0);
+    const [grandTotalPenjualan, setGrandTotalPenjualan] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
 
-    const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [dateRange, setDateRange] = useState(null);
-    const [currentPage, setCurrentPage] = useState(1);
+    const customStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: state.isFocused ? 'var(--primary-color, #005429)' : '#e5e7eb',
+            minHeight: '38px',
+            fontSize: '13px',
+            borderRadius: '0.5rem',
+            boxShadow: state.isFocused ? '0 0 0 1px var(--primary-color, #005429)' : 'none',
+            '&:hover': {
+                borderColor: 'var(--primary-color, #005429)',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#374151',
+            fontWeight: '500',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: state.isSelected ? 'white' : '#374151',
+            backgroundColor: state.isSelected 
+                ? 'var(--primary-color, #005429)' 
+                : state.isFocused ? 'rgba(0, 84, 41, 0.05)' : 'white',
+            cursor: 'pointer',
+            '&:active': {
+                backgroundColor: 'var(--primary-color, #005429)',
+            }
+        }),
+    };
 
-    const ITEMS_PER_PAGE = 50;
-
-    // Initialize from URL params
-    useEffect(() => {
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [dateRange, setDateRange] = useState(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
-        const outletParam = searchParams.get('outletId');
-        const pageParam = searchParams.get('page');
-
         if (startDateParam && endDateParam) {
-            setDateRange({
+            return {
                 startDate: startDateParam,
                 endDate: endDateParam,
-            });
-        } else {
-            const today = dayjs().format('YYYY-MM-DD');
-            setDateRange({
-                startDate: today,
-                endDate: today,
-            });
+            };
         }
+        const today = dayjs().format('YYYY-MM-DD');
+        return { startDate: today, endDate: today };
+    });
 
-        if (outletParam) setSelectedOutlet(outletParam);
-        if (pageParam) setCurrentPage(parseInt(pageParam, 10));
-    }, [searchParams]);
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1);
+    const ITEMS_PER_PAGE = 50;
 
     // Update URL params
     const updateURLParams = useCallback((newDateRange, newOutlet, newPage) => {
@@ -72,65 +90,51 @@ const DailySales = () => {
     }, [setSearchParams]);
 
     // Fetch data dengan filter langsung di backend
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const params = {};
+    const fetchData = useCallback(async () => {
+        if (!dateRange) return;
 
-                // Kirim filter ke backend
-                if (dateRange?.startDate && dateRange?.endDate) {
-                    params.startDate = dayjs(dateRange.startDate).format('YYYY-MM-DD');
-                    params.endDate = dayjs(dateRange.endDate).format('YYYY-MM-DD');
-                }
+        setLoading(true);
+        try {
+            const params = {
+                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD')
+            };
 
-                if (selectedOutlet) {
-                    params.outlet = selectedOutlet;
-                }
-
-                const [salesResponse, outletsResponse] = await Promise.all([
-                    axios.get('/api/report/daily-profit/range', { params }),
-                    axios.get('/api/outlet')
-                ]);
-
-                if (!salesResponse.data?.success || !outletsResponse.data?.success) {
-                    throw new Error('Invalid response');
-                }
-
-                // Data sudah di-group dan di-sort oleh backend!
-                const dailySalesData = salesResponse.data.data || [];
-                const outletsData = outletsResponse.data.data || [];
-
-                // Langsung set, tidak perlu grouping lagi!
-                setProducts(dailySalesData);
-                setOutlets(outletsData);
-
-                // Set grand totals dari metadata
-                setGrandTotalItems(salesResponse.data.metadata?.grandTotalItems || 0);
-                setGrandTotalPenjualan(salesResponse.data.metadata?.grandTotalPenjualan || 0);
-
-                setError(null);
-
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError(err.response?.data?.message || err.message || "Failed to load data");
-                setProducts([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
+            if (selectedOutlet) {
+                params.outlet = selectedOutlet;
             }
-        };
 
-        if (dateRange) {
-            fetchData();
+            const response = await axios.get('/api/report/daily-profit/range', { params });
+
+            if (!response.data?.success) {
+                throw new Error('Invalid response');
+            }
+
+            setProducts(response.data.data || []);
+            setGrandTotalItems(response.data.metadata?.grandTotalItems || 0);
+            setGrandTotalPenjualan(response.data.metadata?.grandTotalPenjualan || 0);
+            setError(null);
+
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setError(err.response?.data?.message || err.message || "Failed to load data");
+            setProducts([]);
+        } finally {
+            setLoading(false);
         }
     }, [dateRange, selectedOutlet]);
 
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
     // Handler functions
     const handleDateRangeChange = (newValue) => {
-        setDateRange(newValue);
-        setCurrentPage(1);
-        updateURLParams(newValue, selectedOutlet, 1);
+        if (newValue?.startDate && newValue?.endDate) {
+            setDateRange(newValue);
+            setCurrentPage(1);
+            updateURLParams(newValue, selectedOutlet, 1);
+        }
     };
 
     const handleOutletChange = (selected) => {
@@ -168,7 +172,6 @@ const DailySales = () => {
         }).format(amount || 0);
     };
 
-    // Export to Excel - FIXED: menggunakan products langsung
     const exportToExcel = async () => {
         if (products.length === 0) {
             alert("Tidak ada data untuk diekspor");
@@ -206,19 +209,19 @@ const DailySales = () => {
         }
     };
 
-    if (loading) return <DailySalesSkeleton />;
+    if (loading && products.length === 0) return <DailySalesSkeleton />;
 
-    if (error) {
+    if (error && !loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            <div className="flex justify-center items-center h-[60vh]">
+                <div className="text-red-500 text-center bg-white p-8 rounded-2xl shadow-sm border">
+                    <p className="text-xl font-bold mb-2">Terjadi Kesalahan</p>
+                    <p className="text-gray-500 mb-6">{error}</p>
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={fetchData}
+                        className="bg-primary text-white text-[13px] px-6 py-2 rounded-lg hover:bg-primary/90 transition-all font-medium"
                     >
-                        Refresh
+                        Coba Lagi
                     </button>
                 </div>
             </div>
@@ -226,20 +229,20 @@ const DailySales = () => {
     }
 
     return (
-        <div>
+        <div className="min-h-screen bg-gray-50">
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
-                    <FaChevronRight />
-                    <span>Penjualan Harian</span>
-                </div>
+            <div className="flex justify-between items-center px-6 py-4 mb-4">
+                <h1 className="flex gap-2 items-center text-xl text-primary font-bold">
+                    <span className="opacity-60 font-medium text-lg">Laporan</span>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <Link to="/admin/sales-menu" className="opacity-60 font-medium text-lg hover:opacity-100 transition-opacity">Laporan Penjualan</Link>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <span className="text-lg">Penjualan Harian</span>
+                </h1>
                 <button
                     onClick={exportToExcel}
                     disabled={isExporting || products.length === 0}
-                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-primary hover:bg-primary/90 text-white text-[13px] px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95"
                 >
                     {isExporting ? (
                         <>
@@ -253,10 +256,8 @@ const DailySales = () => {
                     )}
                 </button>
             </div>
-
-            {/* Filters */}
-            <div className="px-6">
-                <div className="flex justify-between py-3 gap-2">
+            <div className="px-6 pb-6">
+                <div className="flex justify-between py-3 gap-4">
                     <div className="w-2/5">
                         <Datepicker
                             showFooter
@@ -264,42 +265,43 @@ const DailySales = () => {
                             value={dateRange}
                             onChange={handleDateRangeChange}
                             displayFormat="DD-MM-YYYY"
-                            inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
+                            inputClassName="w-full text-[13px] border border-gray-200 py-2 pr-[25px] pl-[12px] rounded-lg cursor-pointer focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm h-[38px]"
                             popoverDirection="down"
                         />
                     </div>
 
-                    <div className="flex-1">
+                    <div className="w-1/4">
                         <Select
                             options={options}
                             value={options.find((opt) => opt.value === selectedOutlet) || options[0]}
                             onChange={handleOutletChange}
-                            placeholder="Pilih outlet..."
+                            placeholder="Semua Outlet"
                             className="text-[13px]"
+                            classNamePrefix="react-select"
+                            styles={customStyles}
                             isSearchable
                         />
                     </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
+                <div className="overflow-x-auto rounded shadow-md bg-white text-gray-700">
                     <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Tanggal</th>
-                                <th className="px-4 py-3 font-normal text-right">Jumlah Transaksi</th>
-                                <th className="px-4 py-3 font-normal text-right">Penjualan</th>
-                                <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
+                        <thead className="text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50/50">
+                            <tr className="text-left">
+                                <th className="px-5 py-3 font-bold">Tanggal</th>
+                                <th className="px-5 py-3 font-bold text-right">Jumlah Transaksi</th>
+                                <th className="px-5 py-3 font-bold text-right">Penjualan</th>
+                                <th className="px-5 py-3 font-bold text-right">Rata-Rata</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
+                            <tbody className="text-sm">
                                 {paginatedData.map((group, index) => (
-                                    <tr key={index} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3">{group.date}</td>
-                                        <td className="px-4 py-3 text-right">{group.count.toLocaleString('id-ID')}</td>
-                                        <td className="px-4 py-3 text-right">{formatCurrency(group.penjualanTotal)}</td>
-                                        <td className="px-4 py-3 text-right">
+                                    <tr key={index} className="hover:bg-gray-50/50 border-b border-gray-50 last:border-0 transition-colors duration-150 text-xs">
+                                        <td className="px-5 py-2.5 font-bold text-gray-800">{group.date}</td>
+                                        <td className="px-5 py-2.5 text-right font-medium text-gray-700 text-[11px]">{group.count.toLocaleString('id-ID')}</td>
+                                        <td className="px-5 py-2.5 text-right font-black text-gray-900 text-[11px]">{formatCurrency(group.penjualanTotal)}</td>
+                                        <td className="px-5 py-2.5 text-right font-bold text-primary text-[11px]">
                                             {formatCurrency(group.count > 0 ? group.penjualanTotal / group.count : 0)}
                                         </td>
                                     </tr>
@@ -307,40 +309,42 @@ const DailySales = () => {
                             </tbody>
                         ) : (
                             <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
+                                <tr className="py-12 text-center w-full">
+                                    <td colSpan={4} className="py-12 text-gray-400">Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
 
-                        <tfoot className="border-t font-semibold text-sm">
+                        <tfoot className="border-t font-bold text-xs bg-gray-50/50">
                             <tr>
-                                <td className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-5 py-3 text-gray-900 border-r border-gray-100">Grand Total</td>
+                                <td className="px-5 py-3 text-right">
+                                    <span className="bg-white border border-gray-200 text-gray-900 inline-block px-3 py-1 rounded-lg">
                                         {grandTotalItems.toLocaleString('id-ID')}
-                                    </p>
+                                    </span>
                                 </td>
-                                <td className="px-2 py-2 text-right">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-5 py-3 text-right">
+                                    <span className="bg-primary text-white inline-block px-3 py-1 rounded-lg">
                                         {formatCurrency(grandTotalPenjualan)}
-                                    </p>
+                                    </span>
                                 </td>
-                                <td className="px-2 py-2 text-right">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-5 py-3 text-right">
+                                    <span className="bg-white border border-gray-200 text-primary inline-block px-3 py-1 rounded-lg">
                                         {formatCurrency(grandTotalItems > 0 ? grandTotalPenjualan / grandTotalItems : 0)}
-                                    </p>
+                                    </span>
                                 </td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
 
-                <Paginated
-                    currentPage={currentPage}
-                    setCurrentPage={handlePageChange}
-                    totalPages={totalPages}
-                />
+                {totalPages > 1 && (
+                    <Paginated
+                        currentPage={currentPage}
+                        setCurrentPage={handlePageChange}
+                        totalPages={totalPages}
+                    />
+                )}
             </div>
         </div>
     );

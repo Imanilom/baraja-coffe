@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { useSelector } from 'react-redux';
 import Select from 'react-select';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react';

@@ -1,5 +1,5 @@
 import React from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 
 const DeleteMenu = ({ id, fetchMenus }) => {
     const handleDelete = async () => {

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { getDownloadURL, getStorage, ref, uploadBytesResumable, deleteObject } from "firebase/storage";
 import { app } from "../../firebase";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { FaChevronRight, FaImage, FaTimes, FaUpload, FaTrash } from "react-icons/fa";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import MessageAlert from "../../components/messageAlert";

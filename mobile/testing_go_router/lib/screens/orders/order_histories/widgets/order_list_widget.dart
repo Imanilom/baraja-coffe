@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
-import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/utils/payment_details_utils.dart';
 
-class OrderListWidget extends ConsumerWidget {
+class OrderListWidget extends StatelessWidget {
   final List<OrderDetailModel> orders;
+  final OrderDetailModel? selectedOrder;
+  final Function(OrderDetailModel) onSelect;
+  final VoidCallback? onRefresh;
 
-  const OrderListWidget({super.key, required this.orders});
+  const OrderListWidget({
+    super.key,
+    required this.orders,
+    this.selectedOrder,
+    required this.onSelect,
+    this.onRefresh,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selectedOrder = ref.watch(historyDetailProvider);
-
+  Widget build(BuildContext context) {
     // 1) Sort DESC by updatedAt
     final sorted = [...orders]..sort(
       (a, b) => (b.updatedAt ?? DateTime(1970)).compareTo(
@@ -32,7 +36,7 @@ class OrderListWidget extends ConsumerWidget {
       final k = keyOf(o.updatedAt);
       stats.putIfAbsent(k, () => _DayStat());
       stats[k]!.count += 1;
-      stats[k]!.total += (o.grandTotal ?? 0);
+      stats[k]!.total += (o.grandTotal);
     }
 
     return Column(
@@ -45,17 +49,18 @@ class OrderListWidget extends ConsumerWidget {
           child: Row(
             children: [
               Text(
-                'Order History (${sorted.length})',
+                'Orders (${sorted.length})',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const Spacer(),
-              IconButton(
-                icon: Icon(Icons.refresh, color: Colors.blue[700]),
-                onPressed: () => ref.invalidate(orderHistoryProvider),
-              ),
+              if (onRefresh != null)
+                IconButton(
+                  icon: Icon(Icons.refresh, color: Colors.blue[700]),
+                  onPressed: onRefresh,
+                ),
             ],
           ),
         ),
@@ -95,21 +100,23 @@ class OrderListWidget extends ConsumerWidget {
                             color: isSelected ? Colors.blue[50] : Colors.white,
                             child: ListTile(
                               title: Text(
-                                order.payments
+                                order.payments.isNotEmpty
+                                    ? order.payments
                                         .map(
                                           (p) =>
                                               PaymentDetails.buildPaymentMethodLabel(
                                                 p,
                                               ),
                                         )
-                                        .join(', ') ??
-                                    'No Payment Method',
+                                        .join(', ')
+                                    : (order.paymentMethod ??
+                                        'No Payment Method'),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               subtitle: Text(
-                                formatRupiah(order.grandTotal ?? 0),
+                                formatRupiah(order.grandTotal),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
@@ -126,8 +133,8 @@ class OrderListWidget extends ConsumerWidget {
                                     ),
                                     decoration: BoxDecoration(
                                       color: _getStatusColor(
-                                        order.paymentStatus ?? '',
-                                      ),
+                                        order.status.name,
+                                      ), // Updated to use enum name
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
@@ -151,10 +158,7 @@ class OrderListWidget extends ConsumerWidget {
                                   ),
                                 ],
                               ),
-                              onTap:
-                                  () => ref
-                                      .read(historyDetailProvider.notifier)
-                                      .addToHistoryDetail(order),
+                              onTap: () => onSelect(order),
                             ),
                           ),
                         ],

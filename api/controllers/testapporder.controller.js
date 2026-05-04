@@ -651,6 +651,11 @@ export const createAppOrder = async (req, res) => {
                 // ✅ FIX: Tax data from frontend
                 taxDetails,
                 totalTax,
+                // ✅ FIX: Discount data from frontend
+                discounts: frontendDiscounts,
+                appliedPromos: frontendAppliedPromos,
+                selectedPromoIds,
+                customDiscountDetails,
             } = req.body;
             console.log('🚀 Optimized createAppOrder:', {
                 isGroMode,
@@ -996,10 +1001,22 @@ export const createAppOrder = async (req, res) => {
             totalBeforeDiscount += totalCustomAmount;
             totalAfterDiscount += totalCustomAmount;
 
+            // ✅ FIX: Apply auto-promo and custom discounts from frontend
+            const frontendAutoPromoDiscount = frontendDiscounts?.autoPromoDiscount || 0;
+            const frontendItemCustomDiscount = frontendDiscounts?.customDiscount || 0;
+            const orderLevelCustomDiscount = customDiscountDetails?.isActive ? (customDiscountDetails?.discountAmount || 0) : 0;
+            const totalFrontendDiscount = frontendAutoPromoDiscount + frontendItemCustomDiscount + orderLevelCustomDiscount;
+
+            totalAfterDiscount -= totalFrontendDiscount;
+            if (totalAfterDiscount < 0) totalAfterDiscount = 0;
+
             console.log(`💰 Price Calculation:`);
             console.log(`   Original (DB) subtotal: ${orderItems.reduce((sum, item) => sum + (item.originalSubtotal || item.subtotal), 0)}`);
             console.log(`   Discounted subtotal: ${orderItems.reduce((sum, item) => sum + item.subtotal, 0)}`);
             console.log(`   Custom amounts: ${totalCustomAmount}`);
+            console.log(`   Auto promo discount (frontend): ${frontendAutoPromoDiscount}`);
+            console.log(`   Item custom discount (frontend): ${frontendItemCustomDiscount}`);
+            console.log(`   Order-level custom discount (frontend): ${orderLevelCustomDiscount}`);
             console.log(`   totalBeforeDiscount: ${totalBeforeDiscount}`);
             console.log(`   totalAfterDiscount: ${totalAfterDiscount}`);
 
@@ -1078,6 +1095,14 @@ export const createAppOrder = async (req, res) => {
                 const updatedTotalBeforeDiscount = existingOrder.totalBeforeDiscount + newItemsOriginalTotal + newCustomAmountsTotal;
                 let updatedTotalAfterDiscount = (existingOrder.totalAfterDiscount || existingOrder.totalBeforeDiscount) + newItemsDiscountedTotal + newCustomAmountsTotal;
 
+                // ✅ FIX: Apply frontend discounts to open bill total
+                const obAutoPromoDiscount = frontendDiscounts?.autoPromoDiscount || 0;
+                const obItemCustomDiscount = frontendDiscounts?.customDiscount || 0;
+                const obOrderCustomDiscount = customDiscountDetails?.isActive ? (customDiscountDetails?.discountAmount || 0) : 0;
+                const obTotalFrontendDiscount = obAutoPromoDiscount + obItemCustomDiscount + obOrderCustomDiscount;
+                updatedTotalAfterDiscount -= obTotalFrontendDiscount;
+                if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
+
                 // Apply voucher on discounted total
                 if (voucherId && discountType === 'percentage') {
                     updatedTotalAfterDiscount = updatedTotalAfterDiscount - (updatedTotalAfterDiscount * (voucherAmount / 100));
@@ -1116,6 +1141,22 @@ export const createAppOrder = async (req, res) => {
                 existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
                 existingOrder.totalCustomAmount = (existingOrder.totalCustomAmount || 0) + newCustomAmountsTotal; // ✅ FIX: Increment existing custom amount
                 existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
+
+                // ✅ FIX: Update discount data from frontend on open bill
+                if (frontendDiscounts) {
+                    existingOrder.discounts = {
+                        autoPromoDiscount: frontendDiscounts.autoPromoDiscount || 0,
+                        manualDiscount: frontendDiscounts.manualDiscount || 0,
+                        voucherDiscount: frontendDiscounts.voucherDiscount || 0,
+                        customDiscount: frontendDiscounts.customDiscount || 0,
+                    };
+                }
+                if (frontendAppliedPromos && frontendAppliedPromos.length > 0) {
+                    existingOrder.appliedPromos = frontendAppliedPromos;
+                }
+                if (customDiscountDetails) {
+                    existingOrder.customDiscountDetails = customDiscountDetails;
+                }
                 if (voucherId) {
                     existingOrder.appliedVoucher = voucherId;
                     existingOrder.voucher = voucherId;
@@ -1155,8 +1196,14 @@ export const createAppOrder = async (req, res) => {
                     totalTax: taxServiceCalculation.totalTax,
                     totalServiceFee: taxServiceCalculation.totalServiceFee,
                     totalCustomAmount, // ✅ Add total custom amount
-                    discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
-                    appliedPromos: [],
+                    discounts: {
+                        autoPromoDiscount: frontendDiscounts?.autoPromoDiscount || 0,
+                        manualDiscount: frontendDiscounts?.manualDiscount || 0,
+                        voucherDiscount: frontendDiscounts?.voucherDiscount || 0,
+                        customDiscount: frontendDiscounts?.customDiscount || 0,
+                    },
+                    appliedPromos: frontendAppliedPromos || [],
+                    customDiscountDetails: customDiscountDetails || undefined,
                     appliedManualPromo: null,
                     appliedVoucher: voucherId,
                     taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,

@@ -31,7 +31,8 @@ class TableModel {
       tableType: json['table_type'] ?? 'regular',
       isAvailable: json['is_available'] ?? true,
       isActive: json['is_active'] ?? true,
-      isAvailableForTime: json['is_available_for_time'] ?? json['is_available'] ?? true,
+      isAvailableForTime:
+          json['is_available_for_time'] ?? json['is_available'] ?? true,
       isReserved: json['is_reserved'] ?? false,
     );
   }
@@ -51,7 +52,8 @@ class TableModel {
   }
 
   // Helper getters
-  bool get canBeSelected => isActive && isAvailable && isAvailableForTime && !isReserved;
+  bool get canBeSelected =>
+      isActive && isAvailable && isAvailableForTime && !isReserved;
   String get availabilityStatus {
     if (!isActive) return 'Tidak Aktif';
     if (!isAvailable) return 'Tidak Tersedia';

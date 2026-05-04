@@ -14,6 +14,14 @@ final autopromoProvider = FutureProvider<List<AutoPromoModel>>((ref) async {
   return autoPromos;
 });
 
+final activeAutopromoProvider = FutureProvider<List<AutoPromoModel>>((
+  ref,
+) async {
+  final repository = ref.read(autoPromoRepository);
+  final autoPromos = await repository.getActivePromos();
+  return autoPromos;
+});
+
 // final promoGroupsProvider = FutureProvider<List<PromoGroupModel>>((ref) async {
 //   final promos = await ref.watch(autopromoProvider.future);
 //   // return ref.read(autoPromoRepository).buildPromoGroups(promos);
@@ -22,7 +30,7 @@ final autopromoProvider = FutureProvider<List<AutoPromoModel>>((ref) async {
 
 /// Provider untuk semua promo groups
 final promoGroupsProvider = FutureProvider<List<PromoGroupModel>>((ref) async {
-  final allPromos = await ref.watch(autopromoProvider.future);
+  final allPromos = await ref.watch(activeAutopromoProvider.future);
 
   // Convert promos ke groups
   return PromoGroupConverter.convertToGroups(allPromos);

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, Printer, CheckCircle, DollarSign, Users, Ticket, UserCheck, Clock, RefreshCw, Calendar } from 'lucide-react';
 import Datepicker from "react-tailwindcss-datepicker";
-import axios from 'axios';
+import axios from '@/lib/axios';
 
 const ReportEvent = () => {
     const [activeTab, setActiveTab] = useState('sales');

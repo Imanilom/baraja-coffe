@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/report/analytic_report.model.dart';
 import 'package:kasirbaraja/models/report/order_detail_report.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
@@ -7,7 +8,7 @@ import 'package:kasirbaraja/models/report/summary_report.model.dart';
 import 'package:kasirbaraja/models/report/performance_report.model.dart';
 
 class OrderDetailState {
-  final List<Order> orders;
+  final List<OrderDetailModel> orders;
   final Pagination pagination;
   final bool isLoadingMore;
 
@@ -18,7 +19,7 @@ class OrderDetailState {
   });
 
   OrderDetailState copyWith({
-    List<Order>? orders,
+    List<OrderDetailModel>? orders,
     Pagination? pagination,
     bool? isLoadingMore,
   }) {
@@ -115,7 +116,7 @@ class OrderDetailReportNotifier extends AsyncNotifier<OrderDetailState> {
     final response = await _fetchOrders(filter, 1);
 
     return OrderDetailState(
-      orders: response.data.orders,
+      orders: List<OrderDetailModel>.from(response.data.orders),
       pagination: response.data.pagination,
     );
   }
@@ -141,7 +142,7 @@ class OrderDetailReportNotifier extends AsyncNotifier<OrderDetailState> {
       final response = await _fetchOrders(filter, 1);
       state = AsyncValue.data(
         OrderDetailState(
-          orders: response.data.orders,
+          orders: List<OrderDetailModel>.from(response.data.orders),
           pagination: response.data.pagination,
         ),
       );
@@ -165,7 +166,10 @@ class OrderDetailReportNotifier extends AsyncNotifier<OrderDetailState> {
       final nextPage = currentState.pagination.currentPage + 1;
       final response = await _fetchOrders(filter, nextPage);
 
-      final newOrders = [...currentState.orders, ...response.data.orders];
+      final newOrders = [
+        ...currentState.orders,
+        ...List<OrderDetailModel>.from(response.data.orders),
+      ];
 
       state = AsyncValue.data(
         OrderDetailState(

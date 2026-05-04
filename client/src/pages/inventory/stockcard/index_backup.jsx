@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaSearch, FaChevronRight, FaInfoCircle, FaBoxes, FaChevronLeft } from 'react-icons/fa';
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import BubbleAlert from './bubblralert'; // sesuaikan path jika perlu
 import Select from "react-select";

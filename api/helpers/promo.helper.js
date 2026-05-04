@@ -461,8 +461,7 @@ function applyBundling(promo, orderItems) {
     
     const itemQuantityInBundle = bundleProduct.quantity * maxBundleSets;
     const itemOriginalSubtotal = bundleProduct.product.price * itemQuantityInBundle;
-    const itemDiscountShare = (bundleProduct.product.price * itemQuantityInBundle) - 
-                             (discountedBundlePrice * (bundleProduct.product.price * bundleProduct.quantity) / originalBundlePrice);
+    const itemDiscountShare = (itemOriginalSubtotal / originalBundlePrice) * discount;
 
     return {
       menuItem: bundleProduct.product._id,

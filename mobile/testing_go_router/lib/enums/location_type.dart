@@ -1,28 +1,13 @@
-enum LocationType { indoor, outdoor, unknown }
+import 'package:kasirbaraja/models/location_type.model.dart';
 
-extension LocationTypeExtension on LocationType {
-  String get value {
-    switch (this) {
-      case LocationType.indoor:
-        return 'Indoor';
-      case LocationType.outdoor:
-        return 'Outdoor';
-      default:
-        return 'Unknown';
-    }
-  }
+export 'package:kasirbaraja/models/location_type.model.dart';
 
-  static LocationType fromString(String type) {
-    switch (type.toLowerCase()) {
-      case 'indoor':
-        return LocationType.indoor;
-      case 'outdoor':
-        return LocationType.outdoor;
-      default:
-        return LocationType.indoor;
-    }
-  }
+typedef LocationType = LocationTypeModel;
 
-  //to json
-  static String locationTypeToJson(LocationType type) => type.value;
+class LocationTypeExtension {
+  static LocationType fromString(String type) =>
+      LocationTypeModel.fromString(type);
+
+  static String locationTypeToJson(LocationType type) =>
+      LocationTypeModel.toJsonString(type);
 }

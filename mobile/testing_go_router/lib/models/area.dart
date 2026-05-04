@@ -63,7 +63,10 @@ class Area {
   }
 
   // Helper getters
-  bool get hasAvailability => availableTables > 0 && availableCapacity > 0 && !isFullyBooked;
-  double get occupancyRate => totalTables > 0 ? (reservedTables / totalTables) : 0.0;
-  double get capacityUsage => capacity > 0 ? (totalReservedGuests / capacity) : 0.0;
+  bool get hasAvailability =>
+      availableTables > 0 && availableCapacity > 0 && !isFullyBooked;
+  double get occupancyRate =>
+      totalTables > 0 ? (reservedTables / totalTables) : 0.0;
+  double get capacityUsage =>
+      capacity > 0 ? (totalReservedGuests / capacity) : 0.0;
 }

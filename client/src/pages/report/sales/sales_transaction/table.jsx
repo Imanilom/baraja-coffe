@@ -94,42 +94,24 @@ const SalesTransactionTable = ({
 
             <main className="flex-1 px-6">
                 <div className="bg-white shadow rounded-lg overflow-x-auto">
-                    <table className="min-w-full text-sm text-gray-900">
-                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                            <tr className="text-left text-[13px]">
-                                {/* Uncomment untuk enable checkbox selection */}
-                                {/* <th className="px-4 py-3 w-12">
-                                    <div className="flex items-center justify-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={isAllSelected}
-                                            ref={input => {
-                                                if (input) {
-                                                    input.indeterminate = isSomeSelected;
-                                                }
-                                            }}
-                                            onChange={handleSelectAll}
-                                            disabled={isDeleting || paginatedData?.length === 0}
-                                            className="w-4 h-4 text-[#005429] bg-gray-100 border-gray-300 rounded focus:ring-[#005429] focus:ring-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                                            title="Pilih semua di halaman ini"
-                                        />
-                                    </div>
-                                </th> */}
-                                <th className="px-4 py-3 font-semibold w-2/12">Tanggal</th>
-                                <th className="px-4 py-3 font-semibold w-1/12">Kasir</th>
-                                <th className="px-4 py-3 font-semibold w-1/12">ID Struk</th>
-                                <th className="px-4 py-3 font-semibold w-3/12">Produk</th>
-                                <th className="px-4 py-3 font-semibold w-1/12">Tipe Penjualan</th>
-                                <th className="px-4 py-3 font-semibold w-1/12">Metode Pembayaran</th>
-                                <th className="px-4 py-3 font-semibold w-1/12 text-right">DP</th>
-                                <th className="px-4 py-3 font-semibold w-1/12 text-right">Pelunasan</th>
-                                <th className="px-4 py-3 font-semibold w-1/12 text-center">Status Pembayaran</th>
-                                <th className="px-4 py-3 font-semibold w-1/12 text-right">Total</th>
+                    <table className="min-w-full text-xs text-gray-700">
+                        <thead>
+                            <tr className="text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50/50 border-b border-gray-100">
+                                <th className="px-5 py-3 font-bold w-2/12">Tanggal</th>
+                                <th className="px-5 py-3 font-bold w-1/12">Kasir</th>
+                                <th className="px-5 py-3 font-bold w-1/12">ID Struk</th>
+                                <th className="px-5 py-3 font-bold w-3/12">Produk</th>
+                                <th className="px-5 py-3 font-bold w-1/12 text-center">Tipe</th>
+                                <th className="px-5 py-3 font-bold w-1/12">Pembayaran</th>
+                                <th className="px-5 py-3 font-bold w-1/12 text-right">DP</th>
+                                <th className="px-5 py-3 font-bold w-1/12 text-right">Pelunasan</th>
+                                <th className="px-5 py-3 font-bold w-1/12 text-center">Status</th>
+                                <th className="px-5 py-3 font-bold w-1/12 text-right">Total</th>
                             </tr>
                         </thead>
 
                         {paginatedData?.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
+                            <tbody className="divide-y divide-gray-50 bg-white">
                                 {paginatedData.map((product, index) => {
                                     try {
                                         const orderId = product?.order_id || "N/A";
@@ -144,29 +126,14 @@ const SalesTransactionTable = ({
                                         const paymentMethods = [];
                                         let dpAmount = 0;
                                         let pelunasanAmount = 0;
-                                        let cashPaymentObj = null; // New variable for cash payment object
-                                        let isPaidFull = product?.status === "Completed"; // Fallback
 
                                         payments.forEach(p => {
                                             const status = p.status?.toLowerCase();
-                                            // Only count successful payments: settlement (Midtrans), capture (Midtrans CC), paid, or completed
                                             if (status === "settlement" || status === "paid" || status === "completed" || status === "capture" || status === "partial") {
                                                 let methodName = p.method_type || p.method || "N/A";
-
-                                                if (!paymentMethods.includes(methodName)) {
-                                                    paymentMethods.push(methodName);
-                                                }
-
-                                                if (p.method?.toLowerCase() === "cash" || p.paymentMethod?.toLowerCase() === "cash") {
-                                                    cashPaymentObj = p;
-                                                }
-
-                                                if (p.paymentType === "Down Payment") {
-                                                    dpAmount += p.amount || 0;
-                                                } else {
-                                                    // Fallback: anything that's not explicitly DP is treated as Pelunasan/Full
-                                                    pelunasanAmount += p.amount || 0;
-                                                }
+                                                if (!paymentMethods.includes(methodName)) paymentMethods.push(methodName);
+                                                if (p.paymentType === "Down Payment") dpAmount += p.amount || 0;
+                                                else pelunasanAmount += p.amount || 0;
                                             }
                                         });
 
@@ -174,177 +141,78 @@ const SalesTransactionTable = ({
 
                                         // Status Pembayaran logic
                                         let statusPembayaran = "N/A";
-                                        if (dpAmount > 0 && pelunasanAmount === 0) {
-                                            statusPembayaran = "Down Payment/DP";
-                                        } else if (pelunasanAmount > 0) {
-                                            statusPembayaran = "Lunas";
-                                        } else if (product?.status === "Completed") {
-                                            statusPembayaran = "Lunas";
-                                        }
+                                        if (dpAmount > 0 && pelunasanAmount === 0) statusPembayaran = "DP";
+                                        else if (pelunasanAmount > 0 || product?.status === "Completed") statusPembayaran = "Lunas";
 
                                         let menuNames = [];
-                                        let totalSubtotal = 0;
-
-                                        // Process regular items
                                         if (Array.isArray(product?.items)) {
                                             menuNames = product.items.map((item) => {
-                                                try {
-                                                    const menuName = item?.menuItemData?.name ||
-                                                        item?.menuItem?.name ||
-                                                        "Produk tidak diketahui";
-
-                                                    const addonLabels = [];
-                                                    if (Array.isArray(item?.addons)) {
-                                                        item.addons.forEach(addon => {
-                                                            if (Array.isArray(addon?.options)) {
-                                                                addon.options.forEach(option => {
-                                                                    if (option?.label) {
-                                                                        addonLabels.push(option.label);
-                                                                    }
-                                                                });
-                                                            }
-                                                        });
-                                                    }
-
-                                                    if (addonLabels.length > 0) {
-                                                        return `${menuName} (${addonLabels.join(', ')})`;
-                                                    }
-
-                                                    return menuName;
-                                                } catch (err) {
-                                                    console.error('Error processing menu item:', err, item);
-                                                    return "Error";
+                                                const menuName = item?.menuItemData?.name || item?.menuItem?.name || "Produk";
+                                                const addonLabels = [];
+                                                if (Array.isArray(item?.addons)) {
+                                                    item.addons.forEach(addon => {
+                                                        if (Array.isArray(addon?.options)) {
+                                                            addon.options.forEach(option => { if (option?.label) addonLabels.push(option.label); });
+                                                        }
+                                                    });
                                                 }
+                                                return addonLabels.length > 0 ? `${menuName} (${addonLabels.join(', ')})` : menuName;
                                             });
-
-                                            totalSubtotal = product.items.reduce((sum, i) => {
-                                                return sum + (Number(i?.subtotal) || 0);
-                                            }, 0);
                                         }
 
-                                        // Process custom amount items
                                         if (Array.isArray(product?.customAmountItems)) {
-                                            const customNames = product.customAmountItems.map((customItem) => {
-                                                try {
-                                                    const customName = customItem?.name || 'Custom Amount';
-                                                    return `[Custom] ${customName}`;
-                                                } catch (err) {
-                                                    console.error('Error processing custom amount item:', err, customItem);
-                                                    return "[Custom] Error";
-                                                }
-                                            });
-
+                                            const customNames = product.customAmountItems.map((ci) => `[Custom] ${ci?.name || 'Item'}`);
                                             menuNames = [...menuNames, ...customNames];
-
-                                            const customSubtotal = product.customAmountItems.reduce((sum, i) => {
-                                                return sum + (Number(i?.amount) || 0);
-                                            }, 0);
-                                            totalSubtotal += customSubtotal;
                                         }
 
-                                        // Fallback jika tidak ada produk
-                                        if (menuNames.length === 0) {
-                                            menuNames = ["Tidak ada produk"];
-                                        }
+                                        if (menuNames.length === 0) menuNames = ["-"];
 
                                         return (
                                             <tr
-                                                className={`text-left text-sm transition-colors ${isSelected
-                                                    ? 'bg-blue-50 hover:bg-blue-100'
-                                                    : 'hover:bg-slate-50'
-                                                    }`}
                                                 key={product._id || index}
+                                                className={`hover:bg-gray-50/50 transition-colors duration-150 cursor-pointer ${isSelected ? 'bg-primary/5' : ''}`}
+                                                onClick={() => setSelectedTrx(product)}
                                             >
-                                                {/* Uncomment untuk enable checkbox */}
-                                                {/* <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex items-center justify-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            onChange={() => handleSelectItem(product._id)}
-                                                            disabled={isDeleting}
-                                                            className="w-4 h-4 text-[#005429] bg-gray-100 border-gray-300 rounded focus:ring-[#005429] focus:ring-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
-                                                    </div>
-                                                </td> */}
-
-                                                {/* Data Cells - Clickable to open modal */}
-                                                <td
-                                                    className="px-4 py-3 cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
+                                                <td className="px-5 py-2.5 text-gray-500 font-medium text-[11px]">
                                                     {date ? formatDateTime(date) : "N/A"}
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
+                                                <td className="px-5 py-2.5 font-bold text-gray-800">
                                                     {gro?.name ? `${gro.name} (GRO)` : cashier?.username || "N/A"}
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
+                                                <td className="px-5 py-2.5 font-black text-primary tracking-tight">
                                                     {orderId}
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
-                                                    {menuNames.join(", ")}
+                                                <td className="px-5 py-2.5">
+                                                    <div className="max-w-[200px] truncate font-medium text-gray-600 text-[11px]" title={menuNames.join(", ")}>
+                                                        {menuNames.join(", ")}
+                                                    </div>
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
-                                                    {orderType}
+                                                <td className="px-5 py-2.5 text-center">
+                                                    <span className="inline-block px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[9px] font-black rounded uppercase tracking-tighter">
+                                                        {orderType}
+                                                    </span>
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
+                                                <td className="px-5 py-2.5 font-medium text-gray-500 text-[10px]">
                                                     {displayPaymentMethod}
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 text-right cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
-                                                    {dpAmount > 0 ? `Rp ${dpAmount.toLocaleString('id-ID')}` : "-"}
+                                                <td className="px-5 py-2.5 text-right font-medium text-gray-600 text-[11px]">
+                                                    {dpAmount > 0 ? formatCurrency(dpAmount) : "-"}
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 text-right cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
-                                                    {pelunasanAmount > 0 ? `Rp ${pelunasanAmount.toLocaleString('id-ID')}` : "-"}
+                                                <td className="px-5 py-2.5 text-right font-medium text-gray-600 text-[11px]">
+                                                    {pelunasanAmount > 0 ? formatCurrency(pelunasanAmount) : "-"}
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 text-center cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusPembayaran === "Lunas" ? "bg-green-100 text-green-700" : statusPembayaran === "Down Payment/DP" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"}`}>
+                                                <td className="px-5 py-2.5 text-center">
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tight ${statusPembayaran === "Lunas" ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
                                                         {statusPembayaran}
                                                     </span>
                                                 </td>
-                                                <td
-                                                    className="px-4 py-3 text-right cursor-pointer"
-                                                    onClick={() => setSelectedTrx(product)}
-                                                >
-                                                    {product?.grandTotal
-                                                        ? `Rp ${product.grandTotal.toLocaleString('id-ID')}`
-                                                        : "Rp 0"}
+                                                <td className="px-5 py-2.5 text-right font-black text-gray-900 text-[11px]">
+                                                    {formatCurrency(product?.grandTotal || 0)}
                                                 </td>
                                             </tr>
                                         );
                                     } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={`error-${index}`}>
-                                                <td colSpan="10" className="px-4 py-3 text-red-500 text-center">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
+                                        return <tr key={index}><td colSpan="10" className="px-5 py-3 text-red-500 text-center text-xs">Error</td></tr>;
                                     }
                                 })}
                             </tbody>
@@ -356,15 +224,15 @@ const SalesTransactionTable = ({
                             </tbody>
                         )}
 
-                        <tfoot className="border-t font-semibold text-sm">
+                        <tfoot className="border-t font-bold text-xs bg-gray-50/50">
                             <tr>
-                                <td className="px-4 py-2" colSpan="9">
+                                <td className="px-5 py-3 text-gray-900 border-r border-gray-100" colSpan="9">
                                     Grand Total
                                 </td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">
-                                        Rp {grandTotalFinal?.toLocaleString('id-ID') || '0'}
-                                    </p>
+                                <td className="px-5 py-3 text-right font-black">
+                                    <span className="bg-primary text-white px-3 py-1 rounded shadow-md shadow-primary/10">
+                                        {formatCurrency(grandTotalFinal || 0)}
+                                    </span>
                                 </td>
                             </tr>
                         </tfoot>

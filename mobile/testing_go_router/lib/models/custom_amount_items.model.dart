@@ -1,6 +1,6 @@
 // ignore_for_file: invalid_annotation_target
 
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -14,7 +14,13 @@ abstract class CustomAmountItemsModel with _$CustomAmountItemsModel {
     @HiveField(0) @Default(0) int amount,
     @HiveField(1) @Default('Custom Amount') String? name,
     @HiveField(2) @Default(null) String? description,
-    @HiveField(3) @Default(OrderType.dineIn) OrderType? orderType,
+    @HiveField(3)
+    @Default(OrderTypeModel.dineIn)
+    @JsonKey(
+      fromJson: OrderTypeModel.fromString,
+      toJson: OrderTypeModel.toJsonString,
+    )
+    OrderTypeModel? orderType,
   }) = _CustomAmountItemsModel;
 
   CustomAmountItemsModel._();

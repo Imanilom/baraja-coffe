@@ -7,7 +7,7 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/custom_discount.model.dart';
 import 'package:kasirbaraja/screens/orders/order_details/custom_discount_dialog.dart';
 
@@ -15,7 +15,7 @@ class AddOrderItemDialog extends ConsumerStatefulWidget {
   final OrderItemModel orderItem;
   final Function(OrderItemModel) onAddOrder;
   final VoidCallback onClose;
-  final OrderType? orderType;
+  final OrderTypeModel? orderType;
 
   const AddOrderItemDialog({
     super.key,
@@ -35,7 +35,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
   selectedAddonOptionIdByAddonId; // addonId -> optionId
   late int quantity;
   late String note;
-  late OrderType selectedOrderType;
+  late OrderTypeModel selectedOrderType;
   CustomDiscountModel? customDiscount;
 
   @override
@@ -56,7 +56,7 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
 
     quantity = widget.orderItem.quantity;
     note = widget.orderItem.notes ?? '';
-    selectedOrderType = widget.orderType ?? OrderType.dineIn;
+    selectedOrderType = widget.orderType ?? OrderTypeModel.dineIn;
   }
 
   @override
@@ -946,25 +946,25 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
           ),
           const SizedBox(height: 8),
           Center(
-            child: SegmentedButton<OrderType>(
+            child: SegmentedButton<OrderTypeModel>(
               segments: [
-                ButtonSegment<OrderType>(
-                  value: OrderType.dineIn,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.dineIn,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.dineIn),
+                    OrderTypeModel.dineIn.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
-                ButtonSegment<OrderType>(
-                  value: OrderType.takeAway,
+                ButtonSegment<OrderTypeModel>(
+                  value: OrderTypeModel.takeAway,
                   label: Text(
-                    _getShortOrderTypeLabel(OrderType.takeAway),
+                    OrderTypeModel.takeAway.name,
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
               ],
-              selected: {selectedOrderType ?? OrderType.dineIn},
-              onSelectionChanged: (Set<OrderType> newSelection) {
+              selected: {selectedOrderType},
+              onSelectionChanged: (Set<OrderTypeModel> newSelection) {
                 setState(() {
                   selectedOrderType = newSelection.first;
                 });
@@ -976,23 +976,6 @@ class AddOrderItemDialogState extends ConsumerState<AddOrderItemDialog> {
         ],
       ),
     );
-  }
-
-  String _getShortOrderTypeLabel(OrderType orderType) {
-    switch (orderType) {
-      case OrderType.dineIn:
-        return 'Dine-In';
-      case OrderType.pickup:
-        return 'Pickup';
-      case OrderType.delivery:
-        return 'Delivery';
-      case OrderType.takeAway:
-        return 'Take Away';
-      case OrderType.reservation:
-        return 'Reservation';
-      default:
-        return 'Unknown';
-    }
   }
 
   Widget _notesAndTypeSection() {

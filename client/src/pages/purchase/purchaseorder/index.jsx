@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaShoppingCart } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';

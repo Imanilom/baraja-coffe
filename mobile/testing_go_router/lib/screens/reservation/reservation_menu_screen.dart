@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -40,7 +40,7 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
     final notifier = ref.read(reservationOrderDetailProvider.notifier);
 
     if (orderDetail == null) {
-      notifier.initializeOrder(orderType: OrderType.reservation);
+      notifier.initializeOrder(orderType: OrderTypeModel.reservation);
     }
 
     final List<AddonModel> selectedAddons =

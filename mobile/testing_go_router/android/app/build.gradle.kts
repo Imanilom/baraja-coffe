@@ -4,8 +4,7 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     // kalau pakai Firebase:
-    // id("com.google.gms.google-services")
-    // id("com.google.firebase.crashlytics")
+    id("com.google.gms.google-services")
 }
 
 import java.util.Properties
@@ -64,8 +63,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
-                // Default file with automatically generated optimization rules.
                 getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
             )
 
             setProperty("archivesBaseName", "kasir-baraja-v${flutter.versionName}+${flutter.versionCode}")

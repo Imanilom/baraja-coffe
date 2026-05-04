@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios from '@/lib/axios';
 import React, { useState, useEffect } from 'react';
 import { FaChevronRight, FaUser, FaBriefcase, FaUniversity, FaMoneyBillWave, FaGift, FaIdCard } from 'react-icons/fa';
 import { Link, useNavigate } from 'react-router-dom';

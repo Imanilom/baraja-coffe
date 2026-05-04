@@ -1,195 +1,73 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import axios from '@/lib/axios';
+import { Link, useSearchParams } from "react-router-dom";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSync, FaFileExcel } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
 
 const TaxRevenueManagement = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
+
+    const [taxData, setTaxData] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    // Initial state from URL
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
+    });
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db', // Tailwind border-gray-300
+            borderColor: '#d1d5db',
             minHeight: '34px',
             fontSize: '13px',
-            color: '#6b7280', // text-gray-500
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
             '&:hover': {
-                borderColor: '#9ca3af', // Tailwind border-gray-400
+                borderColor: '#9ca3af',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-gray-500
+            color: '#6b7280',
         }),
         input: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-gray-500 for typed text
+            color: '#6b7280',
         }),
         placeholder: (provided) => ({
             ...provided,
-            color: '#9ca3af', // text-gray-400
+            color: '#9ca3af',
             fontSize: '13px',
         }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151', // gray-700
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
             cursor: 'pointer',
         }),
     };
-    const [tax, setTax] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
 
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
-    });
-    const [tempSearch, setTempSearch] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
-
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
-
-    const dropdownRef = useRef(null);
-
-    // Fetch tax and outlets data
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch tax data
-                const responseOrder = await axios.get("/api/orders");
-                const dataOrder = responseOrder.data.data ? responseOrder.data.data : responseOrder.data;
-
-                const completedData = dataOrder.filter(item => item.status === "Completed");
-
-                const apiTax = await axios.get("/api/tax-service");
-                const taxData = apiTax.data.data ? apiTax.data.data : apiTax.data;
-
-                // Buat map untuk quick lookup
-                const taxMap = {};
-                taxData.forEach(tax => {
-                    taxMap[tax._id] = tax.percentage; // atau tax jika mau ambil semua data
-                });
-
-                // Enrich dataOrder dengan percentage dari taxData
-                const enrichedData = completedData.map(order => ({
-                    ...order,
-                    taxAndServiceDetails: order.taxAndServiceDetails?.map(taxService => ({
-                        ...taxService,
-                        percentage: taxMap[taxService.id] || taxMap[taxService._id] || 0
-                    }))
-                }));
-
-                setTax(enrichedData || []);
-                setFilteredData(enrichedData || []); // Initialize filtered data with all tax
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setTax([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
-
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
-            const subtotal = Number(item?.subtotal) || 0;
-
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
-
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
-        });
-
-        return Object.values(grouped);
-    }, [filteredData]);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
-            }
-        );
-    }, [groupedArray]);
+    const outletOptions = useMemo(() => [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ], [outlets]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -197,276 +75,252 @@ const TaxRevenueManagement = () => {
             currency: 'IDR',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
-        }).format(amount);
+        }).format(amount || 0);
     };
 
-    // Di luar return
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedOutlet) params.set('outletId', selectedOutlet);
+        setSearchParams(params, { replace: true });
+    }, [dateRange, selectedOutlet, setSearchParams]);
+
+    useEffect(() => {
+        updateURLParams();
+    }, [updateURLParams]);
+
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const params = {
+                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD'),
+            };
+            if (selectedOutlet) {
+                params.outletId = selectedOutlet;
+            }
+
+            const [orderResponse, taxServiceResponse] = await Promise.all([
+                axios.get("/api/report/orders", { params: { ...params, mode: 'all', ...(selectedOutlet ? { outlet: selectedOutlet } : {}) } }),
+                axios.get("/api/tax-service")
+            ]);
+
+            const orders = Array.isArray(orderResponse.data) ?
+                orderResponse.data :
+                (orderResponse.data?.data && Array.isArray(orderResponse.data.data)) ?
+                    orderResponse.data.data : [];
+
+            const taxServices = Array.isArray(taxServiceResponse.data) ?
+                taxServiceResponse.data :
+                (taxServiceResponse.data?.data && Array.isArray(taxServiceResponse.data.data)) ?
+                    taxServiceResponse.data.data : [];
+
+            const completedOrders = orders.filter(item => item.status === "Completed");
+
+            // Map tax percentage
+            const taxMap = {};
+            taxServices.forEach(tax => {
+                taxMap[tax._id] = tax.percentage;
+            });
+
+            const enrichedOrders = completedOrders.map(order => ({
+                ...order,
+                taxAndServiceDetails: order.taxAndServiceDetails?.map(ts => ({
+                    ...ts,
+                    percentage: taxMap[ts.id] || taxMap[ts._id] || 0
+                }))
+            }));
+
+            setTaxData(enrichedOrders);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching tax revenue data:", err);
+            setError("Gagal memuat data pajak. Silakan coba lagi.");
+        } finally {
+            setLoading(false);
+        }
+    }, [dateRange, selectedOutlet]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
     const groupedTaxes = useMemo(() => {
-        const allTaxes = filteredData.flatMap(item =>
-            item.taxAndServiceDetails || []
-        );
+        const allTaxes = taxData.flatMap(item => item.taxAndServiceDetails || []);
 
         const grouped = allTaxes.reduce((acc, tax) => {
-            if (!acc[tax.name]) {
-                acc[tax.name] = {
-                    name: tax.name,
-                    type: tax.type,
-                    percentage: tax.percentage,
+            const key = tax.name || "Unknown";
+            if (!acc[key]) {
+                acc[key] = {
+                    name: key,
+                    type: tax.type || "N/A",
+                    percentage: tax.percentage || 0,
                     totalAmount: 0,
                     count: 0
                 };
             }
-            acc[tax.name].totalAmount += tax.amount;
-            acc[tax.name].count += 1;
+            acc[key].totalAmount += (tax.amount || 0);
+            acc[key].count += 1;
             return acc;
         }, {});
 
         return Object.values(grouped);
-    }, [filteredData]);
+    }, [taxData]);
 
-    // Hitung total
-    const totalAllTax = groupedTaxes.reduce((sum, tax) => sum + tax.totalAmount, 0);
+    const totalAllTax = useMemo(() =>
+        groupedTaxes.reduce((sum, tax) => sum + tax.totalAmount, 0)
+        , [groupedTaxes]);
 
-    const options = [
-        { value: "", label: "Semua Outlet" },
-        ...outlets.map((outlet) => ({
-            value: outlet._id,
-            label: outlet.name,
-        })),
-    ];
+    const handleRefresh = () => {
+        fetchData();
+    };
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-
-        // Make sure tax is an array before attempting to filter
-        let filtered = ensureArray([...tax]);
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    }, [tax, tempSearch, tempSelectedOutlet, value]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Initial load
-    useEffect(() => {
-        applyFilter();
-    }, []);
-
-
-    // Export current data to Excel
     const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-            const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon?.price || 0), 0) || 0;
+        const outletName = selectedOutlet ? outlets.find(o => o._id === selectedOutlet)?.name : "Semua Outlet";
+        const filename = `Laporan_Pajak_${outletName.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.xlsx`;
 
-            return {
-                "Produk": menuItem.name || 'N/A',
-                "Kategori": menuItem.category?.join(', ') || 'N/A',
-                "SKU": menuItem._id || 'N/A',
-                "Terjual": item.quantity || 0,
-                "Penjualan Kotor": item.subtotal || 0,
-                "Diskon Produk": addonsPrice || 0,
-                "Total": (item.subtotal || 0) + addonsPrice,
-                "Outlet": product.cashier?.outlet?.[0]?.outletId?.name || 'N/A',
-                "Tanggal": new Date(product.createdAt).toLocaleDateString('id-ID')
-            };
-        });
+        const dataToExport = groupedTaxes.map(tax => ({
+            "Nama Pajak": tax.name,
+            "Tipe": tax.type,
+            "Persentase": `${tax.percentage}%`,
+            "Jumlah Transaksi": tax.count,
+            "Total Pajak": tax.totalAmount
+        }));
+
+        if (dataToExport.length === 0) {
+            alert("Tidak ada data untuk diekspor");
+            return;
+        }
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
-        XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Data Pajak");
+        XLSX.writeFile(wb, filename);
     };
 
-    useEffect(() => {
-        if (tax.length > 0) {
-            const today = new Date();
-            const todayRange = { startDate: today, endDate: today };
-            setValue(todayRange);
-            setTimeout(() => applyFilter(), 0);
-        }
-    }, [tax]);
-
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+    return (
+        <div className="min-h-screen bg-gray-50 pb-10">
+            {/* Header */}
+            <div className="flex justify-end px-6 items-center py-4 space-x-4 border-b bg-white">
+                <FaBell className="text-gray-400 cursor-pointer" />
+                <span className="text-sm font-medium">Hi Baraja</span>
+                <Link to="/admin/menu" className="text-gray-400">
+                    <FaUser size={24} />
+                </Link>
             </div>
-        );
-    }
 
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            {/* Breadcrumb & Actions */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaClipboardList className="mr-2" />
+                    <span>Laporan</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <Link to="/admin/profit-menu" className="hover:text-green-900 transition-colors">Laporan Laba & Rugi</Link>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900 font-semibold">Laporan Pajak</span>
+                </div>
+                <div className="flex gap-2">
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
+                        <FaSync className={loading ? "animate-spin" : ""} />
                         Refresh
+                    </button>
+                    <button
+                        onClick={exportToExcel}
+                        disabled={loading || groupedTaxes.length === 0}
+                        className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors disabled:opacity-50"
+                    >
+                        <FaFileExcel />
+                        Ekspor Excel
                     </button>
                 </div>
             </div>
-        );
-    }
 
-    return (
-        <div className="px-6">
-            {/* Breadcrumb */}
-            <div className="flex justify-between items-center py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/profit-menu">Laporan Laba Rugi</Link>
-                    <FaChevronRight />
-                    <span>Pajak</span>
-                </div>
-                {/* <button
-                    onClick={exportToExcel} 
-                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button> */}
-            </div>
-
-            {/* Filters */}
-            <div className="pb-[15px] mb-[60px]">
-                <div className="flex w-full justify-between py-2">
-                    <div className="flex flex-col col-span-5 w-2/5">
-                        <div className="relative text-gray-500">
+            <div className="px-6 mt-6">
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm mb-6 border border-gray-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
                             <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={setDateRange}
+                                showShortcuts={true}
+                                showFooter={true}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
                                 popoverDirection="down"
+                                separator="sampai"
                             />
                         </div>
-                    </div>
-                    <div className="flex flex-col col-span-5 w-1/5">
-                        <div className="relative">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Outlet</label>
                             <Select
-                                className="text-sm"
-                                classNamePrefix="react-select"
-                                placeholder="Pilih Outlet"
-                                options={options}
-                                isSearchable
-                                value={
-                                    options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
-                                }
-                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                                options={outletOptions}
+                                value={outletOptions.find(opt => opt.value === selectedOutlet) || outletOptions[0]}
+                                onChange={(selected) => setSelectedOutlet(selected.value)}
                                 styles={customSelectStyles}
+                                isSearchable
+                                placeholder="Pilih Outlet"
                             />
                         </div>
                     </div>
                 </div>
+
+                {error && (
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
+                    </div>
+                )}
 
                 {/* Table */}
-                <div className="rounded shadow-md bg-white shadow-slate-200">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-[14px] text-gray-400">
-                            <tr>
-                                <th className="px-4 py-4 text-left font-normal">Nama Pajak</th>
-                                <th className="px-4 py-4 text-right font-normal">% Pajak</th>
-                                <th className="px-4 py-4 text-left font-normal">Tipe Pajak</th>
-                                <th className="px-4 py-4 text-right font-normal">Transaksi</th>
-                                <th className="px-4 py-4 text-right font-normal">Total Pajak</th>
-                            </tr>
-                        </thead>
-                        {groupedTaxes.length > 0 ? (
-                            <>
-                                <tbody>
-                                    {groupedTaxes.map((tax, i) => (
-                                        <tr key={i} className="hover:bg-gray-50 text-gray-500">
-                                            <td className="p-[15px]">{tax.name}</td>
-                                            <td className="p-[15px] text-right">{tax.percentage}</td>
-                                            <td className="p-[15px]">{tax.type}</td>
-                                            <td className="p-[15px] text-right">{tax.count}</td>
-                                            <td className="p-[15px] text-right">{formatCurrency(tax.totalAmount)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                                <tfoot className="border-t font-semibold text-sm">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden animate-fadeIn">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <tr>
+                                    <th className="px-6 py-4">Nama Pajak</th>
+                                    <th className="px-6 py-4 text-right">% Pajak</th>
+                                    <th className="px-6 py-4">Tipe Pajak</th>
+                                    <th className="px-6 py-4 text-right">Transaksi</th>
+                                    <th className="px-6 py-4 text-right">Total Pajak</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-[13px] divide-y divide-gray-50 text-gray-600">
+                                {loading ? (
                                     <tr>
-                                        <td className="p-[15px]" colSpan={4}>Total</td>
-                                        <td className="p-[15px] text-right rounded">
-                                            <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                                {formatCurrency(totalAllTax)}
-                                            </p>
+                                        <td colSpan={5} className="py-20 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
                                         </td>
                                     </tr>
-                                </tfoot>
-                            </>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96 text-gray-500">
-                                    <td colSpan={5} className="uppercase">Data tidak di temukan</td>
-                                </tr>
+                                ) : groupedTaxes.length > 0 ? (
+                                    groupedTaxes.map((tax, index) => (
+                                        <tr key={index} className="hover:bg-green-50/30 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-gray-900">{tax.name}</td>
+                                            <td className="px-6 py-4 text-right font-mono">{tax.percentage}%</td>
+                                            <td className="px-6 py-4 text-gray-500 font-medium">{tax.type}</td>
+                                            <td className="px-6 py-4 text-right font-mono">{tax.count}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-green-700 font-mono">{formatCurrency(tax.totalAmount)}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={5} className="py-20 text-center text-gray-400 font-medium italic">Tidak ada data pajak ditemukan</td>
+                                    </tr>
+                                )}
                             </tbody>
-                        )}
-                    </table>
+                            <tfoot className="bg-gray-50 border-t border-gray-100 font-bold text-[13px] text-gray-900">
+                                <tr>
+                                    <td className="px-6 py-4" colSpan={4}>TOTAL PAJAK</td>
+                                    <td className="px-6 py-4 text-right text-green-800 font-mono">{formatCurrency(totalAllTax)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

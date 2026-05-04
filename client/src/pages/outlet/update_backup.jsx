@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { FaChevronRight, FaStoreAlt } from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
@@ -188,7 +188,7 @@ const UpdateOutlet = () => {
                 longitude: mapPosition.lng.toString(),
             };
 
-            console.log("Payload dikirim:", updatedData); // 🔍 debug
+            // console.log("Payload dikirim:", updatedData); // 🔍 debug
 
             await axios.put(`/api/outlet/${id}`, updatedData);
             alert("Data outlet berhasil diperbarui");

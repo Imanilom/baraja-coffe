@@ -45,10 +45,10 @@ router.post('/login-outlet', async (req, res) => {
     }
 
     // Cek akses user ke outlet - sesuaikan dengan struktur model Anda
-    const hasAccess = user.outlets?.includes(outlet._id) || 
-                     user.outlet?.some(o => o.outletId.equals(outlet._id)) || 
-                     user.role === 'admin';
-    
+    const hasAccess = user.outlets?.includes(outlet._id) ||
+      user.outlet?.some(o => o.outletId.equals(outlet._id)) ||
+      user.role === 'admin';
+
     if (!hasAccess) {
       return res.status(403).json({
         success: false,
@@ -113,9 +113,9 @@ router.get('/devices-all', authMiddleware, async (req, res) => {
       outlet: outletId,
       isActive: true
     })
-    .select('deviceId outlet deviceName deviceType location assignedAreas assignedTables orderTypes isOnline lastActivity')
-    .sort({ deviceName: 1 })
-    .lean();
+      .select('deviceId outlet deviceName deviceType location assignedAreas assignedTables orderTypes isOnline lastActivity')
+      .sort({ deviceName: 1 })
+      .lean();
 
     console.log('Devices found:', devices.length);
 
@@ -125,9 +125,9 @@ router.get('/devices-all', authMiddleware, async (req, res) => {
       device: { $in: deviceIds },
       isActive: true
     })
-    .populate('user', 'name username email')
-    .populate('role', 'name')
-    .lean();
+      .populate('user', 'name username email')
+      .populate('role', 'name')
+      .lean();
 
     // Create session map untuk lookup yang cepat
     const sessionMap = new Map();
@@ -137,7 +137,7 @@ router.get('/devices-all', authMiddleware, async (req, res) => {
 
     const devicesWithStatus = devices.map(device => {
       const activeSession = sessionMap.get(device._id.toString());
-      
+
       let currentUser = null;
       if (activeSession && activeSession.user) {
         currentUser = {
@@ -189,25 +189,25 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
     const outletId = await getOutletId(userId);
 
     // Validasi device
-    const device = await Device.findOne({ 
-      _id: deviceId, 
-      outlet: outletId 
+    const device = await Device.findOne({
+      _id: deviceId,
+      outlet: outletId
     }).select('deviceName location assignedAreas assignedTables orderTypes');
-    
+
     if (!device) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Device tidak ditemukan' 
+      return res.status(404).json({
+        success: false,
+        message: 'Device tidak ditemukan'
       });
     }
 
     // Dapatkan roles yang diizinkan
-    const allowedRoles = await Role.find({ 
-      name: { $in: ALLOWED_ROLES } 
+    const allowedRoles = await Role.find({
+      name: { $in: ALLOWED_ROLES }
     }).select('_id name');
-    
+
     const roleIds = allowedRoles.map(role => role._id);
-    
+
     if (roleIds.length === 0) {
       return res.json({
         success: true,
@@ -233,10 +233,10 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
       role: { $in: roleIds },
       isActive: true
     })
-    .select('name username email phone role profilePicture cashierType')
-    .populate('role', 'name')
-    .sort({ name: 1 })
-    .lean();
+      .select('name username email phone role profilePicture cashierType')
+      .populate('role', 'name')
+      .sort({ name: 1 })
+      .lean();
 
     // Dapatkan session aktif untuk semua cashiers sekaligus
     const cashierIds = cashiers.map(cashier => cashier._id);
@@ -244,8 +244,8 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
       user: { $in: cashierIds },
       isActive: true
     })
-    .populate('device', 'deviceName location')
-    .lean();
+      .populate('device', 'deviceName location')
+      .lean();
 
     const sessionMap = new Map();
     activeSessions.forEach(session => {
@@ -254,7 +254,7 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
 
     const cashiersWithStatus = cashiers.map(cashier => {
       const activeSession = sessionMap.get(cashier._id.toString());
-      
+
       return {
         ...cashier,
         roleName: cashier.role?.name,
@@ -520,11 +520,11 @@ router.get('/sessions/active', authMiddleware, async (req, res) => {
       outlet: outletId,
       isActive: true
     })
-    .populate('device', 'deviceName location deviceType')
-    .populate('user', 'name username email')
-    .populate('role', 'name')
-    .sort({ loginTime: -1 })
-    .lean();
+      .populate('device', 'deviceName location deviceType')
+      .populate('user', 'name username email')
+      .populate('role', 'name')
+      .sort({ loginTime: -1 })
+      .lean();
 
     // Format response
     const formattedSessions = activeSessions.map(session => ({
@@ -549,6 +549,69 @@ router.get('/sessions/active', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Gagal mengambil data session aktif',
+      error: error.message
+    });
+  }
+});
+
+// ✅ GET SESSIONS WITH NULL LOGOUT TIME
+router.get('/sessions/null-logout', async (req, res) => {
+  try {
+    const { outletId } = req.query;
+
+    const queryFilter = { logoutTime: null };
+    if (outletId) {
+      queryFilter.outlet = outletId;
+    }
+
+    const currentTime = new Date();
+
+    // 1. Find the sessions first
+    const nullLogoutSessions = await DeviceSession.find(queryFilter)
+      .populate('device', 'deviceName location deviceType')
+      .populate('user', 'name username email')
+      .populate('role', 'name')
+      .sort({ loginTime: -1 })
+      .lean();
+
+    // 2. Format response before updating
+    const formattedSessions = nullLogoutSessions.map(session => ({
+      id: session._id,
+      loginTime: session.loginTime,
+      // Show the updated time in response
+      logoutTime: currentTime,
+      // Show updated status in response
+      isActive: false,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+      device: session.device,
+      user: session.user,
+      role: session.role?.name,
+      duration: session.loginTime ? Math.floor((currentTime - new Date(session.loginTime)) / 1000 / 60) : 0 // dalam menit
+    }));
+
+    // 3. Update the sessions in database bulk
+    if (nullLogoutSessions.length > 0) {
+      const sessionIdsToUpdate = nullLogoutSessions.map(session => session._id);
+      await DeviceSession.updateMany(
+        { _id: { $in: sessionIdsToUpdate } },
+        // Update logoutTime and set isActive to false
+        { $set: { logoutTime: currentTime, isActive: false, logoutReason: 'forced_by_api_null_logout' } }
+      )
+    }
+
+    res.json({
+      success: true,
+      message: `${nullLogoutSessions.length} sesi berhasil di-logout otomatis.`,
+      data: formattedSessions,
+      total: formattedSessions.length
+    });
+
+  } catch (error) {
+    console.error('Get null logout time sessions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengambil data session dengan logoutTime null',
       error: error.message
     });
   }
@@ -579,10 +642,10 @@ router.post('/sessions/force-logout/:userId', authMiddleware, async (req, res) =
     const sessionIds = activeSessions.map(session => session._id);
     await DeviceSession.updateMany(
       { _id: { $in: sessionIds } },
-      { 
-        isActive: false, 
+      {
+        isActive: false,
         logoutTime: new Date(),
-        logoutReason: 'forced_by_admin' 
+        logoutReason: 'forced_by_admin'
       }
     );
 
@@ -593,7 +656,7 @@ router.post('/sessions/force-logout/:userId', authMiddleware, async (req, res) =
         device: deviceId,
         isActive: true
       });
-      
+
       if (otherSessions === 0) {
         await Device.findByIdAndUpdate(deviceId, {
           isOnline: false,

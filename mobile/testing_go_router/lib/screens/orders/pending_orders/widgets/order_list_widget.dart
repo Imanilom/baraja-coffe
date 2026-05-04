@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart'; // Ensure this model import is present if needed, though usually inferred from order_detail
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/payment_details_widget.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
@@ -27,7 +27,8 @@ class OrderListWidget extends ConsumerWidget {
           itemCount: orders.length,
           itemBuilder: (context, index) {
             final order = orders[index];
-            final isSelected = selectedOrder?.id == order.id;
+            // ✅ FIX: Use orderId for local selection
+            final isSelected = selectedOrder?.orderId == order.orderId;
 
             return _buildModernOrderCard(
               context: context,
@@ -85,7 +86,8 @@ class OrderListWidget extends ConsumerWidget {
     required bool isSelected,
     required int index,
   }) {
-    final statusColor = PaymentStatusUtils.getColor(order.paymentStatus!);
+    // ✅ FIX: Safe access for paymentStatus
+    final statusColor = PaymentStatusUtils.getColor(order.paymentStatus ?? '');
     final backgroundColor =
         isSelected ? Colors.blue.withValues(alpha: 0.08) : Colors.white;
     final borderColor =
@@ -132,7 +134,7 @@ class OrderListWidget extends ConsumerWidget {
                   children: [
                     // User Avatar
                     Hero(
-                      tag: 'avatar_${order.id}',
+                      tag: 'avatar_${order.orderId}', // ✅ FIX: reliable tag
                       child: Container(
                         width: 48,
                         height: 48,
@@ -211,7 +213,7 @@ class OrderListWidget extends ConsumerWidget {
                       ),
                     ),
 
-                    // ✅ NEW: Print button for open bills
+                    // Print button for open bills
                     if (order.isOpenBill == true &&
                         order.status != OrderStatus.completed) ...[
                       const SizedBox(width: 8),
@@ -231,7 +233,6 @@ class OrderListWidget extends ConsumerWidget {
                             return;
                           }
 
-                          // ✅ FIXED: Check if any printer supports customer receipts
                           final customerPrinters =
                               printers
                                   .where((p) => p.canPrintCustomer)
@@ -334,7 +335,8 @@ class OrderListWidget extends ConsumerWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            OrderTypeExtension.orderTypeToJson(order.orderType),
+                            // ✅ FIX: Use direct name instead of extension
+                            order.orderType.name,
                             style: const TextStyle(
                               color: Colors.blue,
                               fontSize: 11,
@@ -358,9 +360,11 @@ class OrderListWidget extends ConsumerWidget {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              DateFormat(
-                                'dd MMM yyyy, HH:mm',
-                              ).format(order.createdAt!),
+                              order.createdAt != null
+                                  ? DateFormat(
+                                    'dd MMM yyyy, HH:mm',
+                                  ).format(order.createdAt!)
+                                  : "Unknown",
                               style: TextStyle(
                                 color: Colors.grey.shade500,
                                 fontSize: 12,
@@ -408,14 +412,15 @@ class OrderListWidget extends ConsumerWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            _getStatusIcon(order.paymentStatus!),
-                            // Icons.check_rounded,
+                            _getStatusIcon(order.paymentStatus ?? ''),
                             size: 14,
                             color: Colors.white,
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            PaymentStatusUtils.getStatus(order.paymentStatus!),
+                            PaymentStatusUtils.getStatus(
+                              order.paymentStatus ?? '',
+                            ),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -459,18 +464,20 @@ class OrderListWidget extends ConsumerWidget {
   }
 
   IconData _getOrderTypeIcon(dynamic orderType) {
-    // Sesuaikan dengan enum OrderType yang ada di project Anda
-    final typeString =
-        OrderTypeExtension.orderTypeToJson(orderType).toLowerCase();
-    switch (typeString) {
-      case 'dine_in':
+    if (orderType is! OrderTypeModel) return Icons.receipt_rounded;
+
+    // ✅ FIX: Switch on ID string compatible with OrderTypeModel
+    switch (orderType.id) {
+      case 'Dine-In':
         return Icons.restaurant_rounded;
-      case 'takeaway':
+      case 'Take Away':
         return Icons.shopping_bag_rounded;
-      case 'delivery':
+      case 'Delivery':
         return Icons.delivery_dining_rounded;
-      case 'online':
+      case 'Pickup':
         return Icons.shopping_cart_rounded;
+      case 'Reservation':
+        return Icons.event_seat_rounded;
       default:
         return Icons.receipt_rounded;
     }
@@ -483,7 +490,7 @@ class OrderListWidget extends ConsumerWidget {
       case 'settlement':
         return Icons.check_circle_rounded;
       case 'partial':
-        return Icons.schedule_rounded;
+        return Icons.pie_chart_rounded;
       case 'cancelled':
         return Icons.cancel_rounded;
       case 'processing':

@@ -1,581 +1,368 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import axios from '@/lib/axios';
+import { Link, useSearchParams } from "react-router-dom";
+import { FaClipboardList, FaChevronRight, FaSync, FaFileExcel, FaChair, FaHistory, FaClock, FaUsers } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Select from "react-select";
+import dayjs from "dayjs";
+import { useSelector, useDispatch } from "react-redux";
+import { setReportData } from "@/redux/report/reportSlice";
+import Paginated from "@/components/Paginated";
+import Header from "@/components/Header";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const TableManagement = () => {
-    const [products, setProducts] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [area, setAreas] = useState([]);
-    const [table, setTables] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const dispatch = useDispatch();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
+    const cachedData = useSelector((state) => state.report.operational.table.data);
+
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const [showInput, setShowInput] = useState(false);
-    const [showInputArea, setShowInputArea] = useState(false);
-    const [showInputTable, setShowInputTable] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [tempSelectedArea, setTempSelectedArea] = useState("");
-    const [tempSelectedTable, setTempSelectedTable] = useState("");
-    const [value, setValue] = useState(null);
-    const [tempSearch, setTempSearch] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
-
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
+    // Initial state from URL
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
+    });
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [selectedArea, setSelectedArea] = useState(searchParams.get('area') || "");
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page')) || 1);
     const ITEMS_PER_PAGE = 50;
 
-    const dropdownRef = useRef(null);
-
-    // Fetch products and outlets data
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch products data
-                const data = [];
-
-                setProducts(data || []);
-                setFilteredData(data || []); // Initialize filtered data with all products
-
-                const area = [
-                    { _id: "abc", name: "ABC Selaras Depan & Samping" },
-                    { _id: "de", name: "DRE Selaras Belakang & Bar Utama" },
-                    { _id: "fgh", name: "FGH Lantai 2" }
-                ];
-
-                setAreas(area || []);
-
-                const table = [
-                    { _id: "abc", name: "ABC Selaras Depan & Samping" },
-                    { _id: "de", name: "DRE Selaras Belakang & Bar Utama" },
-                    { _id: "fgh", name: "FGH Lantai 2" }
-                ];
-
-                setTables(table || []);
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setProducts([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    const uniqueAreas = useMemo(() => {
-        return area.map(item => item.name);
-    }, [area]);
-
-    const uniqueTables = useMemo(() => {
-        return table.map(item => item.name);
-    }, [table]);
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
-
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
-            const subtotal = Number(item?.subtotal) || 0;
-
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
-
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
-        });
-
-        return Object.values(grouped);
-    }, [filteredData]);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    const filteredArea = useMemo(() => {
-        return uniqueAreas.filter(area =>
-            area.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueAreas]);
-
-    const filteredTables = useMemo(() => {
-        return uniqueTables.filter(table =>
-            table.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueTables]);
-
-    // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
             },
-            {
-                quantity: 0,
-                subtotal: 0,
-            }
-        );
-    }, [groupedArray]);
-
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
     };
 
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
+    const outletOptions = useMemo(() => [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ], [outlets]);
 
-    // Apply filter function
-    const applyFilter = () => {
+    // Placeholder areas
+    const areaOptions = [
+        { value: "", label: "Semua Area" },
+        { value: "Indoor", label: "Indoor" },
+        { value: "Outdoor", label: "Outdoor" },
+        { value: "Lantai 2", label: "Lantai 2" },
+    ];
 
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    };
-
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(products));
-        setCurrentPage(1);
-    };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-            const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon?.price || 0), 0) || 0;
-
-            return {
-                "Produk": menuItem.name || 'N/A',
-                "Kategori": menuItem.category?.join(', ') || 'N/A',
-                "SKU": menuItem._id || 'N/A',
-                "Terjual": item.quantity || 0,
-                "Penjualan Kotor": item.subtotal || 0,
-                "Diskon Produk": addonsPrice || 0,
-                "Total": (item.subtotal || 0) + addonsPrice,
-                "Outlet": product.cashier?.outlet?.[0]?.outletId?.name || 'N/A',
-                "Tanggal": new Date(product.createdAt).toLocaleDateString('id-ID')
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
-        XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
-    };
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedOutlet) params.set('outletId', selectedOutlet);
+        if (selectedArea) params.set('area', selectedArea);
+        if (currentPage > 1) params.set('page', currentPage.toString());
+        setSearchParams(params, { replace: true });
+    }, [dateRange, selectedOutlet, selectedArea, currentPage, setSearchParams]);
 
     useEffect(() => {
-        if (products.length > 0) {
-            const today = new Date();
-            const todayRange = { startDate: today, endDate: today };
-            setValue(todayRange);
-            setTimeout(() => applyFilter(), 0);
+        updateURLParams();
+    }, [updateURLParams]);
+
+    const fetchData = useCallback(async (force = false) => {
+        if (!force && cachedData.length > 0) return;
+        setLoading(true);
+        try {
+            // Simulating API call as per original code
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const result = []; // Simulation placeholder
+            dispatch(setReportData({ category: 'operational', type: 'table', data: result }));
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching table report data:", err);
+            setError("Gagal memuat data laporan meja.");
+        } finally {
+            setLoading(false);
         }
-    }, [products]);
+    }, [cachedData.length, dispatch]);
 
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+    const handleRefresh = () => {
+        fetchData(true);
+    };
+
+    const filteredData = useMemo(() => {
+        let result = cachedData;
+        if (selectedArea) {
+            result = result.filter(item => item.area === selectedArea);
+        }
+        return result;
+    }, [cachedData, selectedArea]);
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredData, currentPage]);
+
+    // Area-wise occupancy chart data
+    const areaChartData = useMemo(() => {
+        const map = {};
+        cachedData.forEach(item => {
+            map[item.area] = (map[item.area] || 0) + 1;
+        });
+        return Object.keys(map).map(name => ({ name, count: map[name] }));
+    }, [cachedData]);
+
+    const exportToExcel = () => {
+        const exportData = filteredData.map(item => ({
+            "Waktu": dayjs(item.time).format('DD-MM-YYYY HH:mm'),
+            "Area": item.area,
+            "Meja": item.tableNo,
+            "Pelanggan": item.customers,
+            "Durasi": item.duration,
+            "Status": "Selesai"
+        }));
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        XLSX.utils.book_append_sheet(wb, ws, "Laporan Meja");
+        XLSX.writeFile(wb, `Laporan_Meja_${dayjs().format('YYYYMMDD')}.xlsx`);
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-50 pb-10">
+            <Header />
+
+            {/* Breadcrumb & Actions */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm border-b">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaClipboardList className="mr-2" />
+                    <span>Laporan</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <Link to="/admin/operational-menu" className="hover:text-green-900 transition-colors">Laporan Operasional</Link>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900 font-semibold">Laporan Meja</span>
+                </div>
+                <div className="flex gap-2">
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
+                        <FaSync className={loading ? "animate-spin" : ""} />
                         Refresh
+                    </button>
+                    <button
+                        onClick={exportToExcel}
+                        disabled={loading || filteredData.length === 0}
+                        className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors disabled:opacity-50"
+                    >
+                        <FaFileExcel />
+                        Ekspor Excel
                     </button>
                 </div>
             </div>
-        );
-    }
 
-    return (
-        <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
-
-            {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-[15px] text-gray-500">Laporan Operasional</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Laporan Meja</span>
-                </div>
-            </div>
-
-            {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-gray-50 shadow-md">
-                    <div className="flex flex-col col-span-5">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder="Cari outlet..."
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-5">
-                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+            <div className="p-6">
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
                             <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={(val) => {
+                                    setDateRange(val);
+                                    setCurrentPage(1);
+                                }}
+                                showShortcuts={true}
+                                showFooter={true}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
                                 popoverDirection="down"
+                                separator="sampai"
                             />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
                         </div>
-                    </div>
-
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-8 w-full">
-                    <div className="border border-[#005429] rounded-lg py-[12px] px-[20px] text-gray-500 font-normal text-[14px]">
-                        <h5 className="text-[15px]">Jumlah Meja Melebihi Kapasitas</h5>
-                        <h2 className="text-[25px]">0 Meja</h2>
-                        <div className="flex justify-end">
-                            <span className="text-right text-[12px] text-[#005429] font-normal">Lihat Detail</span>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Outlet</label>
+                            <Select
+                                options={outletOptions}
+                                value={outletOptions.find(opt => opt.value === selectedOutlet) || outletOptions[0]}
+                                onChange={(selected) => {
+                                    setSelectedOutlet(selected.value);
+                                    setCurrentPage(1);
+                                }}
+                                styles={customSelectStyles}
+                                isSearchable
+                                placeholder="Pilih Outlet"
+                            />
                         </div>
-                    </div>
-                    <div className="border border-[#005429] rounded-lg py-[12px] px-[20px] text-gray-500 font-normal text-[14px]">
-                        <h5 className="text-[15px]">Jumlah Meja Melebihi Batas Waktu</h5>
-                        <h2 className="text-[25px]">0 Meja</h2>
-                        <div className="flex justify-end">
-                            <span className="text-right text-[12px] text-[#005429] font-normal">Lihat Detail</span>
-                        </div>
-                    </div>
-                    <div className="border border-[#005429] rounded-lg py-[12px] px-[20px] text-gray-500 font-normal text-[14px]">
-                        <h5 className="text-[15px]">Rata-rata Durasi Waktu/Meja</h5>
-                        <h2 className="text-[25px]">0 Menit</h2>
-                        <div className="flex justify-end">
-                            <span className="text-right text-[12px] text-[#005429] font-normal">Lihat Detail</span>
-                        </div>
-                    </div>
-                    <div className="border border-[#005429] rounded-lg py-[12px] px-[20px] text-gray-500 font-normal text-[14px]">
-                        <h5 className="text-[15px]">Rata-rata Pelanggan/Meja</h5>
-                        <h2 className="text-[25px]">0 Orang</h2>
-                        <div className="flex justify-end">
-                            <span className="text-right text-[12px] text-[#005429] font-normal">Lihat Detail</span>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Area</label>
+                            <Select
+                                options={areaOptions}
+                                value={areaOptions.find(opt => opt.value === selectedArea) || areaOptions[0]}
+                                onChange={(selected) => {
+                                    setSelectedArea(selected.value);
+                                    setCurrentPage(1);
+                                }}
+                                styles={customSelectStyles}
+                                placeholder="Pilih Area"
+                            />
                         </div>
                     </div>
                 </div>
 
-                <div className="mt-[20px] mb-[10px]">
-                    <h4 className="text-[16px] font-normal">Data Pengguna Meja</h4>
-                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    {/* Summary Metrics */}
+                    <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 border-l-4 border-l-blue-600">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Kapasitas Berlebih</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold text-gray-900">0</span>
+                                <span className="text-[11px] text-gray-400 font-medium">Meja</span>
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 border-l-4 border-l-red-600">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Melebihi Batas Waktu</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold text-gray-900">0</span>
+                                <span className="text-[11px] text-gray-400 font-medium">Meja</span>
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 border-l-4 border-l-amber-500">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Rata-rata Durasi</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold text-gray-900">0</span>
+                                <span className="text-[11px] text-gray-400 font-medium">Menit</span>
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 border-l-4 border-l-green-600">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Rata-rata Pelanggan</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold text-gray-900">0</span>
+                                <span className="text-[11px] text-gray-400 font-medium">Orang</span>
+                            </div>
+                        </div>
+                    </div>
 
-                <div className="py-[10px] my-[13px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-gray-50 shadow-md">
-                    <div className="flex flex-col col-span-5">
-                        <label className="text-[13px] mb-1 text-gray-500">Area</label>
-                        <div className="relative">
-                            {!showInputArea ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputArea(true)}>
-                                    {tempSelectedArea || "Semua Outlet"}
-                                </button>
+                    {/* Chart Card */}
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 flex flex-col items-center">
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 w-full text-center">Okupansi per Area</h3>
+                        <div className="h-[150px] w-full">
+                            {areaChartData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={areaChartData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                        <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                                        <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                                        <Tooltip labelStyle={{ fontSize: '12px' }} itemStyle={{ fontSize: '12px' }} />
+                                        <Bar dataKey="count" fill="#005429" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
                             ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder="Cari outlet..."
-                                />
-                            )}
-                            {showInputArea && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredArea.length > 0 ? (
-                                        filteredArea.map((area, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedArea(area);
-                                                    setShowInputArea(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {area}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
+                                <div className="h-full flex items-center justify-center text-[11px] text-gray-400 italic font-medium">
+                                    Belum ada data grafik
+                                </div>
                             )}
                         </div>
                     </div>
-
-                    <div className="flex flex-col col-span-5">
-                        <label className="text-[13px] mb-1 text-gray-500">Meja</label>
-                        {!showInputTable ? (
-                            <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputTable(true)} disabled>
-                                {tempSelectedTable || "Pilih Meja"}
-                            </button>
-                        ) : (
-                            <input
-                                type="text"
-                                className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                autoFocus
-                            />
-                        )}
-                        {showInputTable && (
-                            <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow max-h-48 overflow-auto" ref={dropdownRef}>
-                                {filteredTables.length > 0 ? (
-                                    filteredTables.map((table, idx) => (
-                                        <li
-                                            key={idx}
-                                            onClick={() => {
-                                                setTempSelectedTable(table);
-                                                setShowInputTable(false);
-                                            }}
-                                            className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                        >
-                                            {table}
-                                        </li>
-                                    ))
-                                ) : (
-                                    <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                )}
-                            </ul>
-                        )}
-                    </div>
-
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button className="border border-[#005429] text-[#005429] text-[13px] px-[15px] py-[7px] rounded">Export</button>
-                    </div>
                 </div>
+
+                {error && (
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
+                    </div>
+                )}
 
                 {/* Table */}
-                <div className="rounded shadow-md shadow-slate-200">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-[14px] text-gray-400">
-                            <tr>
-                                <th className="px-4 py-4 text-left font-normal">Tanggal</th>
-                                <th className="px-4 py-4 text-left font-normal">Area</th>
-                                <th className="px-4 py-4 text-left font-normal">Meja</th>
-                                <th className="px-4 py-4 font-normal">Jumlah Pelanggan/Kapasitas</th>
-                                <th className="px-4 py-4 font-normal">Durasi Waktu</th>
-                                <th className="px-4 py-4 font-normal">Batas Waktu</th>
-                            </tr>
-                        </thead>
-                        {filteredData.length > 0 ? (
-                            <tbody>
-                                {filteredData.map((item, i) => {
-                                    return (
-                                        <tr key={i} className="hover:bg-gray-50 text-gray-500">
-                                            <td className="p-[15px]">{formatDateTime(item.tanggal)}</td>
-                                            <td className="p-[15px]">{item.area}</td>
-                                            <td className="p-[15px]">{item.meja}</td>
-                                            <td className="p-[15px]">{item.jumlahpelanggan}</td>
-                                            <td className="p-[15px]">{formatDateTime(item.durasiwaktu)}</td>
-                                            <td className="p-[15px]">{formatDateTime(item.bataswaktu)}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96 text-gray-500">
-                                    <td colSpan={6} className="uppercase">Data tidak di temukan</td>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <tr>
+                                    <th className="px-6 py-4">Waktu</th>
+                                    <th className="px-6 py-4">Area / No. Meja</th>
+                                    <th className="px-6 py-4 text-center">Pelanggan</th>
+                                    <th className="px-6 py-4 text-center">Durasi</th>
+                                    <th className="px-6 py-4 text-center">Status</th>
                                 </tr>
+                            </thead>
+                            <tbody className="text-[13px] divide-y divide-gray-50 text-gray-600">
+                                {loading && cachedData.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="py-20 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
+                                        </td>
+                                    </tr>
+                                ) : paginatedData.length > 0 ? (
+                                    paginatedData.map((item, index) => (
+                                        <tr key={index} className="hover:bg-green-50/20 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-gray-900">{dayjs(item.time).format('DD MMM YYYY')}</div>
+                                                <div className="text-[11px] text-gray-400">{dayjs(item.time).format('HH:mm')}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-gray-900 uppercase tracking-tight">{item.area}</div>
+                                                <div className="text-[11px] text-gray-400 font-bold">MEJA: {item.tableNo}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center font-bold text-gray-900">{item.customers}</td>
+                                            <td className="px-6 py-4 text-center italic">{item.duration}</td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-green-100 text-green-700 border-green-200">
+                                                    Selesai
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={5} className="py-20 text-center text-gray-400 font-medium italic uppercase tracking-widest text-[11px]">Data belum tersedia atau tidak ditemukan</td>
+                                    </tr>
+                                )}
                             </tbody>
-                        )}
-                    </table>
+                        </table>
+                    </div>
                 </div>
-            </div>
 
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
             </div>
         </div>
     );

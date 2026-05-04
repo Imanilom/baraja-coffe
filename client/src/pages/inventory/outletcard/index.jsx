@@ -1,115 +1,193 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaSearch, FaChevronRight, FaInfoCircle, FaBoxes } from 'react-icons/fa';
-import axios from "axios";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import Datepicker from "react-tailwindcss-datepicker";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import axios from '@/lib/axios';
+import { Link, useSearchParams } from "react-router-dom";
+import dayjs from "dayjs";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSync, FaFileExcel, FaSearch, FaBoxes, FaInfoCircle, FaStore, FaLayerGroup, FaBoxOpen } from "react-icons/fa";
+import Datepicker from 'react-tailwindcss-datepicker';
+import * as XLSX from "xlsx";
+import Select from "react-select";
+import { useSelector } from "react-redux";
+import useDebounce from "@/hooks/useDebounce";
+import Header from "@/pages/admin/header";
 
 const OutletCardManagement = () => {
-    const location = useLocation();
-    const [showInput, setShowInput] = useState(false);
-    const [showInputCategory, setShowInputCategory] = useState(false);
-    const navigate = useNavigate(); // Use the new hook
-    const [outletCard, setOutletCard] = useState([]);
-    const [menu, setMenu] = useState([]);
-    const [status, setStatus] = useState([]);
-    const [tempSelectedCategory, setTempSelectedCategory] = useState("");
-    const [tempSelectedStatus, setTempSelectedStatus] = useState("");
-    const [tempSearch, setTempSearch] = useState("");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
+    const { currentUser } = useSelector((state) => state.user);
+
+    const [stockDistribution, setStockDistribution] = useState([]);
+    const [menuItems, setMenuItems] = useState([]);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [checkedItems, setCheckedItems] = useState([]);
-    const [checkAll, setCheckAll] = useState(false);
 
-    const [tempSelectedMenu, setTempSelectedMenu] = useState("");
-    const [outlets, setOutlets] = useState([]);
-    const [search, setSearch] = useState("");
-    const [searchCategory, setSearchCategory] = useState("");
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState(null);
+    // Initial state from URL
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
+    });
+    const [selectedMenuId, setSelectedMenuId] = useState(searchParams.get('menuId') || "");
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || "");
+    const debouncedSearch = useDebounce(searchTerm, 500);
 
-    const [filteredData, setFilteredData] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    const queryParams = new URLSearchParams(location.search);
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page')) || 1);
     const ITEMS_PER_PAGE = 50;
 
-    const dropdownRef = useRef(null);
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
 
-    const fetchData = async () => {
+    const menuOptions = useMemo(() => [
+        { value: "", label: "Semua Produk" },
+        ...menuItems.map((item) => ({
+            value: item._id,
+            label: item.name,
+        })),
+    ], [menuItems]);
+
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedMenuId) params.set('menuId', selectedMenuId);
+        if (debouncedSearch) params.set('q', debouncedSearch);
+        if (currentPage > 1) params.set('page', currentPage.toString());
+        setSearchParams(params, { replace: true });
+    }, [dateRange, selectedMenuId, debouncedSearch, currentPage, setSearchParams]);
+
+    useEffect(() => {
+        updateURLParams();
+    }, [updateURLParams]);
+
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const outletCardResponse = [];
-
-            // const menuData = Array.isArray(menuResponse.data)
-            //     ? menuResponse.data
-            //     : (menuResponse.data && Array.isArray(menuResponse.data.data))
-            //         ? menuResponse.data.data
-            //         : [];
-            const outlateCardData = (outletCardResponse.data || [])
-
-            setOutletCard(outlateCardData);
-            setFilteredData(outlateCardData);
-
-            const outletsResponse = await axios.get('/api/outlet');
-            const outletsData = Array.isArray(outletsResponse.data)
-                ? outletsResponse.data
-                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
-                    ? outletsResponse.data.data
-                    : [];
-
-            setOutlets(outletsData);
-
-            const menuResponse = await axios.get('/api/menu/menu-items');
-            const menuData = Array.isArray(menuResponse.data)
-                ? menuResponse.data
-                : (menuResponse.data && Array.isArray(menuResponse.data.data))
-                    ? menuResponse.data.data
-                    : [];
-
-            setMenu(menuData);
-
-            setStatus([
-                { _id: "ya", name: "Ya" },
-                { _id: "tidak", name: "Tidak" }
+            const [menuRes, stockRes] = await Promise.all([
+                axios.get('/api/menu/menu-items'),
+                axios.get('/api/product/stock/all')
             ]);
 
+            const menus = menuRes.data.data || menuRes.data || [];
+            const stocks = stockRes.data.data || stockRes.data || [];
+
+            setMenuItems(menus);
+
+            // Transform stocks into outlet-wise list
+            const start = dayjs(dateRange.startDate).startOf("day");
+            const end = dayjs(dateRange.endDate).endOf("day");
+
+            const distribution = stocks.map(stock => {
+                const movements = stock.movements || [];
+                const rangeMovs = movements.filter(m => dayjs(m.date || m.createdAt).isBetween(start, end, null, '[]'));
+                const prevMovs = movements.filter(m => dayjs(m.date || m.createdAt).isBefore(start));
+
+                const stockAwal = prevMovs.reduce((acc, m) => {
+                    if (m.type === "in" || m.type === "adjustment") return acc + (m.quantity || 0);
+                    if (m.type === "out") return acc - (m.quantity || 0);
+                    return acc;
+                }, 0);
+
+                const stockIn = rangeMovs.filter(m => m.type === "in").reduce((acc, m) => acc + (m.quantity || 0), 0);
+                const stockOut = rangeMovs.filter(m => m.type === "out").reduce((acc, m) => acc + (m.quantity || 0), 0);
+                const adjustment = rangeMovs.filter(m => m.type === "adjustment").reduce((acc, m) => acc + (m.quantity || 0), 0);
+                const transfers = rangeMovs.filter(m => m.type === "transfer").reduce((acc, m) => acc + (m.quantity || 0), 0);
+
+                const stockAkhir = stockAwal + stockIn - stockOut + adjustment + transfers;
+
+                return {
+                    id: stock._id,
+                    outletName: stock.outletId?.name || "Main Outlet",
+                    productName: stock.productId?.name || "Unnamed Product",
+                    productId: stock.productId?._id,
+                    stockAwal,
+                    stockIn,
+                    stockOut,
+                    adjustment,
+                    transfers,
+                    stockAkhir,
+                    unit: stock.productId?.unit || "unit",
+                    price: stock.productId?.price || 0
+                };
+            });
+
+            setStockDistribution(distribution);
             setError(null);
         } catch (err) {
-            console.error("Error fetching data:", err);
-            setError("Failed to load data. Please try again later.");
-            setOutletCard([]);
-            setFilteredData([]);
-            setOutlets([]);
-            setMenu([]);
+            console.error("Error fetching outlet card data:", err);
+            setError("Gagal memuat data distribusi stok per outlet.");
         } finally {
             setLoading(false);
         }
-    };
+    }, [dateRange]);
 
     useEffect(() => {
-        fetchData(); // hanya untuk load awal
-    }, []);
+        fetchData();
+    }, [fetchData]);
 
+    const handleRefresh = () => {
+        fetchData();
+    };
 
-    // Get unique outlet names for the dropdown
-    const uniqueMenu = useMemo(() => {
-        return menu.map(item => item.name);
-    }, [menu]);
+    const filteredData = useMemo(() => {
+        let result = stockDistribution;
 
-    const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
+        if (selectedMenuId) {
+            result = result.filter(item => item.productId === selectedMenuId);
         }
 
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
+        if (debouncedSearch) {
+            const s = debouncedSearch.toLowerCase();
+            result = result.filter(item =>
+                item.outletName.toLowerCase().includes(s) ||
+                item.productName.toLowerCase().includes(s)
+            );
+        }
+
         return result;
-    }, [currentPage, filteredData]);
+    }, [stockDistribution, selectedMenuId, debouncedSearch]);
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredData, currentPage]);
+
+    const stats = useMemo(() => {
+        return {
+            totalEntries: filteredData.length,
+            totalStockValue: filteredData.reduce((acc, curr) => acc + (curr.stockAkhir * curr.price), 0),
+            totalOutlets: new Set(filteredData.map(d => d.outletName)).size
+        };
+    }, [filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -120,370 +198,241 @@ const OutletCardManagement = () => {
         }).format(amount);
     };
 
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    const exportToExcel = () => {
+        const dataToExport = filteredData.map(item => ({
+            "Outlet": item.outletName,
+            "Produk": item.productName,
+            "Stok Awal": item.stockAwal,
+            "Masuk": item.stockIn,
+            "Keluar": item.stockOut,
+            "Transfer": item.transfers,
+            "Penyesuaian": item.adjustment,
+            "Stok Akhir": item.stockAkhir,
+            "Satuan": item.unit,
+            "Nilai Stok": formatCurrency(item.stockAkhir * item.price)
+        }));
 
-    // Filter outlets based on search input
-    const filteredMenu = useMemo(() => {
-        return uniqueMenu.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueMenu]);
-
-
-    // Apply filter function
-    const applyFilter = () => {
-
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...outletCard]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(menu => {
-                try {
-                    if (!menu) {
-                        return false;
-                    }
-
-                    const name = (menu.name || '').toLowerCase();
-                    const customer = (menu.user || '').toLowerCase();
-                    const receipt = (menu._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedMenu) {
-            filtered = filtered.filter(menu => {
-                try {
-                    if (!menu?.availableAt?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = menu?.availableAt;
-                    const matches = outletName === tempSelectedMenu;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by category
-        if (tempSelectedCategory) {
-            filtered = filtered.filter(menu => {
-                try {
-                    if (!menu?.category?.length > 0) {
-                        return false;
-                    }
-
-                    const categoryName = menu?.category[0];
-                    const matches = categoryName === tempSelectedCategory;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "KartuOutlet");
+        XLSX.writeFile(wb, `Laporan_Kartu_Outlet_${dayjs().format('YYYYMMDD')}.xlsx`);
     };
 
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
+    return (
+        <div className="min-h-screen bg-gray-50 pb-10">
+            <Header />
 
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            {/* Breadcrumb & Actions */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm border-b">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaBoxes className="mr-2" />
+                    <span>Inventori</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900 font-semibold">Kartu Outlet</span>
+                </div>
+                <div className="flex gap-2">
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
+                        <FaSync className={loading ? "animate-spin" : ""} />
                         Refresh
                     </button>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="w-full">
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell className="text-2xl text-gray-400" />
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser />
-                </Link>
-            </div>
-
-            <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
-                <div className="flex items-center space-x-2">
-                    <FaBoxes size={22} className="text-gray-400 inline-block" />
-                    <p className="text-gray-400 inline-block">Inventori</p>
-                    <FaChevronRight size={22} className="text-gray-400 inline-block" />
-                    <p className="text-gray-400 inline-block">Kartu Stok</p>
-                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
-                </div>
-                <div className="flex space-x-2">
                     <button
-                        onClick={() => console.log('Ekspor')}
-                        className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
+                        onClick={exportToExcel}
+                        disabled={loading || filteredData.length === 0}
+                        className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors disabled:opacity-50"
                     >
-                        Ekspor
+                        <FaFileExcel />
+                        Ekspor Excel
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4 px-3">
-                <button
-                    className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
-                >
-                    <Link className="flex justify-between items-center p-4"
-                        to={"/admin/inventory/stockcard"}>
-                        <div className="flex space-x-4">
-                            <h2 className="text-gray-400 ml-2 text-sm">Kartu Produk</h2>
-                        </div>
+            <div className="p-6">
+                {/* Navigation Tabs */}
+                <div className="flex bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <Link to="/admin/inventory/stockcard" className="flex-1 py-4 text-center text-sm font-semibold text-gray-400 hover:bg-gray-50 transition-colors border-r border-gray-100">
+                        KARTU PRODUK
                     </Link>
-                </button>
-
-                <div
-                    className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
-                >
-                    <Link className="flex justify-between items-center border-l border-l-gray-200 p-4">
-                        <div className="flex space-x-4">
-                            <strong className="text-gray-400 ml-2 text-sm">Kartu Outlet</strong>
-                        </div>
-                    </Link>
+                    <div className="flex-1 py-4 text-center text-sm font-bold text-green-900 bg-green-50/30 border-b-2 border-b-green-900">
+                        KARTU OUTLET
+                    </div>
                 </div>
-            </div>
 
-            <div className="w-full pb-6 mb-[60px]">
-                <div className="px-[15px] pb-[15px]">
-                    <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                        <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Produk</label>
-                            <div className="relative">
-                                {!showInput ? (
-                                    <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                        {tempSelectedMenu || "Semua Produk"}
-                                    </button>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        autoFocus
-                                        placeholder=""
-                                    />
-                                )}
-                                {showInput && (
-                                    <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                        <li
-                                            onClick={() => {
-                                                setTempSelectedMenu(""); // Kosong berarti semua
-                                                setShowInput(false);
-                                            }}
-                                            className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                        >
-                                            Semua Produk
-                                        </li>
-                                        {filteredMenu.length > 0 ? (
-                                            filteredMenu.map((product, idx) => (
-                                                <li
-                                                    key={idx}
-                                                    onClick={() => {
-                                                        setTempSelectedMenu(product);
-                                                        setShowInput(false);
-                                                    }}
-                                                    className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                                >
-                                                    {product}
-                                                </li>
-                                            ))
-                                        ) : (
-                                            <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                        )}
-                                    </ul>
-                                )}
-                            </div>
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Pilih Produk</label>
+                            <Select
+                                options={menuOptions}
+                                value={menuOptions.find(opt => opt.value === selectedMenuId)}
+                                onChange={(selected) => {
+                                    setSelectedMenuId(selected.value);
+                                    setCurrentPage(1);
+                                }}
+                                styles={customSelectStyles}
+                                isSearchable
+                                placeholder="Pilih Produk..."
+                            />
                         </div>
-
-                        <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                            <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
-                                <Datepicker
-                                    showFooter
-                                    showShortcuts
-                                    // value={value}
-                                    // onChange={setValue}
-                                    displayFormat="DD-MM-YYYY"
-                                    inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                    popoverDirection="down"
-                                />
-
-                                {/* Overlay untuk menyembunyikan ikon kalender */}
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
-                            </div>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
+                            <Datepicker
+                                value={dateRange}
+                                onChange={(val) => {
+                                    setDateRange(val);
+                                    setCurrentPage(1);
+                                }}
+                                showShortcuts={true}
+                                showFooter={true}
+                                displayFormat="DD-MM-YYYY"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
+                                popoverDirection="down"
+                                separator="sampai"
+                            />
                         </div>
-
-                        <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                        <div className="md:col-span-2">
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Cari Outlet / Produk</label>
                             <div className="relative">
                                 <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                 <input
                                     type="text"
-                                    placeholder="Cari Outlet"
-                                    value={tempSearch}
-                                    onChange={(e) => setTempSearch(e.target.value)}
-                                    className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                                    placeholder="Nama Outlet atau Produk..."
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full text-[13px] border border-gray-200 py-2 pl-10 pr-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
                                 />
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div className="flex justify-end space-x-2 items-end col-span-2">
-                            <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                            <button className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                {/* Summary Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center border-l-4 border-l-green-900">
+                        <div className="p-3 bg-green-50 rounded-full mr-4">
+                            <FaStore className="text-green-900 text-xl" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Total Outlet</p>
+                            <p className="text-xl font-bold text-gray-900">{stats.totalOutlets} Outlet</p>
                         </div>
                     </div>
-
-                    <div className="w-full mt-4 py-[20px] shadow-md">
-                        <div className="flex justify-between px-[15px]">
-                            <div className="">
-                                <strong className="text-[14px] text-gray-400">Tampilkan Data</strong>
-                            </div>
-                            <div className="space-x-7">
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Produk Dijual</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Produk Tidak Dijual</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Stok Kosong</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                            </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center border-l-4 border-l-blue-600">
+                        <div className="p-3 bg-blue-50 rounded-full mr-4">
+                            <FaBoxOpen className="text-blue-600 text-xl" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Total Baris Data</p>
+                            <p className="text-xl font-bold text-gray-900">{stats.totalEntries} Baris</p>
                         </div>
                     </div>
-                    <div className="w-full mt-4 shadow-md">
-                        <table className="w-full min-w-[800px] table-auto text-gray-500">
-                            <thead>
-                                <tr className="text-[14px]">
-                                    <th className="p-[15px] font-normal text-left">Outlet</th>
-                                    <th className="p-[15px] font-normal text-right">Stok Awal</th>
-                                    <th className="p-[15px] font-normal text-right">Stok Masuk</th>
-                                    <th className="p-[15px] font-normal text-right">Stok Keluar</th>
-                                    <th className="p-[15px] font-normal text-right">Penjualan</th>
-                                    <th className="p-[15px] font-normal text-right">Transfer</th>
-                                    <th className="p-[15px] font-normal text-right">Penyesuaian</th>
-                                    <th className="p-[15px] font-normal text-right">Stok Akhir</th>
-                                    <th className="p-[15px] font-normal text-right">Satuan</th>
-                                    <th className="p-[15px] font-normal text-right">Nilai Produk</th>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center border-l-4 border-l-amber-600">
+                        <div className="p-3 bg-amber-50 rounded-full mr-4">
+                            <FaLayerGroup className="text-amber-600 text-xl" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Estimasi Nilai Stok</p>
+                            <p className="text-xl font-bold text-amber-600">{formatCurrency(stats.totalStockValue)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {error && (
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
+                    </div>
+                )}
+
+                {/* Table */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <tr>
+                                    <th className="px-6 py-4">Outlet</th>
+                                    {!selectedMenuId && <th className="px-6 py-4">Produk</th>}
+                                    <th className="px-6 py-4 text-right">Awal</th>
+                                    <th className="px-6 py-4 text-right">Masuk</th>
+                                    <th className="px-6 py-4 text-right">Keluar</th>
+                                    <th className="px-6 py-4 text-right">Transfer</th>
+                                    <th className="px-6 py-4 text-right">Adj</th>
+                                    <th className="px-6 py-4 text-right">Akhir</th>
+                                    <th className="px-6 py-4 text-right">Nilai Stok</th>
                                 </tr>
                             </thead>
-                            {paginatedData.length > 0 ? (
-                                <tbody>
-                                    {paginatedData.map((item) => (
-                                        <tr key={item._id} className="hover:bg-gray-100 text-[14px]">
-                                            <td className="p-[15px]">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            ) : (
-                                <tbody>
-                                    <tr className="py-6 text-center w-full h-96">
-                                        <td colSpan={10}>
-                                            <div className="flex justify-center items-center">
-                                                <div className="text-gray-400">
-                                                    <div className="flex justify-center">
-                                                        <FaSearch size={100} />
-                                                    </div>
-                                                    <p className="uppercase">Data Tidak ditemukan</p>
-                                                </div>
-                                            </div>
+                            <tbody className="text-[13px] divide-y divide-gray-50 text-gray-600">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={selectedMenuId ? 8 : 9} className="py-20 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
                                         </td>
                                     </tr>
-                                </tbody>
-                            )}
+                                ) : paginatedData.length > 0 ? (
+                                    paginatedData.map((item, index) => (
+                                        <tr key={item.id || index} className="hover:bg-green-50/20 transition-colors">
+                                            <td className="px-6 py-4 font-bold text-gray-900 uppercase">{item.outletName}</td>
+                                            {!selectedMenuId && (
+                                                <td className="px-6 py-4">
+                                                    <div className="font-semibold text-gray-900">{item.productName}</div>
+                                                    <div className="text-[10px] text-gray-400 lowercase">{item.unit}</div>
+                                                </td>
+                                            )}
+                                            <td className="px-6 py-4 text-right font-medium text-gray-400">{item.stockAwal}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-green-600">+{item.stockIn}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-red-600">-{item.stockOut}</td>
+                                            <td className="px-6 py-4 text-right font-medium text-blue-600">{item.transfers > 0 ? `+${item.transfers}` : item.transfers}</td>
+                                            <td className="px-6 py-4 text-right font-medium text-gray-500">{item.adjustment > 0 ? `+${item.adjustment}` : item.adjustment}</td>
+                                            <td className="px-6 py-4 text-right font-extrabold text-gray-900">{item.stockAkhir}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-gray-700 font-mono">{formatCurrency(item.stockAkhir * item.price)}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={selectedMenuId ? 8 : 9} className="py-20 text-center text-gray-400 font-medium italic">Tidak ada data distribusi stok ditemukan</td>
+                                    </tr>
+                                )}
+                            </tbody>
                         </table>
                     </div>
+                </div>
 
-                    {/* Pagination */}
-                    {paginatedData.length > 0 && (
-                        <div className="flex justify-between items-center mt-4">
-                            <span className="text-sm text-gray-600">
-                                Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                            </span>
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Berikutnya
-                                </button>
+                {/* Pagination */}
+                {filteredData.length > ITEMS_PER_PAGE && (
+                    <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                        <p className="text-[13px] text-gray-500">
+                            Menampilkan <span className="font-semibold text-gray-900">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> sampai <span className="font-semibold text-gray-900">{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</span> dari <span className="font-semibold text-gray-900">{filteredData.length}</span> data
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setCurrentPage(c => Math.max(1, c - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 text-sm border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                            >
+                                Sebelumnya
+                            </button>
+                            <div className="flex items-center px-4 text-sm font-medium text-gray-700">
+                                {currentPage} / {totalPages}
                             </div>
+                            <button
+                                onClick={() => setCurrentPage(c => Math.min(totalPages, c + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 text-sm border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                            >
+                                Berikutnya
+                            </button>
                         </div>
-                    )}
-                </div>
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-export default OutletCardManagement;  
+export default OutletCardManagement;

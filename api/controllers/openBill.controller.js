@@ -6,6 +6,44 @@ import Table from '../models/Table.model.js';
 import Area from '../models/Area.model.js';
 import Payment from '../models/Payment.model.js';
 import Joi from 'joi';
+import { Log } from '../models/Log.model.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: simpan audit log ke database
+// ─────────────────────────────────────────────────────────────────────────────
+const createAuditLog = async ({
+  req,
+  action,
+  description,
+  status = 'SUCCESS',
+  metadata = {}
+}) => {
+  try {
+    const cashierId = req.body?.cashierId || req.user?._id || req.user?.id || null;
+    const cashierName = req.body?.cashierName || req.user?.username || req.user?.name || 'unknown';
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const userAgent = req.get('User-Agent') || 'unknown';
+
+    await Log.create({
+      userId: cashierId,
+      identifier: cashierName,
+      action,
+      module: 'Open Bill',
+      description,
+      status,
+      ip,
+      userAgent,
+      metadata: {
+        ...metadata,
+        cashierName,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (logErr) {
+    // Jangan crash controller karena log gagal
+    console.error('⚠️  [AUDIT LOG FAILED]', logErr.message);
+  }
+};
 
 // Helper untuk get WIB time sekarang
 const getWIBNow = () => {
@@ -136,10 +174,52 @@ export const getOpenBills = async (req, res) => {
       });
     }
 
-    // Kode original untuk orders saja...
-    // ...
+    // ── Path default: query orders saja tanpa reservasi
+    if (table_number) query.tableNumber = table_number;
+    if (area_id && mongoose.Types.ObjectId.isValid(area_id)) {
+      // Cari reservations yang punya area_id tsb dulu, kemudian filter orders
+      const reservationIds = await Reservation.distinct('_id', { area_id });
+      query.reservation = { $in: reservationIds };
+    }
+
+    const [orders, total] = await Promise.all([
+      Order.find(query)
+        .populate('reservation')
+        .populate('items.menuItem')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * parseInt(limit))
+        .limit(parseInt(limit))
+        .lean(),
+      Order.countDocuments(query)
+    ]);
+
+    // ── Audit log sukses
+    await createAuditLog({
+      req,
+      action: 'GET_OPEN_BILLS',
+      description: `Kasir melihat daftar open bills — ${orders.length} order ditemukan`,
+      metadata: { page, limit, status, area_id, table_number, total }
+    });
+
+    return res.json({
+      success: true,
+      data: orders,
+      pagination: {
+        current: parseInt(page),
+        pages: Math.ceil(total / parseInt(limit)),
+        total
+      }
+    });
+
   } catch (error) {
     console.error('❌ Error:', error);
+    await createAuditLog({
+      req,
+      action: 'GET_OPEN_BILLS',
+      description: `Gagal mengambil daftar open bills: ${error.message}`,
+      status: 'FAILED',
+      metadata: { error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error getting open bills',
@@ -191,6 +271,14 @@ export const getOpenBillById = async (req, res) => {
 
     console.log(`✅ Open bill detail loaded: ${order.order_id}`);
 
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'GET_OPEN_BILL_DETAIL',
+      description: `Kasir melihat detail open bill order ${order.order_id}`,
+      metadata: { orderId: id, order_id: order.order_id, status: order.status }
+    });
+
     res.json({
       success: true,
       data: order
@@ -198,6 +286,13 @@ export const getOpenBillById = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error getting open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'GET_OPEN_BILL_DETAIL',
+      description: `Gagal mengambil detail open bill ID ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error getting open bill',
@@ -273,12 +368,23 @@ export const addItemToOpenBill = async (req, res) => {
       });
     }
 
-    if (order.status === 'Completed' || order.status === 'Canceled') {
+    if (order.status === 'Completed' || order.status === 'Canceled' || order.status === 'Paid') {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
         message: 'Cannot add items to completed or canceled order'
+      });
+    }
+
+    // ✅ TAMBAHAN: Cek apakah sudah ada payment (defense in depth)
+    const hasPaidCheck = order.payments && order.payments.length > 0;
+    if (hasPaidCheck) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot add items to an order that already has payment records (FRAUD PREVENTION)'
       });
     }
 
@@ -345,6 +451,27 @@ export const addItemToOpenBill = async (req, res) => {
 
     console.log(`✅ Item added to order ${order.order_id}`);
 
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'ADD_ITEM_OPEN_BILL',
+      description: `Kasir menambah item "${menuItemDoc.name}" x${quantity} ke order ${order.order_id}`,
+      metadata: {
+        orderId: id,
+        order_id: order.order_id,
+        menuItemId: menuItem,
+        menuItemName: menuItemDoc.name,
+        quantity,
+        calculatedSubtotal,
+        itemPrice,
+        providedSubtotalFromFrontend: value.subtotal,
+        dineType,
+        notes,
+        guestName,
+        grandTotalAfter: order.grandTotal
+      }
+    });
+
     // Populate the updated order
     const updatedOrder = await Order.findById(id)
       .populate('reservation')
@@ -360,6 +487,13 @@ export const addItemToOpenBill = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('❌ Error adding item to open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'ADD_ITEM_OPEN_BILL',
+      description: `Gagal menambah item ke open bill ID ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, body: req.body, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error adding item to open bill',
@@ -368,70 +502,112 @@ export const addItemToOpenBill = async (req, res) => {
   }
 };
 
-// Remove item from open bill - FIXED VERSION
+// Remove item from open bill — SOFT DELETE VERSION (Fraud Prevention)
 export const removeItemFromOpenBill = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const { id, itemId } = req.params;
+    // Ambil audit context dari request body
+    const { reason, cashierId, cashierName } = req.body;
 
-    // Validasi ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    // Validasi: reason wajib diisi
+    if (!reason || reason.trim() === '') {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'Invalid order ID format'
+        message: 'Alasan penghapusan item wajib diisi (field: reason)'
       });
     }
 
-    console.log('➖ Removing item from open bill:', { orderId: id, itemId });
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(itemId)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid order ID or item ID format'
+      });
+    }
+
+    console.log('➖ [SOFT DELETE] Cancelling item from open bill:', { orderId: id, itemId, reason, cashierId });
 
     const order = await Order.findById(id).session(session);
     if (!order) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
     if (!order.isOpenBill) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({
-        success: false,
-        message: 'This is not an open bill order'
-      });
+      return res.status(400).json({ success: false, message: 'This is not an open bill order' });
     }
 
-    if (order.status === 'Completed' || order.status === 'Canceled') {
+    // ✅ CRITICAL: Cek status DAN payment — double defense
+    const hasPaid = order.payments && order.payments.length > 0;
+    if (order.status === 'Completed' || order.status === 'Canceled' || order.status === 'Paid' || hasPaid) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'Cannot remove items from completed or canceled order'
+        message: 'Tidak dapat mengubah order yang sudah Completed/Paid (FRAUD PREVENTION)'
       });
     }
 
-    // Find and remove the item
-    const itemIndex = order.items.findIndex(item => item._id.toString() === itemId);
-    if (itemIndex === -1) {
+    // Cari item dalam order
+    const targetItem = order.items.id(itemId);
+    if (!targetItem) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(404).json({
-        success: false,
-        message: 'Item not found in order'
-      });
+      return res.status(404).json({ success: false, message: 'Item not found in order' });
     }
 
-    order.items.splice(itemIndex, 1);
+    // ✅ Cek sudah di-cancel sebelumnya
+    if (targetItem.isCancelled) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ success: false, message: 'Item sudah dibatalkan sebelumnya' });
+    }
 
-    // Recalculate totals
-    const itemsTotal = order.items.reduce((sum, item) => sum + item.subtotal, 0);
-    const customAmountTotal = order.customAmountItems.reduce((sum, item) => sum + item.amount, 0);
+    // Simpan snapshot item sebelum di-cancel
+    const cancelledItemSnapshot = {
+      menuItemId: targetItem.menuItem,
+      menuItemName: targetItem.menuItemData?.name || 'Unknown',
+      quantity: targetItem.quantity,
+      subtotal: targetItem.subtotal,
+      unitPrice: targetItem.quantity > 0 ? Math.round(targetItem.subtotal / targetItem.quantity) : 0,
+      cancelledAt: getWIBNow()
+    };
+
+    // ✅ SOFT DELETE — mark sebagai cancelled, JANGAN hapus dari array
+    const effectiveCashierId = cashierId || req.user?._id || req.user?.id || null;
+    targetItem.isCancelled = true;
+    targetItem.cancelledAt = getWIBNow();
+    targetItem.cancelledBy = mongoose.Types.ObjectId.isValid(effectiveCashierId) ? effectiveCashierId : null;
+    targetItem.cancellationReason = reason.trim();
+
+    // ✅ Catat di modificationHistory
+    if (!order.modificationHistory) order.modificationHistory = [];
+    order.modificationHistory.push({
+      action: 'item_deleted',
+      itemId: itemId,
+      itemDetails: cancelledItemSnapshot,
+      reason: reason.trim(),
+      cashierId: effectiveCashierId,
+      timestamp: getWIBNow(),
+      deletedItemPrice: targetItem.subtotal,
+      itemQuantity: targetItem.quantity
+    });
+
+    // Recalculate totals — HANYA dari item yang TIDAK cancelled
+    const itemsTotal = order.items
+      .filter(item => !item.isCancelled)
+      .reduce((sum, item) => sum + (item.subtotal || 0), 0);
+    const customAmountTotal = order.customAmountItems.reduce((sum, item) => sum + (item.amount || 0), 0);
 
     order.totalBeforeDiscount = itemsTotal;
     order.totalAfterDiscount = itemsTotal;
@@ -441,7 +617,30 @@ export const removeItemFromOpenBill = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    console.log(`✅ Item removed from order ${order.order_id}`);
+    console.log(`✅ [SOFT DELETE] Item cancelled in order ${order.order_id}`, {
+      cancelledItem: cancelledItemSnapshot,
+      reason,
+      cashierId: effectiveCashierId,
+      newGrandTotal: order.grandTotal
+    });
+
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'REMOVE_ITEM_OPEN_BILL',
+      description: `Kasir ${cashierName || effectiveCashierId || 'unknown'} membatalkan item "${cancelledItemSnapshot.menuItemName}" x${cancelledItemSnapshot.quantity} (Rp${cancelledItemSnapshot.subtotal}) dari order ${order.order_id}. Alasan: ${reason}`,
+      metadata: {
+        orderId: id,
+        order_id: order.order_id,
+        itemId,
+        cancelledItem: cancelledItemSnapshot,
+        reason,
+        cashierIdFromBody: cashierId,
+        cashierName: cashierName || 'unknown',
+        grandTotalAfter: order.grandTotal,
+        softDelete: true
+      }
+    });
 
     const updatedOrder = await Order.findById(id)
       .populate('reservation')
@@ -449,7 +648,7 @@ export const removeItemFromOpenBill = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Item removed successfully',
+      message: 'Item berhasil dibatalkan (soft delete — data tetap tersimpan untuk audit)',
       data: updatedOrder
     });
 
@@ -457,6 +656,13 @@ export const removeItemFromOpenBill = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('❌ Error removing item from open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'REMOVE_ITEM_OPEN_BILL',
+      description: `Gagal menghapus item dari open bill ID ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, itemId: req.params.itemId, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error removing item from open bill',
@@ -531,12 +737,23 @@ export const addCustomAmountToOpenBill = async (req, res) => {
       });
     }
 
-    if (order.status === 'Completed' || order.status === 'Canceled') {
+    if (order.status === 'Completed' || order.status === 'Canceled' || order.status === 'Paid') {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
         message: 'Cannot add custom amount to completed or canceled order'
+      });
+    }
+
+    // ✅ TAMBAHAN: Cek apakah sudah ada payment
+    const hasPaidCA = order.payments && order.payments.length > 0;
+    if (hasPaidCA) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot add custom amount to an order that already has payment records (FRAUD PREVENTION)'
       });
     }
 
@@ -568,6 +785,21 @@ export const addCustomAmountToOpenBill = async (req, res) => {
 
     console.log(`✅ Custom amount added to order ${order.order_id}`);
 
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'ADD_CUSTOM_AMOUNT_OPEN_BILL',
+      description: `Kasir menambah custom amount "${value.name}" Rp${value.amount} ke order ${order.order_id}`,
+      metadata: {
+        orderId: id,
+        order_id: order.order_id,
+        customAmountName: value.name,
+        amount: value.amount,
+        dineType: value.dineType,
+        grandTotalAfter: order.grandTotal
+      }
+    });
+
     // Populate the updated order
     const updatedOrder = await Order.findById(id)
       .populate('reservation')
@@ -583,6 +815,13 @@ export const addCustomAmountToOpenBill = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('❌ Error adding custom amount to open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'ADD_CUSTOM_AMOUNT_OPEN_BILL',
+      description: `Gagal menambah custom amount ke open bill ID ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, body: req.body, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error adding custom amount to open bill',
@@ -684,6 +923,21 @@ export const updateCustomAmountInOpenBill = async (req, res) => {
 
     console.log(`✅ Custom amount updated in order ${order.order_id}`);
 
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'UPDATE_CUSTOM_AMOUNT_OPEN_BILL',
+      description: `Kasir mengupdate custom amount "${name}" Rp${amount} (ID: ${customAmountId}) di order ${order.order_id}`,
+      metadata: {
+        orderId: id,
+        order_id: order.order_id,
+        customAmountId,
+        updatedAmount: amount,
+        updatedName: name,
+        grandTotalAfter: order.grandTotal
+      }
+    });
+
     // Populate the updated order
     const updatedOrder = await Order.findById(id)
       .populate('reservation')
@@ -699,6 +953,13 @@ export const updateCustomAmountInOpenBill = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('❌ Error updating custom amount in open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'UPDATE_CUSTOM_AMOUNT_OPEN_BILL',
+      description: `Gagal update custom amount ID ${req.params.customAmountId} di open bill ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, customAmountId: req.params.customAmountId, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error updating custom amount in open bill',
@@ -750,6 +1011,17 @@ export const removeCustomAmountFromOpenBill = async (req, res) => {
       });
     }
 
+    // ✅ CRITICAL FIX: Block modification pada order yang sudah dibayar
+    const hasPaid = order.payments && order.payments.length > 0;
+    if (order.status === 'Completed' || order.status === 'Canceled' || order.status === 'Paid' || hasPaid) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: `Cannot remove custom amount from ${order.status} or paid order (FRAUD PREVENTION)`
+      });
+    }
+
     // Find and remove the custom amount item
     const customAmountItem = order.customAmountItems.id(customAmountId);
     if (!customAmountItem) {
@@ -778,6 +1050,21 @@ export const removeCustomAmountFromOpenBill = async (req, res) => {
 
     console.log(`✅ Custom amount removed from order ${order.order_id}`);
 
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'REMOVE_CUSTOM_AMOUNT_OPEN_BILL',
+      description: `Kasir menghapus custom amount ID ${customAmountId} dari order ${order.order_id}`,
+      metadata: {
+        orderId: id,
+        order_id: order.order_id,
+        customAmountId,
+        removedAmount: customAmountItem.amount,
+        removedName: customAmountItem.name,
+        grandTotalAfter: order.grandTotal
+      }
+    });
+
     // Populate the updated order
     const updatedOrder = await Order.findById(id)
       .populate('reservation')
@@ -793,6 +1080,13 @@ export const removeCustomAmountFromOpenBill = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('❌ Error removing custom amount from open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'REMOVE_CUSTOM_AMOUNT_OPEN_BILL',
+      description: `Gagal hapus custom amount ID ${req.params.customAmountId} dari open bill ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, customAmountId: req.params.customAmountId, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error removing custom amount from open bill',
@@ -843,6 +1137,20 @@ export const getCustomAmountFromOpenBill = async (req, res) => {
       });
     }
 
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'GET_CUSTOM_AMOUNT_OPEN_BILL',
+      description: `Kasir melihat custom amount ID ${customAmountId} dari order ${order.order_id}`,
+      metadata: {
+        orderId: id,
+        order_id: order.order_id,
+        customAmountId,
+        customAmountName: customAmountItem.name,
+        amount: customAmountItem.amount
+      }
+    });
+
     res.json({
       success: true,
       data: customAmountItem
@@ -850,6 +1158,13 @@ export const getCustomAmountFromOpenBill = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error getting custom amount from open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'GET_CUSTOM_AMOUNT_OPEN_BILL',
+      description: `Gagal mengambil custom amount ID ${req.params.customAmountId} dari open bill ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, customAmountId: req.params.customAmountId, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error getting custom amount from open bill',
@@ -957,11 +1272,37 @@ export const closeOpenBill = async (req, res) => {
       });
     }
 
-    // PERBAIKAN: Update order status menjadi "Pending" untuk pembayaran di kasir
-    order.status = 'Pending';
+    // ✅ CRITICAL FIX: Status harus 'Completed' BUKAN 'Pending'
+    // Alasan: openBill removeItem cek 'Completed' — jika 'Pending' maka item bisa dihapus setelah bayar (FRAUD!)
+    order.status = 'Completed';
     order.isOpenBill = false;
     order.paymentMethod = payment_method;
     order.change = change || 0;
+
+    // ✅ TAMBAHAN: Audit trail — siapa, kapan, dan dari mana close terjadi
+    order.openBillStatus = 'closed';
+    order.openBillClosedAt = getWIBNow();
+    const cashierIdFromReq = req.body.cashierId || req.user?._id || null;
+    const cashierNameFromReq = req.body.cashierName || req.user?.username || 'unknown';
+    order.closedBy = mongoose.Types.ObjectId.isValid(cashierIdFromReq) ? cashierIdFromReq : null;
+    order.closedByName = cashierNameFromReq;
+    order.paidAmount = amount_paid;
+
+    // ✅ TAMBAHAN: Catat dalam modificationHistory
+    if (!order.modificationHistory) order.modificationHistory = [];
+    order.modificationHistory.push({
+      action: 'status_changed',
+      reason: `Bill ditutup oleh: ${cashierNameFromReq}`,
+      cashierId: cashierIdFromReq,
+      timestamp: getWIBNow(),
+      details: {
+        previousStatus: order.status,
+        newStatus: 'Completed',
+        grandTotal: order.grandTotal,
+        amountPaid: amount_paid,
+        paymentMethod: payment_method
+      }
+    });
 
     // Tambahkan catatan jika ada
     if (final_notes && final_notes.trim() !== '') {
@@ -979,15 +1320,26 @@ export const closeOpenBill = async (req, res) => {
       }
     }
 
-    // PERBAIKAN: Create payment record dengan struktur yang benar
+    // ✅ TAMBAHAN: Buat snapshot HANYA dari items AKTIF (tidak cancelled) saat pembayaran — immutable untuk reconciliation
+    const itemsSnapshot = order.items
+      .filter(item => !item.isCancelled)
+      .map(item => ({
+        menuItemId: item.menuItem,
+        menuItemName: item.menuItemData?.name || 'Unknown',
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        unitPrice: item.quantity > 0 ? Math.round(item.subtotal / item.quantity) : 0,
+        notes: item.notes || ''
+      }));
+
     const paymentCode = `PAY-${order.order_id}-${Date.now()}`;
 
     const paymentRecord = new Payment({
       order_id: order.order_id,
-      order: order._id, // Tambahkan reference ke order
+      order: order._id,
       payment_code: paymentCode,
       method: payment_method,
-      status: 'pending',
+      status: 'completed',
       paymentType: 'Full',
       amount: order.grandTotal,
       totalAmount: order.grandTotal,
@@ -997,7 +1349,18 @@ export const closeOpenBill = async (req, res) => {
       tendered_amount: amount_paid,
       change_amount: change || 0,
       currency: 'IDR',
-      // Tambahan field untuk tracking
+      // ✅ Snapshot immutable untuk reconciliation audit
+      itemsSnapshot: itemsSnapshot,
+      itemCountSnapshot: itemsSnapshot.length, // hanya item aktif
+      totalSnapshot: {
+        grandTotal: order.grandTotal,
+        totalBeforeDiscount: order.totalBeforeDiscount,
+        totalAfterDiscount: order.totalAfterDiscount
+      },
+      // ✅ Audit: siapa yang proses pembayaran
+      paidBy: mongoose.Types.ObjectId.isValid(cashierIdFromReq) ? cashierIdFromReq : null,
+      paidByName: cashierNameFromReq,
+      paidAt: getWIBNow(),
       created_at: getWIBNow(),
       updated_at: getWIBNow()
     });
@@ -1007,8 +1370,28 @@ export const closeOpenBill = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    console.log(`✅ Order ${order.order_id} closed successfully with Pending status`);
-    console.log(`✅ Payment record created: ${paymentRecord._id}`);
+    console.log(`✅ Order ${order.order_id} closed successfully with Completed status [FRAUD PREVENTION ACTIVE]`);
+    console.log(`✅ Payment record created: ${paymentRecord._id} | Cashier: ${cashierNameFromReq}`);
+
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'CLOSE_OPEN_BILL',
+      description: `Kasir ${cashierNameFromReq} menutup open bill order ${order.order_id} | Metode: ${payment_method} | Total: Rp${order.grandTotal} | Dibayar: Rp${amount_paid}`,
+      metadata: {
+        orderId: id,
+        order_id: order.order_id,
+        cashierIdFromBody: cashierIdFromReq,
+        cashierName: cashierNameFromReq,
+        payment_method,
+        grandTotal: order.grandTotal,
+        amount_paid,
+        change: change || 0,
+        paymentRecordId: paymentRecord._id,
+        paymentCode: paymentRecord.payment_code,
+        itemCount: order.items.length
+      }
+    });
 
     // Populate the updated order untuk response
     const updatedOrder = await Order.findById(id)
@@ -1028,6 +1411,13 @@ export const closeOpenBill = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('❌ Error closing open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'CLOSE_OPEN_BILL',
+      description: `Gagal menutup open bill ID ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, body: req.body, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error closing open bill',
@@ -1088,10 +1478,33 @@ export const cancelOpenBill = async (req, res) => {
     // Update order status
     order.status = 'Canceled';
     order.isOpenBill = false;
+    order.openBillStatus = 'closed';
+    order.openBillClosedAt = getWIBNow();
+
+    // ✅ Siapa yang cancel
+    const cancelCashierId = req.body?.cashierId || req.user?._id || req.user?.id || null;
+    const cancelCashierName = req.body?.cashierName || req.user?.username || req.user?.name || 'unknown';
+    order.closedBy = mongoose.Types.ObjectId.isValid(cancelCashierId) ? cancelCashierId : null;
+    order.closedByName = cancelCashierName;
 
     if (cancellation_reason) {
       order.cancellationReason = cancellation_reason;
     }
+
+    // ✅ Catat di modificationHistory
+    if (!order.modificationHistory) order.modificationHistory = [];
+    order.modificationHistory.push({
+      action: 'status_changed',
+      reason: `Bill dibatalkan oleh: ${cancelCashierName}. Alasan: ${cancellation_reason || 'tidak disebutkan'}`,
+      cashierId: cancelCashierId,
+      timestamp: getWIBNow(),
+      details: {
+        previousStatus: 'active',
+        newStatus: 'Canceled',
+        grandTotal: order.grandTotal,
+        cancellation_reason: cancellation_reason || null
+      }
+    });
 
     // Update reservation status jika exists
     if (order.reservation) {
@@ -1108,6 +1521,22 @@ export const cancelOpenBill = async (req, res) => {
 
     console.log(`✅ Order ${order.order_id} canceled successfully`);
 
+    // ── Audit log
+    await createAuditLog({
+      req,
+      action: 'CANCEL_OPEN_BILL',
+      description: `Kasir ${cancelCashierName} membatalkan open bill order ${order.order_id}. Alasan: ${cancellation_reason || 'tidak disebutkan'}`,
+      metadata: {
+        orderId: id,
+        order_id: order.order_id,
+        cashierIdFromBody: cancelCashierId,
+        cashierName: cancelCashierName,
+        cancellation_reason: cancellation_reason || null,
+        previousStatus: 'active',
+        newStatus: 'Canceled'
+      }
+    });
+
     res.json({
       success: true,
       message: 'Order canceled successfully'
@@ -1117,6 +1546,13 @@ export const cancelOpenBill = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('❌ Error canceling open bill:', error);
+    await createAuditLog({
+      req,
+      action: 'CANCEL_OPEN_BILL',
+      description: `Gagal membatalkan open bill ID ${req.params.id}: ${error.message}`,
+      status: 'FAILED',
+      metadata: { orderId: req.params.id, error: error.message }
+    });
     res.status(500).json({
       success: false,
       message: 'Error canceling open bill',

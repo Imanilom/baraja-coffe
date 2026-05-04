@@ -17,7 +17,7 @@ import {
     FaPlus,
     FaTrash
 } from "react-icons/fa";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { useSelector } from "react-redux";
 
 const CreateCustomer = () => {
@@ -118,7 +118,7 @@ const CreateCustomer = () => {
                 }
             );
 
-            console.log("Customer created:", response.data);
+            // console.log("Customer created:", response.data);
             alert("Pelanggan berhasil ditambahkan!");
             navigate("/admin/customers");
         } catch (err) {

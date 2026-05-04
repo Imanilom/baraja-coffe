@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import Select from "react-select";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle, FaChevronLeft, FaPencilAlt, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-import { get } from "mongoose";
+
 import Header from "../../admin/header";
 import MessageAlert from "../messageAlert";
 import Paginated from "../../../components/paginated";
@@ -72,16 +72,6 @@ const ProductionListManagement = () => {
 
     const dropdownRef = useRef(null);
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
-
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
-
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
-
-    // Fetch products and outlets data
     const fetchProducts = async () => {
         setLoading(true);
         try {
@@ -239,30 +229,33 @@ const ProductionListManagement = () => {
     const exportToExcel = () => {
         // Prepare data for export
         const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
             return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
+                "Nama Produk": product.name || "-",
+                "SKU": product.sku || "-",
+                "Kategori": product.category || "-",
+                "Supplier": product.suppliers?.map(s => s.supplierName).join(", ") || "-",
+                "Min. Permintaan": product.minimumrequest || 0,
+                "Limit Permintaan": product.limitperrequest || 0,
+                "Satuan": product.unit || "-"
             };
         });
+
+        if (dataToExport.length === 0) {
+            alert("Tidak ada data untuk diekspor");
+            return;
+        }
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
 
         // Set auto width untuk tiap kolom
         const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
+            wch: Math.max(key.length + 2, 20)
         }));
-        worksheet['!cols'] = columnWidths;
+        ws['!cols'] = columnWidths;
 
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Limit Permintaan");
+        XLSX.writeFile(wb, `Limit_Permintaan_${dayjs().format('YYYY-MM-DD')}.xlsx`);
     };
 
 
@@ -304,12 +297,20 @@ const ProductionListManagement = () => {
                     <span>Limit Permintaan</span>
                 </h1>
 
-                <Link
-                    to="/admin/inventory/production-create"
-                    className="w-full sm:w-auto bg-[#005429] flex items-center gap-2 text-white px-4 py-2 rounded border border-[#005429] text-[13px]"
-                >
-                    <FaPlus /> Tambah
-                </Link>
+                <div className="flex gap-2">
+                    <button
+                        onClick={exportToExcel}
+                        className="bg-white text-[#005429] flex items-center gap-2 px-4 py-2 rounded border border-[#005429] text-[13px] hover:bg-gray-50"
+                    >
+                        <FaBoxes /> Ekspor
+                    </button>
+                    <Link
+                        to="/admin/inventory/production-create"
+                        className="bg-[#005429] flex items-center gap-2 text-white px-4 py-2 rounded border border-[#005429] text-[13px] hover:bg-[#004220]"
+                    >
+                        <FaPlus /> Tambah
+                    </Link>
+                </div>
             </div>
 
             <MessageAlert />

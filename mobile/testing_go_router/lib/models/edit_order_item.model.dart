@@ -15,6 +15,7 @@ abstract class EditOrderItemModel with _$EditOrderItemModel {
     @HiveField(2) @Default([]) List<OrderItemModel>? originalItems,
     @HiveField(3) @Default(false) bool isSubmitting,
     @HiveField(4) @Default(null) String? error,
+    @HiveField(5) @Default([]) List<OrderItemModel>? itemsToDelete,
   }) = _EditOrderItemModel;
 
   factory EditOrderItemModel.fromJson(Map<String, dynamic> json) =>

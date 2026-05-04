@@ -24,7 +24,8 @@ class ApiResponseHandler {
           return Exception("Server error: Coba lagi nanti.");
         default:
           return Exception(
-              "Error ${error.response?.statusCode}: ${error.response?.data['message']}");
+            "Error ${error.response?.statusCode}: ${error.response?.data['message']}",
+          );
       }
     } else {
       // 🔹 Error jaringan atau server tidak merespons

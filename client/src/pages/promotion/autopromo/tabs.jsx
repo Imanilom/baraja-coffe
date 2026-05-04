@@ -26,7 +26,7 @@ export default function PromoTabs({ activeTab, handleTabChange, totalAktif, tota
             </div>
 
             {/* CSS langsung di file ini */}
-            <style jsx>{`
+            <style>{`
         .scrollbar-visible::-webkit-scrollbar {
           height: 0; /* tinggi scrollbar horizontal */
         }

@@ -172,7 +172,7 @@ export const midtransWebhook = async (req, res) => {
             } else {
               // Untuk order reguler
               orderUpdateData = {
-                paymentStatus: 'Paid',
+                paymentStatus: 'Settlement',
                 status: order.status === 'Pending' ? 'Pending' : order.status
               };
               console.log(`[WEBHOOK ${requestId}] Payment successful for regular order ${targetOrderId}`);
@@ -210,6 +210,13 @@ export const midtransWebhook = async (req, res) => {
         default:
           console.warn(`[WEBHOOK ${requestId}] Unhandled transaction status: ${transaction_status}`);
       }
+
+      //check order status
+      console.log(`[WEBHOOK ${requestId}] Order ${targetOrderId} status order bang:`, order.status);
+      console.log(`[WEBHOOK ${requestId}] Order ${targetOrderId} paymentStatus:`, order.paymentStatus);
+      console.log(`[WEBHOOK ${requestId}] Order ${targetOrderId} orderType:`, order.orderType);
+      console.log(`[WEBHOOK ${requestId}] Order ${targetOrderId} reservation:`, order.reservation);
+      console.log(`[WEBHOOK ${requestId}] Order ${targetOrderId} reservation:`, order.reservation);
 
       // Update order jika diperlukan
       if (shouldUpdateOrder) {

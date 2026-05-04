@@ -1,6 +1,14 @@
 import mongoose from 'mongoose';
 
+// Helper function untuk mendapatkan waktu WIB sekarang
+const getWIBNow = () => {
+  const now = new Date();
+  // Convert to WIB (UTC+7)
+  return new Date(now.getTime() + (7 * 60 * 60 * 1000));
+};
+
 const PaymentSchema = new mongoose.Schema({
+
   // Basic payment info
   order_id: { type: String, ref: 'Order', required: true },
   payment_code: { type: String },
@@ -79,7 +87,62 @@ const PaymentSchema = new mongoose.Schema({
   },
   notes: {
     type: String
-  }
+  },
+
+  // Waktu dalam WIB
+  createdAtWIB: {
+    type: Date,
+    default: () => getWIBNow()
+  },
+  updatedAtWIB: {
+    type: Date,
+    default: () => getWIBNow()
+  },
+
+  // ✅ FRAUD PREVENTION: Referensi ke Order document
+  order: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+    default: null
+  },
+
+  // ✅ FRAUD PREVENTION: Amount yang benar-benar diterima dari customer
+  amount_paid: {
+    type: Number,
+    default: 0
+  },
+
+  // ✅ FRAUD PREVENTION: Siapa kasir yang melakukan pembayaran
+  paidBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  paidByName: {
+    type: String,
+    default: null
+  },
+
+  // ✅ FRAUD PREVENTION: Snapshot immutable items saat pembayaran terjadi
+  // Setelah tersimpan, ini tidak boleh berubah — untuk reconciliation
+  itemsSnapshot: [{
+    menuItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+    menuItemName: { type: String },
+    quantity: { type: Number },
+    unitPrice: { type: Number },
+    subtotal: { type: Number },
+    notes: { type: String, default: '' }
+  }],
+  itemCountSnapshot: {
+    type: Number,
+    default: 0
+  },
+  totalSnapshot: {
+    grandTotal: { type: Number },
+    totalBeforeDiscount: { type: Number },
+    totalAfterDiscount: { type: Number }
+  },
+
 }, {
   timestamps: true
 });

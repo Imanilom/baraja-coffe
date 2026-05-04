@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -137,7 +137,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final notifier = ref.read(orderDetailProvider.notifier);
 
     if (orderDetail == null) {
-      notifier.initializeOrder(orderType: OrderType.dineIn);
+      notifier.initializeOrder(orderType: OrderTypeModel.dineIn);
     }
 
     final List<AddonModel> selectedAddons =
@@ -188,7 +188,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final notifier = ref.read(orderDetailProvider.notifier);
 
     if (orderDetail == null) {
-      notifier.initializeOrder(orderType: OrderType.dineIn);
+      notifier.initializeOrder(orderType: OrderTypeModel.dineIn);
     }
     // Panggil dialog
     showModalBottomSheet(
@@ -197,7 +197,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
       backgroundColor: Colors.transparent,
       builder:
           (context) => AddCustomAmountDialog(
-            orderType: OrderType.dineIn, // opsional
+            orderType: OrderTypeModel.dineIn, // opsional
             onAddCustomAmount: (customAmountItem) {
               notifier.addCustomAmountItem(customAmountItem);
             },
@@ -365,7 +365,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                                                 orderDetailNotifier
                                                     .initializeOrder(
                                                       orderType:
-                                                          OrderType.dineIn,
+                                                          OrderTypeModel.dineIn,
                                                     );
 
                                                 await orderDetailNotifier

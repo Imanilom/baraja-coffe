@@ -24,13 +24,17 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       items:
           fields[4] == null ? [] : (fields[4] as List).cast<OrderItemModel>(),
       status:
-          fields[5] == null ? OrderStatus.unknown : fields[5] as OrderStatus,
+          fields[5] == null
+              ? OrderStatusModel.unknown
+              : fields[5] as OrderStatusModel,
       paymentMethod: fields[6] == null ? null : fields[6] as String?,
-      orderType: fields[7] as OrderType,
+      orderType: fields[7] as OrderTypeModel,
       deliveryAddress: fields[8] == null ? '' : fields[8] as String,
       tableNumber: fields[9] == null ? '' : fields[9] as String?,
       type:
-          fields[10] == null ? LocationType.indoor : fields[10] as LocationType,
+          fields[10] == null
+              ? LocationTypeModel.indoor
+              : fields[10] as LocationTypeModel,
       outlet: fields[11] as String?,
       discounts: fields[12] as DiscountModel?,
       appliedPromos:
@@ -191,16 +195,16 @@ _OrderDetailModel _$OrderDetailModelFromJson(
       const [],
   status:
       json['status'] == null
-          ? OrderStatus.unknown
-          : OrderStatusExtension.fromString(json['status'] as String),
+          ? OrderStatusModel.unknown
+          : OrderStatusModel.fromString(json['status'] as String),
   paymentMethod: json['paymentMethod'] as String? ?? null,
-  orderType: OrderTypeExtension.fromString(json['orderType'] as String),
+  orderType: OrderTypeModel.fromString(json['orderType'] as String),
   deliveryAddress: json['deliveryAddress'] as String? ?? '',
   tableNumber: json['tableNumber'] as String? ?? '',
   type:
       json['type'] == null
-          ? LocationType.indoor
-          : LocationTypeExtension.fromString(json['type'] as String),
+          ? LocationTypeModel.indoor
+          : LocationTypeModel.fromString(json['type'] as String),
   outlet: json['outlet'] as String?,
   discounts:
       json['discounts'] == null
@@ -280,12 +284,12 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'user': instance.user,
       'cashier': instance.cashier,
       'items': instance.items,
-      'status': OrderStatusExtension.orderStatusToJson(instance.status),
+      'status': OrderStatusModel.toJsonString(instance.status),
       'paymentMethod': instance.paymentMethod,
-      'orderType': OrderTypeExtension.orderTypeToJson(instance.orderType),
+      'orderType': OrderTypeModel.toJsonString(instance.orderType),
       'deliveryAddress': instance.deliveryAddress,
       'tableNumber': instance.tableNumber,
-      'type': LocationTypeExtension.locationTypeToJson(instance.type),
+      'type': LocationTypeModel.toJsonString(instance.type),
       'outlet': instance.outlet,
       'discounts': instance.discounts,
       'appliedPromos': instance.appliedPromos,

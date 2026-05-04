@@ -48,7 +48,7 @@ export async function createOrderHandler({
     }
 
     const orderResult = await createOrderWithSimpleTransaction({
-      session: shouldUseTransaction ? session : null,
+      session: session ? session : (shouldUseTransaction ? session : null),
       orderId,
       orderData,
       source,
@@ -66,7 +66,9 @@ export async function createOrderHandler({
     console.log('🔄 Verifying order in database...');
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    const verifiedOrder = await Order.findOne({ order_id: orderId });
+    const query = Order.findOne({ order_id: orderId });
+    if (session) query.session(session);
+    const verifiedOrder = await query;
     if (!verifiedOrder) {
       throw new Error(`Order ${orderId} not found in database after creation`);
     }
@@ -78,7 +80,7 @@ export async function createOrderHandler({
       itemsCount: verifiedOrder.items.length,
       customAmountItemsCount: verifiedOrder.customAmountItems.length,
       selectedPromosCount: verifiedOrder.selectedPromos?.length || 0,
-      selectedPromoDiscount: verifiedOrder.discounts?.selectedPromoDiscount || 0,
+      selectedBundleDiscount: verifiedOrder.discounts?.selectedBundleDiscount || 0,
       paymentsTotal: verifiedOrder.payments.reduce((sum, p) => sum + p.amount, 0)
     });
 
@@ -265,6 +267,8 @@ async function createOrderWithSimpleTransaction({
       paymentMethod,
       device_id,
       openBillStatus, // ✅ Extract openBillStatus
+      openBillClosedAt, // ✅ Extract openBillClosedAt
+      openBillStartedAt, // ✅ Extract openBillStartedAt
       ...cleanOrderData
     } = orderData;
 
@@ -335,7 +339,12 @@ async function createOrderWithSimpleTransaction({
     let paymentMethodData = 'Cash';
 
     if (source === 'Cashier') {
-      initialStatus = isOpenBill ? 'Waiting' : 'Waiting'; // ✅ Open bill needs "Waiting" status for workstation
+      // ✅ If closing Open Bill (Payment), status should be Completed
+      if (isOpenBill && openBillStatus === 'closed') {
+        initialStatus = 'Completed';
+      } else {
+        initialStatus = isOpenBill ? 'Waiting' : 'Waiting'; // ✅ Open bill needs "Waiting" status for workstation
+      }
 
       if (Array.isArray(orderPaymentDetails) && orderPaymentDetails.length > 0) {
         paymentMethodData = orderPaymentDetails[0].method || 'Multiple';
@@ -343,8 +352,16 @@ async function createOrderWithSimpleTransaction({
         paymentMethodData = paymentMethod || 'Cash';
       }
     } else if (source === 'App' || source === 'Web') {
+      // Changed to set status to 'Pending' for all Web orders regardless of payment method
       const isCashPayment = orderPaymentDetails?.method?.toLowerCase() === 'cash';
-      initialStatus = isCashPayment ? 'Pending' : 'Waiting';
+
+      if (source === 'Web') {
+        initialStatus = 'Pending';
+      } else {
+        // App logic remains the same
+        initialStatus = isCashPayment ? 'Pending' : 'Waiting';
+      }
+
       paymentMethodData = orderPaymentDetails?.method;
     }
 
@@ -442,6 +459,14 @@ async function createOrderWithSimpleTransaction({
       totalBeforeAdjustment: totals.afterDiscount
     });
 
+    // ✅ NEW: Validation - Max Cap for Order Level Custom Discount
+    // Ensure discount does not exceed the total after item-level discounts
+    if (orderLevelCustomDiscount > totals.afterDiscount) {
+      console.warn(`⚠️ Order custom discount (${orderLevelCustomDiscount}) exceeds total (${totals.afterDiscount}). Clamping to total.`);
+      // ignore: parameter_assignments
+      orderLevelCustomDiscount = totals.afterDiscount;
+    }
+
     // Adjust totals if order-level custom discount exists
     let adjustedTotalAfterDiscount = totals.afterDiscount;
     let adjustedGrandTotal = totals.grandTotal;
@@ -475,9 +500,46 @@ async function createOrderWithSimpleTransaction({
         originalGrandTotal: totals.grandTotal,
         adjustedGrandTotal,
         itemCustomDiscounts: discounts.itemCustomDiscounts,
-        orderLevelCustomDiscount,
-        totalCustomDiscount: discounts.itemCustomDiscounts + orderLevelCustomDiscount  // ✅ Auto-calculated
+        orderLevelCustomDiscount
       });
+    }
+
+    // ✅ FIX: Sync payments amount with adjustedGrandTotal (post-discount)
+    // Payments array was built BEFORE discount recalculation, so amounts may be stale
+    if (payments.length > 0) {
+      if (!isSplitPayment) {
+        // Single payment: amount harus = adjustedGrandTotal
+        const oldAmount = payments[0].amount;
+        payments[0].amount = adjustedGrandTotal;
+        if (oldAmount !== adjustedGrandTotal) {
+          console.log('💰 FIX: Synced single payment amount with adjusted grand total:', {
+            oldAmount,
+            newAmount: adjustedGrandTotal,
+            difference: oldAmount - adjustedGrandTotal
+          });
+        }
+      } else {
+        // Split payment: proporsional adjustment jika total berbeda
+        const currentTotal = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+        if (Math.abs(currentTotal - adjustedGrandTotal) > 1) {
+          const ratio = adjustedGrandTotal / currentTotal;
+          let runningTotal = 0;
+          payments.forEach((p, i) => {
+            if (i === payments.length - 1) {
+              // Last payment gets the remainder to avoid rounding issues
+              p.amount = adjustedGrandTotal - runningTotal;
+            } else {
+              p.amount = Math.round(p.amount * ratio);
+              runningTotal += p.amount;
+            }
+          });
+          console.log('💰 FIX: Synced split payment amounts with adjusted grand total:', {
+            oldTotal: currentTotal,
+            newTotal: adjustedGrandTotal,
+            payments: payments.map(p => ({ method: p.paymentMethod, amount: p.amount }))
+          });
+        }
+      }
     }
 
     // Prepare base order data
@@ -504,17 +566,20 @@ async function createOrderWithSimpleTransaction({
       source: source,
       source: source,
       isOpenBill: isOpenBill || false,
+      isOpenBill: isOpenBill || false,
       openBillStatus: openBillStatus || (isOpenBill ? 'active' : 'closed'), // ✅ Use passed status or default to active if open bill
+      openBillClosedAt: openBillClosedAt || null, // ✅ Add openBillClosedAt
+      openBillStartedAt: openBillStartedAt || null, // ✅ Add openBillStartedAt
       isSplitPayment: isSplitPayment,
-      splitPaymentStatus: calculateSplitPaymentStatus(payments, totals.grandTotal),
+      splitPaymentStatus: calculateSplitPaymentStatus(payments, adjustedGrandTotal),
       discounts: {
-        selectedPromoDiscount: discounts.selectedPromoDiscount || 0,  // ✅ RENAME FIELD
-        autoPromoDiscount: discounts.autoPromoDiscount || 0,
+        selectedBundleDiscount: 0,
+        autoPromoDiscount: (discounts.autoPromoDiscount || 0) + (discounts.selectedPromoDiscount || 0),  // ✅ FIX: Include bundling promo discount
         manualDiscount: discounts.manualDiscount || 0,
         voucherDiscount: discounts.voucherDiscount || 0,
         loyaltyDiscount: discounts.loyaltyDiscount || 0,
         customAmountDiscount: discounts.customAmountDiscount || 0,
-        customDiscount: discounts.itemCustomDiscounts + orderLevelCustomDiscount,  // ✅ AUTO-CALCULATED: item + order discounts
+        customDiscount: discounts.itemCustomDiscounts || 0,  // ✅ FIX: Item-level only (order-level stored in customDiscountDetails)
         total: discounts.total || 0
       },
       // ✅ NEW: Custom discount details from Flutter
@@ -601,7 +666,7 @@ async function createOrderWithSimpleTransaction({
       status: baseOrderData.status,
       totalMenuItems: baseOrderData.items.length,
       selectedPromosCount: baseOrderData.selectedPromos?.length || 0,
-      selectedPromoDiscount: baseOrderData.discounts.selectedPromoDiscount,
+      selectedBundleDiscount: baseOrderData.discounts.selectedBundleDiscount,
       grandTotal: baseOrderData.grandTotal,
       paymentsCount: baseOrderData.payments.length
     });
@@ -637,7 +702,7 @@ async function createOrderWithSimpleTransaction({
     }
 
     // Save dengan session
-    const saveOptions = useTransaction && session ? { session } : {};
+    const saveOptions = session ? { session } : {};
     await newOrder.save(saveOptions);
 
     // Log order creation success
@@ -654,7 +719,7 @@ async function createOrderWithSimpleTransaction({
     if (newOrder.selectedPromos && newOrder.selectedPromos.length > 0) {
       console.log(`🎁 Selected Promos: ${newOrder.selectedPromos.length} promos`);
       newOrder.selectedPromos.forEach(promo => {
-        console.log(`   • ${promo.promoName} (${promo.promoType}): Discount: Rp ${promo.appliedDiscount.toLocaleString('id-ID')}`);
+        console.log(`   • ${promo.promoName} (${promo.promoType}): Discount: Rp ${promo.discount.toLocaleString('id-ID')}`);
       });
     }
 
@@ -679,7 +744,7 @@ async function createOrderWithSimpleTransaction({
       orderType: newOrder.orderType,
       status: newOrder.status,
       selectedPromosCount: newOrder.selectedPromos?.length || 0,
-      selectedPromoDiscount: newOrder.discounts.selectedPromoDiscount,
+      selectedBundleDiscount: newOrder.discounts.selectedBundleDiscount,
       grandTotal: newOrder.grandTotal,
       isSplitPayment: newOrder.isSplitPayment,
       paymentsCount: newOrder.payments.length
@@ -697,7 +762,13 @@ async function createOrderWithSimpleTransaction({
       orderNumber: orderId,
       processedItems: orderItems,
       customAmountItems: processedCustomAmountItems,
-      totals: totals,
+      totals: {
+        ...totals,
+        afterDiscount: adjustedTotalAfterDiscount,
+        totalTax: adjustedTaxAmount,
+        totalServiceFee: adjustedServiceFee,
+        grandTotal: adjustedGrandTotal,
+      },
       loyalty: loyalty,
       selectedPromos: selectedPromos,  // ✅ RETURN SELECTED PROMOS
       isSplitPayment: isSplitPayment,
@@ -915,9 +986,20 @@ export async function processOrderItems({
         }
       }
       return item;
-    }).filter(item => item.quantity > 0);
+    }).filter(item => {
+      // ✅ Filter out items with 0 quantity
+      if (item.quantity <= 0) return false;
+
+      // ✅ NEW: Filter out items with active custom discount (Mutual Exclusion)
+      if (item.customDiscount?.isActive) {
+        return false;
+      }
+
+      return true;
+    });
   } else {
-    availableItemsForAutoPromo = [...orderItems];
+    // ✅ NEW: Filter out items with active custom discount (Mutual Exclusion)
+    availableItemsForAutoPromo = orderItems.filter(item => !item.customDiscount?.isActive);
   }
 
   // Tambahkan free items dari Buy X Get Y ke order items
@@ -936,18 +1018,6 @@ export async function processOrderItems({
     });
   }
 
-  // PROSES AUTO PROMO HANYA UNTUK ITEMS YANG BELUM TERPAKAI
-  const autoPromoResult = await checkAutoPromos(
-    availableItemsForAutoPromo,
-    outlet,
-    orderType
-  );
-
-  console.log('🎯 AUTO PROMO AFTER SELECTED PROMOS:', {
-    totalDiscount: autoPromoResult.totalDiscount,
-    appliedPromosCount: autoPromoResult.appliedPromos.length,
-    itemsUsed: availableItemsForAutoPromo.length
-  });
 
   // MANUAL PROMO & VOUCHER
   const promotionResults = await processAllDiscountsBeforeTax({
@@ -982,7 +1052,6 @@ export async function processOrderItems({
   // TOTAL SEMUA DISKON
   const totalAllDiscounts =
     selectedPromoResult.totalDiscount +
-    autoPromoResult.totalDiscount +
     loyaltyDiscount +
     promotionResults.autoPromoDiscount +
     promotionResults.manualDiscount +
@@ -993,7 +1062,7 @@ export async function processOrderItems({
 
   console.log('🎯 DISCOUNT BREAKDOWN:', {
     selectedPromoDiscount: selectedPromoResult.totalDiscount,
-    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    autoPromoDiscount: promotionResults.autoPromoDiscount,
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     loyaltyDiscount,
@@ -1048,7 +1117,7 @@ export async function processOrderItems({
     customAmountTotal: totalCustomAmount,
     combinedTotalBeforeDiscount,
     selectedPromoDiscount: selectedPromoResult.totalDiscount,
-    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    autoPromoDiscount: promotionResults.autoPromoDiscount,
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     loyaltyDiscount,
@@ -1075,7 +1144,7 @@ export async function processOrderItems({
     },
     discounts: {
       selectedPromoDiscount: selectedPromoResult.totalDiscount,  // ✅ RENAME FIELD
-      autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+      autoPromoDiscount: promotionResults.autoPromoDiscount,
       manualDiscount: promotionResults.manualDiscount,
       voucherDiscount: promotionResults.voucherDiscount,
       loyaltyDiscount: loyaltyDiscount,
@@ -1084,7 +1153,7 @@ export async function processOrderItems({
       total: totalAllDiscounts
     },
     promotions: {
-      appliedPromos: [...promotionResults.appliedPromos, ...autoPromoResult.appliedPromos],
+      appliedPromos: [...promotionResults.appliedPromos],
       appliedManualPromo: promotionResults.appliedPromo,
       appliedVoucher: promotionResults.voucher
     },
@@ -1270,7 +1339,12 @@ export async function processAllDiscountsBeforeTax({
   const canUsePromo = source === 'app' || source === 'cashier' || source === 'Cashier';
 
   // 1. APPLY AUTO PROMO
-  const autoPromoResult = await checkAutoPromos(orderItems, outlet, orderType);
+  let autoPromoResult = { totalDiscount: 0, appliedPromos: [] };
+  
+  // Kasir yang tidak memilih promo tidak boleh dipaksakan auto promo
+  if (source !== 'Cashier' && source !== 'cashier') {
+    autoPromoResult = await checkAutoPromos(orderItems, outlet, orderType);
+  }
   const autoPromoDiscount = autoPromoResult.totalDiscount;
 
   // 2. APPLY MANUAL PROMO

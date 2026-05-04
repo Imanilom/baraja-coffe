@@ -1,79 +1,188 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
-import { useSelector } from "react-redux";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import axios from '@/lib/axios';
+import { Link, useSearchParams } from "react-router-dom";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSync, FaFileExcel, FaSearch } from "react-icons/fa";
+import { FaArrowTrendUp, FaArrowTrendDown, FaScaleBalanced } from "react-icons/fa6";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-import Header from "../../../admin/header";
+import Select from "react-select";
 import dayjs from "dayjs";
-import Paginated from "../../../../components/paginated";
+import { useSelector, useDispatch } from "react-redux";
+import useDebounce from "@/hooks/useDebounce";
+import { setReportData } from "@/redux/report/reportSlice";
+import Paginated from "@/components/paginated";
+import Header from "@/components/Header";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const Reconciliation = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const dispatch = useDispatch();
+    const { outlets } = useSelector((state) => state.outlet);
     const { currentUser } = useSelector((state) => state.user);
-    const [cashflow, setCashflow] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
-    });
-    const [filteredData, setFilteredData] = useState([]);
+    const { operational } = useSelector((state) => state.report);
+    const cachedData = operational.reconciliation.data;
 
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    // Initial state from URL
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().startOf('month').toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
+    });
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || "");
+    const debouncedSearch = useDebounce(searchTerm, 500);
+
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1);
     const ITEMS_PER_PAGE = 50;
 
-    const dropdownRef = useRef(null);
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
 
-    // Fetch cashflow and outlets data
-    const fetchCashflow = async () => {
+    const outletOptions = useMemo(() => [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ], [outlets]);
+
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedOutlet) params.set('outletId', selectedOutlet);
+        if (debouncedSearch) params.set('q', debouncedSearch);
+        if (currentPage > 1) params.set('page', currentPage.toString());
+        setSearchParams(params, { replace: true });
+    }, [dateRange, selectedOutlet, debouncedSearch, currentPage, setSearchParams]);
+
+    useEffect(() => {
+        updateURLParams();
+    }, [updateURLParams]);
+
+    const fetchData = useCallback(async (force = false) => {
+        if (!force && cachedData.length > 0) return;
+
         setLoading(true);
         try {
-            // Fetch cashflow data
-            const cashflowResponse = await axios.get("/api/marketlist/cashflow", {
-                headers: {
-                    Authorization: `Bearer ${currentUser.token}`,
-                },
+            const start = dayjs(dateRange.startDate).format('YYYY-MM-DD');
+            const end = dayjs(dateRange.endDate).format('YYYY-MM-DD');
+
+            const response = await axios.get('/api/marketlist/cashflow', {
+                params: { start, end, outletId: selectedOutlet },
+                headers: { Authorization: `Bearer ${currentUser.token}` }
             });
-            const cashflowData = cashflowResponse.data.data ? cashflowResponse.data.data : cashflowResponse.data;
 
-            setCashflow(cashflowData || []);
-            setFilteredData(cashflowData || []);
+            const data = response.data.data || response.data || [];
+            const result = Array.isArray(data) ? data : [];
 
+            dispatch(setReportData({ category: 'operational', type: 'reconciliation', data: result }));
             setError(null);
         } catch (err) {
-            console.error("Error fetching data:", err);
-            setError("Failed to load data. Please try again later.");
-            // Set empty arrays as fallback
-            setCashflow([]);
-            setFilteredData([]);
+            console.error("Error fetching cashflow data:", err);
+            setError("Gagal memuat data rekap kas.");
         } finally {
             setLoading(false);
         }
-    };
+    }, [dateRange, selectedOutlet, currentUser.token, cachedData.length, dispatch]);
 
     useEffect(() => {
-        fetchCashflow();
-    }, []);
+        fetchData();
+    }, [fetchData]);
 
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    const handleRefresh = () => {
+        fetchData(true);
     };
 
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    const filteredData = useMemo(() => {
+        if (!debouncedSearch) return cachedData;
+        const s = debouncedSearch.toLowerCase();
+        return cachedData.filter(item => {
+            const desc = (item.description || "").toLowerCase();
+            const day = (item.day || "").toLowerCase();
+            return desc.includes(s) || day.includes(s);
+        });
+    }, [cachedData, debouncedSearch]);
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredData, currentPage]);
+
+    const totals = useMemo(() => {
+        return filteredData.reduce((acc, curr) => {
+            const cashIn = curr.cashIn || 0;
+            const items = curr.relatedMarketList?.items || [];
+            const expenses = curr.relatedMarketList?.additionalExpenses || [];
+            const cashOutDetails = [
+                ...items.map(i => i.amountCharged || 0),
+                ...expenses.map(e => e.amount || 0)
+            ];
+            const cashOut = cashOutDetails.reduce((a, b) => a + b, 0);
+
+            return {
+                totalIn: acc.totalIn + cashIn,
+                totalOut: acc.totalOut + cashOut
+            };
+        }, { totalIn: 0, totalOut: 0 });
+    }, [filteredData]);
+
+    const trendData = useMemo(() => {
+        const groups = {};
+        filteredData.forEach(item => {
+            const date = dayjs(item.date).format('DD MMM');
+            if (!groups[date]) groups[date] = { date, income: 0, expense: 0 };
+            groups[date].income += (item.cashIn || 0);
+
+            const items = item.relatedMarketList?.items || [];
+            const expenses = item.relatedMarketList?.additionalExpenses || [];
+            const cashOut = [
+                ...items.map(i => i.amountCharged || 0),
+                ...expenses.map(e => e.amount || 0)
+            ].reduce((a, b) => a + b, 0);
+
+            groups[date].expense += cashOut;
+        });
+        return Object.values(groups).sort((a, b) => dayjs(a.date, 'DD MMM').isAfter(dayjs(b.date, 'DD MMM')) ? 1 : -1);
+    }, [filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -81,125 +190,15 @@ const Reconciliation = () => {
             currency: 'IDR',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
-        }).format(amount);
+        }).format(amount || 0);
     };
 
-    const totalCashIn = filteredData.reduce((sum, item) => sum + (item.cashIn || 0), 0);
-    const totalCashOut = filteredData.reduce((sum, item) => {
-        const items = item.relatedMarketList?.items || [];
-        const expenses = item.relatedMarketList?.additionalExpenses || [];
-        const itemsTotal = items.reduce((s, itm) => s + (itm.amountCharged || 0), 0);
-        const expensesTotal = expenses.reduce((s, exp) => s + (exp.amount || 0), 0);
-        return sum + itemsTotal + expensesTotal;
-    }, 0);
-
-    const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
-
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
-    }, [currentPage, filteredData]);
-
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Apply filter function
-    const applyFilter = async () => {
-        console.log("=== APPLY FILTER STARTED ===");
-        console.log("Current value:", value);
-
-        try {
-            if (value && value.startDate && value.endDate) {
-                // Format tanggal untuk backend
-                const start = new Date(value.startDate).toISOString().split("T")[0];
-                const end = new Date(value.endDate).toISOString().split("T")[0];
-
-                console.log("Filter dates:", { start, end });
-                console.log("API URL:", `/api/marketlist/cashflow?start=${start}&end=${end}`);
-
-                // Kirim request ke endpoint API dengan query parameter
-                const res = await axios.get(`/api/marketlist/cashflow`, {
-                    params: {
-                        start,
-                        end
-                    },
-                    headers: {
-                        Authorization: `Bearer ${currentUser.token}`,
-                    },
-                });
-
-                console.log("API Response status:", res.status);
-                console.log("Response data:", res.data);
-
-                // Konsisten dengan fetchCashflow - handle res.data.data atau res.data
-                const cashflowData = res.data.data ? res.data.data : res.data;
-                console.log("Processed cashflowData length:", cashflowData?.length);
-                console.log("Data before filter:", cashflow.length);
-                console.log("Data after filter:", cashflowData?.length);
-
-                // Tampilkan beberapa sample data untuk debugging
-                if (cashflowData && cashflowData.length > 0) {
-                    console.log("First item:", {
-                        date: cashflowData[0]?.date,
-                        day: cashflowData[0]?.day,
-                        cashIn: cashflowData[0]?.cashIn
-                    });
-                    console.log("Last item:", {
-                        date: cashflowData[cashflowData.length - 1]?.date,
-                        day: cashflowData[cashflowData.length - 1]?.day,
-                        cashIn: cashflowData[cashflowData.length - 1]?.cashIn
-                    });
-                }
-
-                setFilteredData(cashflowData || []);
-                setCurrentPage(1);
-                console.log("✅ Filter applied successfully");
-            } else {
-                console.log("⚠️ No date range selected, fetching all data");
-
-                // fallback kalau tidak ada filter
-                const res = await axios.get(`/api/marketlist/cashflow`, {
-                    headers: {
-                        Authorization: `Bearer ${currentUser.token}`,
-                    },
-                });
-
-                const cashflowData = res.data.data ? res.data.data : res.data;
-                console.log("Fetched all data, length:", cashflowData?.length);
-
-                setFilteredData(cashflowData || []);
-                setCurrentPage(1);
-                console.log("✅ All data fetched successfully");
-            }
-        } catch (err) {
-            console.error("❌ Error fetching filtered data:", err);
-            console.error("Error details:", {
-                message: err.message,
-                response: err.response?.data,
-                status: err.response?.status
-            });
-            setFilteredData([]);
-        }
-
-        console.log("=== APPLY FILTER ENDED ===\n");
-    };
-
-    // Export current data to Excel
     const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.flatMap(cf => {
-            const rows = [];
-
-            // Add CashIn row if exists
+        const exportData = [];
+        filteredData.forEach(cf => {
             if (cf.cashIn > 0) {
-                rows.push({
-                    "Waktu": `${cf.day}, ${formatDateTime(cf.date)}`,
+                exportData.push({
+                    "Waktu": `${cf.day}, ${dayjs(cf.date).format('DD-MM-YYYY HH:mm')}`,
                     "Uang Masuk": cf.cashIn,
                     "Uang Keluar": 0,
                     "Keterangan": cf.description,
@@ -207,229 +206,263 @@ const Reconciliation = () => {
                 });
             }
 
-            // Add CashOut rows
-            const items = cf.relatedMarketList?.items?.map((itm) => ({
-                "Waktu": `${cf.day}, ${formatDateTime(cf.date)}`,
-                "Uang Masuk": 0,
-                "Uang Keluar": itm.amountCharged,
-                "Keterangan": `Belanja: ${itm.productName}`,
-                "Status": itm.payment?.status || "-"
-            })) || [];
+            (cf.relatedMarketList?.items || []).forEach(itm => {
+                exportData.push({
+                    "Waktu": `${cf.day}, ${dayjs(cf.date).format('DD-MM-YYYY HH:mm')}`,
+                    "Uang Masuk": 0,
+                    "Uang Keluar": itm.amountCharged,
+                    "Keterangan": `Belanja: ${itm.productName}`,
+                    "Status": itm.payment?.status || "-"
+                });
+            });
 
-            const expenses = cf.relatedMarketList?.additionalExpenses?.map((exp) => ({
-                "Waktu": `${cf.day}, ${formatDateTime(cf.date)}`,
-                "Uang Masuk": 0,
-                "Uang Keluar": exp.amount,
-                "Keterangan": `Pengeluaran Lain: ${exp.name}`,
-                "Status": exp.payment?.status || "-"
-            })) || [];
-
-            return [...rows, ...items, ...expenses];
+            (cf.relatedMarketList?.additionalExpenses || []).forEach(exp => {
+                exportData.push({
+                    "Waktu": `${cf.day}, ${dayjs(cf.date).format('DD-MM-YYYY HH:mm')}`,
+                    "Uang Masuk": 0,
+                    "Uang Keluar": exp.amount,
+                    "Keterangan": `Pengeluaran Lain: ${exp.name}`,
+                    "Status": exp.payment?.status || "-"
+                });
+            });
         });
 
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Rekap Kas");
-        XLSX.writeFile(wb, "Rekap_Kas.xlsx");
+        XLSX.writeFile(wb, `Laporan_Rekap_Kas_${dayjs().format('YYYYMMDD')}.xlsx`);
     };
 
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
+    return (
+        <div className="min-h-screen bg-gray-50 pb-10">
+            <Header />
 
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            {/* Breadcrumb & Actions */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm border-b">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaClipboardList className="mr-2" />
+                    <span>Laporan</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <Link to="/admin/operational-menu" className="hover:text-green-900 transition-colors">Laporan Operasional</Link>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900 font-semibold">Rekap Kas (Reconciliation)</span>
+                </div>
+                <div className="flex gap-2">
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
+                        <FaSync className={loading ? "animate-spin" : ""} />
                         Refresh
+                    </button>
+                    <button
+                        onClick={exportToExcel}
+                        disabled={loading || filteredData.length === 0}
+                        className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors disabled:opacity-50"
+                    >
+                        <FaFileExcel />
+                        Ekspor Excel
                     </button>
                 </div>
             </div>
-        );
-    }
 
-    return (
-        <div className="">
-            {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <p>Laporan</p>
-                    <FaChevronRight />
-                    <Link to="/admin/operational-menu">
-                        Laporan Operasional
-                    </Link>
-                    <FaChevronRight />
-                    <span>
-                        Rekap Kas
-                    </span>
-                </div>
-                <button
-                    onClick={exportToExcel}
-                    className="bg-[#005429] text-white text-sm px-4 py-2 rounded w-full sm:w-auto"
-                >
-                    Ekspor
-                </button>
-            </div>
-
-            {/* Filters */}
-            <div className="px-6">
-                <div className="flex flex-wrap gap-4 md:justify-between items-center py-3">
-
-                    {/* Tanggal */}
-                    <div className="flex flex-col col-span-2 w-2/5">
-                        <div className="relative text-gray-500">
+            <div className="p-6">
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
                             <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={(val) => {
+                                    setDateRange(val);
+                                    setCurrentPage(1);
+                                }}
+                                showShortcuts={true}
+                                showFooter={true}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
                                 popoverDirection="down"
+                                separator="sampai"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Outlet</label>
+                            <Select
+                                options={outletOptions}
+                                value={outletOptions.find(opt => opt.value === selectedOutlet) || outletOptions[0]}
+                                onChange={(selected) => {
+                                    setSelectedOutlet(selected.value);
+                                    setCurrentPage(1);
+                                }}
+                                styles={customSelectStyles}
+                                isSearchable
+                                placeholder="Pilih Outlet"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Cari Keterangan</label>
+                            <div className="relative">
+                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari..."
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full text-[13px] border border-gray-200 py-2 pl-10 pr-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    {/* Summary Metrics */}
+                    <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center border-l-4 border-l-green-600">
+                            <div className="p-3 bg-green-50 rounded-full mr-4">
+                                <FaArrowTrendUp className="text-green-600 text-xl" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold text-gray-500 uppercase">Total Uang Masuk</p>
+                                <p className="text-xl font-bold text-gray-900">{formatCurrency(totals.totalIn)}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center border-l-4 border-l-red-600">
+                            <div className="p-3 bg-red-50 rounded-full mr-4">
+                                <FaArrowTrendDown className="text-red-600 text-xl" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold text-gray-500 uppercase">Total Uang Keluar</p>
+                                <p className="text-xl font-bold text-gray-900">{formatCurrency(totals.totalOut)}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center border-l-4 border-l-blue-600">
+                            <div className="p-3 bg-blue-50 rounded-full mr-4">
+                                <FaScaleBalanced className="text-blue-600 text-xl" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold text-gray-500 uppercase">Saldo Bersih</p>
+                                <p className={`text-xl font-bold ${totals.totalIn - totals.totalOut >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatCurrency(totals.totalIn - totals.totalOut)}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Spacer */}
-                    <div className="hidden lg:block col-span-5"></div>
-
-                    {/* Buttons */}
-                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
-                        <button
-                            type="button"
-                            onClick={applyFilter}
-                            className="w-full sm:w-auto bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded"
-                        >
-                            Terapkan
-                        </button>
-                        <button
-                            onClick={() => {
-                                setValue({
-                                    startDate: dayjs(),
-                                    endDate: dayjs()
-                                });
-                                fetchCashflow();
-                            }}
-                            className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded"
-                        >
-                            Reset
-                        </button>
+                    {/* Chart Card */}
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 flex flex-col items-center">
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 w-full">Tren Aliran Kas</h3>
+                        <div className="h-[150px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={trendData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                    <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
+                                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                                    <Tooltip labelStyle={{ fontSize: '12px' }} itemStyle={{ fontSize: '13px' }} formatter={(val) => formatCurrency(val)} />
+                                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
+                                    <Line type="monotone" dataKey="income" name="Masuk" stroke="#005429" strokeWidth={2} dot={false} />
+                                    <Line type="monotone" dataKey="expense" name="Keluar" stroke="#EF4444" strokeWidth={2} dot={false} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
 
+                {error && (
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
+                    </div>
+                )}
+
                 {/* Table */}
-                <div className="rounded shadow-md bg-white shadow-slate-200 overflow-x-auto">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-sm text-gray-400">
-                            <tr>
-                                <th className="px-4 py-3 text-left font-normal">Waktu</th>
-                                <th className="px-4 py-3 text-right font-normal">Uang Masuk</th>
-                                <th className="px-4 py-3 text-right font-normal">Uang Keluar</th>
-                                <th className="px-4 py-3 text-left font-normal">Keterangan</th>
-                                <th className="px-4 py-3 text-left font-normal">Status</th>
-                            </tr>
-                        </thead>
-                        {filteredData.length > 0 ? (
-                            <tbody className="text-sm">
-                                {filteredData.map((cf) => {
-                                    const items =
-                                        cf.relatedMarketList?.items?.map((itm) => ({
-                                            name: itm.productName,
-                                            amount: itm.amountCharged,
-                                            status: itm.payment?.status,
-                                            method: itm.payment?.method,
-                                            type: "Belanja",
-                                        })) || [];
-
-                                    const expenses =
-                                        cf.relatedMarketList?.additionalExpenses?.map((exp) => ({
-                                            name: exp.name,
-                                            amount: exp.amount,
-                                            status: exp.payment?.status,
-                                            method: exp.payment?.method,
-                                            type: "Pengeluaran Lain",
-                                        })) || [];
-
-                                    const allCashOuts = [...items, ...expenses];
-
-                                    return (
-                                        <React.Fragment key={cf._id}>
-                                            {/* Baris CashIn hanya muncul kalau > 0 */}
-                                            {cf.cashIn > 0 && (
-                                                <tr className="hover:bg-gray-50 text-gray-600 font-medium bg-gray-100">
-                                                    <td className="px-4 py-3">
-                                                        {cf.day}, {formatDateTime(cf.date)}
-                                                    </td>
-                                                    <td className="px-4 text-right py-3">{formatCurrency(cf.cashIn)}</td>
-                                                    <td className="px-4 text-right py-3">-</td>
-                                                    <td className="px-4 py-3">{cf.description}</td>
-                                                    <td className="px-4 py-3">-</td>
-                                                </tr>
-                                            )}
-
-                                            {/* Baris CashOut */}
-                                            {allCashOuts.map((out, i) => (
-                                                <tr
-                                                    key={`${cf._id}-${out.name}-${i}`}
-                                                    className="hover:bg-gray-50 text-gray-600"
-                                                >
-                                                    <td className="px-4 py-3">
-                                                        {cf.day}, {formatDateTime(cf.date)}
-                                                    </td>
-                                                    <td className="px-4 text-right py-3">-</td>
-                                                    <td className="px-4 text-right py-3">
-                                                        {formatCurrency(out.amount)}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {out.type}: {out.name}
-                                                    </td>
-                                                    <td className="px-4 py-3">{out.status || "-"}</td>
-                                                </tr>
-                                            ))}
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
                                 <tr>
-                                    <td colSpan={5} className="py-10 text-center text-gray-500">
-                                        DATA TIDAK DITEMUKAN
-                                    </td>
+                                    <th className="px-6 py-4">Waktu</th>
+                                    <th className="px-6 py-4 text-right">Uang Masuk</th>
+                                    <th className="px-6 py-4 text-right">Uang Keluar</th>
+                                    <th className="px-6 py-4">Keterangan</th>
+                                    <th className="px-6 py-4 text-center">Status</th>
                                 </tr>
-                            </tbody>
-                        )}
+                            </thead>
+                            <tbody className="text-[13px] divide-y divide-gray-50 text-gray-600">
+                                {loading && cachedData.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="py-20 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
+                                        </td>
+                                    </tr>
+                                ) : paginatedData.length > 0 ? (
+                                    paginatedData.map((cf, index) => {
+                                        const cashOuts = [
+                                            ...(cf.relatedMarketList?.items || []).map(i => ({ name: `Belanja: ${i.productName}`, amount: i.amountCharged, status: i.payment?.status })),
+                                            ...(cf.relatedMarketList?.additionalExpenses || []).map(e => ({ name: `Lain: ${e.name}`, amount: e.amount, status: e.payment?.status }))
+                                        ];
 
-                        <tfoot className="border-t font-semibold text-sm bg-gray-50">
-                            <tr>
-                                <td className="px-4 py-3">
-                                    Total
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                    <span className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(totalCashIn)}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                    <span className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(totalCashOut)}
-                                    </span>
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                                        return (
+                                            <React.Fragment key={index}>
+                                                {cf.cashIn > 0 && (
+                                                    <tr className="hover:bg-green-50/20 transition-colors font-medium bg-gray-50/30">
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-gray-900">{cf.day}, {dayjs(cf.date).format('DD MMM YYYY')}</div>
+                                                            <div className="text-[11px] text-gray-400">{dayjs(cf.date).format('HH:mm')}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right text-green-700 font-bold">{formatCurrency(cf.cashIn)}</td>
+                                                        <td className="px-6 py-4 text-right text-gray-300">-</td>
+                                                        <td className="px-6 py-4 font-semibold text-gray-900">{cf.description}</td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-green-100 text-green-700">Received</span>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {cashOuts.map((out, i) => (
+                                                    <tr key={`${index}-out-${i}`} className="hover:bg-red-50/10 transition-colors">
+                                                        <td className="px-6 py-3 text-gray-400 italic">
+                                                            {dayjs(cf.date).format('DD MMM YYYY HH:mm')}
+                                                        </td>
+                                                        <td className="px-6 py-3 text-right text-gray-300">-</td>
+                                                        <td className="px-6 py-3 text-right text-red-600 font-medium">{formatCurrency(out.amount)}</td>
+                                                        <td className="px-6 py-3 text-gray-500 pl-10 text-[12px]">• {out.name}</td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${out.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                                                                }`}>
+                                                                {out.status || 'Paid'}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </React.Fragment>
+                                        );
+                                    })
+                                ) : (
+                                    <tr>
+                                        <td colSpan={5} className="py-20 text-center text-gray-400 font-medium italic">Tidak ada data transaksi kas ditemukan</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                            {filteredData.length > 0 && (
+                                <tfoot className="bg-gray-50 font-bold border-t border-gray-100 text-[13px]">
+                                    <tr>
+                                        <td className="px-6 py-4 uppercase text-[11px]">Ringkasan Total</td>
+                                        <td className="px-6 py-4 text-right text-green-700 font-extrabold">{formatCurrency(totals.totalIn)}</td>
+                                        <td className="px-6 py-4 text-right text-red-700 font-extrabold">{formatCurrency(totals.totalOut)}</td>
+                                        <td className="px-6 py-4 text-right" colSpan={2}>
+                                            <span className={`inline-block px-4 py-1 rounded-full ${totals.totalIn - totals.totalOut >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                Saldo: {formatCurrency(totals.totalIn - totals.totalOut)}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            )}
+                        </table>
+                    </div>
                 </div>
 
                 <Paginated
@@ -437,7 +470,6 @@ const Reconciliation = () => {
                     setCurrentPage={setCurrentPage}
                     totalPages={totalPages}
                 />
-
             </div>
         </div>
     );

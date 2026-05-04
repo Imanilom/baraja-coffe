@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import { useSelector } from "react-redux";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import DeviceSalesSkeleton from "./skeleton";
@@ -19,49 +19,12 @@ const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const DeviceSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-
-    const customStyles = {
-        control: (provided, state) => ({
-            ...provided,
-            borderColor: '#d1d5db',
-            minHeight: '34px',
-            fontSize: '13px',
-            color: '#6b7280',
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
-            '&:hover': {
-                borderColor: '#9ca3af',
-            },
-        }),
-        singleValue: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        input: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        placeholder: (provided) => ({
-            ...provided,
-            color: '#9ca3af',
-            fontSize: '13px',
-        }),
-        option: (provided, state) => ({
-            ...provided,
-            fontSize: '13px',
-            color: '#374151',
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
-            cursor: 'pointer',
-        }),
-    };
+    const { outlets } = useSelector((state) => state.outlet);
 
     const [deviceData, setDeviceData] = useState([]);
-    const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState(null);
-    const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [dateRange, setDateRange] = useState(null);
-    const [currentPage, setCurrentPage] = useState(1);
     const [summary, setSummary] = useState({
         totalDevices: 0,
         totalTransactions: 0,
@@ -69,90 +32,73 @@ const DeviceSales = () => {
         averagePerTransaction: 0
     });
 
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [dateRange, setDateRange] = useState(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        if (startDateParam && endDateParam) {
+            return {
+                startDate: dayjs.tz(startDateParam, DEFAULT_TIMEZONE),
+                endDate: dayjs.tz(endDateParam, DEFAULT_TIMEZONE),
+            };
+        }
+        const today = dayjs().tz(DEFAULT_TIMEZONE);
+        return { startDate: today, endDate: today };
+    });
+
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1);
     const ITEMS_PER_PAGE = 50;
+
+    const customStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: state.isFocused ? 'var(--primary-color, #005429)' : '#e5e7eb',
+            minHeight: '38px',
+            fontSize: '13px',
+            borderRadius: '0.5rem',
+            boxShadow: state.isFocused ? '0 0 0 1px var(--primary-color, #005429)' : 'none',
+            '&:hover': {
+                borderColor: 'var(--primary-color, #005429)',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#374151',
+            fontWeight: '500',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: state.isSelected ? 'white' : '#374151',
+            backgroundColor: state.isSelected 
+                ? 'var(--primary-color, #005429)' 
+                : state.isFocused ? 'rgba(0, 84, 41, 0.05)' : 'white',
+            cursor: 'pointer',
+            '&:active': {
+                backgroundColor: 'var(--primary-color, #005429)',
+            }
+        }),
+    };
 
     const formatDateForAPI = (date) => {
         if (!date) return null;
         return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
     };
 
-    const parseDateFromURL = (dateStr) => {
-        if (!dateStr) return null;
-        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
-    };
-
-    // Initialize from URL params or set default to today
-    useEffect(() => {
-        const startDateParam = searchParams.get('startDate');
-        const endDateParam = searchParams.get('endDate');
-        const outletParam = searchParams.get('outletId');
-        const pageParam = searchParams.get('page');
-
-        if (startDateParam && endDateParam) {
-            setDateRange({
-                startDate: parseDateFromURL(startDateParam),
-                endDate: parseDateFromURL(endDateParam),
-            });
-        } else {
-            const today = dayjs().tz(DEFAULT_TIMEZONE);
-            const newDateRange = {
-                startDate: today,
-                endDate: today
-            };
-            setDateRange(newDateRange);
-
-            updateURLParams(newDateRange, outletParam || "", parseInt(pageParam, 10) || 1);
-        }
-
-        if (outletParam) {
-            setSelectedOutlet(outletParam);
-        }
-
-        if (pageParam) {
-            setCurrentPage(parseInt(pageParam, 10));
-        }
-    }, []);
-
     // Update URL when filters change
     const updateURLParams = useCallback((newDateRange, newOutlet, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = formatDateForAPI(newDateRange.startDate);
-            const endDate = formatDateForAPI(newDateRange.endDate);
-            params.set('startDate', startDate);
-            params.set('endDate', endDate);
+            params.set('startDate', formatDateForAPI(newDateRange.startDate));
+            params.set('endDate', formatDateForAPI(newDateRange.endDate));
         }
 
-        if (newOutlet) {
-            params.set('outletId', newOutlet);
-        }
-
-        if (newPage && newPage > 1) {
-            params.set('page', newPage.toString());
-        }
+        if (newOutlet) params.set('outletId', newOutlet);
+        if (newPage && newPage > 1) params.set('page', newPage.toString());
 
         setSearchParams(params);
     }, [setSearchParams]);
-
-    // Fetch outlets data
-    useEffect(() => {
-        const fetchOutlets = async () => {
-            try {
-                const response = await axios.get('/api/outlet');
-                const outletsData = Array.isArray(response.data)
-                    ? response.data
-                    : Array.isArray(response.data?.data)
-                        ? response.data.data
-                        : [];
-                setOutlets(outletsData);
-            } catch (err) {
-                console.error("Error fetching outlets:", err);
-            }
-        };
-
-        fetchOutlets();
-    }, []);
 
     // Fetch device sales data
     const fetchDeviceSales = useCallback(async () => {
@@ -196,16 +142,17 @@ const DeviceSales = () => {
         }
     }, [dateRange, selectedOutlet]);
 
-    // Auto-fetch when filters change
     useEffect(() => {
         fetchDeviceSales();
     }, [fetchDeviceSales]);
 
     // Handler functions
     const handleDateRangeChange = (newValue) => {
-        setDateRange(newValue);
-        setCurrentPage(1);
-        updateURLParams(newValue, selectedOutlet, 1);
+        if (newValue?.startDate && newValue?.endDate) {
+            setDateRange(newValue);
+            setCurrentPage(1);
+            updateURLParams(newValue, selectedOutlet, 1);
+        }
     };
 
     const handleOutletChange = (selected) => {
@@ -253,20 +200,17 @@ const DeviceSales = () => {
         }
 
         setIsExporting(true);
-
         try {
-            await new Promise(resolve => setTimeout(resolve, 500));
-
             const outletName = selectedOutlet
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
             const dateRangeText = dateRange?.startDate && dateRange?.endDate
-                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
-                : new Date().toLocaleDateString('id-ID');
+                ? `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`
+                : dayjs().format('DD/MM/YYYY');
 
-            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+            const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
 
             await exportDeviceSalesExcel({
                 data: deviceData,
@@ -275,10 +219,9 @@ const DeviceSales = () => {
                 headerInfo: [
                     ['Outlet', outletName],
                     ['Tanggal', dateRangeText],
-                    ['Tanggal Export', new Date().toLocaleString('id-ID')]
+                    ['Tanggal Export', dayjs().format('DD MMMM YYYY HH:mm')]
                 ]
             });
-
         } catch (error) {
             console.error("Error exporting to Excel:", error);
             alert("Gagal mengekspor data. Silakan coba lagi.");
@@ -287,23 +230,21 @@ const DeviceSales = () => {
         }
     };
 
-    // Show loading state
-    if (loading && !dateRange) {
+    if (loading && deviceData.length === 0) {
         return <DeviceSalesSkeleton />;
     }
 
-    // Show error state
-    if (error) {
+    if (error && !loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            <div className="flex justify-center items-center h-[60vh]">
+                <div className="text-red-500 text-center bg-white p-8 rounded-2xl shadow-sm border">
+                    <p className="text-xl font-bold mb-2">Terjadi Kesalahan</p>
+                    <p className="text-gray-500 mb-6">{error}</p>
                     <button
                         onClick={fetchDeviceSales}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        className="bg-primary text-white text-[13px] px-6 py-2 rounded-lg hover:bg-primary/90 transition-all font-medium"
                     >
-                        Refresh
+                        Coba Lagi
                     </button>
                 </div>
             </div>
@@ -311,20 +252,20 @@ const DeviceSales = () => {
     }
 
     return (
-        <div className="">
+        <div className="min-h-screen bg-transparent">
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
-                    <FaChevronRight />
-                    <span>Penjualan Per Perangkat</span>
+            <div className="flex justify-between items-center px-6 py-4 mb-4">
+                <h1 className="flex gap-2 items-center text-xl text-primary font-bold">
+                    <span className="opacity-60 font-medium text-lg">Laporan</span>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <Link to="/admin/sales-menu" className="opacity-60 font-medium text-lg hover:opacity-100 transition-opacity">Laporan Penjualan</Link>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <span className="text-lg">Penjualan Per Perangkat</span>
                 </h1>
                 <button
                     onClick={exportToExcel}
                     disabled={isExporting || deviceData.length === 0}
-                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-primary hover:bg-primary/90 text-white text-[13px] px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95"
                 >
                     {isExporting ? (
                         <>
@@ -339,29 +280,26 @@ const DeviceSales = () => {
                 </button>
             </div>
 
-            {/* Filters */}
-            <div className="px-6">
-                <div className="flex justify-between py-3 gap-2">
-                    <div className="flex flex-col col-span-5 w-2/5">
-                        <div className="relative text-gray-500">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={dateRange}
-                                onChange={handleDateRangeChange}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-                        </div>
+            <div className="px-6 pb-6">
+                <div className="flex justify-between py-3 gap-4">
+                    <div className="w-2/5">
+                        <Datepicker
+                            showFooter
+                            showShortcuts
+                            value={dateRange}
+                            onChange={handleDateRangeChange}
+                            displayFormat="DD-MM-YYYY"
+                            inputClassName="w-full text-[13px] border border-gray-200 py-2 pr-[25px] pl-[12px] rounded-lg cursor-pointer focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm h-[38px]"
+                            popoverDirection="down"
+                        />
                     </div>
 
-                    <div className="flex flex-col col-span-5">
+                    <div className="w-1/4">
                         <Select
                             options={options}
                             value={options.find((opt) => opt.value === selectedOutlet) || options[0]}
                             onChange={handleOutletChange}
-                            placeholder="Pilih outlet..."
+                            placeholder="Semua Outlet"
                             className="text-[13px]"
                             classNamePrefix="react-select"
                             styles={customStyles}
@@ -370,82 +308,77 @@ const DeviceSales = () => {
                     </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
+                <div className="overflow-x-auto rounded-xl shadow-sm border border-gray-100 bg-white">
                     <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Nama Perangkat</th>
-                                <th className="px-4 py-3 font-normal">Tipe</th>
-                                <th className="px-4 py-3 font-normal">Outlet</th>
-                                <th className="px-4 py-3 font-normal text-right">Jumlah Transaksi</th>
-                                <th className="px-4 py-3 font-normal text-right">Penjualan</th>
-                                <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
+                        <thead>
+                            <tr className="text-left text-[13px] text-gray-400 border-b border-gray-50">
+                                <th className="px-6 py-4 font-medium uppercase tracking-wider">Nama Perangkat</th>
+                                <th className="px-6 py-4 font-medium uppercase tracking-wider">Tipe</th>
+                                <th className="px-6 py-4 font-medium uppercase tracking-wider">Outlet</th>
+                                <th className="px-6 py-4 font-medium text-right uppercase tracking-wider">Jumlah Transaksi</th>
+                                <th className="px-6 py-4 font-medium text-right uppercase tracking-wider">Penjualan</th>
+                                <th className="px-6 py-4 font-medium text-right uppercase tracking-wider">Rata-Rata</th>
                             </tr>
                         </thead>
-                        {loading ? (
-                            <tbody>
-                                <tr>
-                                    <td colSpan={6} className="text-center py-8">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900 mx-auto"></div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        ) : paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((device, index) => (
-                                    <tr key={index} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3">{device.deviceName || '-'}</td>
-                                        <td className="px-4 py-3">{device.deviceType || '-'}</td>
-                                        <td className="px-4 py-3">{device.outlet || '-'}</td>
-                                        <td className="px-4 py-3 text-right">
+                        <tbody className="text-sm">
+                            {paginatedData.length > 0 ? (
+                                paginatedData.map((device, index) => (
+                                    <tr key={index} className="hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors">
+                                        <td className="px-6 py-4 text-gray-900 font-medium">{device.deviceName || '-'}</td>
+                                        <td className="px-6 py-4">
+                                            <span className="px-2 py-1 bg-gray-100 rounded text-[11px] font-medium text-gray-600">
+                                                {device.deviceType || '-'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-600">{device.outlet || '-'}</td>
+                                        <td className="px-6 py-4 text-right text-gray-600 font-medium">
                                             {device.transactionCount?.toLocaleString('id-ID') || 0}
                                         </td>
-                                        <td className="px-4 py-3 text-right">
+                                        <td className="px-6 py-4 text-right font-bold text-gray-900">
                                             {formatCurrency(device.totalSales || 0)}
                                         </td>
-                                        <td className="px-4 py-3 text-right">
+                                        <td className="px-6 py-4 text-right text-primary font-medium">
                                             {formatCurrency(device.averagePerTransaction || 0)}
                                         </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={6}>Tidak ada data ditemukan</td>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={6} className="py-20 text-center text-gray-400">Tidak ada data ditemukan</td>
                                 </tr>
-                            </tbody>
-                        )}
+                            )}
+                        </tbody>
 
-                        <tfoot className="border-t font-semibold text-sm">
+                        <tfoot className="bg-gray-50/50 font-semibold text-sm border-t">
                             <tr>
-                                <td colSpan={3} className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td colSpan={3} className="px-6 py-4 text-gray-900 border-r border-gray-100">Grand Total</td>
+                                <td className="px-6 py-4 text-right">
+                                    <span className="bg-white border border-gray-200 text-gray-900 inline-block px-3 py-1 rounded-lg">
                                         {summary.totalTransactions?.toLocaleString('id-ID') || 0}
-                                    </p>
+                                    </span>
                                 </td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-6 py-4 text-right">
+                                    <span className="bg-primary text-white inline-block px-3 py-1 rounded-lg">
                                         {formatCurrency(summary.totalSales || 0)}
-                                    </p>
+                                    </span>
                                 </td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-6 py-4 text-right">
+                                    <span className="bg-white border border-gray-200 text-primary inline-block px-3 py-1 rounded-lg">
                                         {formatCurrency(summary.averagePerTransaction || 0)}
-                                    </p>
+                                    </span>
                                 </td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
 
-                <Paginated
-                    currentPage={currentPage}
-                    setCurrentPage={handlePageChange}
-                    totalPages={totalPages}
-                />
+                {totalPages > 1 && (
+                    <Paginated
+                        currentPage={currentPage}
+                        setCurrentPage={handlePageChange}
+                        totalPages={totalPages}
+                    />
+                )}
             </div>
         </div>
     );

@@ -449,6 +449,24 @@ export default function socketHandler(io) {
             }
         });
 
+        // ✅ REGISTER FCM TOKEN - Simpan token Push Notification dari device kasir
+        socket.on('register_fcm_token', async (data) => {
+            try {
+                const { cashierId, deviceId, fcmToken } = data;
+                if (!fcmToken) return;
+
+                // Update semua sesi aktif milik device ini dengan FCM token terbaru
+                const result = await DeviceSession.updateMany(
+                    { device: deviceId, isActive: true },
+                    { $set: { fcmToken: fcmToken } }
+                );
+
+                console.log(`📲 FCM token registered for device ${deviceId} (${result.modifiedCount} sessions updated)`);
+            } catch (error) {
+                console.error('❌ Error registering FCM token:', error.message);
+            }
+        });
+
         // 🔹 Join kitchen room
         socket.on('join_kitchen_room', (outletId, callback) => {
             const kitchenRoom = outletId ? `kitchen_${outletId}` : 'kitchen_room';
@@ -1293,12 +1311,14 @@ export default function socketHandler(io) {
         io.to(roomName).emit('new_order', {
             event: 'new_order',
             data: orderData,
+            source: orderData.source || 'unknown',
             timestamp: new Date()
         });
 
         io.to('cashier_room').emit('new_order', {
             event: 'new_order',
             data: orderData,
+            source: orderData.source || 'unknown',
             timestamp: new Date()
         });
 

@@ -5,6 +5,7 @@ import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/widgets/order_list_widget.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/widgets/receipt_widget.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/widgets/order_detail_widget.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 
 class OrderHistoryScreen extends ConsumerWidget {
   const OrderHistoryScreen({super.key});
@@ -38,11 +39,18 @@ class OrderHistoryScreen extends ConsumerWidget {
               ),
               // child: OrderListWidget(orders: orders),
               child: orderHistoryAsync.when(
-                data: (orders) => OrderListWidget(orders: orders),
+                data:
+                    (orders) => OrderListWidget(
+                      orders: orders,
+                      selectedOrder: ref.watch(historyDetailProvider),
+                      onSelect:
+                          (order) => ref
+                              .read(historyDetailProvider.notifier)
+                              .addToHistoryDetail(order),
+                      onRefresh: () => ref.invalidate(orderHistoryProvider),
+                    ),
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error:
-                    (error, stackTrace) =>
-                        _buildErrorState(error.toString(), ref),
+                error: (error, stackTrace) => _buildErrorState(error, ref),
               ),
             ),
           ),
@@ -55,7 +63,14 @@ class OrderHistoryScreen extends ConsumerWidget {
                 //color,
                 color: Colors.grey[50],
               ),
-              child: const OrderDetailWidget(),
+              child: OrderDetailWidget(
+                order: ref.watch(historyDetailProvider),
+                onClose:
+                    () =>
+                        ref
+                            .read(historyDetailProvider.notifier)
+                            .clearHistoryDetail(),
+              ),
             ),
           ),
           // Right Section - Receipt

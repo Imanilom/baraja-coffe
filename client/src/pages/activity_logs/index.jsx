@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { FaTrash, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import dayjs from "dayjs";
-import axios from "axios";
+import axios from '@/lib/axios';
 import Header from "../admin/header";
 import ActivityLineChart from "./linechart";
 import Datepicker from "react-tailwindcss-datepicker";

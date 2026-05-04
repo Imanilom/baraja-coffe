@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from '@/lib/axios';
 import React, { useEffect, useState } from "react";
 import ConfirmationModalActive from "../confirmationModalActive";
 import Paginated from "../../../components/paginated";

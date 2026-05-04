@@ -302,5 +302,5 @@ export const exportToExcel = async (data, fileName, headerInfo = []) => {
     });
     saveAs(blob, fileName);
 
-    console.log(`✅ Excel generated: ${data.length} rows`);
+    // console.log(`✅ Excel generated: ${data.length} rows`);
 };

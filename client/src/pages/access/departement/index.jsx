@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { FaCheckCircle, FaTimesCircle, FaPlus, FaEdit, FaHome, FaChevronRight } from "react-icons/fa";
 import Header from "../../admin/header";
 import { useSelector } from "react-redux";

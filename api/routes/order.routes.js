@@ -226,7 +226,7 @@ router.get('/order/:orderId', getOrderById);
 router.get('/order-id/:orderId', getOrderId);
 
 router.get('/cashier-order/:orderId', getCashierOrderById);
-router.get('/orders/cashier/:cashierId', getCashierOrderHistory);
+router.get('/orders/device/:deviceId', getCashierOrderHistory);
 
 //test socket
 router.get('/testsocket', testSocket);

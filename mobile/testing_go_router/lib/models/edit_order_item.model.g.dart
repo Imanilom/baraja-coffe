@@ -23,13 +23,15 @@ class EditOrderItemModelAdapter extends TypeAdapter<EditOrderItemModel> {
           fields[2] == null ? [] : (fields[2] as List?)?.cast<OrderItemModel>(),
       isSubmitting: fields[3] == null ? false : fields[3] as bool,
       error: fields[4] == null ? null : fields[4] as String?,
+      itemsToDelete:
+          fields[5] == null ? [] : (fields[5] as List?)?.cast<OrderItemModel>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, EditOrderItemModel obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.reason)
       ..writeByte(1)
@@ -39,7 +41,9 @@ class EditOrderItemModelAdapter extends TypeAdapter<EditOrderItemModel> {
       ..writeByte(3)
       ..write(obj.isSubmitting)
       ..writeByte(4)
-      ..write(obj.error);
+      ..write(obj.error)
+      ..writeByte(5)
+      ..write(obj.itemsToDelete);
   }
 
   @override
@@ -73,6 +77,11 @@ _EditOrderItemModel _$EditOrderItemModelFromJson(Map<String, dynamic> json) =>
           const [],
       isSubmitting: json['isSubmitting'] as bool? ?? false,
       error: json['error'] as String? ?? null,
+      itemsToDelete:
+          (json['itemsToDelete'] as List<dynamic>?)
+              ?.map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$EditOrderItemModelToJson(_EditOrderItemModel instance) =>
@@ -82,4 +91,5 @@ Map<String, dynamic> _$EditOrderItemModelToJson(_EditOrderItemModel instance) =>
       'originalItems': instance.originalItems,
       'isSubmitting': instance.isSubmitting,
       'error': instance.error,
+      'itemsToDelete': instance.itemsToDelete,
     };

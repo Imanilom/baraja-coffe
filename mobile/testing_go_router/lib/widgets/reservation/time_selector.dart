@@ -36,7 +36,8 @@ class TimeSelector extends StatelessWidget {
     // Jika tanggal adalah hari ini, cek apakah waktu minimal 5 menit dari sekarang
     if (selectedDateOnly.isAtSameMomentAs(today)) {
       final DateTime minimumTime = now.add(const Duration(minutes: 5));
-      return selectedDateTime.isAfter(minimumTime) || selectedDateTime.isAtSameMomentAs(minimumTime);
+      return selectedDateTime.isAfter(minimumTime) ||
+          selectedDateTime.isAtSameMomentAs(minimumTime);
     }
 
     // Jika tanggal sudah lewat, tidak valid
@@ -47,7 +48,11 @@ class TimeSelector extends StatelessWidget {
   String _getMinimumTimeText() {
     final DateTime now = DateTime.now();
     final DateTime today = DateTime(now.year, now.month, now.day);
-    final DateTime selectedDateOnly = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final DateTime selectedDateOnly = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
 
     if (selectedDateOnly.isAtSameMomentAs(today)) {
       final DateTime minimumTime = now.add(const Duration(minutes: 5));
@@ -80,10 +85,7 @@ class TimeSelector extends StatelessWidget {
         children: [
           const Text(
             'Pilih Jam Reservasi',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
 
           // Tampilkan informasi waktu minimum jika diperlukan

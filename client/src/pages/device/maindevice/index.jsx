@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaTablet, FaTabletAlt, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -49,7 +49,7 @@ const DeviceManagement = () => {
                 headers: { Authorization: `Bearer ${currentUser.token}` },
             });
             const deviceData = deviceResponse.data.data ? deviceResponse.data.data : [];
-            console.log(deviceData);
+            // console.log(deviceData);
             setDevice(deviceData);
             setFilteredData(deviceData); // Initialize filtered data with all device
 

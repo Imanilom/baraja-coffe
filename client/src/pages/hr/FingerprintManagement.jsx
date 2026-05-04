@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { 
     FaFingerprint, 
     FaSync, 
@@ -51,11 +51,11 @@ const FingerprintManagement = () => {
         const fingerprintsData = fingerprintsRes.data.data || [];
         
         // Debug: lihat struktur data
-        console.log('Fingerprints data structure:', fingerprintsData);
+        // console.log('Fingerprints data structure:', fingerprintsData);
         if (fingerprintsData.length > 0) {
-        console.log('First fingerprint data:', fingerprintsData[0]);
-        console.log('Employee data in fingerprint:', fingerprintsData[0].employee);
-        console.log('User data in employee:', fingerprintsData[0].employee?.user);
+        // console.log('First fingerprint data:', fingerprintsData[0]);
+        // console.log('Employee data in fingerprint:', fingerprintsData[0].employee);
+        // console.log('User data in employee:', fingerprintsData[0].employee?.user);
         }
         
         setFingerprints(fingerprintsData);

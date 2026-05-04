@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
@@ -62,7 +62,7 @@ const CreateStokOpname = () => {
             outlet: tempSelectedOutlet,
             detailProduk: rows,
         };
-        console.log('Data terkirim:', payload);
+        // console.log('Data terkirim:', payload);
     };
 
     // Show loading state

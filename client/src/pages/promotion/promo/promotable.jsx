@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from '@/lib/axios';
 import React, { useState } from "react";
 import { FaPencilAlt, FaTrash } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";

@@ -1,6 +1,6 @@
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -25,7 +25,7 @@ class OrderService {
   }) async {
     try {
       final payload = createOrderRequest(orderDetail);
-      AppLogger.debug('order request: $payload');
+      AppLogger.debug('order request discounts: ${orderDetail.discounts}');
       // print('PAYLOAD DISCOUNTS: ${payload['discounts']}');
 
       Response response = await _dio.post(
@@ -112,6 +112,7 @@ class OrderService {
     final box = Hive.box('userBox');
     final cashierId = box.get('cashier').id;
     final cashierbox = await HiveService.getCashier();
+    final loginDevice = box.get('device') as DeviceModel;
 
     try {
       if (cashierId == null) {
@@ -122,6 +123,7 @@ class OrderService {
         data: {
           'order_id': request.orderId,
           'cashier_id': cashierbox!.id ?? cashierId,
+          'device_id': loginDevice.id,
           'source': request.source,
         },
         options: Options(
@@ -153,9 +155,14 @@ class OrderService {
   ) async {
     AppLogger.debug('process payment request: ${request.toJson()}');
     try {
+      final box = Hive.box('userBox');
+      final loginDevice = box.get('device') as DeviceModel;
+      final payload = request.toJson();
+      payload['device_id'] = loginDevice.id;
+
       Response response = await _dio.post(
         '/api/order/cashier/process-payment',
-        data: request.toJson(),
+        data: payload,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -186,6 +193,7 @@ class OrderService {
   ) async {
     final box = Hive.box('userBox');
     final cashierId = box.get('cashier').id;
+    final loginDevice = box.get('device') as DeviceModel;
 
     AppLogger.debug('cashierId: $cashierId , orderId: ${orderDetail.orderId}');
 
@@ -198,6 +206,7 @@ class OrderService {
         data: {
           //cashierId dari authCashierProvider
           'cashierId': cashierId,
+          'deviceId': loginDevice.id,
           'jobId': orderDetail.orderId,
         },
         options: Options(
@@ -253,17 +262,27 @@ class OrderService {
   Future<Map<String, dynamic>> deleteOrderItemAtOrder({
     required String orderId,
     required String menuItemId,
+    String? reason, // ✅ NEW: Reason for deletion
   }) async {
     try {
       if (orderId.isEmpty || menuItemId.isEmpty) {
         throw Exception("orderId atau menuItemId tidak boleh kosong");
       }
 
-      AppLogger.debug('orderId: $orderId, menuItemId: $menuItemId');
+      AppLogger.debug('orderId: $orderId, menuItemId: $menuItemId, reason: $reason');
+
+      // ✅ NEW: Build audit context for deletion
+      final deletePayload = {
+        'order_id': orderId,
+        'menu_item_id': menuItemId,
+        'reason': reason ?? 'stock_issue', // Default reason
+        'cashierId': 'system', // Would come from auth context in real app
+        'deletedAt': DateTime.now().toIso8601String(), // Timestamp for audit trail
+      };
 
       final res = await _dio.post(
         '/api/order/delete-order-item',
-        data: {'order_id': orderId, 'menu_item_id': menuItemId},
+        data: deletePayload,
       );
 
       if (res.data['success'] == true) {
@@ -433,7 +452,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
             // Include custom discount for item
             if (item.customDiscount?.isActive == true)
               'customDiscount': {
@@ -447,7 +466,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
               },
           };
         }).toList(),
-    'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
+    'orderType': OrderTypeModel.toJsonString(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'outletId': user.outletId,
@@ -473,6 +492,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'totalPrice': order.grandTotal,
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,
+    'openBillStartedAt': order.createdAt?.toIso8601String(),
     'isSplitPayment': order.isSplitPayment,
     'customAmountItems':
         order.customAmountItems != null
@@ -481,14 +501,14 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                 'name': item.name,
                 'description': item.description,
                 'amount': item.amount,
-                'orderType': OrderTypeExtension.orderTypeToJson(
-                  item.orderType ?? OrderType.dineIn,
+                'orderType': OrderTypeModel.toJsonString(
+                  item.orderType ?? OrderTypeModel.dineIn,
                 ),
               };
             }).toList()
             : [],
     'paymentDetails':
-        order.isOpenBill == true
+        order.payments.isEmpty
             ? []
             : order.payments.map((payment) {
               final methodtype = PaymentDetails.buildPaymentMethodLabel(
@@ -519,7 +539,7 @@ Map<String, dynamic> logOrder(OrderDetailModel order) {
     'user': order.user,
     'cashierId': order.cashier?.id ?? '',
     'device_id': loginDevice.id,
-    'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
+    'orderType': OrderTypeModel.toJsonString(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'outletId': user.outletId,
@@ -537,8 +557,8 @@ Map<String, dynamic> logOrder(OrderDetailModel order) {
                 'name': item.name,
                 'description': item.description,
                 'amount': item.amount,
-                'orderType': OrderTypeExtension.orderTypeToJson(
-                  item.orderType ?? OrderType.dineIn,
+                'orderType': OrderTypeModel.toJsonString(
+                  item.orderType ?? OrderTypeModel.dineIn,
                 ),
               };
             }).toList()
@@ -568,7 +588,7 @@ Map<String, dynamic> logMenuItem(OrderDetailModel order) {
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
           };
         }).toList(),
   };
@@ -638,6 +658,8 @@ Map<String, dynamic> updateEditOrderRequest(
         orderItems.map((item) {
           return {
             'id': item.menuItem.id, // Ambil id menu aja
+            'orderItemid':
+                item.orderItemid, // Kirim orderItemid agar backend preserve state item lama
             'quantity': item.quantity,
             'selectedAddons':
                 item.selectedAddons.map((addon) {
@@ -654,7 +676,7 @@ Map<String, dynamic> updateEditOrderRequest(
                     .map((topping) => {'id': topping.id})
                     .toList(),
             'notes': item.notes,
-            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+            'dineType': OrderTypeModel.toJsonString(item.orderType),
           };
         }).toList(),
   };

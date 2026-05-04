@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import Select from "react-select";
 import { Link, useOutletContext, useNavigate } from "react-router-dom";

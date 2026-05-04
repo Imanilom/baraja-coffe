@@ -20,10 +20,10 @@ class OrderHistoryService {
     ),
   );
 
-  Future<Map<String, dynamic>> fetchOrderHistory(String cashierId) async {
+  Future<Map<String, dynamic>> fetchOrderHistory(String deviceId) async {
     try {
-      AppLogger.info('Fetching order history for cashierId: $cashierId');
-      final response = await _dio.get('/api/orders/cashier/$cashierId');
+      AppLogger.info('Fetching order history for deviceId: $deviceId');
+      final response = await _dio.get('/api/orders/device/$deviceId');
 
       if (response.statusCode != 200) {
         throw Exception('Failed to load order history: ${response.statusCode}');

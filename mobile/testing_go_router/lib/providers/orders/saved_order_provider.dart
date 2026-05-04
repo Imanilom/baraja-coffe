@@ -1,57 +1,51 @@
-import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:barajapos/models/menu_item_model.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/repositories/saved_order_repository.dart';
 
-class SavedOrderProvider extends StateNotifier<List<OrderDetailModel?>> {
-  SavedOrderProvider() : super([]);
+// Repository Provider
+final savedOrderRepositoryProvider = Provider<SavedOrderRepository>((ref) {
+  return SavedOrderRepository();
+});
 
-  //ini harusnya buat List savedOrderDetail
-  void savedOrder(WidgetRef ref) {
-    final orderDetail = ref.watch(orderDetailProvider);
-    if (orderDetail == null || orderDetail.items.isEmpty) return;
-    state = [...state, orderDetail];
+// Notifier
+class SavedOrderNotifier extends AsyncNotifier<List<OrderDetailModel>> {
+  @override
+  Future<List<OrderDetailModel>> build() async {
+    return _fetchSavedOrders();
   }
 
-  //hapus order detail
-  void deleteOrderDetail(OrderDetailModel orderDetail) {
-    if (state.isNotEmpty) {
-      state = state.where((detail) => detail != orderDetail).toList();
+  Future<List<OrderDetailModel>> _fetchSavedOrders() async {
+    final repository = ref.read(savedOrderRepositoryProvider);
+    // Simulate async if needed, or just return synchronous hive access
+    // Hive access is sync for values, but async for opening box (already opened in main).
+    return repository.getSavedOrders();
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    try {
+      final data = await _fetchSavedOrders();
+      state = AsyncValue.data(data);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
     }
   }
 
-  //memindahkan state saved order detail ke order detail provider
-  void moveToOrder(OrderDetailModel orderDetail) {
-    if (state.isNotEmpty) {
-      // state = state;
+  Future<void> deleteOrder(String orderId) async {
+    final repository = ref.read(savedOrderRepositoryProvider);
+    try {
+      await repository.deleteOrder(orderId);
+      // Refresh list after deletion
+      await refresh();
+    } catch (e) {
+      // Handle error (maybe show toast via listener in UI)
+      rethrow;
     }
-  }
-
-  void removeItem(String menuItemId) {
-    if (state.isNotEmpty) {
-      state = [
-        ...state.map(
-          (orderDetail) => orderDetail?.copyWith(
-            items:
-                orderDetail.items
-                    .where((item) => item.menuItem.id != menuItemId)
-                    .toList(),
-          ),
-        ),
-      ];
-    }
-  }
-
-  // Hitung total harga dari daftar pesanan
-  double get totalPrice {
-    return state
-        .expand((orderDetail) => orderDetail!.items)
-        .fold(0, (sum, item) => sum + item.subtotal);
   }
 }
 
-// Provider untuk SavedOrderProvider
+// Global Provider
 final savedOrderProvider =
-    StateNotifierProvider<SavedOrderProvider, List<OrderDetailModel?>>((ref) {
-      return SavedOrderProvider();
+    AsyncNotifierProvider<SavedOrderNotifier, List<OrderDetailModel>>(() {
+      return SavedOrderNotifier();
     });

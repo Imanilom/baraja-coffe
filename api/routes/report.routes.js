@@ -1,6 +1,8 @@
 import express from 'express';
 import {
-  salesReport
+  getCashRecap,
+  reprintLastRecap,
+  saveCashRecap
 } from '../controllers/report.controller.js';
 import {
   getSalesSummary,
@@ -48,7 +50,10 @@ const router = express.Router();
 // Middleware for admin and superadmin access
 const adminAccess = verifyToken(['admin', 'superadmin']);
 
-router.get('/sales', salesReport); // Get all Sales
+router.post('/cash-recap', getCashRecap); // New Cash Recap Endpoint
+router.post('/cash-recap/reprint', reprintLastRecap); // ✅ Endpoint Reprint Recap
+router.post('/cash-recap/save', saveCashRecap); // ✅ NEW: Save recap after successful print
+router.get('/sales', getSalesSummary); // Get all Sales
 
 router.get('/customers', getCustomerReports);
 router.get('/customers/:customerId', getCustomerDetailReport);

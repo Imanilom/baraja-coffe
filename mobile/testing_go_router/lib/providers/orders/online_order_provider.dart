@@ -50,6 +50,7 @@ class OnlineOrderDetailNotifier extends AsyncNotifier<List<OrderDetailModel>?> {
   Future<void> deleteItemFromOrder({
     required String orderId,
     required String menuItemId,
+    String? reason, // ✅ NEW: Accept reason parameter (FIX #7)
   }) async {
     final repo = ref.read(onlineOrderRepository);
 
@@ -74,6 +75,7 @@ class OnlineOrderDetailNotifier extends AsyncNotifier<List<OrderDetailModel>?> {
       final updated = await repo.deleteOrderItem(
         orderId: orderId,
         menuItemId: menuItemId,
+        reason: reason, // ✅ NEW: Pass reason to repository
       );
 
       // Replace order di list

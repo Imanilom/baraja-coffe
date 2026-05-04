@@ -1,6 +1,7 @@
 // lib/extensions/order_item_extensions.dart
-import 'package:kasirbaraja/enums/order_type.dart';
+
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/utils/app_logger.dart';
@@ -88,7 +89,10 @@ extension OrderItemModelExtensions on OrderItemModel {
     return note1 == note2;
   }
 
-  bool _areOrderItemOrderTypeEqual(OrderType orderType1, OrderType orderType2) {
+  bool _areOrderItemOrderTypeEqual(
+    OrderTypeModel orderType1,
+    OrderTypeModel orderType2,
+  ) {
     return orderType1 == orderType2;
   }
 

@@ -225,18 +225,6 @@ export async function processOrderItems({
     availableItemsForAutoPromo = [...orderItems];
   }
 
-  // PROSES AUTO PROMO HANYA UNTUK ITEMS YANG BELUM TERPAKAI
-  const autoPromoResult = await checkAutoPromos(
-    availableItemsForAutoPromo,
-    outlet,
-    orderType
-  );
-
-  console.log('🎯 AUTO PROMO AFTER SELECTED BUNDLES:', {
-    totalDiscount: autoPromoResult.totalDiscount,
-    appliedPromosCount: autoPromoResult.appliedPromos.length,
-    itemsUsed: availableItemsForAutoPromo.length
-  });
 
   // MANUAL PROMO & VOUCHER (MASIH TERAPAK KE TOTAL SETELAH DISKON LAIN)
   const promotionResults = await processAllDiscountsBeforeTax({
@@ -254,7 +242,6 @@ export async function processOrderItems({
   // TOTAL SEMUA DISKON
   const totalAllDiscounts =
     selectedBundleResult.totalDiscount +
-    autoPromoResult.totalDiscount +
     loyaltyDiscount +
     promotionResults.autoPromoDiscount +
     promotionResults.manualDiscount +
@@ -264,7 +251,7 @@ export async function processOrderItems({
 
   console.log('🎯 DISCOUNT BREAKDOWN:', {
     selectedBundleDiscount: selectedBundleResult.totalDiscount,
-    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    autoPromoDiscount: promotionResults.autoPromoDiscount,
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     loyaltyDiscount,
@@ -321,7 +308,7 @@ export async function processOrderItems({
 
     // Diskon breakdown
     selectedBundleDiscount: selectedBundleResult.totalDiscount,
-    autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+    autoPromoDiscount: promotionResults.autoPromoDiscount,
     manualDiscount: promotionResults.manualDiscount,
     voucherDiscount: promotionResults.voucherDiscount,
     loyaltyDiscount,
@@ -356,7 +343,7 @@ export async function processOrderItems({
     },
     discounts: {
       selectedBundleDiscount: selectedBundleResult.totalDiscount,
-      autoPromoDiscount: autoPromoResult.totalDiscount + promotionResults.autoPromoDiscount,
+      autoPromoDiscount: promotionResults.autoPromoDiscount,
       manualDiscount: promotionResults.manualDiscount,
       voucherDiscount: promotionResults.voucherDiscount,
       loyaltyDiscount: loyaltyDiscount,
@@ -364,7 +351,7 @@ export async function processOrderItems({
       total: totalAllDiscounts
     },
     promotions: {
-      appliedPromos: [...promotionResults.appliedPromos, ...autoPromoResult.appliedPromos],
+      appliedPromos: [...promotionResults.appliedPromos],
       appliedManualPromo: promotionResults.appliedPromo,
       appliedVoucher: promotionResults.voucher,
       selectedPromoBundles: selectedBundleResult.appliedBundles // ✅ NEW
@@ -649,7 +636,12 @@ export async function processAllDiscountsBeforeTax({
   });
 
   // 1. APPLY AUTO PROMO (hanya untuk items yang belum terpakai di selected bundles)
-  const autoPromoResult = await checkAutoPromos(orderItems, outlet, orderType);
+  let autoPromoResult = { totalDiscount: 0, appliedPromos: [] };
+  
+  // Kasir yang tidak memilih promo tidak boleh dipaksakan auto promo
+  if (source !== 'Cashier' && source !== 'cashier') {
+    autoPromoResult = await checkAutoPromos(orderItems, outlet, orderType);
+  }
   const autoPromoDiscount = autoPromoResult.totalDiscount;
 
   // 2. APPLY MANUAL PROMO

@@ -1,5 +1,5 @@
-import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
@@ -14,7 +14,7 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   ReservationOrderDetailProvider() : super(null);
 
   /// this method does nothing. Otherwise, it creates a ,new `OrderDetailModel`
-  void initializeOrder({required OrderType orderType}) {
+  void initializeOrder({required OrderTypeModel orderType}) {
     AppLogger.debug('memeriksa apakah order sudah ada...');
     if (state != null) return;
     AppLogger.debug('Initialize order');
@@ -66,7 +66,7 @@ class ReservationOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   }
 
   // Set order type (dine-in, take away, delivery)
-  void updateOrderType(OrderType orderType) {
+  void updateOrderType(OrderTypeModel orderType) {
     if (state != null) {
       state = state!.copyWith(orderType: orderType);
       AppLogger.debug('Order Type: $orderType');

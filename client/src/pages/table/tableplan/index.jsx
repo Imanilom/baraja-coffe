@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { FaChevronRight, FaIdBadge, FaPencilAlt, FaExpand, FaCompress, FaSave, FaTimes, FaPlus, FaEdit, FaTrash, FaQrcode } from "react-icons/fa";
 import Select from "react-select";
 import QRCode from 'qrcode';
@@ -266,6 +266,7 @@ const TablePlanManagement = () => {
         setEditingTable(table);
         setTableForm({
             table_number: table.table_number,
+            area_id: selectedArea._id, // Ensure area_id is preserved
             seats: table.seats,
             table_type: table.table_type,
             shape: table.shape,
@@ -297,8 +298,10 @@ const TablePlanManagement = () => {
             setAreas(areasData);
 
             const updatedArea = areasData.find(a => a._id === selectedArea._id);
-            setSelectedArea(updatedArea);
-            initializeTablePositions(updatedArea);
+            if (updatedArea) {
+                setSelectedArea(updatedArea);
+                initializeTablePositions(updatedArea);
+            }
 
             setShowTableForm(false);
             setEditingTable(null);
@@ -326,8 +329,10 @@ const TablePlanManagement = () => {
             setAreas(areasData);
 
             const updatedArea = areasData.find(a => a._id === selectedArea._id);
-            setSelectedArea(updatedArea);
-            initializeTablePositions(updatedArea);
+            if (updatedArea) {
+                setSelectedArea(updatedArea);
+                initializeTablePositions(updatedArea);
+            }
 
             alert('Meja berhasil dihapus!');
         } catch (err) {
@@ -405,40 +410,52 @@ const TablePlanManagement = () => {
     const customStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db',
-            minHeight: '34px',
-            fontSize: '13px',
-            color: '#6b7280',
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            borderColor: 'rgba(255, 255, 255, 0.5)',
+            backgroundColor: 'rgba(255, 255, 255, 0.5)',
+            minHeight: '40px',
+            fontSize: '14px',
+            color: '#005429',
+            boxShadow: state.isFocused ? '0 0 0 2px #005429' : '0 1px 3px rgba(0,0,0,0.1)',
+            borderRadius: '0.5rem',
             '&:hover': {
-                borderColor: '#9ca3af',
+                borderColor: '#005429',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280',
+            color: '#005429',
+            fontWeight: '600',
         }),
         input: (provided) => ({
             ...provided,
-            color: '#6b7280',
+            color: '#005429',
         }),
         placeholder: (provided) => ({
             ...provided,
-            color: '#9ca3af',
-            fontSize: '13px',
+            color: '#6b7280',
+            fontSize: '14px',
+        }),
+        menu: (provided) => ({
+            ...provided,
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.5)',
+            borderRadius: '0.5rem',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            zIndex: 9999,
         }),
         option: (provided, state) => ({
             ...provided,
-            fontSize: '13px',
-            color: '#374151',
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            fontSize: '14px',
+            color: state.isSelected ? 'white' : '#005429',
+            backgroundColor: state.isSelected ? '#005429' : state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'transparent',
             cursor: 'pointer',
         }),
     };
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
+            <div className="flex justify-center items-center h-screen bg-gray-50">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
             </div>
         );
@@ -446,13 +463,13 @@ const TablePlanManagement = () => {
 
     if (error) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
+            <div className="flex justify-center items-center h-screen bg-gray-50">
+                <div className="text-red-500 text-center bg-white p-6 rounded-lg shadow-xl border border-red-100">
                     <p className="text-xl font-semibold mb-2">Error</p>
                     <p>{error}</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded hover:bg-[#004220] transition-colors"
                     >
                         Refresh
                     </button>
@@ -462,99 +479,117 @@ const TablePlanManagement = () => {
     }
 
     return (
-        <div className="relative">
+        <div className="relative min-h-screen bg-gray-50/50">
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+            <div className="flex justify-between items-center px-6 py-4">
+                <div className="flex gap-2 items-center text-xl text-[#005429] font-bold">
                     <span>Pengaturan Meja</span>
-                    <FaChevronRight />
+                    <FaChevronRight className="text-sm" />
                     <span>Denah Meja</span>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="px-6 pb-6">
-                {/* Area Selection */}
-                <div className="flex items-center space-x-4">
-                    <div className="flex-1 flex justify-end ">
+            <div className="px-6 pb-6 space-y-6">
+
+                {/* Control Bar */}
+                <div className="relative z-50 flex flex-col md:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-white/40 backdrop-blur-md border border-white/50 shadow-lg">
+                    <div className="w-full md:w-1/3">
+                        <label className="text-xs font-semibold text-[#005429] uppercase tracking-wider mb-1 block pl-1">Area Restoran</label>
                         <Select
-                            className="text-[13px] w-1/5"
                             styles={customStyles}
                             options={options}
                             value={options.find(opt => opt.value === (selectedArea?._id || "")) || null}
                             onChange={(selected) => handleAreaChange(selected?.value)}
                             placeholder="Pilih Area..."
                             isClearable
+                            className="w-full"
                         />
+                    </div>
+
+                    {/* Unsaved Changes & Actions */}
+                    <div className="flex items-center gap-3">
+                        {hasUnsavedChanges && (
+                            <div className="flex items-center gap-3 px-4 py-2 bg-yellow-50/80 border border-yellow-200 rounded-lg shadow-sm">
+                                <span className="text-sm text-yellow-800 font-medium">
+                                    Perubahan belum disimpan
+                                </span>
+                                <div className="h-4 w-[1px] bg-yellow-300"></div>
+                                <button
+                                    onClick={handleCancelChanges}
+                                    className="p-1.5 text-yellow-700 hover:bg-yellow-100 rounded transition-colors"
+                                    title="Batal"
+                                >
+                                    <FaTimes size={14} />
+                                </button>
+                                <button
+                                    onClick={handleSavePositions}
+                                    disabled={saving}
+                                    className="px-3 py-1.5 text-xs font-bold bg-[#005429] text-white hover:bg-[#004220] rounded shadow transition-all flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    <FaSave /> {saving ? 'Menyimpan...' : 'Simpan'}
+                                </button>
+                            </div>
+                        )}
+                        {!hasUnsavedChanges && selectedArea && (
+                            <button
+                                onClick={handleSavePositions} // Explicitly allow saving even if no drag changes detected (sometimes manual edits happen)
+                                className="px-4 py-2 bg-white/80 border border-[#005429]/20 text-[#005429] hover:bg-[#005429] hover:text-white rounded-lg shadow-sm transition-all flex items-center gap-2 text-sm font-semibold"
+                            >
+                                <FaSave /> Simpan Posisi
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Unsaved Changes Warning */}
-                {hasUnsavedChanges && (
-                    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded flex items-center justify-between">
-                        <span className="text-sm text-yellow-800">
-                            Ada perubahan yang belum disimpan
-                        </span>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleCancelChanges}
-                                className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded flex items-center gap-1"
-                            >
-                                <FaTimes size={12} /> Batal
-                            </button>
-                            <button
-                                onClick={handleSavePositions}
-                                disabled={saving}
-                                className="px-3 py-1 text-sm bg-[#005429] text-white hover:bg-[#006d34] rounded flex items-center gap-1 disabled:opacity-50"
-                            >
-                                <FaSave size={12} /> {saving ? 'Menyimpan...' : 'Simpan'}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
                 {/* Area Visualization */}
                 {selectedArea && (
-                    <div className="mt-4 rounded shadow-slate-200">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold">
-                                {selectedArea.area_name} ({selectedArea.area_code})
-                            </h3>
-                            <div className="flex items-center space-x-2">
-                                <div className="text-sm text-gray-600">
-                                    Ukuran: {selectedArea.roomSize.width} x {selectedArea.roomSize.height} {selectedArea.roomSize.unit}
-                                </div>
-                                <div className="flex space-x-1">
-                                    <button
-                                        onClick={handleZoomIn}
-                                        className="p-1 bg-gray-200 rounded hover:bg-gray-300"
-                                        title="Zoom In"
-                                    >
-                                        <FaExpand size={14} />
-                                    </button>
-                                    <button
-                                        onClick={handleZoomOut}
-                                        className="p-1 bg-gray-200 rounded hover:bg-gray-300"
-                                        title="Zoom Out"
-                                    >
-                                        <FaCompress size={14} />
-                                    </button>
-                                    <button
-                                        onClick={handleResetView}
-                                        className="p-1 bg-gray-200 rounded hover:bg-gray-300 text-xs"
-                                        title="Reset View"
-                                    >
-                                        Reset
-                                    </button>
-                                </div>
+                    <div className="rounded-2xl overflow-hidden bg-white/40 backdrop-blur-md border border-white/50 shadow-xl">
+                        {/* Toolbar */}
+                        <div className="flex justify-between items-center p-4 bg-white/50 border-b border-white/50">
+                            <div>
+                                <h3 className="text-lg font-bold text-[#005429]">
+                                    {selectedArea.area_name}
+                                </h3>
+                                <p className="text-sm text-gray-500 font-medium">
+                                    {selectedArea.area_code} • {selectedArea.roomSize.width} x {selectedArea.roomSize.height} {selectedArea.roomSize.unit}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white/60 p-1 rounded-lg border border-white/50 shadow-sm">
+                                <button
+                                    onClick={handleZoomOut}
+                                    className="p-2 text-gray-600 hover:text-[#005429] hover:bg-green-50 rounded-md transition-colors"
+                                    title="Zoom Out"
+                                >
+                                    <FaCompress size={16} />
+                                </button>
+                                <div className="h-6 w-[1px] bg-gray-300"></div>
+                                <span className="text-xs font-bold text-gray-500 min-w-[3rem] text-center">
+                                    {Math.round(zoomLevel * 100)}%
+                                </span>
+                                <div className="h-6 w-[1px] bg-gray-300"></div>
+                                <button
+                                    onClick={handleZoomIn}
+                                    className="p-2 text-gray-600 hover:text-[#005429] hover:bg-green-50 rounded-md transition-colors"
+                                    title="Zoom In"
+                                >
+                                    <FaExpand size={16} />
+                                </button>
+                                <button
+                                    onClick={handleResetView}
+                                    className="ml-2 px-3 py-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                                >
+                                    Reset
+                                </button>
                             </div>
                         </div>
 
+                        {/* Canvas */}
                         <div
                             ref={containerRef}
-                            className="relative border-2 border-gray-300 bg-gray-50 rounded-md overflow-hidden"
+                            className="relative bg-gray-100/50 overflow-hidden group"
                             style={{
-                                height: '500px',
+                                height: '600px',
                                 width: '100%',
                                 cursor: panning ? 'grabbing' : draggingTable ? 'grabbing' : 'grab',
                                 touchAction: 'none'
@@ -562,149 +597,172 @@ const TablePlanManagement = () => {
                             onMouseDown={handlePanStart}
                         >
                             <div
-                                className="absolute inset-0"
+                                className="absolute inset-0 transition-transform duration-75 ease-out"
                                 style={{
                                     transform: `translate(${offset.x}px, ${offset.y}px)`,
                                     width: '100%',
-                                    height: '500px'
+                                    height: '600px'
                                 }}
                             >
-                                {/* Grid background */}
+                                {/* Premium Grid background */}
                                 <div
                                     className="absolute inset-0"
                                     style={{
-                                        backgroundImage: 'linear-gradient(to right, #f0f0f0 1px, transparent 1px), linear-gradient(to bottom, #f0f0f0 1px, transparent 1px)',
-                                        backgroundSize: `${10 * zoomLevel}px ${10 * zoomLevel}px`
+                                        backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)',
+                                        backgroundSize: `${20 * zoomLevel}px ${20 * zoomLevel}px`,
+                                        opacity: 0.5
                                     }}
-                                >
-                                    <div
-                                        className="absolute inset-0"
-                                        style={{
-                                            backgroundImage: 'linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px)',
-                                            backgroundSize: `${100 * zoomLevel}px ${100 * zoomLevel}px`
-                                        }}
-                                    />
-                                </div>
+                                ></div>
 
-                                {/* Area name label */}
-                                <div className="absolute top-2 left-2 bg-white bg-opacity-70 px-2 py-1 rounded text-sm font-medium shadow-sm">
-                                    {selectedArea.area_name}
-                                </div>
+                                {/* Area Boundary Highlight (optional) */}
+                                <div
+                                    className="absolute border-2 border-dashed border-[#005429]/20 pointer-events-none"
+                                    style={{
+                                        width: `${selectedArea.roomSize.width * scale}px`,
+                                        height: `${selectedArea.roomSize.height * scale}px`,
+                                        left: 0,
+                                        top: 0,
+                                    }}
+                                />
 
                                 {/* Tables */}
                                 {selectedArea.tables?.map((table) => {
                                     const pos = tablePositions[table._id] || table.position;
+                                    const isDragging = draggingTable === table._id;
+
+                                    // Status Styles
+                                    let statusColor = "bg-white border-[#005429]";
+                                    let statusText = "text-[#005429]";
+                                    let statusShadow = "shadow-md hover:shadow-xl shadow-green-900/10";
+
+                                    if (table.status === 'occupied') {
+                                        statusColor = "bg-red-50 border-red-500";
+                                        statusText = "text-red-600";
+                                        statusShadow = "shadow-md hover:shadow-xl shadow-red-900/10";
+                                    } else if (table.status === 'reserved') {
+                                        statusColor = "bg-yellow-50 border-yellow-500";
+                                        statusText = "text-yellow-600";
+                                        statusShadow = "shadow-md hover:shadow-xl shadow-yellow-900/10";
+                                    } else if (table.status === 'maintenance') {
+                                        statusColor = "bg-gray-100 border-gray-400";
+                                        statusText = "text-gray-500";
+                                    }
+
                                     return (
                                         <div
                                             key={table._id}
-                                            className={`absolute flex flex-col items-center justify-center rounded border-2 
-                                                ${draggingTable === table._id ? 'cursor-grabbing shadow-lg' : 'cursor-move'}
-                                                ${table.status === 'available' ? 'border-green-500 bg-white hover:bg-green-200' :
-                                                    table.status === 'occupied' ? 'border-red-500 bg-red-100 hover:bg-red-200' :
-                                                        table.status === 'reserved' ? 'border-yellow-500 bg-yellow-100 hover:bg-yellow-200' :
-                                                            'border-gray-500 bg-gray-100 hover:bg-gray-200'}`}
+                                            className={`absolute flex flex-col items-center justify-center rounded-lg border-2 backdrop-blur-sm transition-all
+                                                ${statusColor} ${statusShadow} ${statusText}
+                                                ${isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-green-400/30' : 'cursor-move z-10'}
+                                            `}
                                             style={{
                                                 left: `${pos.x * scale}px`,
                                                 top: `${pos.y * scale}px`,
                                                 width: `${table.size?.width ? table.size.width * scale : 0.8 * scale}px`,
                                                 height: `${table.size?.height ? table.size.height * scale : 0.8 * scale}px`,
                                                 borderRadius: table.shape === 'circle' ? '50%' :
-                                                    table.shape === 'oval' ? '50%' : '4px',
+                                                    table.shape === 'oval' ? '50%' : '12px',
                                                 transform: 'translate(-50%, -50%)',
-                                                transition: draggingTable === table._id ? 'none' : 'background-color 0.2s',
-                                                zIndex: draggingTable === table._id ? 100 : 10
                                             }}
                                             onMouseDown={(e) => handleTableDragStart(e, table)}
                                         >
-                                            <div className="text-sm font-semibold text-center">
+                                            <div className="text-sm font-bold pointer-events-none">
                                                 {table.table_number}
                                             </div>
-                                            <div className="text-xs text-gray-600">
-                                                {table.seats} kursi
+                                            <div className="text-[10px] font-medium opacity-80 pointer-events-none">
+                                                {table.seats} Pax
                                             </div>
-                                            <div className={`text-xs font-medium mt-1 
-                                                ${table.status === 'available' ? 'text-green-600' :
-                                                    table.status === 'occupied' ? 'text-red-600' :
-                                                        table.status === 'reserved' ? 'text-yellow-600' :
-                                                            'text-gray-600'}`}>
-                                                {formatStatus(table.status)}
-                                            </div>
+
+                                            {/* Status Indicator Dot */}
+                                            <div className={`absolute top-1 right-1 w-2 h-2 rounded-full 
+                                                ${table.status === 'available' ? 'bg-green-500' :
+                                                    table.status === 'occupied' ? 'bg-red-500' :
+                                                        table.status === 'reserved' ? 'bg-yellow-500' : 'bg-gray-400'
+                                                }`}
+                                            />
                                         </div>
                                     );
                                 })}
+                            </div>
 
-                                {/* Scale indicator */}
-                                <div className="absolute bottom-2 right-2 bg-white bg-opacity-70 px-2 py-1 rounded text-xs text-gray-500 shadow-sm">
-                                    Skala: 1m = {Math.round(100 * zoomLevel)}px ({zoomLevel.toFixed(1)}x)
-                                </div>
+                            {/* Overlay Instructions when not interacting */}
+                            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/80 backdrop-blur px-4 py-2 rounded-full border border-white shadow-lg text-xs font-semibold text-[#005429] pointer-events-none flex items-center gap-2">
+                                💡 <span className="text-gray-600">Drag meja untuk pindah posisi • Scroll/Button untuk Zoom</span>
                             </div>
                         </div>
 
-                        {/* Instructions */}
-                        <div className="mt-2 text-sm text-gray-600 bg-blue-50 p-2 rounded">
-                            💡 Tips: Klik dan drag meja untuk memindahkan posisi. Jangan lupa simpan perubahan setelah selesai.
-                        </div>
-
-                        {/* Table List */}
-                        <div className="mt-4">
-                            <div className="flex justify-between items-center mb-2">
-                                <h4 className="font-semibold">Daftar Meja</h4>
+                        {/* Table List / Management Panel */}
+                        <div className="p-6 bg-white/60 border-t border-white/50">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <h4 className="text-lg font-bold text-[#005429]">Daftar Meja</h4>
+                                    <p className="text-xs text-gray-500">Kelola detail meja di area ini</p>
+                                </div>
                                 <button
                                     onClick={handleAddTable}
-                                    className="px-3 py-1 bg-[#005429] text-white text-sm rounded hover:bg-[#006d34] flex items-center gap-1"
+                                    className="px-4 py-2 bg-[#005429] text-white text-sm font-semibold rounded-lg hover:bg-[#004220] hover:shadow-lg transition-all flex items-center gap-2"
                                 >
-                                    <FaPlus size={12} /> Tambah Meja
+                                    <FaPlus /> Tambah Meja
                                 </button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                                 {selectedArea.tables?.map(table => {
                                     const pos = tablePositions[table._id] || table.position;
                                     return (
                                         <div
                                             key={table._id}
-                                            className={`p-3 rounded border hover:shadow-md transition-shadow
-                                                ${table.status === 'available' ? 'border-green-300 bg-white' :
-                                                    table.status === 'occupied' ? 'border-red-300 bg-red-50' :
-                                                        table.status === 'reserved' ? 'border-yellow-300 bg-yellow-50' :
-                                                            'border-gray-300 bg-gray-50'}`}
+                                            className="group bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-[#005429]/30 transition-all duration-300 relative overflow-hidden"
                                         >
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h4 className="font-semibold">{table.table_number}</h4>
-                                                    <p className="text-sm text-gray-600">
-                                                        {table.seats} kursi • {table.table_type} • {table.shape}
-                                                    </p>
-                                                </div>
-                                                <span className={`text-xs px-2 py-1 rounded 
-                                                    ${table.status === 'available' ? 'bg-green-100 text-green-800' :
-                                                        table.status === 'occupied' ? 'bg-red-100 text-red-800' :
-                                                            table.status === 'reserved' ? 'bg-yellow-100 text-yellow-800' :
-                                                                'bg-gray-100 text-gray-800'}`}>
+                                            {/* Top Status Bar */}
+                                            <div className={`absolute top-0 left-0 w-full h-1 
+                                                ${table.status === 'available' ? 'bg-green-500' :
+                                                    table.status === 'occupied' ? 'bg-red-500' :
+                                                        table.status === 'reserved' ? 'bg-yellow-500' : 'bg-gray-400'
+                                                }`}
+                                            />
+
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="text-lg font-bold text-[#005429]">{table.table_number}</h4>
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide
+                                                    ${table.status === 'available' ? 'bg-green-100 text-green-700' :
+                                                        table.status === 'occupied' ? 'bg-red-100 text-red-700' :
+                                                            table.status === 'reserved' ? 'bg-yellow-100 text-yellow-700' :
+                                                                'bg-gray-100 text-gray-700'}`}>
                                                     {formatStatus(table.status)}
                                                 </span>
                                             </div>
-                                            <div className="mt-2 flex justify-between text-xs text-gray-500">
-                                                <span>Posisi: ({pos.x.toFixed(1)}, {pos.y.toFixed(1)})</span>
-                                                <span>Ukuran: {table.size?.width?.toFixed(1) || '0.8'}x{table.size?.height?.toFixed(1) || '0.8'}m</span>
+
+                                            <div className="space-y-1 mb-4">
+                                                <p className="text-xs text-gray-500 flex items-center justify-between">
+                                                    <span>Kapasitas:</span>
+                                                    <span className="font-semibold text-gray-700">{table.seats} Kursi</span>
+                                                </p>
+                                                <p className="text-xs text-gray-500 flex items-center justify-between">
+                                                    <span>Tipe:</span>
+                                                    <span className="font-semibold text-gray-700 capitalize">{table.table_type}</span>
+                                                </p>
                                             </div>
-                                            <div className="mt-2 flex gap-2">
+
+                                            <div className="flex gap-1 pt-2 border-t border-dashed border-gray-200 opacity-80 group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={() => handleEditTable(table)}
-                                                    className="flex-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-1"
+                                                    className="flex-1 py-1.5 text-xs font-semibold bg-gray-50 text-blue-600 rounded hover:bg-blue-50 hover:text-blue-700 transition-colors flex items-center justify-center gap-1"
                                                 >
-                                                    <FaEdit size={10} /> Edit
+                                                    <FaEdit /> Edit
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteTable(table)}
-                                                    className="flex-1 px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 flex items-center justify-center gap-1"
+                                                    className="flex-1 py-1.5 text-xs font-semibold bg-gray-50 text-red-600 rounded hover:bg-red-50 hover:text-red-700 transition-colors flex items-center justify-center gap-1"
                                                 >
-                                                    <FaTrash size={10} /> Hapus
+                                                    <FaTrash /> Hapus
                                                 </button>
                                                 <button
                                                     onClick={() => handleDownloadTableQR(table)}
-                                                    className="flex-1 px-2 py-1 text-xs bg-green-900 text-white rounded hover:bg-green-600 flex items-center justify-center gap-1"
+                                                    className="py-1.5 px-2 text-xs font-semibold bg-gray-50 text-green-600 rounded hover:bg-green-50 hover:text-green-700 transition-colors flex items-center justify-center"
+                                                    title="Download QR"
                                                 >
-                                                    <FaQrcode size={10} />
+                                                    <FaQrcode />
                                                 </button>
                                             </div>
                                         </div>
@@ -718,148 +776,67 @@ const TablePlanManagement = () => {
 
             {/* Table Form Modal */}
             {showTableForm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-4 border-b flex justify-between items-center">
-                            <h3 className="text-lg font-semibold">
-                                {editingTable ? 'Edit Meja' : 'Tambah Meja Baru'}
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-white">
+                        <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+                            <h3 className="text-xl font-bold text-[#005429]">
+                                {editingTable ? 'Edit Informasi Meja' : 'Tambah Meja Baru'}
                             </h3>
                             <button
                                 onClick={() => setShowTableForm(false)}
-                                className="text-gray-500 hover:text-gray-700"
+                                className="text-gray-400 hover:text-red-500 transition-colors rounded-full p-1 hover:bg-red-50"
                             >
-                                <FaTimes />
+                                <FaTimes size={20} />
                             </button>
                         </div>
-                        <form onSubmit={handleSubmitTable} className="p-4">
-                            <div className="space-y-3">
+
+                        <form onSubmit={handleSubmitTable} className="p-6 space-y-5">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Nomor Meja</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Nomor Meja</label>
                                     <input
                                         type="text"
                                         value={tableForm.table_number}
                                         onChange={(e) => setTableForm({ ...tableForm, table_number: e.target.value })}
-                                        className="w-full border rounded px-3 py-2 text-sm uppercase"
+                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#005429] focus:border-transparent outline-none transition-all"
+                                        placeholder="Contoh: A1"
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Jumlah Kursi</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Area</label>
+                                    <select
+                                        value={tableForm.area_id || selectedArea?._id}
+                                        disabled
+                                        className="w-full bg-gray-100 border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-500 cursor-not-allowed"
+                                    >
+                                        {areas.map(area => (
+                                            <option key={area._id} value={area._id}>
+                                                {area.area_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Jumlah Kursi</label>
                                     <input
                                         type="number"
                                         value={tableForm.seats}
                                         onChange={(e) => setTableForm({ ...tableForm, seats: parseInt(e.target.value) })}
-                                        className="w-full border rounded px-3 py-2 text-sm"
+                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#005429] focus:border-transparent outline-none transition-all"
                                         min="1"
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <select value={tableForm.area_id || selectedArea?._id}>
-                                        {areas.map(area => (
-                                            <option key={area._id} value={area._id}>
-                                                {area.area_name} ({area.area_code}) - {area.roomSize.width}x{area.roomSize.height}{area.roomSize.unit}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Tipe Meja</label>
-                                    <select
-                                        value={tableForm.table_type}
-                                        onChange={(e) => setTableForm({ ...tableForm, table_type: e.target.value })}
-                                        className="w-full border rounded px-3 py-2 text-sm"
-                                    >
-                                        <option value="regular">Regular</option>
-                                        <option value="vip">VIP</option>
-                                        <option value="outdoor">Outdoor</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Bentuk</label>
-                                    <select
-                                        value={tableForm.shape}
-                                        onChange={(e) => setTableForm({ ...tableForm, shape: e.target.value })}
-                                        className="w-full border rounded px-3 py-2 text-sm"
-                                    >
-                                        <option value="rectangle">Persegi Panjang</option>
-                                        <option value="square">Persegi</option>
-                                        <option value="circle">Lingkaran</option>
-                                        <option value="oval">Oval</option>
-                                    </select>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Lebar (m)</label>
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={tableForm.size.width}
-                                            onChange={(e) => setTableForm({
-                                                ...tableForm,
-                                                size: { ...tableForm.size, width: parseFloat(e.target.value) }
-                                            })}
-                                            className="w-full border rounded px-3 py-2 text-sm"
-                                            min="0.5"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Tinggi (m)</label>
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={tableForm.size.height}
-                                            onChange={(e) => setTableForm({
-                                                ...tableForm,
-                                                size: { ...tableForm.size, height: parseFloat(e.target.value) }
-                                            })}
-                                            className="w-full border rounded px-3 py-2 text-sm"
-                                            min="0.5"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Posisi X (m)</label>
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={tableForm.position.x}
-                                            onChange={(e) => setTableForm({
-                                                ...tableForm,
-                                                position: { ...tableForm.position, x: parseFloat(e.target.value) }
-                                            })}
-                                            className="w-full border rounded px-3 py-2 text-sm"
-                                            min="0"
-                                            max={selectedArea?.roomSize.width}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Posisi Y (m)</label>
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={tableForm.position.y}
-                                            onChange={(e) => setTableForm({
-                                                ...tableForm,
-                                                position: { ...tableForm.position, y: parseFloat(e.target.value) }
-                                            })}
-                                            className="w-full border rounded px-3 py-2 text-sm"
-                                            min="0"
-                                            max={selectedArea?.roomSize.height}
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Status</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Status</label>
                                     <select
                                         value={tableForm.status}
                                         onChange={(e) => setTableForm({ ...tableForm, status: e.target.value })}
-                                        className="w-full border rounded px-3 py-2 text-sm"
+                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#005429] focus:border-transparent outline-none transition-all"
                                     >
                                         <option value="available">Tersedia</option>
                                         <option value="occupied">Terisi</option>
@@ -868,20 +845,117 @@ const TablePlanManagement = () => {
                                     </select>
                                 </div>
                             </div>
-                            <div className="mt-4 flex gap-2">
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Tipe Meja</label>
+                                    <select
+                                        value={tableForm.table_type}
+                                        onChange={(e) => setTableForm({ ...tableForm, table_type: e.target.value })}
+                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#005429] focus:border-transparent outline-none transition-all"
+                                    >
+                                        <option value="regular">Regular</option>
+                                        <option value="vip">VIP</option>
+                                        <option value="outdoor">Outdoor</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Bentuk</label>
+                                    <select
+                                        value={tableForm.shape}
+                                        onChange={(e) => setTableForm({ ...tableForm, shape: e.target.value })}
+                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#005429] focus:border-transparent outline-none transition-all"
+                                    >
+                                        <option value="rectangle">Persegi Panjang</option>
+                                        <option value="square">Persegi</option>
+                                        <option value="circle">Lingkaran</option>
+                                        <option value="oval">Oval</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <h4 className="text-xs font-bold text-gray-700 uppercase mb-3">Dimensi & Posisi (Meter)</h4>
+                                <div className="grid grid-cols-2 gap-4 mb-3">
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500 mb-1">Lebar</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={tableForm.size.width}
+                                            onChange={(e) => setTableForm({
+                                                ...tableForm,
+                                                size: { ...tableForm.size, width: parseFloat(e.target.value) }
+                                            })}
+                                            className="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-[#005429]"
+                                            min="0.5"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500 mb-1">Panjang</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={tableForm.size.height}
+                                            onChange={(e) => setTableForm({
+                                                ...tableForm,
+                                                size: { ...tableForm.size, height: parseFloat(e.target.value) }
+                                            })}
+                                            className="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-[#005429]"
+                                            min="0.5"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500 mb-1">Posisi X</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={tableForm.position.x}
+                                            onChange={(e) => setTableForm({
+                                                ...tableForm,
+                                                position: { ...tableForm.position, x: parseFloat(e.target.value) }
+                                            })}
+                                            className="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-[#005429]"
+                                            min="0"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500 mb-1">Posisi Y</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={tableForm.position.y}
+                                            onChange={(e) => setTableForm({
+                                                ...tableForm,
+                                                position: { ...tableForm.position, y: parseFloat(e.target.value) }
+                                            })}
+                                            className="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-[#005429]"
+                                            min="0"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
                                 <button
                                     type="button"
                                     onClick={() => setShowTableForm(false)}
-                                    className="flex-1 px-4 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50"
+                                    className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all shadow-sm"
                                 >
                                     Batal
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={saving}
-                                    className="flex-1 px-4 py-2 bg-[#005429] text-white rounded text-sm hover:bg-[#006d34] disabled:opacity-50"
+                                    className="flex-1 px-4 py-3 bg-[#005429] text-white font-bold rounded-xl hover:bg-[#004220] shadow-lg hover:shadow-[#005429]/30 transition-all disabled:opacity-50"
                                 >
-                                    {saving ? 'Menyimpan...' : editingTable ? 'Update' : 'Tambah'}
+                                    {saving ? 'Menyimpan...' : editingTable ? 'Simpan Perubahan' : 'Tambah Meja'}
                                 </button>
                             </div>
                         </form>

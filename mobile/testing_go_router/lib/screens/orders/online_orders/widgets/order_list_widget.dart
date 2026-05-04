@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/order_type.model.dart';
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/payment_details_widget.dart';
 
@@ -85,7 +85,8 @@ class OrderListWidget extends ConsumerWidget {
     final statusColor = PaymentStatusUtils.getColor(order.paymentStatus!);
     final backgroundColor =
         isSelected ? Colors.blue.withValues(alpha: 0.08) : Colors.white;
-    final borderColor = isSelected ? Colors.blue : Colors.grey.withValues(alpha: 0.2);
+    final borderColor =
+        isSelected ? Colors.blue : Colors.grey.withValues(alpha: 0.2);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -134,7 +135,10 @@ class OrderListWidget extends ConsumerWidget {
                         height: 48,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [statusColor, statusColor.withValues(alpha: 0.7)],
+                            colors: [
+                              statusColor,
+                              statusColor.withValues(alpha: 0.7),
+                            ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -246,7 +250,9 @@ class OrderListWidget extends ConsumerWidget {
                       decoration: BoxDecoration(
                         color: Colors.blue.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: Colors.blue.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -258,7 +264,7 @@ class OrderListWidget extends ConsumerWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            OrderTypeExtension.orderTypeToJson(order.orderType),
+                            order.orderType.name,
                             style: const TextStyle(
                               color: Colors.blue,
                               fontSize: 11,
@@ -312,7 +318,10 @@ class OrderListWidget extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [statusColor, statusColor.withValues(alpha: 0.8)],
+                          colors: [
+                            statusColor,
+                            statusColor.withValues(alpha: 0.8),
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -379,17 +388,16 @@ class OrderListWidget extends ConsumerWidget {
   }
 
   IconData _getOrderTypeIcon(dynamic orderType) {
-    // Sesuaikan dengan enum OrderType yang ada di project Anda
-    final typeString =
-        OrderTypeExtension.orderTypeToJson(orderType).toLowerCase();
-    switch (typeString) {
-      case 'dine_in':
+    if (orderType is! OrderTypeModel) return Icons.receipt_rounded;
+
+    switch (orderType.id) {
+      case 'dineIn':
         return Icons.restaurant_rounded;
-      case 'takeaway':
+      case 'takeAway':
         return Icons.shopping_bag_rounded;
       case 'delivery':
         return Icons.delivery_dining_rounded;
-      case 'online':
+      case 'pickup': // pickup treated as takeAway/online ?
         return Icons.shopping_cart_rounded;
       default:
         return Icons.receipt_rounded;

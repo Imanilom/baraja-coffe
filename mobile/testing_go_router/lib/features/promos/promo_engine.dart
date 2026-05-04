@@ -5,6 +5,7 @@ import 'package:kasirbaraja/models/auto_promo.model.dart';
 import 'package:kasirbaraja/models/free_item.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/order_item.model.dart';
 
 class PromoEngine {
   /// Main entry point: Apply semua promo yang eligible
@@ -183,6 +184,19 @@ class PromoEngine {
     return result;
   }
 
+  /// Helper: Filter items that do NOT have custom discount
+  static List<OrderItemModel> _getEligibleItems(OrderDetailModel order) {
+    return order.items.where((item) {
+      final hasCustom = item.customDiscount?.isActive == true;
+      if (hasCustom) {
+        debugPrint(
+          '    ⚠️ Item skipped (Custom Discount): ${item.menuItem.name}',
+        );
+      }
+      return !hasCustom;
+    }).toList();
+  }
+
   static bool _hasEligibleProducts(
     AutoPromoModel promo,
     OrderDetailModel order,
@@ -191,7 +205,9 @@ class PromoEngine {
     final productIds = promo.conditions.products.map((p) => p.id).toSet();
     debugPrint('    Eligible Product IDs: $productIds');
 
-    for (final item in order.items) {
+    final eligibleItems = _getEligibleItems(order);
+
+    for (final item in eligibleItems) {
       debugPrint(
         '    Checking item: ${item.menuItem.id} - ${item.menuItem.name}',
       );
@@ -213,9 +229,11 @@ class PromoEngine {
       return false;
     }
 
-    // Check apakah semua produk bundle ada di order
+    // Check apakah semua produk bundle ada di order (exclude custom discounted items)
+    final eligibleItems = _getEligibleItems(order);
+
     for (final bundleItem in promo.conditions.bundleProducts) {
-      final found = order.items.where((item) {
+      final found = eligibleItems.where((item) {
         return item.menuItem.id == bundleItem.product.id;
       });
 
@@ -236,7 +254,9 @@ class PromoEngine {
 
   static bool _meetsMinQuantity(AutoPromoModel promo, OrderDetailModel order) {
     final minQty = promo.conditions.minQuantity ?? 0;
-    final totalQty = order.items.fold(0, (sum, item) => sum + item.quantity);
+    // Only count items without custom discount
+    final eligibleItems = _getEligibleItems(order);
+    final totalQty = eligibleItems.fold(0, (sum, item) => sum + item.quantity);
 
     debugPrint('    _meetsMinQuantity: Min Qty=$minQty, Actual Qty=$totalQty');
     debugPrint('      Result: ${totalQty >= minQty}');
@@ -246,10 +266,19 @@ class PromoEngine {
 
   static bool _meetsMinTotal(AutoPromoModel promo, OrderDetailModel order) {
     final minTotal = promo.conditions.minTotal ?? 0;
-    final result = order.totalBeforeDiscount >= minTotal;
+    // Only count total from eligible items??
+    // Decision: If we want strict mutual exclusion, we should probably exclude custom discounted items from the "Total Spend" calculation too.
+    // However, usually total spend includes everything. But let's stick to the "Item exclusion" logic for safety.
+    // If an item has custom discount, it doesn't contribute to auto promo eligibility.
+
+    final eligibleTotal = _getEligibleItems(
+      order,
+    ).fold<int>(0, (sum, item) => sum + item.subtotal);
+
+    final result = eligibleTotal >= minTotal;
 
     debugPrint(
-      '    _meetsMinTotal: Min Total=$minTotal, Order Total=${order.totalBeforeDiscount}',
+      '    _meetsMinTotal: Min Total=$minTotal, Eligible Total=$eligibleTotal',
     );
     debugPrint('      Result: $result');
 
@@ -264,12 +293,16 @@ class PromoEngine {
     }
 
     debugPrint('    _hasBuyProduct: Looking for product ID: $buyProductId');
-    final hasProduct = order.items.any(
+
+    // Only look in eligible items
+    final eligibleItems = _getEligibleItems(order);
+
+    final hasProduct = eligibleItems.any(
       (item) => item.menuItem.id == buyProductId,
     );
 
     if (hasProduct) {
-      final totalQty = order.items
+      final totalQty = eligibleItems
           .where((item) => item.menuItem.id == buyProductId)
           .fold(0, (sum, item) => sum + item.quantity);
       debugPrint('      ✅ Found buy product, total quantity: $totalQty');
@@ -354,7 +387,10 @@ class PromoEngine {
     final productIds = promo.conditions.products.map((p) => p.id).toSet();
     debugPrint('      Targeted Product IDs: $productIds');
 
-    for (final item in order.items) {
+    // Use eligible items
+    final eligibleItems = _getEligibleItems(order);
+
+    for (final item in eligibleItems) {
       if (productIds.contains(item.menuItem.id)) {
         debugPrint('        Processing item: ${item.menuItem.name}');
         debugPrint(
@@ -425,9 +461,10 @@ class PromoEngine {
     var minSets = 999999;
 
     for (final bundleItem in promo.conditions.bundleProducts) {
-      final matchingItems = order.items.where(
-        (item) => item.menuItem.id == bundleItem.product.id,
-      );
+      // Use eligible items
+      final matchingItems = _getEligibleItems(
+        order,
+      ).where((item) => item.menuItem.id == bundleItem.product.id);
 
       if (matchingItems.isEmpty) {
         debugPrint('❌ Item not found in cart: ${bundleItem.product.name}');
@@ -456,9 +493,10 @@ class PromoEngine {
 
     // Apply discount untuk items dalam bundle
     for (final bundleItem in promo.conditions.bundleProducts) {
-      final matchingItems = order.items.where(
-        (item) => item.menuItem.id == bundleItem.product.id,
-      );
+      // Use eligible items
+      final matchingItems = _getEligibleItems(
+        order,
+      ).where((item) => item.menuItem.id == bundleItem.product.id);
 
       if (matchingItems.isEmpty) continue;
 
@@ -489,13 +527,13 @@ class PromoEngine {
 
     // Update discount amount proportionally
     for (var i = 0; i < affectedItems.length; i++) {
-      final ratio = affectedItems[i].originalSubtotal ?? 0 / totalOriginal;
+      final ratio = (affectedItems[i].originalSubtotal ?? 0) / totalOriginal;
       final itemDiscount = (totalDiscount * ratio).round();
 
       affectedItems[i] = affectedItems[i].copyWith(
         discountAmount: itemDiscount,
         discountedSubtotal:
-            affectedItems[i].originalSubtotal ?? 0 - itemDiscount,
+            (affectedItems[i].originalSubtotal ?? 0) - itemDiscount,
       );
     }
 
@@ -518,7 +556,9 @@ class PromoEngine {
   ) {
     debugPrint('      _applyDiscountOnQuantity: ${promo.name}');
 
-    final totalQty = order.items.fold(0, (sum, item) => sum + item.quantity);
+    // Use eligible items
+    final eligibleItems = _getEligibleItems(order);
+    final totalQty = eligibleItems.fold(0, (sum, item) => sum + item.quantity);
     final minQty = promo.conditions.minQuantity ?? 0;
 
     debugPrint('        Total Qty: $totalQty, Min Qty: $minQty');
@@ -535,7 +575,12 @@ class PromoEngine {
     final affectedItems = <AffectedItemModel>[];
     debugPrint('        Calculating discount for each item:');
 
-    for (final item in order.items) {
+    // Apply only to eligible items? Or all items?
+    // Usually "Discount on Quantity" means "Buy 5 items, get 10% off".
+    // Does it apply to ALL items or only eligible ones?
+    // Based on mutual exclusion principle: Only items WITHOUT custom discount should get the auto promo discount.
+
+    for (final item in eligibleItems) {
       final originalSubtotal = item.subtotal;
       final discountAmount = (originalSubtotal * promo.discount / 100).round();
       final discountedSubtotal = originalSubtotal - discountAmount;
@@ -583,11 +628,15 @@ class PromoEngine {
     debugPrint('      _applyDiscountOnTotal: ${promo.name}');
 
     final minTotal = promo.conditions.minTotal ?? 0;
-    debugPrint(
-      '        Order Total: ${order.totalBeforeDiscount}, Min Total: $minTotal',
-    );
 
-    if (order.totalBeforeDiscount < minTotal) {
+    // Calculate eligible total (excluding custom discounted items)
+    final eligibleTotal = _getEligibleItems(
+      order,
+    ).fold<int>(0, (sum, item) => sum + item.subtotal);
+
+    debugPrint('        Eligible Total: $eligibleTotal, Min Total: $minTotal');
+
+    if (eligibleTotal < minTotal) {
       debugPrint('        ❌ Minimum total not met');
       return null;
     }
@@ -627,10 +676,12 @@ class PromoEngine {
     debugPrint('        Buy Product ID: $buyProductId');
     debugPrint('        Get Product ID: $getProductId');
 
-    // Cari produk yang dibeli
-    final buyItems = order.items.where(
-      (item) => item.menuItem.id == buyProductId,
-    );
+    debugPrint('        Get Product ID: $getProductId');
+
+    // Cari produk yang dibeli (eligible only)
+    final buyItems = _getEligibleItems(
+      order,
+    ).where((item) => item.menuItem.id == buyProductId);
 
     if (buyItems.isEmpty) {
       debugPrint('        ❌ Buy product not found in order');
@@ -779,7 +830,7 @@ class PromoEngine {
               discountedSubtotal: 0,
             ),
       );
-      return sum + affected.discountAmount!;
+      return sum + (affected.discountAmount ?? 0);
     });
 
     debugPrint(

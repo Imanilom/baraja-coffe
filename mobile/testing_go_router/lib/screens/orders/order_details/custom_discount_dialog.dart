@@ -77,116 +77,101 @@ class _CustomDiscountDialogState extends State<CustomDiscountDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: 380,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Title with close button
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, size: 20),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Input with inline type selector
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Input field
-                Expanded(
-                  child: TextField(
-                    controller: _valueController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    autofocus: true,
-                    style: const TextStyle(fontSize: 16),
-                    decoration: InputDecoration(
-                      labelText: 'Nilai Diskon',
-                      errorText: _valueError,
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
+        width: 520,
+        padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Title with close button
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    onChanged: (_) => setState(() => _valueError = null),
-                    onSubmitted: (_) => _handleApply(),
                   ),
-                ),
-                const SizedBox(width: 12),
-
-                // Type selector buttons (vertical)
-                Column(
-                  children: [
-                    // Percentage button
-                    _TypeButton(
-                      label: '%',
-                      isSelected: _discountType == 'percentage',
-                      onTap: () => setState(() => _discountType = 'percentage'),
-                    ),
-                    const SizedBox(height: 8),
-                    // Fixed amount button
-                    _TypeButton(
-                      label: 'Rp',
-                      isSelected: _discountType == 'fixed',
-                      onTap: () => setState(() => _discountType = 'fixed'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
+                  IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text('Batal'),
+                    icon: const Icon(Icons.close, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Single row: [Input] [% | Rp] [Batal] [Terapkan]
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Input field
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      controller: _valueController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      autofocus: true,
+                      style: const TextStyle(fontSize: 16),
+                      decoration: InputDecoration(
+                        labelText: 'Nilai Diskon',
+                        errorText: _valueError,
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
+                      ),
+                      onChanged: (_) => setState(() => _valueError = null),
+                      onSubmitted: (_) => _handleApply(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Type selector (% | Rp)
+                  Row(
+                    children: [
+                      _TypeButton(
+                        label: '%',
+                        isSelected: _discountType == 'percentage',
+                        onTap:
+                            () => setState(() => _discountType = 'percentage'),
+                      ),
+                      const SizedBox(width: 4),
+                      _TypeButton(
+                        label: 'Rp',
+                        isSelected: _discountType == 'fixed',
+                        onTap: () => setState(() => _discountType = 'fixed'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Check button
+                  IconButton.filled(
                     onPressed: _handleApply,
-                    style: ElevatedButton.styleFrom(
+                    icon: const Icon(Icons.check, color: Colors.white),
+                    style: IconButton.styleFrom(
                       backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      minimumSize: const Size(48, 48),
                     ),
-                    child: const Text('Terapkan'),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

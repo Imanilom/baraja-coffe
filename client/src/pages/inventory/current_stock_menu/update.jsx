@@ -74,7 +74,7 @@
 // export default UpdateStockForm;
 
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 
 const UpdateStockForm = ({ product, onSave, onCancel, currentUser, fetchStockCard }) => {
     const [manualStock, setManualStock] = useState("");

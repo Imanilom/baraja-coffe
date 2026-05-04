@@ -5,10 +5,9 @@ import 'package:kasirbaraja/utils/app_logger.dart';
 class OrderHistoryRepository {
   final OrderHistoryService _orderHistoryService = OrderHistoryService();
 
-  // ✅ FIX #4: Accept cashierId as parameter, remove Hive access
-  Future<List<OrderDetailModel>> fetchOrderHistory(String cashierId) async {
+  Future<List<OrderDetailModel>> fetchOrderHistory(String deviceId) async {
     try {
-      final response = await _orderHistoryService.fetchOrderHistory(cashierId);
+      final response = await _orderHistoryService.fetchOrderHistory(deviceId);
 
       AppLogger.debug("Order history data fetched: ${response.length}");
 

@@ -5,9 +5,7 @@ import 'package:qr_code_scanner_plus/qr_code_scanner_plus.dart';
 import 'dart:convert';
 import '../../configs/app_config.dart';
 import '../../models/order_detail.model.dart';
-import '../../models/order_item.model.dart';
-import '../../models/menu_item.model.dart';
-import '../../enums/order_type.dart';
+
 import '../../utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -112,7 +110,9 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                             size: 28,
                           ),
                           style: IconButton.styleFrom(
-                            backgroundColor: Colors.black.withValues(alpha: 0.5),
+                            backgroundColor: Colors.black.withValues(
+                              alpha: 0.5,
+                            ),
                             padding: const EdgeInsets.all(8),
                           ),
                         ),

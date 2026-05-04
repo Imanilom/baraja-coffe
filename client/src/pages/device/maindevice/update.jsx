@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash, FaReceipt, FaTabletAlt } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
@@ -96,7 +96,7 @@ const UpdateDevice = () => {
             supplier: tempSelectedSupplier,
             detailProduk: rows,
         };
-        console.log('Data terkirim:', payload);
+        // console.log('Data terkirim:', payload);
     };
 
     const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
