@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import dayjs from "dayjs";
 import { Link } from 'react-router-dom';
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaPoll, FaShoppingBag, FaStore, FaSignal, FaTag, FaClock, FaTabletAlt, FaAddressCard, FaWallet, FaRegCreditCard, FaThLarge, FaRegClock, FaFileInvoiceDollar, FaCoins, FaHandshake } from "react-icons/fa";
-import UnderDevelopment from '../../../components/repair';
+import UnderDevelopment from '../../../components/Repair';
 
 const OperationalMenu = () => {
     const { currentUser } = useSelector((state) => state.user);

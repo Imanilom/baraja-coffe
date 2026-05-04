@@ -140,3 +140,4 @@ const UpdateSupplier = () => {
 };
 
 export default UpdateSupplier;
+

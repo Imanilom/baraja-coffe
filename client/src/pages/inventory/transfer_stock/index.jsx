@@ -8,7 +8,7 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import { useSelector } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
-import MovementSideModal from "@/components/movementSideModal";
+import MovementSideModal from "@/components/MovementSideModal";
 import Header from "@/pages/admin/header";
 
 const TransferStockManagement = () => {
@@ -402,3 +402,4 @@ const TransferStockManagement = () => {
 };
 
 export default TransferStockManagement;
+

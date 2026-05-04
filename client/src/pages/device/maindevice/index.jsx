@@ -5,7 +5,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, F
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import { useSelector } from "react-redux";
-import Paginated from "../../../components/paginated";
+import Paginated from "../../../components/Paginated";
 
 
 const DeviceManagement = () => {
@@ -382,3 +382,4 @@ const DeviceManagement = () => {
 };
 
 export default DeviceManagement;
+

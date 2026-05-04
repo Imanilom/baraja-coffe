@@ -285,3 +285,4 @@ function generateSampleData() {
 
     return { events, sessions };
 }
+

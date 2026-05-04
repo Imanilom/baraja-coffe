@@ -232,3 +232,4 @@ const CreateDepartemen = () => {
 };
 
 export default CreateDepartemen;
+

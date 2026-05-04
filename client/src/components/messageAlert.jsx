@@ -72,3 +72,4 @@ const MessageAlert = ({ type = "success", message = "" }) => {
 };
 
 export default MessageAlert;
+

@@ -281,3 +281,4 @@ const ActivityLogTable = () => {
 };
 
 export default ActivityLogTable;
+

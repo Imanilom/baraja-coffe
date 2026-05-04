@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { FaPlus } from 'react-icons/fa';
 import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
-import MessageAlert from "../../../components/messageAlert";
+import MessageAlert from "../../../components/MessageAlert";
 import MenuTable from "./component/table";
 
 const Menu = () => {

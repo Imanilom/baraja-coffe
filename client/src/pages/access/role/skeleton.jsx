@@ -51,3 +51,4 @@ const RoleTableSkeleton = ({ rows = 10 }) => {
 };
 
 export default RoleTableSkeleton;
+

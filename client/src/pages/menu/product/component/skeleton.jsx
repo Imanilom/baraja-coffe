@@ -106,3 +106,4 @@ const MenuSkeleton = () => {
 };
 
 export default MenuSkeleton;
+

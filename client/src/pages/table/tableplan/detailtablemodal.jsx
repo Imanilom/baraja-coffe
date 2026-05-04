@@ -78,3 +78,4 @@ const DetailMejaModal = ({ isOpen, onClose, data = {} }) => {
 };
 
 export default DetailMejaModal;
+

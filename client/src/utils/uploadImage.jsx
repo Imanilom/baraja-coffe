@@ -61,3 +61,4 @@ export default function ImageUploader({ onUploadSuccess, currentImage }) {
     </div>
   );
 }
+

@@ -35,3 +35,4 @@ const Modal = ({ isOpen, onClose, message, type, children }) => {
 };
 
 export default Modal;
+

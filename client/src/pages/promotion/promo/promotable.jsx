@@ -163,3 +163,4 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
 };
 
 export default PromoTable;
+

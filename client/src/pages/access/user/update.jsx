@@ -8,7 +8,7 @@ import {
     FaEyeSlash,
 } from "react-icons/fa";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import MessageAlert from "../../../components/messageAlert";
+import MessageAlert from "../../../components/MessageAlert";
 import { useSelector } from "react-redux";
 import UpdateUserSkeleton from "./update_user_skeleton";
 

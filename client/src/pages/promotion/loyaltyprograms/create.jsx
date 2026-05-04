@@ -21,3 +21,4 @@ const CreateLoyaltyProgram = () => {
 };
 
 export default CreateLoyaltyProgram;
+

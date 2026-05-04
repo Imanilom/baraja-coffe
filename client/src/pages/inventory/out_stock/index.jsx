@@ -5,7 +5,7 @@ import { FaChevronRight, FaInfoCircle, FaBoxes, FaChevronLeft, FaSearch } from "
 import Datepicker from "react-tailwindcss-datepicker";
 import Modal from "./modal";
 import Header from "../../admin/header";
-import MovementSideModal from "../../../components/movementSideModal";
+import MovementSideModal from "../../../components/MovementSideModal";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -308,3 +308,4 @@ const OutStockManagement = () => {
 };
 
 export default OutStockManagement;
+

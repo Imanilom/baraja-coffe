@@ -5,7 +5,7 @@ import ExportInventory from "../exportInventory";
 import UpdateStockForm from "./update";
 import { useSelector } from "react-redux";
 import CategoryTabs from "../../menu/product/component/categorytabs";
-import Paginated from "../../../components/paginated";
+import Paginated from "../../../components/Paginated";
 
 const CurrentStockManagement = () => {
     const { currentUser } = useSelector((state) => state.user);

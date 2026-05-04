@@ -365,3 +365,4 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
 };
 
 export default TransactionModal;
+

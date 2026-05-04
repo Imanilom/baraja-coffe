@@ -338,3 +338,4 @@ const UpdateVoucher = ({ isOpen, onClose, fetchVouchers, voucherData }) => {
 };
 
 export default UpdateVoucher;
+

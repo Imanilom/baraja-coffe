@@ -9,7 +9,7 @@ import Select from "react-select";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import Paginated from "../../../../components/paginated";
+import Paginated from "../../../../components/Paginated";
 import SalesOutletSkeleton from "./skeleton";
 import { exportOutletSalesExcel } from '../../../../utils/exportOutletSalesExcel';
 

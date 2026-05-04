@@ -1,7 +1,7 @@
 import axios from '@/lib/axios';
 import React, { useEffect, useState } from "react";
 import ConfirmationModalActive from "../confirmationModalActive";
-import Paginated from "../../../components/paginated";
+import Paginated from "../../../components/Paginated";
 import UpdateVoucher from "./update";
 import { FaPencilAlt, FaTrash } from "react-icons/fa";
 
