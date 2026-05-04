@@ -1,12 +1,33 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
-import { FaChevronRight, FaFileExcel } from "react-icons/fa";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import axios from '@/lib/axios';
+import { Link, useSearchParams } from "react-router-dom";
+import { FaChevronRight, FaFileExcel, FaBell, FaUser, FaClipboardList } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
+import { useSelector } from "react-redux";
+import dayjs from "dayjs";
 
 const DailyProfitManagement = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
+
+    const [reportData, setReportData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [exportLoading, setExportLoading] = useState(false);
+
+    // Initial state from URL
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().startOf('month').toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
+    });
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -41,26 +62,14 @@ const DailyProfitManagement = () => {
         }),
     };
 
-    const [reportData, setReportData] = useState(null);
-    const [outlets, setOutlets] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [dateRange, setDateRange] = useState({
-        startDate: new Date(),
-        endDate: new Date()
-    });
-    const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [exportLoading, setExportLoading] = useState(false);
-
-    const options = [
+    const outletOptions = useMemo(() => [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((outlet) => ({
             value: outlet._id,
             label: outlet.name,
         })),
-    ];
+    ], [outlets]);
 
-    // Format currency
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -70,48 +79,38 @@ const DailyProfitManagement = () => {
         }).format(amount || 0);
     };
 
-    // Format date
     const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
+        return dayjs(dateString).format('DD-MM-YYYY');
     };
 
-    // Format percentage
     const formatPercentage = (value) => {
         return `${(value || 0).toFixed(1)}%`;
     };
 
-    // Fetch outlets data
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedOutlet) params.set('outletId', selectedOutlet);
+        setSearchParams(params);
+    }, [dateRange, selectedOutlet, setSearchParams]);
+
     useEffect(() => {
-        const fetchOutlets = async () => {
-            try {
-                const outletsResponse = await axios.get('/api/outlet');
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-                setOutlets(outletsData);
-            } catch (err) {
-                console.error("Error fetching outlets:", err);
-            }
-        };
+        updateURLParams();
+    }, [updateURLParams]);
 
-        fetchOutlets();
-    }, []);
+    const fetchReportData = useCallback(async () => {
+        if (!dateRange.startDate || !dateRange.endDate) return;
 
-    // Fetch report data
-    const fetchReportData = async (startDate, endDate, outletId = "") => {
         setLoading(true);
         try {
             const params = {
-                startDate: startDate.toISOString().split('T')[0],
-                endDate: endDate.toISOString().split('T')[0],
+                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD'),
             };
 
-            if (outletId) {
-                params.outletId = outletId;
+            if (selectedOutlet) {
+                params.outletId = selectedOutlet;
             }
 
             const response = await axios.get('/api/report/daily-profit', { params });
@@ -129,30 +128,13 @@ const DailyProfitManagement = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    // Fetch data when filters change
-    useEffect(() => {
-        if (dateRange.startDate && dateRange.endDate) {
-            fetchReportData(dateRange.startDate, dateRange.endDate, selectedOutlet);
-        }
     }, [dateRange, selectedOutlet]);
 
-    // Handle date range change
-    const handleDateRangeChange = (newValue) => {
-        setDateRange({
-            startDate: newValue.startDate,
-            endDate: newValue.endDate
-        });
-    };
+    useEffect(() => {
+        fetchReportData();
+    }, [fetchReportData]);
 
-    // Handle outlet change
-    const handleOutletChange = (selected) => {
-        setSelectedOutlet(selected.value);
-    };
-
-    // Calculate daily data from orders
-    const calculateDailyData = () => {
+    const dailyData = useMemo(() => {
         if (!reportData || !reportData.orders || reportData.orders.length === 0) {
             return [];
         }
@@ -160,7 +142,7 @@ const DailyProfitManagement = () => {
         const dailyMap = new Map();
 
         reportData.orders.forEach(order => {
-            const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+            const orderDate = dayjs(order.createdAt).format('YYYY-MM-DD');
 
             if (!dailyMap.has(orderDate)) {
                 dailyMap.set(orderDate, {
@@ -182,52 +164,39 @@ const DailyProfitManagement = () => {
         });
 
         return Array.from(dailyMap.values()).sort((a, b) =>
-            new Date(a.date) - new Date(b.date)
+            dayjs(a.date).valueOf() - dayjs(b.date).valueOf()
         );
-    };
+    }, [reportData]);
 
-    const dailyData = calculateDailyData();
+    const totals = useMemo(() => {
+        const initialTotals = {
+            totalRevenue: 0,
+            totalTax: 0,
+            totalDiscount: 0,
+            totalRounding: 0,
+            totalPurchase: 0,
+            totalNetProfit: 0,
+            profitMargin: 0
+        };
 
-    // Calculate totals
-    const calculateTotals = () => {
-        if (dailyData.length === 0) {
-            return {
-                totalRevenue: 0,
-                totalTax: 0,
-                totalDiscount: 0,
-                totalRounding: 0,
-                totalPurchase: 0,
-                totalNetProfit: 0,
-                profitMargin: 0
-            };
-        }
+        if (dailyData.length === 0) return initialTotals;
 
-        const totals = dailyData.reduce((acc, day) => ({
+        const results = dailyData.reduce((acc, day) => ({
             totalRevenue: acc.totalRevenue + day.totalRevenue,
             totalTax: acc.totalTax + day.totalTax,
             totalDiscount: acc.totalDiscount + day.totalDiscount,
             totalRounding: acc.totalRounding + day.totalRounding,
             totalPurchase: acc.totalPurchase + day.totalPurchase,
             totalNetProfit: acc.totalNetProfit + day.totalNetProfit
-        }), {
-            totalRevenue: 0,
-            totalTax: 0,
-            totalDiscount: 0,
-            totalRounding: 0,
-            totalPurchase: 0,
-            totalNetProfit: 0
-        });
+        }), initialTotals);
 
-        totals.profitMargin = totals.totalRevenue > 0
-            ? (totals.totalNetProfit / totals.totalRevenue) * 100
+        results.profitMargin = results.totalRevenue > 0
+            ? (results.totalNetProfit / results.totalRevenue) * 100
             : 0;
 
-        return totals;
-    };
+        return results;
+    }, [dailyData]);
 
-    const totals = calculateTotals();
-
-    // Export to Excel
     const exportToExcel = async () => {
         setExportLoading(true);
         try {
@@ -239,19 +208,13 @@ const DailyProfitManagement = () => {
             const outletName = selectedOutlet ?
                 outlets.find(o => o._id === selectedOutlet)?.name : 'Semua Outlet';
 
-            const formatDateForExcel = (dateStr) => {
-                const date = new Date(dateStr);
-                const pad = (n) => n.toString().padStart(2, "0");
-                return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-            };
-
             const wb = XLSX.utils.book_new();
 
             const headerData = [
                 ['Laporan Laba Harian'],
                 [],
                 ['Outlet', outletName],
-                ['Tanggal', `${formatDateForExcel(dateRange.startDate)} s/d ${formatDateForExcel(dateRange.endDate)}`],
+                ['Tanggal', `${dayjs(dateRange.startDate).format('DD-MM-YYYY')} s/d ${dayjs(dateRange.endDate).format('DD-MM-YYYY')}`],
                 [],
                 ['Tanggal', 'Penjualan Kotor', 'Pajak', 'Diskon', 'Pembulatan', 'Pembelian', 'Laba Kotor', '% Laba Kotor']
             ];
@@ -262,7 +225,7 @@ const DailyProfitManagement = () => {
                     : 0;
 
                 return [
-                    formatDateForExcel(item.date),
+                    dayjs(item.date).format('DD-MM-YYYY'),
                     item.totalRevenue,
                     item.totalTax,
                     item.totalDiscount,
@@ -273,7 +236,7 @@ const DailyProfitManagement = () => {
                 ];
             });
 
-            const grandTotal = [
+            const grandTotalRow = [
                 'Grand Total',
                 totals.totalRevenue,
                 totals.totalTax,
@@ -284,117 +247,17 @@ const DailyProfitManagement = () => {
                 totals.totalRevenue > 0 ? (totals.totalNetProfit / totals.totalRevenue) : 0
             ];
 
-            const allData = [...headerData, ...dataRows, grandTotal];
+            const allData = [...headerData, ...dataRows, grandTotalRow];
             const ws = XLSX.utils.aoa_to_sheet(allData);
 
             ws['!cols'] = [
-                { wch: 15 },
-                { wch: 18 },
-                { wch: 12 },
-                { wch: 12 },
-                { wch: 12 },
-                { wch: 12 },
-                { wch: 18 },
-                { wch: 15 }
-            ];
-
-            const range = XLSX.utils.decode_range(ws['!ref']);
-
-            for (let R = range.s.r; R <= range.e.r; ++R) {
-                for (let C = range.s.c; C <= range.e.c; ++C) {
-                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                    if (!ws[cellAddress]) continue;
-
-                    if (R === 0) {
-                        ws[cellAddress].s = {
-                            font: { bold: true, sz: 14 },
-                            alignment: { horizontal: 'left', vertical: 'center' }
-                        };
-                    }
-
-                    if ((R === 2 || R === 3) && C === 0) {
-                        ws[cellAddress].s = {
-                            font: { bold: true },
-                            alignment: { horizontal: 'left', vertical: 'center' }
-                        };
-                    }
-
-                    if (R === 5) {
-                        ws[cellAddress].s = {
-                            font: { bold: true },
-                            fill: { fgColor: { rgb: "F3F4F6" } },
-                            border: {
-                                top: { style: 'thin', color: { rgb: "000000" } },
-                                bottom: { style: 'thin', color: { rgb: "000000" } },
-                                left: { style: 'thin', color: { rgb: "000000" } },
-                                right: { style: 'thin', color: { rgb: "000000" } }
-                            },
-                            alignment: { horizontal: 'center', vertical: 'center' }
-                        };
-                    }
-
-                    if (R > 5 && R < range.e.r) {
-                        if (C >= 1 && C <= 6) {
-                            ws[cellAddress].t = 'n';
-                            ws[cellAddress].z = '#,##0';
-                        }
-                        if (C === 7) {
-                            ws[cellAddress].t = 'n';
-                            ws[cellAddress].z = '0.0%';
-                        }
-
-                        ws[cellAddress].s = {
-                            border: {
-                                top: { style: 'thin', color: { rgb: "E5E7EB" } },
-                                bottom: { style: 'thin', color: { rgb: "E5E7EB" } },
-                                left: { style: 'thin', color: { rgb: "E5E7EB" } },
-                                right: { style: 'thin', color: { rgb: "E5E7EB" } }
-                            },
-                            alignment: {
-                                horizontal: C === 0 ? 'left' : 'right',
-                                vertical: 'center'
-                            }
-                        };
-                    }
-
-                    if (R === range.e.r) {
-                        ws[cellAddress].s = {
-                            font: { bold: true },
-                            fill: { fgColor: { rgb: "F3F4F6" } },
-                            border: {
-                                top: { style: 'thin', color: { rgb: "000000" } },
-                                bottom: { style: 'thin', color: { rgb: "000000" } },
-                                left: { style: 'thin', color: { rgb: "000000" } },
-                                right: { style: 'thin', color: { rgb: "000000" } }
-                            },
-                            alignment: {
-                                horizontal: C === 0 ? 'left' : 'right',
-                                vertical: 'center'
-                            }
-                        };
-
-                        if (C >= 1 && C <= 6) {
-                            ws[cellAddress].t = 'n';
-                            ws[cellAddress].z = '#,##0';
-                        }
-                        if (C === 7) {
-                            ws[cellAddress].t = 'n';
-                            ws[cellAddress].z = '0.0%';
-                        }
-                    }
-                }
-            }
-
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }
+                { wch: 15 }, { wch: 18 }, { wch: 12 }, { wch: 12 },
+                { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 15 }
             ];
 
             XLSX.utils.book_append_sheet(wb, ws, "Laba Harian");
 
-            const startDateStr = formatDateForExcel(dateRange.startDate);
-            const endDateStr = formatDateForExcel(dateRange.endDate);
-            const filename = `Laporan_Laba_Harian_${outletName.replace(/\s+/g, '_')}_${startDateStr}_to_${endDateStr}.xlsx`;
-
+            const filename = `Laporan_Laba_Harian_${outletName.replace(/\s+/g, '_')}_${dayjs(dateRange.startDate).format('YYYYMMDD')}_${dayjs(dateRange.endDate).format('YYYYMMDD')}.xlsx`;
             XLSX.writeFile(wb, filename);
         } catch (err) {
             console.error("Error exporting to Excel:", err);
@@ -404,213 +267,192 @@ const DailyProfitManagement = () => {
         }
     };
 
-    if (loading && !reportData) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
-
     return (
-        <div className="">
-            {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <p>Laporan</p>
-                    <FaChevronRight />
-                    <Link to="/admin/profit-menu">Laporan Laba Rugi</Link>
-                    <FaChevronRight />
-                    <span>Laba Harian</span>
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={exportToExcel}
-                        disabled={exportLoading || !dailyData || dailyData.length === 0}
-                        className="flex items-center gap-2 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50"
-                    >
-                        <FaFileExcel />
-                        {exportLoading ? 'Mengekspor...' : 'Ekspor Excel'}
-                    </button>
-                </div>
+        <div className="min-h-screen bg-gray-50 pb-10">
+            {/* Header */}
+            <div className="flex justify-end px-6 items-center py-4 space-x-4 border-b bg-white">
+                <FaBell className="text-gray-400 cursor-pointer" />
+                <span className="text-sm font-medium">Hi Baraja</span>
+                <Link to="/admin/menu" className="text-gray-400">
+                    <FaUser size={24} />
+                </Link>
             </div>
 
-            {/* Filters */}
-            <div className="px-6">
-                <div className="flex gap-4 py-3">
-                    <div className="w-1/3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Rentang Tanggal
-                        </label>
-                        <Datepicker
-                            value={dateRange}
-                            onChange={handleDateRangeChange}
-                            showShortcuts={true}
-                            showFooter={true}
-                            displayFormat="DD-MM-YYYY"
-                            inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                            popoverDirection="down"
-                            separator="to"
-                        />
-                    </div>
-                    <div className="w-1/3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Outlet
-                        </label>
-                        <Select
-                            className="text-sm"
-                            classNamePrefix="react-select"
-                            placeholder="Pilih Outlet"
-                            options={options}
-                            isSearchable
-                            value={options.find((opt) => opt.value === selectedOutlet) || options[0]}
-                            onChange={handleOutletChange}
-                            styles={customSelectStyles}
-                        />
-                    </div>
+            {/* Breadcrumb & Export */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaClipboardList className="mr-2" />
+                    <span>Laporan</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <Link to="/admin/profit-menu" className="hover:text-green-900 transition-colors">Laporan Laba Rugi</Link>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900">Laba Harian</span>
                 </div>
+                <button
+                    onClick={exportToExcel}
+                    disabled={exportLoading || !dailyData || dailyData.length === 0}
+                    className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors disabled:opacity-50"
+                >
+                    <FaFileExcel />
+                    {exportLoading ? 'Mengekspor...' : 'Ekspor Excel'}
+                </button>
+            </div>
 
-                {/* Summary Cards */}
-                {dailyData && dailyData.length > 0 && (
-                    <div className="grid grid-cols-4 gap-4 mb-6">
-                        <div className="bg-white p-4 rounded-lg shadow border">
-                            <div className="text-sm text-gray-500">Total Penjualan Kotor</div>
-                            <div className="text-xl font-semibold text-green-900">
-                                {formatCurrency(totals.totalRevenue)}
-                            </div>
+            <div className="px-6 mt-6">
+                {/* Statistics Cards */}
+                {dailyData.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm">
+                            <p className="text-[12px] font-bold text-gray-400 uppercase tracking-wider mb-2">Penjualan Kotor</p>
+                            <p className="text-xl font-bold text-gray-900">{formatCurrency(totals.totalRevenue)}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-lg shadow border">
-                            <div className="text-sm text-gray-500">Total Pajak</div>
-                            <div className="text-xl font-semibold text-blue-900">
-                                {formatCurrency(totals.totalTax)}
-                            </div>
+                        <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm">
+                            <p className="text-[12px] font-bold text-gray-400 uppercase tracking-wider mb-2">Total Pajak</p>
+                            <p className="text-xl font-bold text-blue-600">{formatCurrency(totals.totalTax)}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-lg shadow border">
-                            <div className="text-sm text-gray-500">Total Laba Kotor</div>
-                            <div className="text-xl font-semibold text-green-900">
-                                {formatCurrency(totals.totalNetProfit)}
-                            </div>
+                        <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm">
+                            <p className="text-[12px] font-bold text-gray-400 uppercase tracking-wider mb-2">Laba Kotor</p>
+                            <p className="text-xl font-bold text-green-700">{formatCurrency(totals.totalNetProfit)}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-lg shadow border">
-                            <div className="text-sm text-gray-500">Margin Laba</div>
-                            <div className="text-xl font-semibold text-green-900">
+                        <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm">
+                            <p className="text-[12px] font-bold text-gray-400 uppercase tracking-wider mb-2">Margin Laba</p>
+                            <p className={`text-xl font-bold ${totals.profitMargin >= 0 ? 'text-green-700' : 'text-red-600'}`}>
                                 {formatPercentage(totals.profitMargin)}
-                            </div>
+                            </p>
                         </div>
                     </div>
                 )}
 
-                {/* Error Message */}
-                {error && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="text-red-700 text-sm">{error}</div>
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm mb-6 border border-gray-100">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
+                            <Datepicker
+                                value={dateRange}
+                                onChange={setDateRange}
+                                showShortcuts={true}
+                                showFooter={true}
+                                displayFormat="DD-MM-YYYY"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
+                                popoverDirection="down"
+                                separator="sampai"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Outlet</label>
+                            <Select
+                                options={outletOptions}
+                                value={outletOptions.find(opt => opt.value === selectedOutlet) || outletOptions[0]}
+                                onChange={(selected) => setSelectedOutlet(selected.value)}
+                                styles={customSelectStyles}
+                                isSearchable
+                                placeholder="Pilih Outlet"
+                            />
+                        </div>
+                        <div className="flex items-end">
+                            <button
+                                onClick={() => { setDateRange({ startDate: dayjs().startOf('month').toDate(), endDate: dayjs().toDate() }); setSelectedOutlet(""); }}
+                                className="w-full text-gray-500 border border-gray-200 text-[13px] py-2 rounded hover:bg-gray-50 transition-colors"
+                            >
+                                Reset Filter
+                            </button>
+                        </div>
                     </div>
-                )}
-
-                {/* Table */}
-                <div className="rounded shadow-md bg-white shadow-slate-200 overflow-x-auto">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-[14px] text-gray-400 bg-gray-50">
-                            <tr>
-                                <th className="px-4 py-4 text-left font-normal">Tanggal</th>
-                                <th className="px-4 py-4 text-right font-normal">Penjualan Kotor</th>
-                                <th className="px-4 py-4 text-right font-normal">Pajak</th>
-                                <th className="px-4 py-4 text-right font-normal">Diskon</th>
-                                <th className="px-4 py-4 text-right font-normal">Pembulatan</th>
-                                <th className="px-4 py-4 text-right font-normal">Pembelian</th>
-                                <th className="px-4 py-4 text-right font-normal">Laba Kotor</th>
-                                <th className="px-4 py-4 text-right font-normal">% Laba Kotor</th>
-                            </tr>
-                        </thead>
-                        {dailyData && dailyData.length > 0 ? (
-                            <tbody>
-                                {dailyData.map((item, index) => {
-                                    const profitMargin = item.totalRevenue > 0
-                                        ? (item.totalNetProfit / item.totalRevenue) * 100
-                                        : 0;
-
-                                    return (
-                                        <tr key={index} className="hover:bg-gray-50 text-gray-500 border-b">
-                                            <td className="p-4 font-medium">{formatDate(item.date)}</td>
-                                            <td className="p-4 text-right">{formatCurrency(item.totalRevenue)}</td>
-                                            <td className="p-4 text-right">{formatCurrency(item.totalTax)}</td>
-                                            <td className="p-4 text-right">{formatCurrency(item.totalDiscount)}</td>
-                                            <td className="p-4 text-right">{formatCurrency(item.totalRounding)}</td>
-                                            <td className="p-4 text-right">{formatCurrency(item.totalPurchase)}</td>
-                                            <td className="p-4 text-right">
-                                                <span className={`font-semibold ${item.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {formatCurrency(item.totalNetProfit)}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <span className={`font-semibold ${profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {formatPercentage(profitMargin)}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr>
-                                    <td colSpan={8} className="py-8 text-center text-gray-500">
-                                        {loading ? (
-                                            <div className="flex justify-center">
-                                                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-[#005429]"></div>
-                                            </div>
-                                        ) : (
-                                            "Tidak ada data untuk rentang tanggal yang dipilih"
-                                        )}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        )}
-                        {/* Footer dengan grand total */}
-                        {dailyData && dailyData.length > 0 && (
-                            <tfoot className="bg-gray-50 border-t font-semibold text-sm">
-                                <tr>
-                                    <td className="p-4 text-gray-700">GRAND TOTAL</td>
-                                    <td className="p-4 text-right text-gray-700">
-                                        {formatCurrency(totals.totalRevenue)}
-                                    </td>
-                                    <td className="p-4 text-right text-gray-700">
-                                        {formatCurrency(totals.totalTax)}
-                                    </td>
-                                    <td className="p-4 text-right text-gray-700">
-                                        {formatCurrency(totals.totalDiscount)}
-                                    </td>
-                                    <td className="p-4 text-right text-gray-700">
-                                        {formatCurrency(totals.totalRounding)}
-                                    </td>
-                                    <td className="p-4 text-right text-gray-700">
-                                        {formatCurrency(totals.totalPurchase)}
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        <span className={`${totals.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {formatCurrency(totals.totalNetProfit)}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        <span className={`${totals.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {formatPercentage(totals.profitMargin)}
-                                        </span>
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        )}
-                    </table>
                 </div>
 
-                {/* Info */}
-                {dailyData && dailyData.length > 0 && (
-                    <div className="mt-4 text-xs text-gray-500">
-                        <p>• Data hanya menampilkan pesanan dengan status Completed/OnProcess dan pembayaran settlement</p>
-                        <p>• Laba kotor sudah dikurangi diskon dan penyesuaian lainnya</p>
-                        <p>• Pajak dihitung dari total transaksi sebelum dikurangi diskon</p>
-                        <p>• Waktu menggunakan zona waktu WIB (Asia/Jakarta)</p>
+                {error && (
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
                     </div>
                 )}
+
+                {/* Data Table */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                    <th className="px-6 py-4">Tanggal</th>
+                                    <th className="px-6 py-4 text-right">Penjualan Kotor</th>
+                                    <th className="px-6 py-4 text-right">Pajak</th>
+                                    <th className="px-6 py-4 text-right">Diskon</th>
+                                    <th className="px-6 py-4 text-right">Pembulatan</th>
+                                    <th className="px-6 py-4 text-right">Pembelian</th>
+                                    <th className="px-6 py-4 text-right">Laba Kotor</th>
+                                    <th className="px-6 py-4 text-right">% Laba Kotor</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-[13px] divide-y divide-gray-50">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={8} className="py-20 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
+                                        </td>
+                                    </tr>
+                                ) : dailyData.length > 0 ? (
+                                    dailyData.map((item, index) => {
+                                        const profitMargin = item.totalRevenue > 0
+                                            ? (item.totalNetProfit / item.totalRevenue) * 100
+                                            : 0;
+
+                                        return (
+                                            <tr key={index} className="hover:bg-green-50/50 transition-colors">
+                                                <td className="px-6 py-4 font-medium text-gray-700">{formatDate(item.date)}</td>
+                                                <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(item.totalRevenue)}</td>
+                                                <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(item.totalTax)}</td>
+                                                <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(item.totalDiscount)}</td>
+                                                <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(item.totalRounding)}</td>
+                                                <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(item.totalPurchase)}</td>
+                                                <td className={`px-6 py-4 text-right font-semibold ${item.totalNetProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                                                    {formatCurrency(item.totalNetProfit)}
+                                                </td>
+                                                <td className={`px-6 py-4 text-right font-semibold ${profitMargin >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                                                    {formatPercentage(profitMargin)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                ) : (
+                                    <tr>
+                                        <td colSpan={8} className="py-20 text-center text-gray-400 font-medium bg-white">
+                                            Tidak ada data ditemukan untuk periode yang dipilih
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                            {dailyData.length > 0 && !loading && (
+                                <tfoot className="bg-gray-50 border-t-2 border-gray-100 font-bold">
+                                    <tr className="text-gray-900">
+                                        <td className="px-6 py-5 text-gray-500 uppercase text-[11px] tracking-wider">Total Keseluruhan</td>
+                                        <td className="px-6 py-5 text-right font-black">{formatCurrency(totals.totalRevenue)}</td>
+                                        <td className="px-6 py-5 text-right">{formatCurrency(totals.totalTax)}</td>
+                                        <td className="px-6 py-5 text-right">{formatCurrency(totals.totalDiscount)}</td>
+                                        <td className="px-6 py-5 text-right">{formatCurrency(totals.totalRounding)}</td>
+                                        <td className="px-6 py-5 text-right">{formatCurrency(totals.totalPurchase)}</td>
+                                        <td className={`px-6 py-5 text-right text-lg ${totals.totalNetProfit >= 0 ? 'text-green-900' : 'text-red-600'}`}>
+                                            {formatCurrency(totals.totalNetProfit)}
+                                        </td>
+                                        <td className={`px-6 py-5 text-right text-lg ${totals.profitMargin >= 0 ? 'text-green-900' : 'text-red-600'}`}>
+                                            {formatPercentage(totals.profitMargin)}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            )}
+                        </table>
+                    </div>
+                </div>
+
+                {/* Footer Info */}
+                <div className="mt-8 p-6 bg-white rounded-lg border border-gray-100 shadow-sm text-[12px] text-gray-500 leading-relaxed">
+                    <p className="font-bold text-gray-400 uppercase tracking-widest mb-3">Informasi Tambahan</p>
+                    <ul className="space-y-1.5 list-disc list-inside">
+                        <li>Data hanya mencakup pesanan dengan status <span className="font-semibold text-gray-700">Completed/OnProcess</span> dan pembayaran settlement.</li>
+                        <li>Laba kotor adalah hasil setelah dikurangi diskon dan penyesuaian operasional lainnya.</li>
+                        <li>Pajak dihitung berdasarkan total nilai transaksi sebelum pengurangan diskon.</li>
+                        <li>Waktu pelaporan disesuaikan dengan zona waktu <span className="font-semibold text-gray-700">WIB (Asia/Jakarta)</span>.</li>
+                    </ul>
+                </div>
             </div>
         </div>
     );

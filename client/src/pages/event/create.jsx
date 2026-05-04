@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import Select from "react-select";
 import { Link, useNavigate } from "react-router-dom";
 import { FaTimes, FaChevronRight, FaTicketAlt, FaUpload, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaDollarSign, FaTags, FaInfo, FaClock } from "react-icons/fa";
@@ -267,7 +267,7 @@ const CreateEvent = () => {
                 status: form.status
             };
 
-            console.log("Submit data:", payload);
+            // console.log("Submit data:", payload);
             await axios.post("/api/event", payload, {
                 headers: { Authorization: `Bearer ${currentUser.token}` },
             });

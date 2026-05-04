@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import Select from "react-select";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FaTimes, FaUpload } from "react-icons/fa";
@@ -148,7 +148,7 @@ const UpdateEvent = () => {
                     workstation: data.menuItem?.workstation || ""
                 };
 
-                console.log("Form data set:", formData);
+                // console.log("Form data set:", formData);
                 setForm(formData);
                 setCompressedImageURL(data.imageUrl || null);
             } catch (err) {
@@ -312,7 +312,7 @@ const UpdateEvent = () => {
                 status: form.status
             };
 
-            console.log("Update data:", payload);
+            // console.log("Update data:", payload);
             await axios.put(`/api/event/${id}`, payload, {
                 headers: { Authorization: `Bearer ${currentUser.token}` },
             });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { useParams, useNavigate } from "react-router-dom";
 import SidebarMenuForm from "./form";
 import Header from "../../admin/header";

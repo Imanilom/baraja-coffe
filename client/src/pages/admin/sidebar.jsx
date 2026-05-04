@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import * as LucideIcons from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -39,10 +39,23 @@ const Sidebar = ({ isSidebarOpen }) => {
       const transformedMenus = transformMenuData(res.data.data);
       setMenus(transformedMenus);
     } catch (error) {
-      console.error("Error fetching menus:", error);
+      console.error("Error fetching menus:", error.message || error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Manual helpers for grouping if API doesn't provide sections
+  const getSection = (name) => {
+    const lower = name.toLowerCase();
+    if (lower.includes('dashboard') || lower.includes('home')) return 'Overview';
+    if (lower.includes('laporan') || lower.includes('analitik') || lower.includes('statistik')) return 'Laporan';
+    if (lower.includes('inventory') || lower.includes('stok') || lower.includes('suplier') || lower.includes('belanja') || lower.includes('opname')) return 'Inventory';
+    if (lower.includes('menu') || lower.includes('produk') || lower.includes('kategori')) return 'Manajemen Menu';
+    if (lower.includes('pos') || lower.includes('kasir') || lower.includes('order') || lower.includes('meja') || lower.includes('dapur')) return 'Operasional';
+    if (lower.includes('karyawan') || lower.includes('absensi') || lower.includes('gaji')) return 'HR & Staff';
+    if (lower.includes('setting') || lower.includes('pengaturan') || lower.includes('user') || lower.includes('promo') || lower.includes('voucher') || lower.includes('event')) return 'Sistem & Promo';
+    return 'Lainnya';
   };
 
   // Transform menu data dari API ke format yang dibutuhkan
@@ -55,7 +68,11 @@ const Sidebar = ({ isSidebarOpen }) => {
       if (!menu.isActive) return;
 
       // Extract section from path or use default
-      const section = menu.section || 'Menu';
+      // Use API section if available and not generic, otherwise use manual mapping
+      let section = menu.section;
+      if (!section || section === 'Menu' || section === 'Main') {
+        section = getSection(menu.name);
+      }
 
       if (!sections[section]) {
         sections[section] = [];
@@ -85,15 +102,22 @@ const Sidebar = ({ isSidebarOpen }) => {
       sections[section].push(menuItem);
     });
 
+    // Define section order (User requested: Overview -> Laporan -> Menu -> Inventory)
+    const sectionOrder = ['Overview', 'Laporan', 'Manajemen Menu', 'Inventory', 'Operasional', 'HR & Staff', 'Sistem & Promo', 'Lainnya'];
+
     // Convert sections object to array
-    return Object.entries(sections).map(([section, items]) => ({
-      section,
-      items: items.sort((a, b) => {
-        const aOrder = apiMenus.find(m => m.name === a.name)?.order || 0;
-        const bOrder = apiMenus.find(m => m.name === b.name)?.order || 0;
-        return aOrder - bOrder;
+    return Object.entries(sections)
+      .sort(([a], [b]) => {
+        return sectionOrder.indexOf(a) - sectionOrder.indexOf(b);
       })
-    }));
+      .map(([section, items]) => ({
+        section,
+        items: items.sort((a, b) => {
+          const aOrder = apiMenus.find(m => m.name === a.name)?.order || 0;
+          const bOrder = apiMenus.find(m => m.name === b.name)?.order || 0;
+          return aOrder - bOrder;
+        })
+      }));
   };
 
   useEffect(() => {
@@ -120,42 +144,48 @@ const Sidebar = ({ isSidebarOpen }) => {
 
   if (loading) {
     return (
-      <div className={`h-screen bg-green-900 text-white fixed top-0 left-0 flex items-center justify-center transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-72" : "w-16"}`}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-      </div>
+      <aside className={`h-screen fixed top-0 left-0 z-50 transition-all duration-300 glass-sidebar flex items-center justify-center
+        ${isSidebarOpen ? "w-56 translate-x-0" : "w-56 -translate-x-full lg:translate-x-0 lg:w-0"}`}>
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+      </aside>
     );
   }
 
   return (
-    <div
-      className={`h-screen bg-green-900 text-white fixed top-0 left-0 flex flex-col transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-72" : "w-16"}`}
+    <aside
+      className={`h-screen fixed top-0 left-0 z-50 flex flex-col transition-all duration-300 glass-sidebar
+        ${isSidebarOpen ? "w-56 translate-x-0" : "w-56 -translate-x-full lg:translate-x-0 lg:w-0"}
+      `}
     >
+      {/* Decorative gradient blob for that premium glass feel */}
+      <div className="absolute top-0 left-0 w-full h-32 bg-primary/5 blur-3xl pointer-events-none" />
+
       {/* Logo */}
-      <div className="px-4 pt-6 pb-4 shrink-0 flex justify-center">
+      <div className="relative px-4 pt-6 pb-5 shrink-0 flex justify-center border-b border-slate-200/60 mx-4 mb-4">
         <img
-          src="/images/baraja white.png"
-          alt="Logo"
-          className={`${isSidebarOpen ? "w-full" : "w-8"} object-contain`}
+          src="/images/baraja.png"
+          alt="Baraja Coffee"
+          className="h-12 w-auto object-contain drop-shadow-sm transition-transform duration-300 hover:scale-105"
         />
       </div>
 
       {/* Menu */}
-      <div className="flex-1 overflow-y-auto px-2 custom-scrollbar">
-        <ul className="space-y-8">
+      <div className="flex-1 overflow-y-auto px-3 pb-6 custom-scrollbar relative z-10">
+        <ul className="space-y-4">
           {menus.map((section, idx) => (
-            <div key={idx} className="space-y-2">
+            <div key={idx} className="space-y-1">
+              {/* Section Title */}
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 pb-2 pt-2">{section.section}</h3>
 
               {/* Items */}
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {section.items.map((item, index) => {
-                  // Cek apakah ada submenu yang active
                   const hasActiveSubRoute = hasActiveSubmenu(item.subMenu);
                   const isSubMenuOpen = openMenus[item.name] ?? hasActiveSubRoute;
 
-                  // Untuk parent menu, hanya aktif jika exact match atau punya submenu yang active
                   const isActive = item.subMenu
-                    ? hasActiveSubRoute // Parent hanya aktif jika ada submenu yang active
-                    : isExactMatch(item.path); // Menu biasa hanya aktif jika exact match
+                    ? hasActiveSubRoute
+                    : isExactMatch(item.path);
 
                   return (
                     <li key={index}>
@@ -165,51 +195,49 @@ const Sidebar = ({ isSidebarOpen }) => {
                           <button
                             type="button"
                             onClick={() => toggleMenu(item.name)}
-                            className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg font-medium transition
+                            className={`w-full flex items-center justify-between py-2 px-3 rounded-xl text-[13px] font-medium transition-all duration-200 group
                             ${isActive
-                                ? "bg-green-100 text-green-900 font-semibold"
-                                : "text-white hover:bg-green-50 hover:text-green-900"
+                                ? "bg-[#005429]/5 text-[#005429] font-bold shadow-sm border border-[#005429]/10"
+                                : "text-slate-600 hover:bg-slate-100/80 hover:text-[#005429] hover:translate-x-1 border border-transparent"
                               }`}
                           >
-                            <div className="flex items-center gap-2">
-                              {renderLucideIcon(item.icon)}
-                              {isSidebarOpen && (
-                                <div className="flex items-center gap-2">
-                                  <span>{item.name}</span>
-                                  {item.badge && (
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${item.badge.color === 'primary'
-                                      ? 'bg-blue-500 text-white'
-                                      : item.badge.color === 'danger'
-                                        ? 'bg-red-500 text-white'
-                                        : 'bg-gray-500 text-white'
-                                      }`}>
-                                      {item.badge.text}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                            <div className="flex items-center gap-2.5">
+                              <span className={`${isActive ? "text-[#005429]" : "text-slate-400 group-hover:text-[#005429]"}`}>
+                                {renderLucideIcon(item.icon)}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs tracking-wide font-medium">{item.name}</span>
+                                {item.badge && (
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full shadow-sm ${item.badge.color === 'primary'
+                                    ? 'bg-blue-500 text-white'
+                                    : item.badge.color === 'danger'
+                                      ? 'bg-red-500 text-white'
+                                      : 'bg-gray-500 text-white'
+                                    }`}>
+                                    {item.badge.text}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            {isSidebarOpen && (
-                              isSubMenuOpen
-                                ? <LucideIcons.ChevronDown className="w-4 h-4" />
-                                : <LucideIcons.ChevronLeft className="w-4 h-4" />
-                            )}
+                            {isSubMenuOpen
+                              ? <LucideIcons.ChevronDown className={`w-4 h-4 ${isActive ? 'text-[#005429]/80' : 'text-slate-400'}`} />
+                              : <LucideIcons.ChevronLeft className={`w-4 h-4 ${isActive ? 'text-[#005429]/80' : 'text-slate-400'}`} />
+                            }
                           </button>
 
                           {/* Submenu */}
-                          {isSubMenuOpen && isSidebarOpen && (
-                            <ul className="ml-3 border-l border-gray-200 space-y-1">
+                          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isSubMenuOpen ? 'max-h-96 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                            <ul className="ml-5 pl-3 border-l-2 border-slate-100 space-y-1 mt-1">
                               {item.subMenu.map((subItem, subIndex) => {
-                                // Submenu hanya aktif jika exact match
                                 const isSubActive = isExactMatch(subItem.path);
                                 return (
                                   <li key={subIndex}>
                                     <Link
                                       to={subItem.path}
-                                      className={`block py-2 px-5 rounded-lg text-sm transition
+                                      className={`block py-1.5 px-3 rounded-lg text-xs transition-all duration-200 font-medium
                                       ${isSubActive
-                                          ? "bg-green-100 text-green-900 font-semibold"
-                                          : "text-white hover:bg-green-50 hover:text-green-900"
+                                          ? "bg-[#005429]/5 text-[#005429] font-bold shadow-sm"
+                                          : "text-slate-500 hover:bg-slate-50 hover:text-[#005429]"
                                         }`}
                                     >
                                       {subItem.name}
@@ -218,25 +246,27 @@ const Sidebar = ({ isSidebarOpen }) => {
                                 );
                               })}
                             </ul>
-                          )}
+                          </div>
                         </>
                       ) : (
                         // Normal menu
                         <Link
                           to={item.path}
-                          className={`block py-2.5 px-3 rounded-lg transition font-medium
+                          className={`block py-2 px-3 rounded-xl transition-all duration-200 font-medium group text-[13px]
                           ${isActive
-                              ? "bg-green-100 text-green-900 font-semibold"
-                              : "text-white hover:bg-green-50 hover:text-green-900"
+                              ? "bg-[#005429]/5 text-[#005429] font-bold shadow-sm border border-[#005429]/10"
+                              : "text-slate-600 hover:bg-slate-100/80 hover:text-[#005429] hover:translate-x-1 border border-transparent"
                             }`}
                         >
                           <div className="flex items-center gap-2 justify-between">
-                            <div className="flex items-center gap-2">
-                              {renderLucideIcon(item.icon)}
-                              {isSidebarOpen && <span>{item.name}</span>}
+                            <div className="flex items-center gap-2.5">
+                              <span className={`${isActive ? "text-[#005429]" : "text-slate-400 group-hover:text-[#005429]"}`}>
+                                {renderLucideIcon(item.icon)}
+                              </span>
+                              <span className="text-xs tracking-wide font-medium">{item.name}</span>
                             </div>
-                            {isSidebarOpen && item.badge && (
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${item.badge.color === 'primary'
+                            {item.badge && (
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full shadow-sm ${item.badge.color === 'primary'
                                 ? 'bg-blue-500 text-white'
                                 : item.badge.color === 'danger'
                                   ? 'bg-red-500 text-white'
@@ -256,7 +286,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           ))}
         </ul>
       </div>
-    </div>
+    </aside>
   );
 };
 

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-import { get } from "mongoose";
+
 import Header from "../../admin/header";
 import BubbleAlert from "../stockcard/bubblralert";
 import Paginated from "../../../components/paginated";
@@ -20,7 +20,7 @@ const SoManagement = () => {
 
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
     const [value, setValue] = useState({
         startDate: dayjs(),
         endDate: dayjs()
@@ -31,19 +31,8 @@ const SoManagement = () => {
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
-
     const dropdownRef = useRef(null);
-
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
-
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
-
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
 
     // Fetch productStock and outlets data
     const fetchStockData = async () => {
@@ -112,28 +101,8 @@ const SoManagement = () => {
         }
     };
 
-    // 🔹 Fetch Outlets
-    const fetchOutletsData = async () => {
-        try {
-            const outletsResponse = await axios.get("/api/outlet");
-
-            const outletsData = Array.isArray(outletsResponse.data)
-                ? outletsResponse.data
-                : outletsResponse.data?.data || [];
-
-            setOutlets(outletsData);
-            setError(null);
-        } catch (err) {
-            console.error("Error fetching outlets:", err);
-            setError("Failed to load outlets data.");
-            setOutlets([]);
-        }
-    };
-
-    // 🔹 Run both on mount
     useEffect(() => {
         fetchStockData();
-        fetchOutletsData();
     }, []);
 
     const formatCurrency = (amount) => {
@@ -255,30 +224,33 @@ const SoManagement = () => {
     const exportToExcel = () => {
         // Prepare data for export
         const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
             return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
+                "Nama Produk": product.name || "-",
+                "SKU": product.sku || "-",
+                "Kategori": product.category || "-",
+                "Stok Saat Ini": product.stockData?.currentStock || 0,
+                "Satuan": product.unit || "-",
+                "Harga Satuan (IDR)": product.suppliers?.[0]?.price || 0,
+                "Total Nilai (IDR)": (product.suppliers?.[0]?.price || 0) * (product.stockData?.currentStock || 0)
             };
         });
+
+        if (dataToExport.length === 0) {
+            alert("Tidak ada data untuk diekspor");
+            return;
+        }
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
 
         // Set auto width untuk tiap kolom
         const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
+            wch: Math.max(key.length + 2, 20)
         }));
-        worksheet['!cols'] = columnWidths;
+        ws['!cols'] = columnWidths;
 
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Stok Gudang");
+        XLSX.writeFile(wb, `Stok_Gudang_${dayjs().format('YYYY-MM-DD')}.xlsx`);
     };
 
     // Show loading state
@@ -318,6 +290,13 @@ const SoManagement = () => {
                     <FaChevronRight />
                     <span>Stok Gudang</span>
                 </h1>
+
+                <button
+                    onClick={exportToExcel}
+                    className="bg-[#005429] flex items-center gap-2 text-white px-4 py-2 rounded border border-[#005429] text-[13px] hover:bg-[#004220]"
+                >
+                    <FaBoxes /> Ekspor Excel
+                </button>
             </div>
 
             {/* Filters */}

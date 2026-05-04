@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash, FaChevronRight, FaPlus } from 'react-icons/fa';
 import Paginated from '../../../components/paginated';
 import MessageAlert from '../../../components/messageAlert';
@@ -159,7 +159,7 @@ const CategoryIndex = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
+    <div className="w-full">
       {/* Alert Message */}
       <MessageAlert
         key={alertKey}
@@ -168,38 +168,40 @@ const CategoryIndex = () => {
       />
 
       {/* Main Content */}
-      <div className="mx-auto px-6 py-6">
+      <div className="mx-auto">
         {/* Stats Card */}
-        <div className="bg-gradient-to-br from-[#005429] to-[#003d1f] rounded-xl shadow-lg p-6 mb-6 text-white">
-          <div className="flex items-center justify-between">
+        <div className="bg-gradient-to-br from-[#005429] to-[#003d1f] rounded-2xl shadow-xl p-6 mb-8 text-white relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-110 transition-transform duration-700"></div>
+          <div className="relative z-10 flex items-center justify-between">
             <div>
-              <p className="text-sm text-green-100 mb-1">Total Kategori</p>
+              <p className="text-sm text-green-100 mb-2 font-medium tracking-wide uppercase">Total Kategori</p>
               <h2 className="text-4xl font-bold">{filteredCategories?.length || 0}</h2>
             </div>
-            <div className="bg-white bg-opacity-20 rounded-full p-4">
+            <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 shadow-inner border border-white/10">
               <FaLayerGroup size={32} />
             </div>
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex justify-between">
-          <div className="relative w-1/2">
-            <FaSearch className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+        {/* Search & Actions */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+          <div className="relative w-full md:w-1/2 group">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <FaSearch className="w-4 h-4 text-gray-400 group-focus-within:text-[#005429] transition-colors" />
+            </div>
             <input
               type="text"
               placeholder="Cari kategori..."
               value={tempSearch}
               onChange={(e) => setTempSearch(e.target.value)}
-              className="w-full text-sm border border-gray-300 py-3 pl-11 pr-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005429] focus:border-transparent transition-all"
+              className="w-full text-sm bg-white/40 backdrop-blur-md border border-white/50 py-3 pl-11 pr-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#005429]/50 focus:border-[#005429] transition-all shadow-sm placeholder-gray-500 text-gray-800"
             />
           </div>
 
-          {/* Action Button */}
           <Link
             to="/admin/category-create"
             state={{ returnTab: 'category' }}
-            className="bg-[#005429] text-white px-5 py-2.5 rounded-lg inline-flex items-center gap-2 font-medium hover:bg-[#003d1f] transition-colors shadow-sm"
+            className="bg-[#005429] hover:bg-[#004220] text-white px-6 py-3 rounded-xl inline-flex items-center gap-2 font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
           >
             <FaPlus size={14} />
             <span>Tambah Kategori</span>
@@ -207,64 +209,65 @@ const CategoryIndex = () => {
         </div>
 
         {/* Table Card */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white/40 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-[#005429]/5 border-b border-[#005429]/10">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-5 text-left text-xs font-bold text-[#005429] uppercase tracking-wider">
                     Waktu Submit
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-5 text-left text-xs font-bold text-[#005429] uppercase tracking-wider">
                     Nama Kategori
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-5 text-right text-xs font-bold text-[#005429] uppercase tracking-wider">
                     Jumlah Produk
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-5 text-right text-xs font-bold text-[#005429] uppercase tracking-wider">
                     Aksi
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-100">
                 {paginatedData.length > 0 ? (
                   paginatedData.map((category) => {
                     // ✅ Guard untuk category undefined
                     if (!category || !category.name) return null;
 
-                    const key = category.name.toLowerCase().trim();
-
                     return (
-                      <tr key={category._id || Math.random()} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <tr key={category._id || Math.random()} className="hover:bg-white/60 transition-colors group">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
                           {formatDateTime(category.createdAt)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10 bg-[#005429] bg-opacity-10 rounded-lg flex items-center justify-center">
+                            <div className="flex-shrink-0 h-10 w-10 bg-white/80 rounded-xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 transition-transform duration-300">
                               <FaTag className="text-[#005429]" size={16} />
                             </div>
-                            <span className="ml-3 text-sm font-medium text-gray-900">{category._id} - {category.name}</span>
+                            <div className="ml-4">
+                              <span className="text-sm font-bold text-gray-800">{category.name}</span>
+                              <p className="text-[10px] text-gray-400 font-mono tracking-wide mt-0.5">ID: {category._id}</p>
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
                             {category.productCount} produk
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="flex justify-end items-center gap-2">
+                          <div className="flex justify-end items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                             <Link
                               to={`/admin/category-update/${category._id}`}
                               state={{ returnTab: 'category' }}
-                              className="p-2.5 bg-[#005429] text-white rounded-lg hover:bg-[#003d1f] transition-colors"
+                              className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:border-[#005429] hover:text-[#005429] transition-all shadow-sm"
                               title="Edit"
                             >
                               <FaPencilAlt size={14} />
                             </Link>
                             <button
                               onClick={() => openDeleteModal(category._id, category.name)}
-                              className="p-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                              className="p-2.5 bg-white border border-gray-200 text-red-500 rounded-lg hover:border-red-500 hover:text-red-600 transition-all shadow-sm"
                               title="Hapus"
                             >
                               <FaTrash size={14} />
@@ -276,12 +279,12 @@ const CategoryIndex = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center">
+                    <td colSpan="4" className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center justify-center">
-                        <div className="bg-gray-100 rounded-full p-6 mb-4">
-                          <FaSearch className="text-gray-400" size={32} />
+                        <div className="bg-gray-50/50 p-6 rounded-full mb-4 ring-1 ring-gray-100">
+                          <FaSearch className="text-gray-300" size={32} />
                         </div>
-                        <p className="text-gray-500 font-medium">Tidak ada kategori ditemukan</p>
+                        <p className="text-gray-600 font-semibold text-lg">Tidak ada kategori ditemukan</p>
                         <p className="text-gray-400 text-sm mt-1">Coba ubah kata kunci pencarian Anda</p>
                       </div>
                     </td>
@@ -290,18 +293,19 @@ const CategoryIndex = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="p-4 border-t border-gray-100 bg-white/30">
+              <Paginated
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                totalPages={totalPages}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="mt-6">
-            <Paginated
-              currentPage={currentPage}
-              setCurrentPage={setCurrentPage}
-              totalPages={totalPages}
-            />
-          </div>
-        )}
       </div>
 
       {/* Delete Confirmation Modal */}

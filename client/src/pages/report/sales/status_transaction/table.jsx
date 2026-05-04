@@ -27,69 +27,72 @@ const TypeTransactionTable = ({
     receiptRef,
     currentPage,
     totalPages,
-    handlePageChange
+    handlePageChange,
+    updateStatus,
+    isUpdatingStatus
 }) => {
     // Helper function untuk styling badge status
     const getStatusBadgeClass = (status) => {
         switch (status) {
             case "Completed":
-                return "bg-green-100 text-green-800";
+                return "bg-green-100 text-green-700 border border-green-200";
             case "Pending":
-                return "bg-yellow-100 text-yellow-800";
+            case "Waiting":
+                return "bg-amber-100 text-amber-700 border border-amber-200";
+            case "OnProcess":
+                return "bg-blue-100 text-blue-700 border border-blue-200";
             case "Cancelled":
-                return "bg-red-100 text-red-800";
+                return "bg-red-100 text-red-700 border border-red-200";
             default:
-                return "bg-gray-100 text-gray-800";
+                return "bg-gray-100 text-gray-700 border border-gray-200";
         }
     };
 
-    // Helper function untuk styling badge payment status
     const getPaymentStatusBadgeClass = (status) => {
-        switch (status) {
+        switch (status?.toLowerCase()) {
             case "settlement":
             case "paid":
-                return "bg-green-100 text-green-800";
+            case "completed":
+                return "bg-green-100 text-green-700 border border-green-200";
             case "pending":
-                return "bg-yellow-100 text-yellow-800";
+                return "bg-amber-100 text-amber-700 border border-amber-200";
             case "failed":
             case "expired":
-                return "bg-red-100 text-red-800";
+            case "denied":
+                return "bg-red-100 text-red-700 border border-red-200";
             default:
-                return "bg-gray-100 text-gray-800";
+                return "bg-gray-100 text-gray-700 border border-gray-200";
         }
     };
 
     return (
         <>
-            <div className="flex flex-wrap gap-4 md:justify-between items-center px-6 py-3">
-                {/* Datepicker */}
-                <div className="flex flex-col md:w-1/5 w-full">
-                    <div className="relative text-gray-500">
-                        <Datepicker
-                            showFooter
-                            showShortcuts
-                            value={dateRange}
-                            onChange={handleDateRangeChange}
-                            displayFormat="DD-MM-YYYY"
-                            inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                            popoverDirection="down"
-                        />
-                    </div>
+            <div className="flex flex-wrap gap-4 justify-between items-center px-6 py-4 mb-4">
+                <div className="w-64">
+                    <Datepicker
+                        showFooter
+                        showShortcuts
+                        value={dateRange}
+                        onChange={handleDateRangeChange}
+                        displayFormat="DD-MM-YYYY"
+                        inputClassName="w-full text-[13px] border border-gray-200 py-2 pr-[25px] pl-[12px] rounded-lg cursor-pointer focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm h-[38px] focus:outline-none"
+                        popoverDirection="down"
+                    />
                 </div>
+                
                 <div className="flex items-center flex-wrap gap-3">
-                    {/* Search */}
-                    <div className="relative md:w-64 w-full">
-                        <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <div className="relative w-72">
+                        <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
                         <input
                             type="text"
-                            placeholder="Produk / Pelanggan / Kode Struk"
+                            placeholder="Cari Produk / Pelanggan / ID..."
                             value={searchTerm}
                             onChange={(e) => handleSearchChange(e.target.value)}
-                            className="pl-9 pr-3 py-2 w-full border rounded-md text-sm focus:ring-1 focus:ring-green-900 focus:outline-none"
+                            className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm h-[38px] focus:outline-none"
                         />
                     </div>
-                    {/* Outlet */}
-                    <div className="relative md:w-48 w-full">
+                    
+                    <div className="w-56">
                         <Select
                             className="text-sm"
                             classNamePrefix="react-select"
@@ -105,7 +108,7 @@ const TypeTransactionTable = ({
                             styles={customSelectStyles}
                         />
                     </div>
-                    {/* Status - Ganti dengan StatusCheckboxFilter */}
+
                     <StatusCheckboxFilter
                         selectedStatus={selectedStatus}
                         onChange={handleStatusChange}
@@ -113,18 +116,18 @@ const TypeTransactionTable = ({
                 </div>
             </div>
             <main className="flex-1 px-6">
-                <div className="bg-white shadow rounded-lg overflow-x-auto">
-                    <table className="min-w-full text-sm text-gray-900">
-                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-semibold w-2/12">Tanggal</th>
-                                <th className="px-4 py-3 font-semibold w-1/12">Kasir</th>
-                                <th className="px-4 py-3 font-semibold w-2/12">ID Struk</th>
-                                <th className="px-4 py-3 font-semibold w-3/12">Produk</th>
-                                <th className="px-4 py-3 font-semibold w-1/12">Tipe Penjualan</th>
-                                <th className="px-4 py-3 font-semibold w-1/12">Status</th>
-                                <th className="px-4 py-3 font-semibold w-1/12">Pembayaran</th>
-                                <th className="px-4 py-3 font-semibold w-2/12 text-right">Total</th>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+                    <table className="min-w-full table-auto">
+                        <thead>
+                            <tr className="bg-gray-50/50 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <th className="px-6 py-4">Waktu</th>
+                                <th className="px-6 py-4">Kasir</th>
+                                <th className="px-6 py-4">ID Struk</th>
+                                <th className="px-6 py-4">Daftar Produk</th>
+                                <th className="px-6 py-4">Tipe</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4">Metode</th>
+                                <th className="px-6 py-4 text-right">Total Akhir</th>
                             </tr>
                         </thead>
 
@@ -138,7 +141,23 @@ const TypeTransactionTable = ({
                                         const orderType = product?.orderType || {};
                                         const status = product?.status || "N/A";
                                         const paymentStatus = product?.paymentDetails?.status || "-";
-                                        const paymentMethod = product?.actualPaymentMethod || "-";
+
+                                        // Baca payment method dari array payments (sama seperti sales_transaction)
+                                        const payments = product?.payments || [];
+                                        const paymentMethods = [];
+                                        payments.forEach(p => {
+                                            const pStatus = p.status?.toLowerCase();
+                                            if (pStatus === "settlement" || pStatus === "paid" || pStatus === "completed" || pStatus === "capture" || pStatus === "partial") {
+                                                const methodName = p.method_type || p.method || p.paymentMethod || "N/A";
+                                                if (methodName && !paymentMethods.includes(methodName)) {
+                                                    paymentMethods.push(methodName);
+                                                }
+                                            }
+                                        });
+                                        const paymentMethod = paymentMethods.length > 0
+                                            ? paymentMethods.join(", ")
+                                            : (product?.actualPaymentMethod || "-");
+
 
                                         let menuNames = [];
                                         let totalSubtotal = 0;
@@ -185,29 +204,27 @@ const TypeTransactionTable = ({
 
                                         return (
                                             <tr
-                                                className="text-left text-sm cursor-pointer hover:bg-slate-50"
+                                                className="hover:bg-primary/5 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                                                 key={product._id}
                                                 onClick={() => setSelectedTrx(product)}
                                             >
-                                                <td className="px-4 py-3">{formatDateTime(date) || "N/A"}</td>
-                                                <td className="px-4 py-3">{cashier?.username || "-"}</td>
-                                                <td className="px-4 py-3">{orderId || "N/A"}</td>
-                                                <td className="px-4 py-3">{menuNames.join(", ")}</td>
-                                                <td className="px-4 py-3">{orderType || "N/A"}</td>
-                                                <td className="px-4 py-3">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(status)}`}>
+                                                <td className="px-6 py-4 text-gray-600 font-medium">{formatDateTime(date) || "N/A"}</td>
+                                                <td className="px-6 py-4 text-gray-700">{cashier?.username || "-"}</td>
+                                                <td className="px-6 py-4 font-mono text-gray-400 text-[11px]">{orderId || "N/A"}</td>
+                                                <td className="px-6 py-4 text-gray-600 max-w-xs truncate">{menuNames.join(", ")}</td>
+                                                <td className="px-6 py-4 font-medium text-gray-500">{orderType || "N/A"}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusBadgeClass(status)}`}>
                                                         {status}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="font-medium">
-                                                            {paymentMethod}
-                                                        </span>
-                                                    </div>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-gray-900 font-semibold text-[12px] bg-gray-100 px-2 py-1 rounded">
+                                                        {paymentMethod}
+                                                    </span>
                                                 </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {product.grandTotal.toLocaleString() || ""}
+                                                <td className="px-6 py-4 text-right font-bold text-gray-900">
+                                                    {formatCurrency(product.grandTotal)}
                                                 </td>
                                             </tr>
                                         );
@@ -231,15 +248,15 @@ const TypeTransactionTable = ({
                             </tbody>
                         )}
 
-                        <tfoot className="border-t font-semibold text-sm">
+                        <tfoot className="bg-gray-50/50 font-semibold text-sm border-t">
                             <tr>
-                                <td className="px-4 py-2" colSpan="6">
+                                <td className="px-6 py-4 text-gray-900 border-r border-gray-100 uppercase text-[11px] font-bold tracking-widest" colSpan="6">
                                     Grand Total
                                 </td>
-                                <td className="px-2 py-2 text-right rounded" colSpan="2">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">
-                                        Rp {grandTotalFinal.toLocaleString()}
-                                    </p>
+                                <td className="px-6 py-4 text-right" colSpan="2">
+                                    <span className="bg-primary text-white inline-block px-4 py-1.5 rounded-lg shadow-sm text-base">
+                                        {formatCurrency(grandTotalFinal)}
+                                    </span>
                                 </td>
                             </tr>
                         </tfoot>
@@ -251,6 +268,8 @@ const TypeTransactionTable = ({
                             receiptRef={receiptRef}
                             formatDateTime={formatDateTime}
                             formatCurrency={formatCurrency}
+                            updateStatus={updateStatus}
+                            isUpdatingStatus={isUpdatingStatus}
                         />
                     )}
                 </div>

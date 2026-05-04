@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import Select from 'react-select';
 import { ArrowLeft, Save, AlertCircle, Loader2 } from 'lucide-react';
@@ -81,7 +81,7 @@ const UpdateCategory = () => {
                     throw new Error('Format response tidak valid');
                 }
 
-                console.log('Fetched category:', category);
+                // console.log('Fetched category:', category);
 
                 setName(category.name || '');
                 setDescription(category.description || '');
@@ -127,14 +127,14 @@ const UpdateCategory = () => {
                 type,
             };
 
-            console.log('🚀 [UPDATE] Sending request to:', `/api/menu/categories/${id}`);
-            console.log('📦 [UPDATE] Payload:', updatedCategory);
+            // console.log('🚀 [UPDATE] Sending request to:', `/api/menu/categories/${id}`);
+            // console.log('📦 [UPDATE] Payload:', updatedCategory);
 
             const response = await axios.put(`/api/menu/categories/${id}`, updatedCategory);
 
-            console.log('✅ [UPDATE] Response Status:', response.status);
-            console.log('📥 [UPDATE] Response Data:', response.data);
-            console.log('📊 [UPDATE] Full Response:', response);
+            // console.log('✅ [UPDATE] Response Status:', response.status);
+            // console.log('📥 [UPDATE] Response Data:', response.data);
+            // console.log('📊 [UPDATE] Full Response:', response);
 
             // ✅ Jika sampai sini berarti request berhasil (tidak throw error)
             // Response status 200-299 dianggap success oleh axios
@@ -142,7 +142,7 @@ const UpdateCategory = () => {
             // Ambil returnTab dari location.state (default 'category')
             const returnTab = location.state?.returnTab || 'category';
 
-            console.log('🎯 [NAVIGATE] Redirecting to /admin/menu with returnTab:', returnTab);
+            // console.log('🎯 [NAVIGATE] Redirecting to /admin/menu with returnTab:', returnTab);
 
             // Navigate dengan success message dan returnTab
             navigate('/admin/menu', {
@@ -152,7 +152,7 @@ const UpdateCategory = () => {
                 }
             });
 
-            console.log('✨ [SUCCESS] Navigation completed');
+            // console.log('✨ [SUCCESS] Navigation completed');
 
         } catch (err) {
             console.error('❌ [ERROR] Update failed');
@@ -183,7 +183,7 @@ const UpdateCategory = () => {
             }
         } finally {
             setSubmitting(false);
-            console.log('🏁 [FINALLY] Submit process completed');
+            // console.log('🏁 [FINALLY] Submit process completed');
         }
     };
 

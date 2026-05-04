@@ -1,6 +1,24 @@
+@import 'aos/dist/aos.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .glass {
+    @apply bg-white/70 backdrop-blur-md border border-white/40 shadow-sm;
+  }
+
+  .glass-sidebar {
+    @apply bg-white/80 backdrop-blur-2xl border-r border-slate-200/60;
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.03);
+  }
+
+  .glass-header {
+    @apply bg-white/70 backdrop-blur-xl border border-slate-200/60 sticky top-0 z-30;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
+  }
+}
 
 /* #app-bg {
   background-color: rgb(236, 236, 236);
@@ -29,7 +47,7 @@
 }
 
 #main-button:hover {
-background-color:antiquewhite;
+  background-color: antiquewhite;
 }
 
 #cart-circle {
@@ -61,7 +79,8 @@ background-color:antiquewhite;
 }
 
 #en-flag {
-  background-image: "/public/assets/images/en01.png";;
+  background-image: "/public/assets/images/en01.png";
+  ;
 }
 
 #de-flag {
@@ -105,18 +124,21 @@ background-color:antiquewhite;
 
 @media (max-width: 768px) {
   #bean-boxes {
-    display:none;
+    display: none;
   }
-    .slide-in-left {
-      animation: slideInFromLeft 1s ease;
-    }
-    .slide-in-top {
-      animation: slideInFromTop 1s ease;
-      display: none;
-    }
-    #cart-image {
-      display: none;
-    }
+
+  .slide-in-left {
+    animation: slideInFromLeft 1s ease;
+  }
+
+  .slide-in-top {
+    animation: slideInFromTop 1s ease;
+    display: none;
+  }
+
+  #cart-image {
+    display: none;
+  }
 }
 
 @media (min-width: 768px) {

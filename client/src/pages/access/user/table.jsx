@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import {
     FaTrash,
     FaPencilAlt,
@@ -34,9 +34,7 @@ export default function UserTable({ currentUser, customSelectStyles, roleGroup, 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const res = await axios.get("/api/user/staff", {
-                headers: { Authorization: `Bearer ${currentUser.token}` },
-            });
+            const res = await axios.get("/api/user/staff");
 
             // Jangan filter customer di sini, biarkan semua data masuk
             const employeeData = res.data || [];
@@ -103,11 +101,7 @@ export default function UserTable({ currentUser, customSelectStyles, roleGroup, 
         );
 
         try {
-            await axios.put(
-                `/api/user/update/${itemId}`,
-                { isActive: newStatus },
-                { headers: { Authorization: `Bearer ${currentUser.token}` } }
-            );
+            await axios.put(`/api/user/${itemId}`, { isActive: newStatus });
 
             navigate("/admin/access-settings/user", {
                 state: { success: `${username} berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
@@ -122,9 +116,7 @@ export default function UserTable({ currentUser, customSelectStyles, roleGroup, 
 
     const handleDelete = async () => {
         try {
-            await axios.delete(`/api/user/delete/${deleteId}`, {
-                headers: { Authorization: `Bearer ${currentUser.token}` },
-            });
+            await axios.delete(`/api/user/delete/${deleteId}`);
             setUsers((prev) => prev.filter((u) => u._id !== deleteId));
         } catch (err) {
             alert("Gagal menghapus karyawan.");

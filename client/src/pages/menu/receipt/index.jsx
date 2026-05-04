@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import { FaChevronRight } from 'react-icons/fa';
-import axios from "axios";
+import axios from '@/lib/axios';
 import Select from 'react-select';
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -208,7 +208,7 @@ const ReceiptMenu = () => {
 
         // Prevent double submit
         if (isSubmitting) {
-            console.log("Already submitting, please wait...");
+            // console.log("Already submitting, please wait...");
             return;
         }
 
@@ -281,11 +281,11 @@ const ReceiptMenu = () => {
 
             if (existingRecipe) {
                 // UPDATE existing recipe
-                console.log("Updating existing recipe:", existingRecipe._id);
+                // console.log("Updating existing recipe:", existingRecipe._id);
                 response = await axios.put(`/api/product/recipes/${existingRecipe._id}`, payload);
             } else {
                 // CREATE new recipe
-                console.log("Creating new recipe for menu:", id);
+                // console.log("Creating new recipe for menu:", id);
                 response = await axios.post(`/api/product/recipes`, payload);
             }
 

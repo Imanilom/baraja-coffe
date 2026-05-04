@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import Select from "react-select";
 import { FaPercent } from "react-icons/fa";
 import Datepicker from "react-tailwindcss-datepicker";

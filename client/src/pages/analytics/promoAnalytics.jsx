@@ -42,7 +42,7 @@ export default function PromoAnalytics({ apiEndpoint = "/api/analytics/promo-usa
             }
         } catch (err) {
             setError(err.message);
-            console.error('Error fetching promo analytics:', err);
+            console.error('Error fetching promo analytics:', err.message || err);
         } finally {
             setLoading(false);
         }

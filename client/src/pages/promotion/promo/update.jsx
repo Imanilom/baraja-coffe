@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { FaCut, FaBell, FaUser, FaChevronRight } from "react-icons/fa";
 import { Link, useParams } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
@@ -52,7 +52,7 @@ const UpdatePromoPage = () => {
         try {
             const response = await axios.get(`/api/promotion/promos/${id}`);
             const data = (response.data || []);
-            console.log(data);
+            // console.log(data);
             setPromo({
                 name: data.name || "",
                 discountAmount: data.discountAmount || 0,

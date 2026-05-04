@@ -1,10 +1,43 @@
-import React from "react";
+import React, { useState } from "react";
 import PdfButton from "../pdfButton";
+import { FaPen, FaCheck, FaTimes } from "react-icons/fa";
 
-const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateTime, formatCurrency }) => {
+const STATUS_OPTIONS = [
+    { value: "Waiting", label: "Waiting", color: "bg-gray-100 text-gray-700" },
+    { value: "Pending", label: "Pending", color: "bg-yellow-100 text-yellow-700" },
+    { value: "OnProcess", label: "On Process", color: "bg-blue-100 text-blue-700" },
+    { value: "Completed", label: "Completed", color: "bg-green-100 text-green-700" },
+    { value: "Cancelled", label: "Cancelled", color: "bg-red-100 text-red-700" },
+];
+
+const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateTime, formatCurrency, updateStatus, isUpdatingStatus }) => {
     const finalTotal =
         (selectedTrx.totalAfterDiscount || 0) +
         (selectedTrx.taxAndServiceDetails?.[0]?.amount || 0);
+
+    // Edit status state
+    const [editStatusMode, setEditStatusMode] = useState(false);
+    const [newStatus, setNewStatus] = useState(selectedTrx.status || '');
+    const [updateMsg, setUpdateMsg] = useState(null); // { type: 'success'|'error', text }
+
+    const currentStatusOption = STATUS_OPTIONS.find(s => s.value === selectedTrx.status);
+
+    const handleSaveStatus = async () => {
+        if (!newStatus || newStatus === selectedTrx.status) {
+            setEditStatusMode(false);
+            return;
+        }
+        setUpdateMsg(null);
+        if (!updateStatus) return;
+        const result = await updateStatus(selectedTrx._id, newStatus);
+        if (result?.success) {
+            setUpdateMsg({ type: 'success', text: 'Status berhasil diubah!' });
+            setEditStatusMode(false);
+            setTimeout(() => setUpdateMsg(null), 3000);
+        } else {
+            setUpdateMsg({ type: 'error', text: result?.message || 'Gagal mengubah status' });
+        }
+    };
 
     // Get payment details from paymentDetails object if available
     const paymentDetails = selectedTrx?.paymentDetails;
@@ -44,7 +77,14 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
             <div className="relative w-full max-w-md bg-white shadow-lg transform transition-transform duration-300 ease-in-out h-screen flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="p-4 flex justify-between items-center font-semibold border-b">
-                    <h2 className="text-lg font-semibold">Detail Transaksi</h2>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-semibold">Detail Transaksi</h2>
+                        {currentStatusOption && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${currentStatusOption.color}`}>
+                                {currentStatusOption.label}
+                            </span>
+                        )}
+                    </div>
                     <button
                         onClick={() => setSelectedTrx(null)}
                         className="text-xl font-bold hover:text-red-400"
@@ -235,24 +275,89 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                 </div>
 
                 {/* Footer Actions */}
-                <div className="p-4 border-t space-y-4 bg-gray-50">
+                <div className="p-4 border-t space-y-3 bg-gray-50">
+
+                    {/* Edit Status Section */}
+                    <div className="border rounded-lg p-3 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold text-gray-700">Status Transaksi</span>
+                            {!editStatusMode ? (
+                                <button
+                                    onClick={() => { setEditStatusMode(true); setNewStatus(selectedTrx.status); setUpdateMsg(null); }}
+                                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-900 text-white rounded hover:bg-green-800 transition-colors"
+                                >
+                                    <FaPen size={10} /> Ubah Status
+                                </button>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setEditStatusMode(false)}
+                                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-100"
+                                    >
+                                        <FaTimes size={10} /> Batal
+                                    </button>
+                                    <button
+                                        onClick={handleSaveStatus}
+                                        disabled={isUpdatingStatus || newStatus === selectedTrx.status}
+                                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-green-900 text-white rounded hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isUpdatingStatus ? (
+                                            <div className="animate-spin h-3 w-3 border border-white border-t-transparent rounded-full" />
+                                        ) : (
+                                            <FaCheck size={10} />
+                                        )}
+                                        Simpan
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {!editStatusMode ? (
+                            <div className={`text-sm font-medium px-2 py-1 rounded w-fit ${currentStatusOption?.color || 'bg-gray-100 text-gray-600'}`}>
+                                {currentStatusOption?.label || selectedTrx.status || 'Tidak diketahui'}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-1.5 mt-1">
+                                {STATUS_OPTIONS.map(opt => (
+                                    <label
+                                        key={opt.value}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer border transition-all ${newStatus === opt.value
+                                                ? 'border-green-700 bg-green-50'
+                                                : 'border-transparent hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="statusEdit"
+                                            value={opt.value}
+                                            checked={newStatus === opt.value}
+                                            onChange={() => setNewStatus(opt.value)}
+                                            className="accent-green-800"
+                                        />
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${opt.color}`}>
+                                            {opt.label}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Feedback message */}
+                        {updateMsg && (
+                            <div className={`mt-2 text-xs px-3 py-2 rounded ${updateMsg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
+                                }`}>
+                                {updateMsg.text}
+                            </div>
+                        )}
+                    </div>
+
                     <PdfButton
                         targetId="receipt-pdf"
                         fileName={`Resi_${selectedTrx?.order_id || "transaksi"}.pdf`}
+                        transactionData={selectedTrx}
+                        formatDateTime={formatDateTime}
+                        formatCurrency={formatCurrency}
                     />
-
-                    {/* Optional: Add refresh payment status button */}
-                    {paymentStatus === 'pending' && (
-                        <button
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-lg shadow"
-                            onClick={() => {
-                                // You can add refresh payment status functionality here
-                                console.log('Refresh payment status');
-                            }}
-                        >
-                            Refresh Status Pembayaran
-                        </button>
-                    )}
                 </div>
             </div>
         </div>

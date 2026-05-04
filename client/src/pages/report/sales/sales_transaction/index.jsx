@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
@@ -9,6 +9,9 @@ import { exportToExcel } from "../../../../utils/exportHelper";
 import { useReactToPrint } from "react-to-print";
 import SalesTransactionTable from "./table";
 import SalesTransactionTableSkeleton from "./skeleton";
+import { useSelector } from "react-redux";
+
+import useDebounce from "../../../../hooks/useDebounce";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -21,39 +24,36 @@ const SalesTransaction = () => {
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db',
-            minHeight: '34px',
+            borderColor: state.isFocused ? 'var(--primary-color, #005429)' : '#e5e7eb',
+            minHeight: '38px',
             fontSize: '13px',
-            color: '#6b7280',
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            borderRadius: '0.5rem',
+            boxShadow: state.isFocused ? '0 0 0 1px var(--primary-color, #005429)' : 'none',
             '&:hover': {
-                borderColor: '#9ca3af',
+                borderColor: 'var(--primary-color, #005429)',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280',
-        }),
-        input: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        placeholder: (provided) => ({
-            ...provided,
-            color: '#9ca3af',
-            fontSize: '13px',
+            color: '#374151',
+            fontWeight: '500',
         }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151',
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            color: state.isSelected ? 'white' : '#374151',
+            backgroundColor: state.isSelected 
+                ? 'var(--primary-color, #005429)' 
+                : state.isFocused ? 'rgba(0, 84, 41, 0.05)' : 'white',
             cursor: 'pointer',
+            '&:active': {
+                backgroundColor: 'var(--primary-color, #005429)',
+            }
         }),
     };
 
     const [products, setProducts] = useState([]);
-    const [outlets, setOutlets] = useState([]);
+    const { outlets } = useSelector((state) => state.outlet);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -62,6 +62,7 @@ const SalesTransaction = () => {
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -185,6 +186,10 @@ const SalesTransaction = () => {
                 params.append('endDate', formatDateForAPI(dateRange.endDate));
             }
 
+            if (debouncedSearchTerm) {
+                params.append('search', debouncedSearchTerm);
+            }
+
             const response = await axios.get(`/api/report/orders?${params.toString()}`);
 
             const productsData = Array.isArray(response.data?.data)
@@ -207,33 +212,17 @@ const SalesTransaction = () => {
         }
     };
 
-    const fetchOutlets = async () => {
-        try {
-            const response = await axios.get('/api/outlet');
-
-            const outletsData = Array.isArray(response.data)
-                ? response.data
-                : (response.data && Array.isArray(response.data.data))
-                    ? response.data.data
-                    : [];
-
-            setOutlets(outletsData);
-            setError(null);
-        } catch (err) {
-            console.error("Error fetching outlets:", err);
-            setError("Failed to load outlets. Please try again later.");
-            setOutlets([]);
-        }
-    };
-
     useEffect(() => {
         setSelectedItems([]); // Clear selection when filters change
         fetchProducts();
-    }, [currentPage, limit, selectedOutlet, dateRange]);
+    }, [currentPage, limit, selectedOutlet, dateRange, debouncedSearchTerm]);
 
-    useEffect(() => {
-        fetchOutlets();
-    }, []);
+    // Removal of fetchOutlets as it's now handled by Redux
+    /*
+    const fetchOutlets = async () => {
+        ...
+    };
+    */
 
     const options = [
         { value: "", label: "Semua Outlet" },
@@ -488,16 +477,26 @@ const SalesTransaction = () => {
 
     // SIMPLIFIED & STABLE Export Handler
 
+    const [exportProgress, setExportProgress] = useState("");
+
+    // Legacy Client-Side Export (Parallel Batching)
+
+    // Legacy Client-Side Export (kept for reference, unused)
+
     const handleExport = async () => {
         setIsExporting(true);
+        setExportProgress("Menyiapkan...");
 
         try {
+            // Outlets are now consistently available via Redux
+            /*
             if (outlets.length === 0) {
                 await fetchOutlets();
             }
+            */
 
             // 1. GET TOTAL COUNT FIRST
-            console.log('🔄 Step 1: Getting total count...');
+            setExportProgress("Menghitung total data...");
             const countParams = new URLSearchParams();
             countParams.append('mode', 'count');
             countParams.append('status', 'Completed');
@@ -519,7 +518,6 @@ const SalesTransaction = () => {
             try {
                 const countResponse = await axios.get(`/api/report/orders?${countParams.toString()}`);
                 totalCount = countResponse.data.count || 0;
-                console.log(`✅ Total count: ${totalCount}`);
             } catch (countError) {
                 console.error('❌ Error getting count:', countError);
                 alert('Gagal mendapatkan jumlah data. Silakan coba lagi.');
@@ -538,8 +536,8 @@ const SalesTransaction = () => {
             if (totalCount > 5000) {
                 const proceed = window.confirm(
                     `⚠️ Peringatan: Anda akan mengekspor ${totalCount.toLocaleString()} transaksi.\n\n` +
-                    `Data ini cukup besar dan mungkin memakan waktu 2-5 menit.\n\n` +
-                    `Tips: Untuk export lebih cepat, gunakan filter tanggal/outlet yang lebih spesifik.\n\n` +
+                    `Data ini cukup besar. Sistem akan mengunduh secara bertahap.\n` +
+                    `Mohon jangan tutup halaman ini.\n\n` +
                     `Apakah Anda ingin melanjutkan?`
                 );
                 if (!proceed) {
@@ -548,52 +546,85 @@ const SalesTransaction = () => {
                 }
             }
 
-            // 3. FETCH ALL DATA
-            console.log('🔄 Step 2: Fetching all data...');
-            const params = new URLSearchParams();
-            params.append('mode', 'all');
-            params.append('status', 'Completed');
-
-            if (selectedOutlet) {
-                params.append('outlet', selectedOutlet);
-            }
-
-            if (dateRange?.startDate && dateRange?.endDate) {
-                params.append('startDate', formatDateForAPI(dateRange.startDate));
-                params.append('endDate', formatDateForAPI(dateRange.endDate));
-            }
-
-            if (searchTerm) {
-                params.append('search', searchTerm);
-            }
-
+            // 3. FETCH DATA IN BATCHES (Parallel Processing - Turbo Mode)
             let allData = [];
-            try {
-                const response = await axios.get(`/api/report/orders?${params.toString()}`, {
-                    timeout: 900000 // 15 minutes
-                });
-                allData = Array.isArray(response.data?.data) ? response.data.data : [];
-                console.log(`✅ Fetched ${allData.length} orders`);
-            } catch (fetchError) {
-                console.error('❌ Error fetching data:', fetchError);
+            const BATCH_LIMIT = 500; // Increased to 500 for better throughput with parallel
 
-                let errorMsg = 'Gagal mengambil data.\n\n';
-                if (fetchError.code === 'ECONNABORTED') {
-                    errorMsg += 'Timeout: Proses memakan waktu terlalu lama.\n\n' +
-                        'Solusi:\n' +
-                        '• Kurangi range tanggal (misal: per bulan)\n' +
-                        '• Pilih outlet spesifik\n' +
-                        '• Export di waktu server tidak sibuk';
-                } else if (fetchError.response?.status === 500) {
-                    errorMsg += 'Server Error: ' + (fetchError.response?.data?.error || 'Unknown error');
-                } else {
-                    errorMsg += fetchError.message;
+            // Helper to fetch a single page with retries
+            const fetchPageWithRetry = async (pageNum) => {
+                let attempts = 0;
+                const MAX_RETRIES = 3;
+
+                while (attempts < MAX_RETRIES) {
+                    try {
+                        const params = new URLSearchParams();
+                        params.append('mode', 'paginated');
+                        params.append('page', pageNum);
+                        params.append('limit', BATCH_LIMIT);
+                        params.append('status', 'Completed');
+
+                        if (selectedOutlet) params.append('outlet', selectedOutlet);
+                        if (dateRange?.startDate && dateRange?.endDate) {
+                            params.append('startDate', formatDateForAPI(dateRange.startDate));
+                            params.append('endDate', formatDateForAPI(dateRange.endDate));
+                        }
+                        if (searchTerm) params.append('search', searchTerm);
+
+                        const response = await axios.get(`/api/report/orders?${params.toString()}`, {
+                            timeout: 120000
+                        });
+
+                        return Array.isArray(response.data?.data) ? response.data.data : [];
+                    } catch (error) {
+                        attempts++;
+                        console.error(`❌ Batch ${pageNum} failed (Attempt ${attempts})`);
+                        if (attempts >= MAX_RETRIES) throw error;
+                        // Exponential backoff
+                        await new Promise(r => setTimeout(r, 1000 * attempts));
+                    }
                 }
+            };
 
-                alert(errorMsg);
+            // Concurrent execution
+            const CONCURRENCY = 3;
+            let processedCount = 0;
+
+            const totalEstimatedPages = Math.ceil(totalCount / BATCH_LIMIT);
+            const pageQueue = Array.from({ length: totalEstimatedPages }, (_, i) => i + 1);
+            const results = new Array(totalEstimatedPages).fill(null);
+
+            const processQueue = async () => {
+                while (pageQueue.length > 0) {
+                    const currentPage = pageQueue.shift();
+                    try {
+                        const data = await fetchPageWithRetry(currentPage);
+                        results[currentPage - 1] = data; // Store in order
+                        processedCount += data.length;
+                        setExportProgress(`Mengunduh (${Math.round((processedCount / totalCount) * 100)}%)...`);
+                    } catch (err) {
+                        console.error(`Failed to fetch page ${currentPage}`);
+                        throw err;
+                    }
+                }
+            };
+
+            // Start workers
+            const workers = Array(Math.min(CONCURRENCY, totalEstimatedPages))
+                .fill(null)
+                .map(() => processQueue());
+
+            try {
+                await Promise.all(workers);
+                // Flatten results
+                allData = results.flat().filter(item => item);
+            } catch (err) {
+                console.error("Parallel fetch failed:", err);
+                alert("Gagal mengunduh data. Koneksi tidak stabil.");
                 setIsExporting(false);
                 return;
             }
+
+            setExportProgress("Memproses data...");
 
             // 4. VALIDATE FETCHED DATA
             if (allData.length === 0) {
@@ -629,10 +660,10 @@ const SalesTransaction = () => {
                 return;
             }
 
-            console.log(`✅ Valid orders: ${validOrders.length}`);
+            // console.log(`✅ Valid orders: ${validOrders.length}`);
 
             // 5. PROCESS DATA
-            console.log('🔄 Step 3: Processing data...');
+            // console.log('🔄 Step 3: Processing data...');
             const formatDateTimeExport = (isoString) => {
                 return dayjs(isoString).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY HH:mm:ss');
             };
@@ -792,7 +823,7 @@ const SalesTransaction = () => {
 
                     // Progress log every 100 orders
                     if ((orderIndex + 1) % 100 === 0) {
-                        console.log(`Processing: ${orderIndex + 1}/${validOrders.length}`);
+                        // console.log(`Processing: ${orderIndex + 1}/${validOrders.length}`);
                     }
 
                 } catch (err) {
@@ -806,10 +837,10 @@ const SalesTransaction = () => {
                 return;
             }
 
-            console.log(`✅ Processed ${formattedExportData.length} rows`);
+            // console.log(`✅ Processed ${formattedExportData.length} rows`);
 
             // 6. GENERATE EXCEL
-            console.log('🔄 Step 4: Generating Excel file...');
+            // console.log('🔄 Step 4: Generating Excel file...');
             const formatDate = (dateObj) => {
                 if (!dateObj) return "semua-tanggal";
                 return dayjs(dateObj).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY');
@@ -837,7 +868,7 @@ const SalesTransaction = () => {
 
             try {
                 await exportToExcel(formattedExportData, fileName, headerInfo);
-                console.log(`✅ Export completed successfully!`);
+                // console.log(`✅ Export completed successfully!`);
                 alert(`✅ Export berhasil!\n\n${validOrders.length} transaksi telah diekspor ke file:\n${fileName}`);
             } catch (excelError) {
                 console.error('❌ Error generating Excel:', excelError);
@@ -855,15 +886,15 @@ const SalesTransaction = () => {
 
     if (error) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            <div className="flex justify-center items-center h-[60vh]">
+                <div className="text-red-500 text-center bg-white p-8 rounded-2xl shadow-sm border">
+                    <p className="text-xl font-bold mb-2">Terjadi Kesalahan</p>
+                    <p className="text-gray-500 mb-6">{error}</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        className="bg-primary text-white text-[13px] px-6 py-2 rounded-lg hover:bg-primary/90 transition-all font-medium"
                     >
-                        Refresh
+                        Refresh Halaman
                     </button>
                 </div>
             </div>
@@ -872,38 +903,38 @@ const SalesTransaction = () => {
 
     return (
         <div className="mb-[50px]">
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
-                    <FaChevronRight />
-                    <span>Data Transaksi Penjualan</span>
+            {/* Breadcrumb */}
+            <div className="flex justify-between items-center px-6 py-3 border-b border-gray-100 bg-white/50 backdrop-blur-sm sticky top-0 z-50">
+                <h1 className="flex gap-2 items-center text-sm text-primary font-black uppercase tracking-tight">
+                    <span className="opacity-40 font-bold">Laporan</span>
+                    <FaChevronRight className="opacity-20 text-[8px]" />
+                    <Link to="/admin/sales-menu" className="opacity-40 font-bold hover:opacity-100 transition-opacity">Penjualan</Link>
+                    <FaChevronRight className="opacity-20 text-[8px]" />
+                    <span className="text-gray-900">Data Transaksi</span>
                 </h1>
 
-                <button
-                    onClick={handleExport}
-                    disabled={isExporting || filteredData.length === 0}
-                    className={`px-4 py-2 rounded flex items-center gap-2 text-sm ${isExporting || filteredData.length === 0
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-[#005429] text-white hover:bg-[#003d1f]'
-                        }`}
-                >
-                    {isExporting ? (
-                        <>
-                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            <span>Mengekspor...</span>
-                        </>
-                    ) : (
-                        <>
-                            <FaDownload />
-                            Ekspor
-                        </>
-                    )}
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleExport}
+                        disabled={isExporting || filteredData.length === 0}
+                        className={`px-4 py-1.5 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-md active:scale-95 ${isExporting || filteredData.length === 0
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed border'
+                            : 'bg-[#005429] text-white hover:bg-[#003d1f]'
+                            }`}
+                    >
+                        {isExporting ? (
+                            <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white"></div>
+                                <span>{exportProgress || "PROSES..."}</span>
+                            </>
+                        ) : (
+                            <>
+                                <FaDownload size={12} />
+                                Ekspor Excel
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
 
             {/* ============================================ */}
@@ -956,39 +987,41 @@ const SalesTransaction = () => {
                 </div>
             )} */}
 
-            {loading ? (
-                <SalesTransactionTableSkeleton />
-            ) : (
-                <SalesTransactionTable
-                    paginatedData={filteredData}
-                    grandTotalFinal={grandTotalFinal}
-                    setSelectedTrx={setSelectedTrx}
-                    selectedTrx={selectedTrx}
-                    formatDateTime={formatDateTime}
-                    formatCurrency={formatCurrency}
-                    options={options}
-                    selectedOutlet={selectedOutlet}
-                    handleOutletChange={handleOutletChange}
-                    dateRange={dateRange}
-                    handleDateRangeChange={handleDateRangeChange}
-                    searchTerm={searchTerm}
-                    handleSearchChange={handleSearchChange}
-                    customSelectStyles={customSelectStyles}
-                    receiptRef={receiptRef}
-                    currentPage={currentPage}
-                    handlePageChange={handlePageChange}
-                    totalPages={totalPages}
-                    ITEMS_PER_PAGE={limit}
-                    filteredData={filteredData}
-                    handleLimitChange={handleLimitChange}
-                    totalOrders={totalOrders}
-                    selectedItems={selectedItems}
-                    handleSelectItem={handleSelectItem}
-                    handleSelectAll={handleSelectAll}
-                    isDeleting={isDeleting}
-                />
-            )}
-        </div>
+            {
+                loading ? (
+                    <SalesTransactionTableSkeleton />
+                ) : (
+                    <SalesTransactionTable
+                        paginatedData={filteredData}
+                        grandTotalFinal={grandTotalFinal}
+                        setSelectedTrx={setSelectedTrx}
+                        selectedTrx={selectedTrx}
+                        formatDateTime={formatDateTime}
+                        formatCurrency={formatCurrency}
+                        options={options}
+                        selectedOutlet={selectedOutlet}
+                        handleOutletChange={handleOutletChange}
+                        dateRange={dateRange}
+                        handleDateRangeChange={handleDateRangeChange}
+                        searchTerm={searchTerm}
+                        handleSearchChange={handleSearchChange}
+                        customSelectStyles={customSelectStyles}
+                        receiptRef={receiptRef}
+                        currentPage={currentPage}
+                        handlePageChange={handlePageChange}
+                        totalPages={totalPages}
+                        ITEMS_PER_PAGE={limit}
+                        filteredData={filteredData}
+                        handleLimitChange={handleLimitChange}
+                        totalOrders={totalOrders}
+                        selectedItems={selectedItems}
+                        handleSelectItem={handleSelectItem}
+                        handleSelectAll={handleSelectAll}
+                        isDeleting={isDeleting}
+                    />
+                )
+            }
+        </div >
     );
 };
 

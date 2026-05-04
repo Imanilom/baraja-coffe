@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Select from 'react-select';
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useLocation } from "react-router-dom";
 import { FaChevronRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";

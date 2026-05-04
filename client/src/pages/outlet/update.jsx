@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -96,6 +96,7 @@ export default function UpdateOutlet() {
     const { id } = useParams();
     const navigate = useNavigate();
 
+    const [loading, setLoading] = useState(true);
     const [staff, setStaff] = useState([]);
     const [outlet, setOutlet] = useState({
         name: "",
@@ -126,12 +127,14 @@ export default function UpdateOutlet() {
     const [hasMarker, setHasMarker] = useState(false);
 
     // --- Opsi Select ---
-    const provinceOptions = provinceCoordinates.map(p => ({
-        value: p.province,
-        label: p.province,
-        lat: p.lat,
-        lng: p.lng,
-    }));
+    const provinceOptions = useMemo(() => {
+        return provinceCoordinates.map(p => ({
+            value: p.province,
+            label: p.province,
+            lat: p.lat,
+            lng: p.lng,
+        }));
+    }, []);
 
     const cityOptions = useMemo(() => {
         if (!loc.province) return [];
@@ -145,10 +148,12 @@ export default function UpdateOutlet() {
             }));
     }, [loc.province]);
 
-    const cityOnly = coordinateCityWithProvince.map(c => ({
-        value: c.city,
-        label: c.city,
-    }));
+    const cityOnly = useMemo(() => {
+        return coordinateCityWithProvince.map(c => ({
+            value: c.city,
+            label: c.city,
+        }));
+    }, []);
 
     // --- Ambil data awal ---
     const fetchOutlet = async () => {
@@ -219,8 +224,12 @@ export default function UpdateOutlet() {
     };
 
     useEffect(() => {
-        fetchOutlet();
-        fetchStaff();
+        const loadData = async () => {
+            setLoading(true);
+            await Promise.all([fetchOutlet(), fetchStaff()]);
+            setLoading(false);
+        };
+        loadData();
     }, [id]);
 
     const handleUpdateAll = async (e) => {
@@ -264,7 +273,7 @@ export default function UpdateOutlet() {
                 };
             }
 
-            console.log(payloadOutlet);
+            // console.log(payloadOutlet);
 
             // Kirim hanya sekali
             await axios.put(`/api/outlet/${id}`, payloadOutlet);
@@ -276,6 +285,14 @@ export default function UpdateOutlet() {
             alert(err?.response?.data?.message || "Gagal update data");
         }
     };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-screen bg-gray-50">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-700"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -293,7 +310,7 @@ export default function UpdateOutlet() {
             <form onSubmit={handleUpdateAll} className="flex-1">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left column: Outlet */}
-                    <div layout className="lg:col-span-2 bg-white rounded-2xl shadow-sm border p-4 sm:p-6">
+                    <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border p-4 sm:p-6">
                         <h2 className="text-base font-semibold text-gray-800 mb-4">Data Outlet</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field label="Nama Outlet" required>

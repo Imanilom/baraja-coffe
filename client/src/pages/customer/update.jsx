@@ -17,7 +17,7 @@ import {
     FaPlus,
     FaTrash
 } from "react-icons/fa";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { useSelector } from "react-redux";
 
 const EditCustomer = () => {
@@ -167,20 +167,11 @@ const EditCustomer = () => {
                 address: formData.address.filter(addr => addr && addr.trim())
             };
 
-            console.log("📤 Data being sent:", dataToSend); // Debug log
+            // console.log("📤 Data being sent:", dataToSend); // Debug log
 
-            const response = await axios.put(
-                `/api/user/update/${id}`,
-                dataToSend,
-                {
-                    headers: {
-                        Authorization: `Bearer ${currentUser?.token}`,
-                        'Content-Type': 'application/json' // Tambahkan ini
-                    }
-                }
-            );
+            const response = await axios.put(`/api/user/update/${id}`, dataToSend);
 
-            console.log("✅ Customer updated:", response.data);
+            // console.log("✅ Customer updated:", response.data);
             alert("Pelanggan berhasil diperbarui!");
             navigate("/admin/customers");
         } catch (err) {

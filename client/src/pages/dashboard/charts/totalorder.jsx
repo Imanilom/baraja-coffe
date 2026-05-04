@@ -1,53 +1,54 @@
+import React from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 export default function TotalOrder({ data }) {
     // Kelompokkan berdasarkan kategori
     const foodTotal = data
-        ?.filter((item) => item.category === "makanan")
-        .reduce((acc, cur) => acc + cur.value, 0) ?? 0;
+        ?.filter((item) => item.category === "makanan" || item.name === "makanan")
+        .reduce((acc, cur) => acc + (cur.value || cur.total_sales || cur.subtotal || 0), 0) ?? 0;
 
     const drinkTotal = data
-        ?.filter((item) => item.category === "minuman")
-        .reduce((acc, cur) => acc + cur.value, 0) ?? 0;
+        ?.filter((item) => item.category === "minuman" || item.name === "minuman")
+        .reduce((acc, cur) => acc + (cur.value || cur.total_sales || cur.subtotal || 0), 0) ?? 0;
 
     const total = foodTotal + drinkTotal;
 
     // Chart data
     const chartData = [
         { name: "Makanan", value: foodTotal },
-        { name: "Minuman", value: drinkTotal },
-        { name: "Empty", value: total > 0 ? 0 : 100 }, // abu-abu penuh kalau kosong
-    ];
+        { name: "Minuman", value: drinkTotal }
+    ].filter(item => item.value > 0);
 
-    const COLORS = Array.from({ length: 5 }, (_, i) => {
-        const lightness = 20 + i * 10; // start lebih gelap (20%), tambah terang 10% tiap step
-        return `hsl(161, 100%, ${lightness}%)`;
-    });
+    if (chartData.length === 0) chartData.push({ name: "No Data", value: 1 });
+
+    const COLORS = ["#005429", "#34d399"];
 
     return (
-        <div className="bg-white p-4 rounded-xl border-t-4 border-green-900 shadow w-full">
+        <div className="w-full">
             {/* Header */}
-            <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-gray-700">Penjualan</h3>
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h3 className="text-xl font-black text-gray-800 tracking-tighter">Kategori</h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Proporsi Menu Terlaris</p>
+                </div>
             </div>
 
             {/* Chart */}
-            <div className="relative h-40">
+            <div className="relative h-56 flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
                             data={chartData}
                             cx="50%"
-                            cy="50%"          // taruh di tengah
-                            startAngle={90}   // mulai dari atas
-                            endAngle={-270}   // putar penuh searah jarum jam
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={2}
+                            cy="50%"
+                            innerRadius={70}
+                            outerRadius={90}
+                            paddingAngle={8}
                             dataKey="value"
+                            stroke="none"
                         >
                             {chartData.map((entry, i) => (
-                                <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                                <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} cornerRadius={10} />
                             ))}
                         </Pie>
                     </PieChart>
@@ -55,24 +56,32 @@ export default function TotalOrder({ data }) {
 
                 {/* Angka Tengah */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-                    <p className="text-lg font-bold text-gray-800">Rp{total.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">Total Penjualan</p>
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total</p>
+                    <p className="text-xl font-black text-gray-800 tracking-tighter">
+                        Rp {Math.round(total / 1000)}k
+                    </p>
                 </div>
             </div>
 
-            {/* Footer Info */}
-            <div className="flex justify-between mt-3 text-xs">
-                <div className="flex flex-col items-center">
-                    <span className="text-gray-700 font-medium">● Makanan</span>
-                    <span className="text-green-600">
-                        {foodTotal > 0 ? `${((foodTotal / total) * 100).toFixed(1)}%` : "0%"}
-                    </span>
+            {/* Legend - Sleek Design */}
+            <div className="grid grid-cols-2 gap-3 mt-6">
+                <div className="bg-white/40 p-3 rounded-2xl border border-white/60">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 bg-[#005429] rounded-full"></div>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-tight">Makanan</span>
+                    </div>
+                    <p className="text-sm font-black text-gray-700">
+                        {total > 0 ? `${((foodTotal / total) * 100).toFixed(1)}%` : "0%"}
+                    </p>
                 </div>
-                <div className="flex flex-col items-center">
-                    <span className="text-gray-700 font-medium">● Minuman</span>
-                    <span className="text-green-600">
-                        {drinkTotal > 0 ? `${((drinkTotal / total) * 100).toFixed(1)}%` : "0%"}
-                    </span>
+                <div className="bg-white/40 p-3 rounded-2xl border border-white/60">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 bg-[#34d399] rounded-full"></div>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-tight">Minuman</span>
+                    </div>
+                    <p className="text-sm font-black text-gray-700">
+                        {total > 0 ? `${((drinkTotal / total) * 100).toFixed(1)}%` : "0%"}
+                    </p>
                 </div>
             </div>
         </div>

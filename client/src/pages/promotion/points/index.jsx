@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { FaBell, FaChevronRight, FaCut, FaSearch, FaUser } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import Header from "../../admin/header";

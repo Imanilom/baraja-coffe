@@ -2,37 +2,45 @@ import { FaCheckSquare } from "react-icons/fa";
 
 export default function FoodChart({ data }) {
     // Hitung total untuk persen
-    const total = data.reduce((acc, cur) => acc + cur.value, 0);
+    const total = data.reduce((acc, cur) => acc + (cur.value || cur.total_qty || cur.quantity || 0), 0);
 
     return (
-
-        <div className="">
+        <div className="w-full">
             {/* Header */}
-            <div className="flex items-center gap-2 mb-4">
-                <h3 className="font-semibold">Penjualan Makanan Teratas</h3>
+            <div className="flex items-center gap-2 mb-6">
+                <div>
+                    <h3 className="text-xl font-black text-gray-800 tracking-tighter">Top Makanan</h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Terjual Paling Banyak</p>
+                </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow w-full border-t-4 border-green-900">
-
+            <div className="w-full space-y-6">
                 {/* Data */}
                 {data && data.length > 0 ? (
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                         {data.map((item, i) => {
-                            const percent = ((item.value / total) * 100).toFixed(1);
+                            const val = item.value || item.total_qty || item.quantity || 0;
+                            const percent = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
                             return (
-                                <div key={i}>
+                                <div key={i} className="group">
                                     {/* Label */}
-                                    <div className="flex justify-between text-sm mb-1">
-                                        <span className="text-gray-700">
-                                            {item.name} - {item.value.toLocaleString()}
-                                        </span>
-                                        <span className="text-gray-500">{percent}%</span>
+                                    <div className="flex justify-between items-end mb-2">
+                                        <div className="flex flex-col">
+                                            <span className="text-[11px] font-black text-[#005429] uppercase tracking-widest opacity-70 mb-0.5">#{i + 1}</span>
+                                            <span className="text-sm font-bold text-gray-700 truncate max-w-[150px]">
+                                                {item.name}
+                                            </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-xs font-black text-gray-800">{(item.value || item.total_qty || item.quantity || 0).toLocaleString()}</span>
+                                            <span className="text-[10px] text-gray-400 font-medium ml-1">({percent}%)</span>
+                                        </div>
                                     </div>
 
-                                    {/* Progress Bar */}
-                                    <div className="w-full bg-gray-200 h-2 rounded">
+                                    {/* Progress Bar - Glassy Design */}
+                                    <div className="w-full bg-gray-100/50 h-2.5 rounded-full overflow-hidden border border-gray-100 shadow-inner">
                                         <div
-                                            className="h-2 rounded bg-green-900"
+                                            className="h-full rounded-full bg-gradient-to-r from-[#005429] to-[#34d399] transition-all duration-1000 ease-out shadow-lg group-hover:brightness-110"
                                             style={{ width: `${percent}%` }}
                                         />
                                     </div>
@@ -41,9 +49,9 @@ export default function FoodChart({ data }) {
                         })}
                     </div>
                 ) : (
-                    <div className="flex justify-center items-center h-[150px] space-x-2">
-                        <FaCheckSquare size={20} className="text-green-900" />
-                        <span className="text-gray-500">Tidak ada data</span>
+                    <div className="flex flex-col justify-center items-center h-48 space-y-3 bg-white/20 rounded-2xl border border-dashed border-gray-200">
+                        <FaCheckSquare size={32} className="text-gray-300" />
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Belum Ada Data</span>
                     </div>
                 )}
             </div>

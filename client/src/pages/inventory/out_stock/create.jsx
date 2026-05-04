@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import Select from "react-select";
 import { Link, useOutletContext, useNavigate } from "react-router-dom";
@@ -175,7 +175,7 @@ const CreateOutStock = () => {
 
         try {
             const res = await axios.post('/api/product/stock/movement', payload);
-            console.log(res.data);
+            // console.log(res.data);
             alert("Stok berhasil disimpan.");
             navigate('/admin/inventory/in');
         } catch (error) {

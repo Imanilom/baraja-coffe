@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from '@/lib/axios';
 import { useEffect, useState } from "react";
 import { FaChevronLeft, FaChevronRight, FaPencilAlt, FaSearch, FaTrash } from "react-icons/fa";
 import dayjs from "dayjs";

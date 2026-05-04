@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 import { FaBell, FaChevronRight, FaHandshake, FaReceipt, FaUser } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
@@ -220,22 +220,22 @@ const CreateCommission = () => {
                         </div>
                     </div>
 
-                    <div class="flex items-center">
-                        <label class="w-[140px]"></label>
-                        <div class="flex flex-1 items-start space-x-2">
+                        <div className="flex items-center">
+                        <label className="w-[140px]"></label>
+                        <div className="flex flex-1 items-start space-x-2">
                             <div className="">
-                                <input type="checkbox" class="form-checkbox w-5 h-5 flex" id="is_mandatory" value="1" checked disabled />
+                                <input type="checkbox" className="form-checkbox w-5 h-5 flex" id="is_mandatory" value="1" checked disabled />
                             </div>
-                            <div class=" text-sm text-gray-600">
+                            <div className=" text-sm text-gray-600">
                                 <p>Wajibkan outlet untuk menggunakan komisi?</p>
-                                <p class="text-xs text-gray-500">Hal ini akan mewajibkan setiap transaksi pada kasir untuk memilih karyawan yang menjual produk/jasa terlebih dahulu.</p>
+                                <p className="text-xs text-gray-500">Hal ini akan mewajibkan setiap transaksi pada kasir untuk memilih karyawan yang menjual produk/jasa terlebih dahulu.</p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex items-center text-[#999999]">
-                        <label class="w-[140px] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">Status Komisi</label>
-                        <div class="flex-1 space-x-4">
+                    <div className="flex items-center text-[#999999]">
+                        <label className="w-[140px] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">Status Komisi</label>
+                        <div className="flex-1 space-x-4">
                             <label className="text-[14px]">
                                 <input
                                     type="radio"
@@ -243,7 +243,7 @@ const CreateCommission = () => {
                                     checked={formData.status === "1"}
                                     onChange={handleInputChange}
                                     value="1"
-                                    class="form-radio" /> Aktif
+                                    className="form-radio" /> Aktif
                             </label>
                             <label className="text-[14px]">
                                 <input
@@ -252,7 +252,7 @@ const CreateCommission = () => {
                                     checked={formData.status === "0"}
                                     onChange={handleInputChange}
                                     value="0"
-                                    class="form-radio" /> Non-aktif
+                                    className="form-radio" /> Non-aktif
                             </label>
                         </div>
                     </div>

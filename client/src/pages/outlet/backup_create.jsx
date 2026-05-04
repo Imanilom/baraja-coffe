@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { FaChevronRight, FaStoreAlt, FaInfoCircle } from "react-icons/fa";
@@ -161,7 +161,7 @@ const CreateOutlet = () => {
 
         try {
             const newOutlet = { ...form };
-            console.log(newOutlet);
+            // console.log(newOutlet);
 
             // await axios.post('/api/outlet', newOutlet); // Kirim sebagai array
             // navigate("/admin/outlet");

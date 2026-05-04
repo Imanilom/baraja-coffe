@@ -317,7 +317,7 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-lg shadow"
                             onClick={() => {
                                 // You can add refresh payment status functionality here
-                                console.log('Refresh payment status');
+                                // console.log('Refresh payment status');
                             }}
                         >
                             Refresh Status Pembayaran

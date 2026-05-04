@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import AOS from 'aos';
-import 'aos/dist/aos.css';
 import Lenis from '@studio-freight/lenis';
 import '../style/Home.css';
 
@@ -10,7 +9,7 @@ export default function Home() {
 
   useEffect(() => {
     AOS.init({ once: true, duration: 1000 });
-    
+
     const handleScroll = () => {
       const navbar = document.getElementById('navbar-container');
       if (window.scrollY > 100) {
@@ -21,9 +20,9 @@ export default function Home() {
         if (navbar) navbar.style.transform = 'translateY(0)';
       }
     };
-    
+
     window.addEventListener('scroll', handleScroll);
-    
+
     const lenis = new Lenis();
     const raf = (time) => {
       lenis.raf(time);
@@ -37,10 +36,10 @@ export default function Home() {
   return (
     <div className="font-cleveland overflow-x-hidden bg-beige text-army">
       {/* Navbar */}
-      <nav 
+      <nav
         id="navbar-container"
         className="fixed left-0 top-0 z-50 w-full transition-all duration-500"
-        style={{ 
+        style={{
           backgroundColor: scrolled ? 'rgba(245, 245, 220, 0.9)' : 'transparent',
           backdropFilter: scrolled ? 'blur(10px)' : 'none'
         }}
@@ -49,20 +48,20 @@ export default function Home() {
           <a href="#" className="text-3xl font-bold text-army">
             Baraja Coffee
           </a>
-          
-          <button 
+
+          <button
             className="md:hidden text-3xl text-army"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             ☰
           </button>
-          
+
           <div className={`${mobileMenuOpen ? 'block' : 'hidden'} md:block`}>
             <ul className="flex flex-col md:flex-row items-center gap-8 text-xl">
               {['Home', 'Menu', 'About', 'Contact'].map((item) => (
                 <li key={item}>
-                  <a 
-                    href="#" 
+                  <a
+                    href="#"
                     className="hover:text-army-dark transition-colors text-army"
                   >
                     {item}
@@ -71,7 +70,7 @@ export default function Home() {
               ))}
               <button className="border-2 border-army px-6 py-2 rounded-full hover:bg-army hover:text-beige transition-all text-army">
                 Book Table
-              </button> 
+              </button>
             </ul>
           </div>
         </div>
@@ -86,7 +85,7 @@ export default function Home() {
                 Crafting Perfection in Every Cup
               </h1>
               <p className="text-xl mb-8 lg:pr-20 text-army">
-                Discover the art of specialty coffee at Baraja. We source the finest beans and 
+                Discover the art of specialty coffee at Baraja. We source the finest beans and
                 craft each cup with precision and passion.
               </p>
               <div className="flex gap-4">
@@ -98,11 +97,11 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            
+
             <div className="lg:w-1/2 relative" data-aos="fade-left">
-              <img 
-                src="https://placehold.co/600x400/png " 
-                alt="Coffee" 
+              <img
+                src="https://placehold.co/600x400/png "
+                alt="Coffee"
                 className="rounded-2xl shadow-xl float-animation"
               />
               <div className="absolute -bottom-6 -right-6 bg-army text-beige p-4 rounded-lg shadow-lg">
@@ -119,9 +118,9 @@ export default function Home() {
         <div className="container mx-auto px-6">
           <div className="flex flex-col lg:flex-row items-center gap-16">
             <div className="lg:w-1/2 relative" data-aos="fade-up">
-              <img 
-                src="https://placehold.co/600x400/png " 
-                alt="Coffee Shop" 
+              <img
+                src="https://placehold.co/600x400/png "
+                alt="Coffee Shop"
                 className="rounded-2xl shadow-xl"
               />
               <div className="absolute -left-6 -top-6 bg-beige text-army p-6 rounded-xl shadow-md">
@@ -135,10 +134,10 @@ export default function Home() {
                 Our Journey in Coffee Excellence
               </h2>
               <p className="text-xl mb-8">
-                Since 1998, Beanery has been dedicated to perfecting the art of coffee. 
+                Since 1998, Beanery has been dedicated to perfecting the art of coffee.
                 From bean selection to brewing techniques, we obsess over every detail.
               </p>
-              
+
               <div className="grid md:grid-cols-2 gap-6 mb-12">
                 <div className="about-badge p-6 rounded-xl bg-white text-army">
                   <h3 className="text-2xl font-bold mb-3">100% Organic</h3>
@@ -158,7 +157,7 @@ export default function Home() {
         </div>
       </section>
 
-      
+
 
       {/* Menu Section */}
       <section className="py-20 bg-beige">
@@ -166,17 +165,17 @@ export default function Home() {
           <h2 className="text-4xl lg:text-5xl font-bold text-center mb-16 text-army" data-aos="fade-down">
             Signature Brews
           </h2>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[1, 2, 3, 4, 5, 6].map((item) => (
-              <div 
+              <div
                 key={item}
                 className="coffee-card p-6 rounded-2xl bg-white text-army"
                 data-aos="zoom-in"
               >
-                <img 
-                  src={`https://placehold.co/600x400/png `} 
-                  alt="Coffee" 
+                <img
+                  src={`https://placehold.co/600x400/png `}
+                  alt="Coffee"
                   className="rounded-xl mb-4 h-48 w-full object-cover"
                 />
                 <h3 className="text-2xl font-bold mb-2">Special Brew {item}</h3>
@@ -221,9 +220,9 @@ export default function Home() {
               <h4 className="text-xl font-bold mb-4">Follow Us</h4>
               <div className="flex gap-4">
                 {['facebook', 'instagram', 'twitter'].map((social) => (
-                  <a 
-                    key={social} 
-                    href="#" 
+                  <a
+                    key={social}
+                    href="#"
                     className="text-2xl hover:opacity-100 transition-opacity text-beige"
                   >
                     <i className={`fab fa-${social}`}></i>
@@ -232,7 +231,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          
+
           <div className="border-t border-beige border-opacity-20 pt-8 text-center">
             <p className="opacity-80">
               © 2024 Beanery. All rights reserved. Crafted with ❤️ and ☕

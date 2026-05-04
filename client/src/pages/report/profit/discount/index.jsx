@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
-import { 
-    FaClipboardList, 
-    FaChevronRight, 
-    FaBell, 
-    FaUser, 
-    FaSearch, 
-    FaFileExcel, 
+import axios from '@/lib/axios';
+import { Link, useSearchParams } from "react-router-dom";
+import {
+    FaClipboardList,
+    FaChevronRight,
+    FaBell,
+    FaUser,
+    FaSearch,
+    FaFileExcel,
     FaSync,
     FaChartLine,
     FaTags,
@@ -19,8 +19,37 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
+import useDebounce from "@/hooks/useDebounce";
 
 const DiscountManagement = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
+
+    const [analyticsData, setAnalyticsData] = useState({
+        promoUsage: [],
+        voucherUsage: [],
+        revenueImpact: null,
+        overview: null
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [exportLoading, setExportLoading] = useState(false);
+
+    // Initial state from URL
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || "overview");
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().subtract(7, 'day').toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
+    });
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || "");
+    const debouncedSearch = useDebounce(searchTerm, 500);
+
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -55,34 +84,14 @@ const DiscountManagement = () => {
         }),
     };
 
-    const [analyticsData, setAnalyticsData] = useState({
-        promoUsage: [],
-        voucherUsage: [],
-        revenueImpact: null,
-        overview: null
-    });
-    const [outlets, setOutlets] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [exportLoading, setExportLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState("overview");
-
-    const [dateRange, setDateRange] = useState({
-        startDate: dayjs().subtract(7, 'day').toDate(),
-        endDate: dayjs().toDate()
-    });
-    const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [searchTerm, setSearchTerm] = useState("");
-
-    const options = [
+    const outletOptions = useMemo(() => [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((outlet) => ({
             value: outlet._id,
             label: outlet.name,
         })),
-    ];
+    ], [outlets]);
 
-    // Format currency
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -92,46 +101,36 @@ const DiscountManagement = () => {
         }).format(amount || 0);
     };
 
-    // Format percentage
     const formatPercentage = (value) => {
         return `${(value || 0).toFixed(1)}%`;
     };
 
-    // Format date
     const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
+        return dayjs(dateString).format('DD-MM-YYYY');
     };
 
-    // Fetch outlets data
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedOutlet) params.set('outletId', selectedOutlet);
+        if (activeTab) params.set('tab', activeTab);
+        if (debouncedSearch) params.set('q', debouncedSearch);
+        setSearchParams(params);
+    }, [dateRange, selectedOutlet, activeTab, debouncedSearch, setSearchParams]);
+
     useEffect(() => {
-        const fetchOutlets = async () => {
-            try {
-                const outletsResponse = await axios.get('/api/outlet');
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-                setOutlets(outletsData);
-            } catch (err) {
-                console.error("Error fetching outlets:", err);
-            }
-        };
+        updateURLParams();
+    }, [updateURLParams]);
 
-        fetchOutlets();
-    }, []);
-
-    // Fetch analytics data
-    const fetchAnalyticsData = async () => {
+    const fetchAnalyticsData = useCallback(async () => {
         setLoading(true);
         try {
             const params = {
-                startDate: dateRange.startDate?.toISOString().split('T')[0],
-                endDate: dateRange.endDate?.toISOString().split('T')[0],
+                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD'),
             };
-            
+
             if (selectedOutlet) {
                 params.outletId = selectedOutlet;
             }
@@ -157,50 +156,33 @@ const DiscountManagement = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    // Fetch data when filters change
-    useEffect(() => {
-        fetchAnalyticsData();
     }, [dateRange, selectedOutlet]);
 
-    // Handle date range change
-    const handleDateRangeChange = (newValue) => {
-        setDateRange({
-            startDate: newValue.startDate,
-            endDate: newValue.endDate
-        });
-    };
+    useEffect(() => {
+        fetchAnalyticsData();
+    }, [fetchAnalyticsData]);
 
-    // Handle outlet change
-    const handleOutletChange = (selected) => {
-        setSelectedOutlet(selected.value);
-    };
-
-    // Refresh data
     const handleRefresh = () => {
         fetchAnalyticsData();
     };
 
-    // Filter data based on search term
     const filteredData = useMemo(() => {
-        if (!searchTerm) {
-            return analyticsData[activeTab === "promo" ? "promoUsage" : "voucherUsage"];
+        const data = activeTab === "promo" ? analyticsData.promoUsage : analyticsData.voucherUsage;
+        if (!debouncedSearch) {
+            return data;
         }
 
-        const data = activeTab === "promo" ? analyticsData.promoUsage : analyticsData.voucherUsage;
-        return data.filter(item => 
-            item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.code?.toLowerCase().includes(searchTerm.toLowerCase())
+        return data.filter(item =>
+            item.name?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+            item.code?.toLowerCase().includes(debouncedSearch.toLowerCase())
         );
-    }, [analyticsData, activeTab, searchTerm]);
+    }, [analyticsData, activeTab, debouncedSearch]);
 
-    // Export to Excel
     const exportToExcel = async () => {
         setExportLoading(true);
         try {
             let dataToExport = [];
-            let filename = "";
+            let filename = `Laporan_Diskon_${activeTab}_${dayjs(dateRange.startDate).format('YYYYMMDD')}.xlsx`;
 
             if (activeTab === "promo") {
                 dataToExport = filteredData.map(item => ({
@@ -215,7 +197,6 @@ const DiscountManagement = () => {
                     "Lift Revenue": formatPercentage(item.revenueLift || 0),
                     "Status": item.status || "-"
                 }));
-                filename = "Laporan_Promo.xlsx";
             } else if (activeTab === "voucher") {
                 dataToExport = filteredData.map(item => ({
                     "Kode Voucher": item.code || "-",
@@ -229,40 +210,17 @@ const DiscountManagement = () => {
                     "Total Revenue": item.totalRevenue || 0,
                     "Status": item.status || "-"
                 }));
-                filename = "Laporan_Voucher.xlsx";
             } else {
-                // Overview export
                 const { overview } = analyticsData;
                 if (overview) {
                     dataToExport = [
-                        {
-                            "Metrik": "Total Revenue",
-                            "Nilai": formatCurrency(overview.revenue?.totalRevenue || 0)
-                        },
-                        {
-                            "Metrik": "Total Diskon Diberikan",
-                            "Nilai": formatCurrency(overview.revenue?.totalDiscountGiven || 0)
-                        },
-                        {
-                            "Metrik": "Tingkat Diskon",
-                            "Nilai": formatPercentage(overview.revenue?.discountRate || 0)
-                        },
-                        {
-                            "Metrik": "Total Promo Aktif",
-                            "Nilai": overview.promos?.totalActive || 0
-                        },
-                        {
-                            "Metrik": "Total Penggunaan Promo",
-                            "Nilai": overview.promos?.totalUsage || 0
-                        },
-                        {
-                            "Metrik": "Total Voucher Aktif",
-                            "Nilai": overview.vouchers?.totalActive || 0
-                        },
-                        {
-                            "Metrik": "Total Penebusan Voucher",
-                            "Nilai": overview.vouchers?.totalRedemptions || 0
-                        }
+                        { "Metrik": "Total Revenue", "Nilai": formatCurrency(overview.revenue?.totalRevenue || 0) },
+                        { "Metrik": "Total Diskon Diberikan", "Nilai": formatCurrency(overview.revenue?.totalDiscountGiven || 0) },
+                        { "Metrik": "Tingkat Diskon", "Nilai": formatPercentage(overview.revenue?.discountRate || 0) },
+                        { "Metrik": "Total Promo Aktif", "Nilai": overview.promos?.totalActive || 0 },
+                        { "Metrik": "Total Penggunaan Promo", "Nilai": overview.promos?.totalUsage || 0 },
+                        { "Metrik": "Total Voucher Aktif", "Nilai": overview.vouchers?.totalActive || 0 },
+                        { "Metrik": "Total Penebusan Voucher", "Nilai": overview.vouchers?.totalRedemptions || 0 }
                     ];
                 }
                 filename = "Ringkasan_Diskon.xlsx";
@@ -285,10 +243,8 @@ const DiscountManagement = () => {
         }
     };
 
-    // Calculate overview metrics
     const overviewMetrics = useMemo(() => {
-        const { overview, promoUsage, voucherUsage, revenueImpact } = analyticsData;
-        
+        const { overview } = analyticsData;
         if (overview) {
             return {
                 totalRevenue: overview.revenue?.totalRevenue || 0,
@@ -301,44 +257,35 @@ const DiscountManagement = () => {
                 avgOrderValue: overview.revenue?.avgOrderValue || 0
             };
         }
-
-        return {
-            totalRevenue: 0,
-            totalDiscount: 0,
-            discountRate: 0,
-            totalPromos: 0,
-            promoUsage: 0,
-            totalVouchers: 0,
-            voucherRedemptions: 0,
-            avgOrderValue: 0
-        };
+        return { totalRevenue: 0, totalDiscount: 0, discountRate: 0, totalPromos: 0, promoUsage: 0, totalVouchers: 0, voucherRedemptions: 0, avgOrderValue: 0 };
     }, [analyticsData]);
 
-    // Show loading state
-    if (loading && !analyticsData.overview) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
-
     return (
-        <div className="">
-            {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+        <div className="min-h-screen bg-gray-50 pb-10">
+            {/* Header */}
+            <div className="flex justify-end px-6 items-center py-4 space-x-4 border-b bg-white">
+                <FaBell className="text-gray-400 cursor-pointer" />
+                <span className="text-sm font-medium">Hi Baraja</span>
+                <Link to="/admin/menu" className="text-gray-400">
+                    <FaUser size={24} />
+                </Link>
+            </div>
+
+            {/* Breadcrumb & Actions */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaClipboardList className="mr-2" />
                     <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/profit-menu">Laporan Laba & Rugi</Link>
-                    <FaChevronRight />
-                    <span>Analitik Diskon & Promo</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <Link to="/admin/profit-menu" className="hover:text-green-900 transition-colors">Laporan Laba & Rugi</Link>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900">Analitik Diskon & Promo</span>
                 </div>
                 <div className="flex gap-2">
                     <button
                         onClick={handleRefresh}
                         disabled={loading}
-                        className="flex items-center gap-2 bg-gray-100 text-gray-700 text-[13px] px-[15px] py-[7px] rounded hover:bg-gray-200 disabled:opacity-50"
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
                         <FaSync className={loading ? "animate-spin" : ""} />
                         Refresh
@@ -346,7 +293,7 @@ const DiscountManagement = () => {
                     <button
                         onClick={exportToExcel}
                         disabled={exportLoading || loading}
-                        className="flex items-center gap-2 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50"
+                        className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors disabled:opacity-50"
                     >
                         <FaFileExcel />
                         {exportLoading ? 'Mengekspor...' : 'Ekspor Excel'}
@@ -354,174 +301,113 @@ const DiscountManagement = () => {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="px-6">
-                <div className="flex gap-4 py-3">
-                    <div className="w-1/3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Rentang Tanggal
-                        </label>
-                        <Datepicker
-                            value={dateRange}
-                            onChange={handleDateRangeChange}
-                            showShortcuts={true}
-                            showFooter={true}
-                            displayFormat="DD-MM-YYYY"
-                            inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                            popoverDirection="down"
-                            separator="to"
-                        />
-                    </div>
-                    <div className="w-1/3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Outlet
-                        </label>
-                        <Select
-                            className="text-sm"
-                            classNamePrefix="react-select"
-                            placeholder="Pilih Outlet"
-                            options={options}
-                            isSearchable
-                            value={options.find((opt) => opt.value === selectedOutlet) || options[0]}
-                            onChange={handleOutletChange}
-                            styles={customSelectStyles}
-                        />
-                    </div>
-                    <div className="w-1/3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Cari
-                        </label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder={activeTab === "promo" ? "Cari promo..." : "Cari voucher..."}
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full text-[13px] border py-[6px] pl-10 pr-4 rounded"
+            <div className="px-6 mt-6">
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm mb-6 border border-gray-100">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
+                            <Datepicker
+                                value={dateRange}
+                                onChange={setDateRange}
+                                showShortcuts={true}
+                                showFooter={true}
+                                displayFormat="DD-MM-YYYY"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
+                                popoverDirection="down"
+                                separator="sampai"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Outlet</label>
+                            <Select
+                                options={outletOptions}
+                                value={outletOptions.find(opt => opt.value === selectedOutlet) || outletOptions[0]}
+                                onChange={(selected) => setSelectedOutlet(selected.value)}
+                                styles={customSelectStyles}
+                                isSearchable
+                                placeholder="Pilih Outlet"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Cari</label>
+                            <div className="relative">
+                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder={activeTab === "promo" ? "Cari promo..." : "Cari voucher..."}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full text-[13px] border border-gray-200 py-2 pl-10 pr-4 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b mb-6">
-                    <button
-                        onClick={() => setActiveTab("overview")}
-                        className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-                            activeTab === "overview" 
-                                ? "border-[#005429] text-[#005429]" 
-                                : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                    >
-                        <FaChartLine className="inline mr-2" />
-                        Ringkasan
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("promo")}
-                        className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-                            activeTab === "promo" 
-                                ? "border-[#005429] text-[#005429]" 
-                                : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                    >
-                        <FaTags className="inline mr-2" />
-                        Promo ({analyticsData.promoUsage.length})
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("voucher")}
-                        className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-                            activeTab === "voucher" 
-                                ? "border-[#005429] text-[#005429]" 
-                                : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                    >
-                        <FaPercentage className="inline mr-2" />
-                        Voucher ({analyticsData.voucherUsage.length})
-                    </button>
+                <div className="flex space-x-1 mb-6 bg-white p-1 rounded-lg shadow-sm border border-gray-100 w-fit">
+                    {[
+                        { id: "overview", label: "Ringkasan", icon: FaChartLine },
+                        { id: "promo", label: `Promo (${analyticsData.promoUsage.length})`, icon: FaTags },
+                        { id: "voucher", label: `Voucher (${analyticsData.voucherUsage.length})`, icon: FaPercentage }
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center px-6 py-2 rounded-md text-sm font-medium transition-all ${activeTab === tab.id
+                                    ? "bg-green-900 text-white shadow-md"
+                                    : "text-gray-500 hover:bg-gray-50"
+                                }`}
+                        >
+                            <tab.icon className="mr-2" />
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
-                {/* Error Message */}
                 {error && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="text-red-700 text-sm">{error}</div>
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
                     </div>
                 )}
 
-                {/* Overview Tab */}
+                {/* Tab Content */}
                 {activeTab === "overview" && (
-                    <div className="space-y-6">
-                        {/* Summary Cards */}
-                        <div className="grid grid-cols-4 gap-4">
-                            <div className="bg-white p-4 rounded-lg shadow border">
-                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                                    <FaMoneyBillWave />
-                                    Total Revenue
+                    <div className="space-y-6 animate-fadeIn">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {[
+                                { label: "Total Revenue", value: formatCurrency(overviewMetrics.totalRevenue), icon: FaMoneyBillWave, color: "text-green-700" },
+                                { label: "Total Diskon", value: formatCurrency(overviewMetrics.totalDiscount), sub: `Rate: ${formatPercentage(overviewMetrics.discountRate)}`, icon: FaPercentage, color: "text-red-600" },
+                                { label: "Promo Aktif", value: overviewMetrics.totalPromos, sub: `${overviewMetrics.promoUsage} penggunaan`, icon: FaTags, color: "text-blue-600" },
+                                { label: "Voucher Aktif", value: overviewMetrics.totalVouchers, sub: `${overviewMetrics.voucherRedemptions} penebusan`, icon: FaUsers, color: "text-purple-600" }
+                            ].map((card, i) => (
+                                <div key={i} className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm">
+                                    <div className="flex items-center justify-between mb-3 text-gray-400">
+                                        <card.icon size={18} />
+                                        <p className="text-[10px] font-bold uppercase tracking-wider">{card.label}</p>
+                                    </div>
+                                    <p className={`text-xl font-bold ${card.color}`}>{card.value}</p>
+                                    {card.sub && <p className="text-[11px] text-gray-400 mt-1">{card.sub}</p>}
                                 </div>
-                                <div className="text-xl font-semibold text-green-900">
-                                    {formatCurrency(overviewMetrics.totalRevenue)}
-                                </div>
-                            </div>
-                            <div className="bg-white p-4 rounded-lg shadow border">
-                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                                    <FaPercentage />
-                                    Total Diskon
-                                </div>
-                                <div className="text-xl font-semibold text-red-600">
-                                    {formatCurrency(overviewMetrics.totalDiscount)}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                    Tingkat Diskon: {formatPercentage(overviewMetrics.discountRate)}
-                                </div>
-                            </div>
-                            <div className="bg-white p-4 rounded-lg shadow border">
-                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                                    <FaTags />
-                                    Promo Aktif
-                                </div>
-                                <div className="text-xl font-semibold text-blue-600">
-                                    {overviewMetrics.totalPromos}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                    {overviewMetrics.promoUsage} penggunaan
-                                </div>
-                            </div>
-                            <div className="bg-white p-4 rounded-lg shadow border">
-                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                                    <FaUsers />
-                                    Voucher Aktif
-                                </div>
-                                <div className="text-xl font-semibold text-purple-600">
-                                    {overviewMetrics.totalVouchers}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                    {overviewMetrics.voucherRedemptions} penebusan
-                                </div>
-                            </div>
+                            ))}
                         </div>
 
-                        {/* Revenue Impact */}
                         {analyticsData.revenueImpact && (
-                            <div className="bg-white p-6 rounded-lg shadow border">
-                                <h3 className="text-lg font-semibold text-gray-800 mb-4">Dampak Revenue</h3>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-green-900">
-                                            {formatCurrency(analyticsData.revenueImpact.totalBeforeDiscount)}
-                                        </div>
-                                        <div className="text-sm text-gray-600">Sebelum Diskon</div>
+                            <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+                                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-8 text-center italic">Analisis Dampak Pendapatan</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+                                    <div className="text-center group border-r border-gray-100">
+                                        <p className="text-3xl font-black text-gray-900 mb-1 group-hover:scale-105 transition-transform">{formatCurrency(analyticsData.revenueImpact.totalBeforeDiscount)}</p>
+                                        <p className="text-[11px] font-bold text-gray-400 uppercase">Sebelum Diskon</p>
                                     </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-blue-900">
-                                            {formatCurrency(analyticsData.revenueImpact.totalGrand)}
-                                        </div>
-                                        <div className="text-sm text-gray-600">Setelah Diskon</div>
+                                    <div className="text-center group border-r border-gray-100">
+                                        <p className="text-3xl font-black text-green-900 mb-1 group-hover:scale-105 transition-transform">{formatCurrency(analyticsData.revenueImpact.totalGrand)}</p>
+                                        <p className="text-[11px] font-bold text-gray-400 uppercase">Setelah Diskon</p>
                                     </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-red-600">
-                                            {formatPercentage(analyticsData.revenueImpact.discountRate)}
-                                        </div>
-                                        <div className="text-sm text-gray-600">Tingkat Diskon</div>
+                                    <div className="text-center group">
+                                        <p className="text-3xl font-black text-red-600 mb-1 group-hover:scale-105 transition-transform">{formatPercentage(analyticsData.revenueImpact.discountRate)}</p>
+                                        <p className="text-[11px] font-bold text-gray-400 uppercase">Persentase Potongan</p>
                                     </div>
                                 </div>
                             </div>
@@ -529,137 +415,88 @@ const DiscountManagement = () => {
                     </div>
                 )}
 
-                {/* Promo Tab */}
-                {activeTab === "promo" && (
-                    <div className="rounded shadow-md bg-white shadow-slate-200">
-                        <table className="min-w-full table-auto">
-                            <thead className="text-[14px] text-gray-400 bg-gray-50">
-                                <tr>
-                                    <th className="px-4 py-4 text-left font-normal">Nama Promo</th>
-                                    <th className="px-4 py-4 text-left font-normal">Tipe</th>
-                                    <th className="px-4 py-4 text-right font-normal">Penggunaan</th>
-                                    <th className="px-4 py-4 text-right font-normal">Total Diskon</th>
-                                    <th className="px-4 py-4 text-right font-normal">Total Revenue</th>
-                                    <th className="px-4 py-4 text-right font-normal">Efektivitas</th>
-                                    <th className="px-4 py-4 text-right font-normal">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredData.length > 0 ? (
-                                    filteredData.map((promo, index) => (
-                                        <tr key={index} className="hover:bg-gray-50 text-gray-500 border-b">
-                                            <td className="p-4 font-medium">{promo.name || "-"}</td>
-                                            <td className="p-4">
-                                                <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                                                    {promo.promoType || "-"}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-right">{promo.totalOrders || 0}</td>
-                                            <td className="p-4 text-right text-red-600">
-                                                {formatCurrency(promo.totalDiscount || 0)}
-                                            </td>
-                                            <td className="p-4 text-right text-green-600">
-                                                {formatCurrency(promo.totalRevenue || 0)}
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <span className={`font-semibold ${
-                                                    (promo.discountEffectiveness || 0) > 50 ? 'text-green-600' : 
-                                                    (promo.discountEffectiveness || 0) > 20 ? 'text-yellow-600' : 'text-red-600'
-                                                }`}>
-                                                    {formatPercentage(promo.discountEffectiveness || 0)}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <span className={`inline-block px-2 py-1 text-xs rounded ${
-                                                    promo.status === 'EXCELLENT' ? 'bg-green-100 text-green-800' :
-                                                    promo.status === 'GOOD' ? 'bg-blue-100 text-blue-800' :
-                                                    promo.status === 'AVERAGE' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-red-100 text-red-800'
-                                                }`}>
-                                                    {promo.status || 'UNKNOWN'}
-                                                </span>
+                {/* Table for Promo/Voucher */}
+                {(activeTab === "promo" || activeTab === "voucher") && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden animate-fadeIn">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                    <tr>
+                                        {activeTab === "promo" ? (
+                                            <>
+                                                <th className="px-6 py-4">Nama Promo</th>
+                                                <th className="px-6 py-4">Tipe</th>
+                                                <th className="px-6 py-4 text-right">Penggunaan</th>
+                                                <th className="px-6 py-4 text-right">Total Diskon</th>
+                                                <th className="px-6 py-4 text-right">Total Revenue</th>
+                                                <th className="px-6 py-4 text-right">Efektivitas</th>
+                                                <th className="px-6 py-4 text-right">Status</th>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <th className="px-6 py-4">Kode</th>
+                                                <th className="px-6 py-4">Nama Voucher</th>
+                                                <th className="px-6 py-4 text-right">Digunakan</th>
+                                                <th className="px-6 py-4 text-right">Kuota</th>
+                                                <th className="px-6 py-4 text-right">Redemption</th>
+                                                <th className="px-6 py-4 text-right">Total Diskon</th>
+                                                <th className="px-6 py-4 text-right">Status</th>
+                                            </>
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody className="text-[13px] divide-y divide-gray-50">
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan={7} className="py-20 text-center">
+                                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
                                             </td>
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={7} className="py-8 text-center text-gray-500">
-                                            {loading ? (
-                                                <div className="flex justify-center">
-                                                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-[#005429]"></div>
-                                                </div>
-                                            ) : (
-                                                "Tidak ada data promo"
-                                            )}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {/* Voucher Tab */}
-                {activeTab === "voucher" && (
-                    <div className="rounded shadow-md bg-white shadow-slate-200">
-                        <table className="min-w-full table-auto">
-                            <thead className="text-[14px] text-gray-400 bg-gray-50">
-                                <tr>
-                                    <th className="px-4 py-4 text-left font-normal">Kode</th>
-                                    <th className="px-4 py-4 text-left font-normal">Nama Voucher</th>
-                                    <th className="px-4 py-4 text-right font-normal">Digunakan</th>
-                                    <th className="px-4 py-4 text-right font-normal">Kuota</th>
-                                    <th className="px-4 py-4 text-right font-normal">Tingkat Penebusan</th>
-                                    <th className="px-4 py-4 text-right font-normal">Total Diskon</th>
-                                    <th className="px-4 py-4 text-right font-normal">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredData.length > 0 ? (
-                                    filteredData.map((voucher, index) => (
-                                        <tr key={index} className="hover:bg-gray-50 text-gray-500 border-b">
-                                            <td className="p-4 font-mono font-medium">{voucher.code || "-"}</td>
-                                            <td className="p-4">{voucher.name || "-"}</td>
-                                            <td className="p-4 text-right">{voucher.usedCount || 0}</td>
-                                            <td className="p-4 text-right">{voucher.quota || 0}</td>
-                                            <td className="p-4 text-right">
-                                                <span className={`font-semibold ${
-                                                    (voucher.redemptionRate || 0) > 70 ? 'text-green-600' : 
-                                                    (voucher.redemptionRate || 0) > 30 ? 'text-yellow-600' : 'text-red-600'
-                                                }`}>
-                                                    {formatPercentage(voucher.redemptionRate || 0)}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-right text-red-600">
-                                                {formatCurrency(voucher.totalDiscount || 0)}
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <span className={`inline-block px-2 py-1 text-xs rounded ${
-                                                    voucher.status === 'HIGH_PERFORMANCE' ? 'bg-green-100 text-green-800' :
-                                                    voucher.status === 'HIGH_DEMAND' ? 'bg-blue-100 text-blue-800' :
-                                                    voucher.status === 'NORMAL' ? 'bg-gray-100 text-gray-800' :
-                                                    'bg-red-100 text-red-800'
-                                                }`}>
-                                                    {voucher.status || 'UNKNOWN'}
-                                                </span>
-                                            </td>
+                                    ) : filteredData.length > 0 ? (
+                                        filteredData.map((item, index) => (
+                                            <tr key={index} className="hover:bg-green-50/50 transition-colors">
+                                                {activeTab === "promo" ? (
+                                                    <>
+                                                        <td className="px-6 py-4 font-medium text-gray-700">{item.name || "-"}</td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase">{item.promoType || "-"}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right text-gray-600 font-mono">{item.totalOrders || 0}</td>
+                                                        <td className="px-6 py-4 text-right text-red-500 font-semibold">{formatCurrency(item.totalDiscount || 0)}</td>
+                                                        <td className="px-6 py-4 text-right text-green-700 font-semibold">{formatCurrency(item.totalRevenue || 0)}</td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className={`font-bold ${item.discountEffectiveness > 50 ? 'text-green-600' : 'text-yellow-600'}`}>{formatPercentage(item.discountEffectiveness || 0)}</span>
+                                                                <span className="text-[9px] text-gray-400">LIft: {formatPercentage(item.revenueLift)}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <span className={`px-2 py-1 rounded text-[10px] font-bold ${item.status === 'EXCELLENT' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{item.status}</span>
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <td className="px-6 py-4 font-mono font-bold text-green-900">{item.code || "-"}</td>
+                                                        <td className="px-6 py-4 text-gray-700 font-medium">{item.name || "-"}</td>
+                                                        <td className="px-6 py-4 text-right text-gray-600">{item.usedCount || 0}</td>
+                                                        <td className="px-6 py-4 text-right text-gray-400">{item.quota || 0}</td>
+                                                        <td className="px-6 py-4 text-right font-bold text-blue-600">{formatPercentage(item.redemptionRate || 0)}</td>
+                                                        <td className="px-6 py-4 text-right text-red-500 font-semibold">{formatCurrency(item.totalDiscount || 0)}</td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-[10px] font-bold">{item.status}</span>
+                                                        </td>
+                                                    </>
+                                                )}
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={7} className="py-20 text-center text-gray-400 font-medium">Data tidak ditemukan</td>
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={7} className="py-8 text-center text-gray-500">
-                                            {loading ? (
-                                                <div className="flex justify-center">
-                                                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-[#005429]"></div>
-                                                </div>
-                                            ) : (
-                                                "Tidak ada data voucher"
-                                            )}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
             </div>

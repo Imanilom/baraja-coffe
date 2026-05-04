@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import Select from "react-select";
 import { FaPercent, FaTrashAlt } from "react-icons/fa";
 import DatePicker from "react-datepicker";

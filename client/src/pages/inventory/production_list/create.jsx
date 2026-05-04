@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 import Select from "react-select";
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash } from "react-icons/fa";
@@ -124,7 +124,7 @@ const CreateProduction = () => {
 
         try {
             const response = await axios.post("/api/marketlist/product", payload);
-            console.log("Produk berhasil disimpan:", response.data);
+            // console.log("Produk berhasil disimpan:", response.data);
 
             // Redirect kalau sukses
             navigate("/admin/inventory/production-list");

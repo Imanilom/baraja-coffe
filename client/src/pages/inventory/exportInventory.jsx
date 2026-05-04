@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 import React, { useEffect, useState } from "react";
 import { exportToExcel } from "../../utils/exportHelper";
 import Datepicker from "react-tailwindcss-datepicker";
-import axios from "axios";
+import axios from '@/lib/axios';
 
 const ExportInventory = ({ isOpen, onClose }) => {
     const [products, setProduct] = useState([]);

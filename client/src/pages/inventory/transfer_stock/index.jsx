@@ -1,505 +1,404 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import axios from '@/lib/axios';
+import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSync, FaFileExcel, FaSearch, FaBoxes, FaInfoCircle, FaExchangeAlt, FaHistory } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import Modal from './modal';
-import Header from "../../admin/header";
-import MovementSideModal from "../../../components/movementSideModal";
-
+import * as XLSX from "xlsx";
+import Select from "react-select";
+import { useSelector } from "react-redux";
+import useDebounce from "@/hooks/useDebounce";
+import MovementSideModal from "@/components/movementSideModal";
+import Header from "@/pages/admin/header";
 
 const TransferStockManagement = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
+    const { currentUser } = useSelector((state) => state.user);
+
     const [selectedMovement, setSelectedMovement] = useState(null);
-    const [transferStock, setTransferStock] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [movements, setMovements] = useState([]);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const [showInput, setShowInput] = useState(false);
-    const [showInput2, setShowInput2] = useState(false);
-    const [showModal, setShowModal] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [tempSelectedOutlet2, setTempSelectedOutlet2] = useState("");
-    const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
+    // Initial state from URL
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
     });
-    const [tempSearch, setTempSearch] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || "");
+    const debouncedSearch = useDebounce(searchTerm, 500);
 
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page')) || 1);
+    const ITEMS_PER_PAGE = 50;
 
-    const dropdownRef = useRef(null);
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
+    const outletOptions = useMemo(() => [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ], [outlets]);
 
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedOutlet) params.set('outletId', selectedOutlet);
+        if (debouncedSearch) params.set('q', debouncedSearch);
+        if (currentPage > 1) params.set('page', currentPage.toString());
+        setSearchParams(params, { replace: true });
+    }, [dateRange, selectedOutlet, debouncedSearch, currentPage, setSearchParams]);
 
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
+    useEffect(() => {
+        updateURLParams();
+    }, [updateURLParams]);
 
-    // Fetch transferStock and outlets data
-    const fetchStock = async () => {
+    const fetchData = useCallback(async () => {
+        setLoading(true);
         try {
+            // Note: The $N+1$ fetch is kept as per the original logic, 
+            // but we wrap it in a single loading state and handle errors gracefully.
             const stockResponse = await axios.get('/api/product/stock/all');
             const stockData = stockResponse.data.data || [];
 
-            const stockWithMovements = await Promise.all(
-                stockData.map(async (item) => {
-                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
-                    const movements = movementResponse.data.data.movements || [];
+            const allMovements = [];
 
-                    return {
-                        ...item,
-                        movements
-                    };
+            // Limit products to fetch if there are too many (safety measure)
+            // But for now we try to fetch all like the original
+            await Promise.all(
+                stockData.map(async (item) => {
+                    try {
+                        const movementResponse = await axios.get(`/api/product/stock/${item.productId?._id}/movements`);
+                        const productMovements = (movementResponse.data.data?.movements || []).map(m => ({
+                            ...m,
+                            product: item.productId?.name,
+                            unit: item.productId?.unit,
+                            productId: item.productId?._id
+                        }));
+                        allMovements.push(...productMovements);
+                    } catch (e) {
+                        console.error(`Error fetching movements for product ${item.productId?._id}`);
+                    }
                 })
             );
 
-            setTransferStock(stockWithMovements);
+            // Filter for transfer-type movements only (adjustment in this system)
+            const transferMovements = allMovements.filter(m => m.type === "adjustment");
 
-            // 🔹 Default awal: type "out" & hanya hari ini
-            const defaultMovements = [];
-            stockWithMovements.forEach(stock => {
-                (stock.movements || []).forEach(movement => {
-                    const movementDate = dayjs(movement.date);
-                    if (
-                        movement.type === "adjustment" &&
-                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
-                    ) {
-                        defaultMovements.push({
-                            ...movement,
-                            product: stock.productId?.name,
-                            unit: stock.productId?.unit
-                        });
-                    }
-                });
-            });
-
-            // Urutkan terbaru
-            const sortedDefault = defaultMovements.sort(
-                (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
-            );
-            setFilteredData(sortedDefault);
-
+            setMovements(transferMovements.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()));
+            setError(null);
         } catch (err) {
-            console.error("Error fetching stock or movements:", err);
-            setTransferStock([]);
-            setFilteredData([]);
-        }
-    };
-
-
-    const fetchOutlets = async () => {
-        try {
-            const outletsResponse = await axios.get('/api/outlet');
-            const outletsData = Array.isArray(outletsResponse.data)
-                ? outletsResponse.data
-                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
-                    ? outletsResponse.data.data
-                    : [];
-
-            setOutlets(outletsData);
-        } catch (err) {
-            console.error("Error fetching outlets:", err);
-            setOutlets([]);
-        }
-    };
-
-    const fetchData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            await Promise.all([
-                fetchStock(),
-                fetchOutlets(),
-                // fetchCategories()
-            ]);
-            // fetchStatus();
-        } catch (err) {
-            console.error("General error:", err);
-            setError("Failed to load data. Please try again later.");
+            console.error("Error fetching transfer stock data:", err);
+            setError("Gagal memuat data transfer stok.");
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
+    const handleRefresh = () => {
+        fetchData();
+    };
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+    const filteredData = useMemo(() => {
+        let result = movements;
+
+        // Date Filter
+        if (dateRange.startDate && dateRange.endDate) {
+            const start = dayjs(dateRange.startDate).startOf('day');
+            const end = dayjs(dateRange.endDate).endOf('day');
+            result = result.filter(m => {
+                const d = dayjs(m.date);
+                return d.isAfter(start) && d.isBefore(end);
+            });
+        }
+
+        // Search Filter
+        if (debouncedSearch) {
+            const s = debouncedSearch.toLowerCase();
+            result = result.filter(item => {
+                const product = (item.product || "").toLowerCase();
+                const notes = (item.notes || "").toLowerCase();
+                const id = (item._id || "").toLowerCase();
+                return product.includes(s) || notes.includes(s) || id.includes(s);
+            });
+        }
+
+        return result;
+    }, [movements, debouncedSearch, dateRange]);
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredData, currentPage]);
+
+    const stats = useMemo(() => {
+        return {
+            totalTransfers: filteredData.length,
+            totalQuantity: filteredData.reduce((acc, curr) => acc + (curr.quantity || 0), 0)
+        };
+    }, [filteredData]);
 
     const capitalizeWords = (text) => {
-        return text
-            .toLowerCase()
-            .replace(/\b\w/g, (char) => char.toUpperCase());
-    };
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-                setShowInput2(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    // Paginate the filtered data
-    const applyFilter = () => {
-        const allMovements = [];
-
-        transferStock.forEach(stock => {
-            const movements = stock.movements || [];
-
-            const movementsInRange = movements.filter(movement => {
-                const movementDate = dayjs(movement.date);
-                return (
-                    movement.type === "adjustment" && // hanya ambil stok masuk
-                    movementDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
-                    movementDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'))
-                );
-            });
-
-            movementsInRange.forEach(movement => {
-                allMovements.push({
-                    ...movement,
-                    product: stock.productId?.name,
-                    unit: stock.productId?.unit
-                });
-            });
-        });
-
-        // Filter berdasarkan pencarian jika ada
-        const searched = tempSearch
-            ? allMovements.filter(m =>
-                m._id.toLowerCase().includes(tempSearch.toLowerCase()) ||
-                m.product?.toLowerCase().includes(tempSearch.toLowerCase())
-            )
-            : allMovements;
-
-        // Urutkan berdasarkan tanggal terbaru
-        const sorted = searched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-
-        setFilteredData(sorted); // ← bikin state baru khusus movement hasil filter
-        setCurrentPage(1);
-    };
-
-    const paginatedData = useMemo(() => {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return filteredData.slice(startIndex, endIndex);
-    }, [currentPage, filteredData]);
-
-
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
+        if (!text) return "";
+        return text.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     };
 
     const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        return dayjs(datetime).format('DD-MM-YYYY HH:mm:ss');
     };
 
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
+    const exportToExcel = () => {
+        const exportData = filteredData.map(item => ({
+            "Waktu Submit": formatDateTime(item.date),
+            "ID Transfer": item._id,
+            "Produk": item.product || "-",
+            "Unit": item.unit || "-",
+            "Quantity": item.quantity || 0,
+            "Keterangan": item.notes || "-"
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "TransferStok");
+        XLSX.writeFile(wb, `Laporan_Transfer_Stok_${dayjs().format('YYYYMMDD')}.xlsx`);
     };
-
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    // Filter outlets based on search input
-    const filteredOutlets2 = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    useEffect(() => {
-        applyFilter();
-    }, []);
-
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setValue({
-            startDate: dayjs(),
-            endDate: dayjs(),
-        });
-        setCurrentPage(1);
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        alert('File berhasil diimpor!');
-        setShowModal(false);
-    };
-
-
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
-
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-                    >
-                        Refresh
-                    </button>
-                </div>
-            </div>
-        );
-    }
 
     return (
-        <div className="min-h-screen flex flex-col">
-            {/* Header */}
+        <div className="min-h-screen bg-gray-50 pb-10">
             <Header />
 
-            {/* Breadcrumb */}
-            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b space-y-2 sm:space-y-0">
-                <div className="flex items-center space-x-2 text-sm">
-                    <FaBoxes size={18} className="text-gray-500" />
-                    <p className="text-gray-500">Inventori</p>
-                    <FaChevronRight className="text-gray-500" />
-                    <span className="text-[#005429]">Stok Transfer</span>
-                    <FaInfoCircle size={15} className="text-gray-400" />
+            {/* Breadcrumb & Actions */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm border-b">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaBoxes className="mr-2" />
+                    <span>Inventori</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900 font-semibold">Stok Transfer</span>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    {/* <button
-                        onClick={() => setShowModal(true)}
-                        className="w-full sm:w-auto bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px]"
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
-                        Impor Transfer Stok
-                    </button> */}
+                        <FaSync className={loading ? "animate-spin" : ""} />
+                        Refresh
+                    </button>
                     <Link
                         to="/admin/inventory/transfer-stock-create"
-                        className="w-full sm:w-auto bg-[#005429] text-white px-4 py-2 rounded border border-white hover:text-white text-[13px]"
+                        className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors"
                     >
                         Tambah Transfer Stok
                     </Link>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="px-3 pb-4 mb-[60px]">
-                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
-
-                    {/* Tanggal */}
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500">
+            <div className="p-6">
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
                             <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={(val) => {
+                                    setDateRange(val);
+                                    setCurrentPage(1);
+                                }}
+                                showShortcuts={true}
+                                showFooter={true}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-2 pr-6 pl-3 rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
                                 popoverDirection="down"
+                                separator="sampai"
                             />
                         </div>
-                    </div>
-
-                    {/* Kosong (spasi) */}
-                    <div className="hidden lg:block col-span-3"></div>
-
-                    {/* Cari */}
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Cari"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-2 pl-8 pr-4 rounded w-full"
-                            />
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Cari Produk / ID</label>
+                            <div className="relative">
+                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Nama Produk / ID Transfer"
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full text-[13px] border border-gray-200 py-2 pl-10 pr-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
+                                />
+                            </div>
                         </div>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-4 py-2 border border-[#005429] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-4 py-2 rounded">Reset</button>
+                        <div className="flex items-end">
+                            <button
+                                onClick={exportToExcel}
+                                disabled={loading || filteredData.length === 0}
+                                className="w-full flex items-center justify-center gap-2 bg-white border border-green-900 text-green-900 text-[13px] px-4 py-2 rounded hover:bg-green-50 transition-colors disabled:opacity-50"
+                            >
+                                <FaFileExcel />
+                                Ekspor Excel
+                            </button>
+                        </div>
                     </div>
                 </div>
+
+                {/* Summary Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center border-l-4 border-l-blue-600">
+                        <div className="p-3 bg-blue-50 rounded-full mr-4">
+                            <FaExchangeAlt className="text-blue-600 text-xl" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Total Transaksi Transfer</p>
+                            <p className="text-xl font-bold text-gray-900">{stats.totalTransfers} Kali</p>
+                        </div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center border-l-4 border-l-amber-600">
+                        <div className="p-3 bg-amber-50 rounded-full mr-4">
+                            <FaHistory className="text-amber-600 text-xl" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Total Kuantitas Produk</p>
+                            <p className="text-xl font-bold text-gray-900">{stats.totalQuantity.toLocaleString()} Unit</p>
+                        </div>
+                    </div>
+                </div>
+
+                {error && (
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
+                    </div>
+                )}
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md mt-4">
-                    <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
-                        <thead className="text-gray-400 ">
-                            <tr className="text-left">
-                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-normal w-[20%]">Waktu Submit</th>
-                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-normal w-[15%]">ID Transfer</th>
-                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-normal w-[10%]">Produk</th>
-                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-normal w-[10%]">Unit</th>
-                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-normal text-right w-[10%]">Qty</th>
-                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-normal w-[10%]">Keterangan</th>
-                            </tr>
-                        </thead>
-                        {paginatedData.length > 0 ? (
-                            <tbody className="text-gray-500 divide-y">
-                                {paginatedData.map((movement) => (
-                                    <tr
-                                        key={movement._id}
-                                        className="cursor-pointer hover:bg-slate-50"
-                                        onClick={() => setSelectedMovement(movement)}
-                                    >
-                                        <td className="px-2 sm:px-4 py-2 truncate">{formatDateTime(movement.date)}</td>
-                                        <td className="px-2 sm:px-4 py-2 truncate">{movement._id}</td>
-                                        <td className="px-2 sm:px-4 py-2 truncate">{movement.product && capitalizeWords(movement.product)}</td>
-                                        <td className="px-2 sm:px-4 py-2 lowercase">{movement.unit}</td>
-                                        <td className="px-2 sm:px-4 py-2 text-right">{movement.quantity}</td>
-                                        <td className="px-2 sm:px-4 py-2 max-w-[150px] truncate" title={movement.notes || "-"}>
-                                            {movement.notes || "-"}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <tr>
+                                    <th className="px-6 py-4">Waktu Submit</th>
+                                    <th className="px-6 py-4">Produk</th>
+                                    <th className="px-6 py-4">ID Transfer</th>
+                                    <th className="px-6 py-4 text-right">Qty</th>
+                                    <th className="px-6 py-4">Keterangan</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-[13px] divide-y divide-gray-50 text-gray-600">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={5} className="py-20 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
+                                            <p className="mt-2 text-xs text-gray-400">Memuat data produk dan riwayat stok...</p>
                                         </td>
                                     </tr>
-                                ))}
+                                ) : paginatedData.length > 0 ? (
+                                    paginatedData.map((item, index) => (
+                                        <tr
+                                            key={index}
+                                            className="hover:bg-green-50/20 transition-colors cursor-pointer"
+                                            onClick={() => setSelectedMovement(item)}
+                                        >
+                                            <td className="px-6 py-4">
+                                                <div className="text-gray-900 font-medium">{dayjs(item.date).format('DD MMM YYYY')}</div>
+                                                <div className="text-[11px] text-gray-400">{dayjs(item.date).format('HH:mm:ss')}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-semibold text-gray-900">{capitalizeWords(item.product)}</div>
+                                                <div className="text-[11px] text-gray-400 uppercase">{item.unit}</div>
+                                            </td>
+                                            <td className="px-6 py-4 font-mono text-[11px] text-gray-500">{item._id}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-gray-900">{item.quantity}</td>
+                                            <td className="px-6 py-4 max-w-[200px] truncate">{item.notes || "-"}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={5} className="py-20 text-center text-gray-400 font-medium italic">Tidak ada data transfer stok ditemukan</td>
+                                    </tr>
+                                )}
                             </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="text-center h-40">
-                                    <td colSpan={10}>
-                                        <div className="flex justify-center items-center flex-col text-gray-400">
-                                            <FaSearch size={60} />
-                                            <p className="uppercase mt-2 text-sm">Data Tidak ditemukan</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        )}
-                    </table>
+                        </table>
+                    </div>
                 </div>
 
-                {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
-                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 text-xs sm:text-sm gap-2">
-                        <span className="text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        <div className="flex justify-center space-x-1 sm:space-x-2">
+                {/* Pagination */}
+                {filteredData.length > ITEMS_PER_PAGE && (
+                    <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                        <p className="text-[13px] text-gray-500">
+                            Menampilkan <span className="font-semibold text-gray-900">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> sampai <span className="font-semibold text-gray-900">{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</span> dari <span className="font-semibold text-gray-900">{filteredData.length}</span> data
+                        </p>
+                        <div className="flex gap-2">
                             <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                onClick={() => setCurrentPage(c => Math.max(1, c - 1))}
                                 disabled={currentPage === 1}
-                                className="px-2 sm:px-3 py-1 border rounded disabled:opacity-50"
+                                className="px-3 py-1 text-sm border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
                             >
-                                <FaChevronLeft />
+                                Sebelumnya
                             </button>
-
-                            {[...Array(totalPages)].map((_, index) => {
-                                const page = index + 1;
-
-                                if (
-                                    page === 1 ||
-                                    page === totalPages ||
-                                    (page >= currentPage - 2 && page <= currentPage + 2)
-                                ) {
-                                    return (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`px-2 sm:px-3 py-1 rounded border ${currentPage === page
-                                                ? "bg-[#005429] text-white"
-                                                : ""
-                                                }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    );
-                                }
-
-                                if (
-                                    (page === currentPage - 3 && page > 1) ||
-                                    (page === currentPage + 3 && page < totalPages)
-                                ) {
-                                    return (
-                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
-                                            ...
-                                        </span>
-                                    );
-                                }
-
-                                return null;
-                            })}
-
+                            <div className="flex items-center px-4 text-sm font-medium text-gray-700">
+                                {currentPage} / {totalPages}
+                            </div>
                             <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                onClick={() => setCurrentPage(c => Math.min(totalPages, c + 1))}
                                 disabled={currentPage === totalPages}
-                                className="px-2 sm:px-3 py-1 border rounded disabled:opacity-50"
+                                className="px-3 py-1 text-sm border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
                             >
-                                <FaChevronRight />
+                                Berikutnya
                             </button>
                         </div>
                     </div>
                 )}
-
-                {/* pakai component side modal */}
-                <MovementSideModal
-                    movement={selectedMovement}
-                    onClose={() => setSelectedMovement(null)}
-                    formatDateTime={formatDateTime}
-                    capitalizeWords={capitalizeWords}
-                />
             </div>
 
-            {/* Bottom bar */}
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]"></div>
-            </div>
-
-            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
+            <MovementSideModal
+                movement={selectedMovement}
+                onClose={() => setSelectedMovement(null)}
+                formatDateTime={formatDateTime}
+                capitalizeWords={capitalizeWords}
+            />
         </div>
-    )
+    );
 };
 
 export default TransferStockManagement;

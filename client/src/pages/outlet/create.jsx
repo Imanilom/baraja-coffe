@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { FaCheck, FaChevronRight, FaMapPin, FaPhone, FaStore } from "react-icons/fa";
-import { get } from "mongoose";
+
 import { coordinateCityWithProvince, provinceCoordinates } from "../../utils/coordinateCity";
 
 // --- Leaflet marker fix (CDN icons) ---

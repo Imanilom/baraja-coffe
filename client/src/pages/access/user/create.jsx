@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from '@/lib/axios';
 import React, { useState, useEffect } from "react";
 import Select from "react-select";
 import {

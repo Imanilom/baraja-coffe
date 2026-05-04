@@ -46,15 +46,15 @@ const MenuCategoryTabs = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200">
+    <div className="min-h-screen bg-gray-50/50">
+      <div className="bg-white/40 backdrop-blur-md border-b border-white/50 sticky top-0 z-40 shadow-sm">
         <div className="px-6 pt-4">
           <div className="flex gap-8">
             <button
               onClick={() => handleTabChange('menu')}
-              className={`pb-3 px-1 relative flex items-center gap-2 text-sm font-medium transition-colors ${activeTab === 'menu'
-                  ? 'text-[#005429] border-b-2 border-[#005429]'
-                  : 'text-gray-500 hover:text-gray-700'
+              className={`pb-3 px-1 relative flex items-center gap-2 text-sm font-semibold transition-all duration-300 ${activeTab === 'menu'
+                ? 'text-[#005429] border-b-2 border-[#005429]'
+                : 'text-gray-500 hover:text-[#005429] hover:bg-green-50/50 rounded-t-lg'
                 }`}
             >
               <FaList size={16} />
@@ -62,9 +62,9 @@ const MenuCategoryTabs = () => {
             </button>
             <button
               onClick={() => handleTabChange('category')}
-              className={`pb-3 px-1 relative flex items-center gap-2 text-sm font-medium transition-colors ${activeTab === 'category'
-                  ? 'text-[#005429] border-b-2 border-[#005429]'
-                  : 'text-gray-500 hover:text-gray-700'
+              className={`pb-3 px-1 relative flex items-center gap-2 text-sm font-semibold transition-all duration-300 ${activeTab === 'category'
+                ? 'text-[#005429] border-b-2 border-[#005429]'
+                : 'text-gray-500 hover:text-[#005429] hover:bg-green-50/50 rounded-t-lg'
                 }`}
             >
               <FaLayerGroup size={16} />
@@ -75,7 +75,7 @@ const MenuCategoryTabs = () => {
       </div>
 
       {/* Content Area - Switch based on active tab */}
-      <div className="transition-all duration-300">
+      <div className="transition-all duration-300 p-6">
         {activeTab === 'menu' ? <Menu /> : <CategoryIndex />}
       </div>
     </div>

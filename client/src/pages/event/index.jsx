@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
 import { FaTicketAlt, FaTrashAlt, FaPencilAlt, FaSearch, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaTag, FaExclamationTriangle, FaCheckCircle, FaTimes } from "react-icons/fa";

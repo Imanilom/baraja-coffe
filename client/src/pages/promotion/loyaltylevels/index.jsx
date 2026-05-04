@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Star, Trophy, Plus, Edit2, Trash2, X, Award, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { FaChevronRight } from "react-icons/fa";

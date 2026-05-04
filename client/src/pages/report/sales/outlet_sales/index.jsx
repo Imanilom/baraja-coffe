@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import axios from "axios";
+import { useSelector } from "react-redux";
+import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -19,30 +20,39 @@ const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const OutletSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
 
     const customStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db',
-            minHeight: '34px',
+            borderColor: state.isFocused ? 'var(--primary-color, #005429)' : '#e5e7eb',
+            minHeight: '38px',
             fontSize: '13px',
-            color: '#6b7280',
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
-            '&:hover': { borderColor: '#9ca3af' },
+            borderRadius: '0.5rem',
+            boxShadow: state.isFocused ? '0 0 0 1px var(--primary-color, #005429)' : 'none',
+            '&:hover': {
+                borderColor: 'var(--primary-color, #005429)',
+            },
         }),
-        singleValue: (provided) => ({ ...provided, color: '#6b7280' }),
-        input: (provided) => ({ ...provided, color: '#6b7280' }),
-        placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '13px' }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#374151',
+            fontWeight: '500',
+        }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151',
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            color: state.isSelected ? 'white' : '#374151',
+            backgroundColor: state.isSelected 
+                ? 'var(--primary-color, #005429)' 
+                : state.isFocused ? 'rgba(0, 84, 41, 0.05)' : 'white',
             cursor: 'pointer',
+            '&:active': {
+                backgroundColor: 'var(--primary-color, #005429)',
+            }
         }),
     };
 
-    const [outlets, setOutlets] = useState([]);
     const [salesData, setSalesData] = useState([]);
     const [allSalesData, setAllSalesData] = useState([]);
     const [grandTotals, setGrandTotals] = useState({
@@ -60,9 +70,23 @@ const OutletSales = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [dateRange, setDateRange] = useState(null);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [dateRange, setDateRange] = useState(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        if (startDateParam && endDateParam) {
+            return {
+                startDate: dayjs.tz(startDateParam, DEFAULT_TIMEZONE),
+                endDate: dayjs.tz(endDateParam, DEFAULT_TIMEZONE),
+            };
+        }
+        const today = dayjs().tz(DEFAULT_TIMEZONE);
+        return {
+            startDate: today,
+            endDate: today,
+        };
+    });
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1);
     const [isExporting, setIsExporting] = useState(false);
 
     const formatDateForAPI = (date) => {
@@ -70,55 +94,22 @@ const OutletSales = () => {
         return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
     };
 
-    const parseDateFromURL = (dateStr) => {
-        if (!dateStr) return null;
-        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
-    };
+    // Update URL params
+    const updateURLParams = useCallback((newDateRange, newOutlet, newPage) => {
+        const params = new URLSearchParams();
 
-    // Initialize from URL params
-    useEffect(() => {
-        const startDateParam = searchParams.get('startDate');
-        const endDateParam = searchParams.get('endDate');
-        const outletParam = searchParams.get('outletId');
-        const pageParam = searchParams.get('page');
-
-        if (startDateParam && endDateParam) {
-            setDateRange({
-                startDate: parseDateFromURL(startDateParam),
-                endDate: parseDateFromURL(endDateParam),
-            });
-        } else {
-            const today = dayjs().tz(DEFAULT_TIMEZONE);
-            const newDateRange = {
-                startDate: today,
-                endDate: today
-            };
-            setDateRange(newDateRange);
-
-            updateURLParams(newDateRange, outletParam || "", parseInt(pageParam, 10) || 1);
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = formatDateForAPI(newDateRange.startDate);
+            const endDate = formatDateForAPI(newDateRange.endDate);
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
         }
 
-        if (outletParam) setSelectedOutlet(outletParam);
-        if (pageParam) setCurrentPage(parseInt(pageParam, 10));
-    }, []);
+        if (newOutlet) params.set('outletId', newOutlet);
+        if (newPage && newPage > 1) params.set('page', newPage.toString());
 
-    // Fetch outlets (hanya sekali)
-    useEffect(() => {
-        const fetchOutlets = async () => {
-            try {
-                const response = await axios.get('/api/outlet');
-                const outletsData = Array.isArray(response.data)
-                    ? response.data
-                    : Array.isArray(response.data?.data)
-                        ? response.data.data
-                        : [];
-                setOutlets(outletsData);
-            } catch (err) {
-                console.error("Error fetching outlets:", err);
-            }
-        };
-        fetchOutlets();
-    }, []);
+        setSearchParams(params);
+    }, [setSearchParams]);
 
     // Fetch sales data dengan agregasi
     const fetchSalesData = useCallback(async () => {
@@ -160,23 +151,6 @@ const OutletSales = () => {
     useEffect(() => {
         fetchSalesData();
     }, [fetchSalesData]);
-
-    // Update URL params
-    const updateURLParams = useCallback((newDateRange, newOutlet, newPage) => {
-        const params = new URLSearchParams();
-
-        if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = formatDateForAPI(newDateRange.startDate);
-            const endDate = formatDateForAPI(newDateRange.endDate);
-            params.set('startDate', startDate);
-            params.set('endDate', endDate);
-        }
-
-        if (newOutlet) params.set('outletId', newOutlet);
-        if (newPage && newPage > 1) params.set('page', newPage.toString());
-
-        setSearchParams(params);
-    }, [setSearchParams]);
 
     // Handler functions
     const handleDateRangeChange = (newValue) => {
@@ -272,18 +246,18 @@ const OutletSales = () => {
     return (
         <div className="">
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
-                    <FaChevronRight />
-                    <span>Penjualan Per Outlet</span>
+            <div className="flex justify-between items-center px-6 py-4 mb-4">
+                <h1 className="flex gap-2 items-center text-xl text-primary font-bold">
+                    <span className="opacity-60 font-medium text-lg">Laporan</span>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <Link to="/admin/sales-menu" className="opacity-60 font-medium text-lg hover:opacity-100 transition-opacity">Laporan Penjualan</Link>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <span className="text-lg">Penjualan Per Outlet</span>
                 </h1>
                 <button
                     onClick={exportToExcel}
                     disabled={isExporting || allSalesData.length === 0}
-                    className="flex gap-2 items-center bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-primary hover:bg-primary/90 text-white text-[13px] px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95"
                 >
                     {isExporting ? (
                         <>
@@ -309,12 +283,12 @@ const OutletSales = () => {
                                 value={dateRange}
                                 onChange={handleDateRangeChange}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 pr-[25px] pl-[12px] rounded-lg cursor-pointer focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm h-[38px]"
                                 popoverDirection="down"
                             />
                         </div>
                     </div>
-                    <div className="flex flex-col col-span-5 w-1/5">
+                    <div className="flex flex-col w-1/4">
                         <div className="relative text-[13px]">
                             <Select
                                 options={options}

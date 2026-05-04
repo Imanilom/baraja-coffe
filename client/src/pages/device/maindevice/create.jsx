@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Monitor, MapPin, Tablet, Smartphone, ShoppingBag, Coffee, Utensils, Loader2 } from 'lucide-react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import Select from "react-select";
 
 export default function DeviceCreateForm() {
@@ -266,11 +266,11 @@ export default function DeviceCreateForm() {
                 notes: formData.notes
             };
 
-            console.log('📤 Sending payload:', payload);
+            // console.log('📤 Sending payload:', payload);
 
             const response = await axios.post("/api/devices", payload);
 
-            console.log('✅ Response:', response.data);
+            // console.log('✅ Response:', response.data);
 
             setResponse({
                 success: true,

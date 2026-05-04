@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useNavigate } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaPlus } from "react-icons/fa";
 import * as XLSX from "xlsx";

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useNavigate } from "react-router-dom";
 import { 
   FaReceipt, FaStoreAlt, FaBullseye, FaClipboardList, 

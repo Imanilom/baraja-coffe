@@ -8,7 +8,13 @@ export default {
   // tailwind.config.js
 
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        primary: '#005429',
+        'primary-dark': '#003d1e',
+        'primary-light': '#ebf5ee',
+      }
+    },
   },
   plugins: [],
 }

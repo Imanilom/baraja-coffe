@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 
 const UpdateVoucher = ({ voucher, onClose, fetchVouchers }) => {
   const [formData, setFormData] = useState({

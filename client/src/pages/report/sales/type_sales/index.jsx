@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
+import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import { useSelector } from "react-redux";
 import Select from "react-select";
 import TypeSalesSkeleton from "./skeleton";
 import Paginated from "../../../../components/paginated";
 import { exportTypeSalesExcel } from '../../../../utils/exportTypeSalesExcel';
+import useDebounce from "@/hooks/useDebounce";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -19,52 +20,61 @@ const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 const TypeSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
 
     const customStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db',
-            minHeight: '34px',
+            borderColor: state.isFocused ? 'var(--primary-color, #005429)' : '#e5e7eb',
+            minHeight: '38px',
             fontSize: '13px',
-            color: '#6b7280',
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            borderRadius: '0.5rem',
+            boxShadow: state.isFocused ? '0 0 0 1px var(--primary-color, #005429)' : 'none',
             '&:hover': {
-                borderColor: '#9ca3af',
+                borderColor: 'var(--primary-color, #005429)',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280',
-        }),
-        input: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        placeholder: (provided) => ({
-            ...provided,
-            color: '#9ca3af',
-            fontSize: '13px',
+            color: '#374151',
+            fontWeight: '500',
         }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151',
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            color: state.isSelected ? 'white' : '#374151',
+            backgroundColor: state.isSelected 
+                ? 'var(--primary-color, #005429)' 
+                : state.isFocused ? 'rgba(0, 84, 41, 0.05)' : 'white',
             cursor: 'pointer',
+            '&:active': {
+                backgroundColor: 'var(--primary-color, #005429)',
+            }
         }),
     };
 
-    const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [dateRange, setDateRange] = useState(null);
-    const [searchTerm, setSearchTerm] = useState("");
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [dateRange, setDateRange] = useState(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        if (startDateParam && endDateParam) {
+            return {
+                startDate: dayjs.tz(startDateParam, DEFAULT_TIMEZONE),
+                endDate: dayjs.tz(endDateParam, DEFAULT_TIMEZONE),
+            };
+        }
+        const today = dayjs().tz(DEFAULT_TIMEZONE);
+        return { startDate: today, endDate: today };
+    });
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || "");
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [groupedData, setGroupedData] = useState([]);
     const [grandTotal, setGrandTotal] = useState({ penjualanTotal: 0, count: 0 });
     const [totalPages, setTotalPages] = useState(1);
     const [isExporting, setIsExporting] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1);
 
     const ITEMS_PER_PAGE = 50;
 
@@ -73,135 +83,58 @@ const TypeSales = () => {
         return dayjs(date).tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
     };
 
-    const parseDateFromURL = (dateStr) => {
-        if (!dateStr) return null;
-        return dayjs.tz(dateStr, DEFAULT_TIMEZONE);
-    };
-
-    // Initialize from URL params or set default to today
-    useEffect(() => {
-        const startDateParam = searchParams.get('startDate');
-        const endDateParam = searchParams.get('endDate');
-        const outletParam = searchParams.get('outletId');
-        const searchParam = searchParams.get('search');
-        const pageParam = searchParams.get('page');
-
-        if (startDateParam && endDateParam) {
-            setDateRange({
-                startDate: parseDateFromURL(startDateParam),
-                endDate: parseDateFromURL(endDateParam),
-            });
-        } else {
-            const today = dayjs().tz(DEFAULT_TIMEZONE);
-            const newDateRange = {
-                startDate: today,
-                endDate: today
-            };
-            setDateRange(newDateRange);
-
-            updateURLParams(newDateRange, outletParam || "", searchParam || "", parseInt(pageParam, 10) || 1);
-        }
-
-        if (outletParam) {
-            setSelectedOutlet(outletParam);
-        }
-
-        if (searchParam) {
-            setSearchTerm(searchParam);
-        }
-
-        if (pageParam) {
-            setCurrentPage(parseInt(pageParam, 10));
-        }
-    }, []);
-
-    // Fetch outlets data
-    useEffect(() => {
-        const fetchOutlets = async () => {
-            try {
-                const response = await axios.get('/api/outlet');
-                setOutlets(response.data.data || []);
-            } catch (err) {
-                console.error("Error fetching outlets:", err);
-            }
-        };
-        fetchOutlets();
-    }, []);
-
     // Update URL when filters change
     const updateURLParams = useCallback((newDateRange, newOutlet, newSearch, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = formatDateForAPI(newDateRange.startDate);
-            const endDate = formatDateForAPI(newDateRange.endDate);
-            params.set('startDate', startDate);
-            params.set('endDate', endDate);
+            params.set('startDate', formatDateForAPI(newDateRange.startDate));
+            params.set('endDate', formatDateForAPI(newDateRange.endDate));
         }
 
-        if (newOutlet) {
-            params.set('outletId', newOutlet);
-        }
-
-        if (newSearch) {
-            params.set('search', newSearch);
-        }
-
-        if (newPage && newPage > 1) {
-            params.set('page', newPage.toString());
-        }
+        if (newOutlet) params.set('outletId', newOutlet);
+        if (newSearch) params.set('search', newSearch);
+        if (newPage && newPage > 1) params.set('page', newPage.toString());
 
         setSearchParams(params);
     }, [setSearchParams]);
 
     // Fetch data from API
+    const fetchData = useCallback(async () => {
+        if (!dateRange?.startDate || !dateRange?.endDate) return;
+
+        setLoading(true);
+        try {
+            const params = {
+                startDate: formatDateForAPI(dateRange.startDate),
+                endDate: formatDateForAPI(dateRange.endDate),
+                page: currentPage,
+                limit: ITEMS_PER_PAGE
+            };
+
+            if (selectedOutlet) params.outletId = selectedOutlet;
+            if (debouncedSearchTerm) params.search = debouncedSearchTerm;
+
+            const response = await axios.get('/api/report/sales-report/transaction-type', { params });
+
+            if (response.data.success) {
+                setGroupedData(response.data.data.items || []);
+                setGrandTotal(response.data.data.grandTotal || { penjualanTotal: 0, count: 0 });
+                setTotalPages(response.data.data.pagination.totalPages || 1);
+            } else {
+                setError(response.data.message || 'Failed to fetch data');
+            }
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setError(err.response?.data?.message || 'Terjadi kesalahan saat mengambil data');
+        } finally {
+            setLoading(false);
+        }
+    }, [dateRange, selectedOutlet, debouncedSearchTerm, currentPage]);
+
     useEffect(() => {
-        const fetchData = async () => {
-            // Skip if dateRange is not set yet
-            if (!dateRange?.startDate || !dateRange?.endDate) {
-                return;
-            }
-
-            setLoading(true);
-            try {
-                const params = new URLSearchParams();
-
-                // Format dates properly
-                const startDate = formatDateForAPI(dateRange.startDate);
-                const endDate = formatDateForAPI(dateRange.endDate);
-
-                params.append('startDate', startDate);
-                params.append('endDate', endDate);
-
-                if (selectedOutlet) {
-                    params.append('outletId', selectedOutlet);
-                }
-                if (searchTerm) {
-                    params.append('search', searchTerm);
-                }
-                params.append('page', currentPage);
-                params.append('limit', ITEMS_PER_PAGE);
-
-                const response = await axios.get(`/api/report/sales-report/transaction-type?${params}`);
-
-                if (response.data.success) {
-                    setGroupedData(response.data.data.items || []);
-                    setGrandTotal(response.data.data.grandTotal || { penjualanTotal: 0, count: 0 });
-                    setTotalPages(response.data.data.pagination.totalPages || 1);
-                } else {
-                    setError(response.data.message || 'Failed to fetch data');
-                }
-
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError(err.response?.data?.message || 'Terjadi kesalahan saat mengambil data');
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
-    }, [dateRange, selectedOutlet, searchTerm, currentPage]);
+    }, [fetchData]);
 
     // Handler functions
     const handleDateRangeChange = (newValue) => {
@@ -245,53 +178,51 @@ const TypeSales = () => {
         }).format(amount);
     };
 
-    // Export to Excel - Using data from API
+    // Export to Excel
     const exportToExcel = async () => {
         const outletName = selectedOutlet
             ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
             : 'Semua Outlet';
 
-        const dateRangeText = dateRange?.startDate && dateRange?.endDate
-            ? `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`
-            : dayjs().format('DD/MM/YYYY');
-
+        const dateRangeText = `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`;
         const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
         const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
 
-        await exportTypeSalesExcel({
-            data: groupedData,
-            grandTotal: grandTotal,
-            summary: {
-                totalTransactions: grandTotal.count,
-                totalRevenue: grandTotal.penjualanTotal,
-                averageTransaction: grandTotal.count > 0
-                    ? Math.round(grandTotal.penjualanTotal / grandTotal.count)
-                    : 0
-            },
-            fileName: `Laporan_Tipe_Penjualan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
-            headerInfo: [
-                ["Outlet", outletName],
-                ["Tanggal", dateRangeText],
-                ["Tanggal Export", dayjs().format('DD/MM/YYYY HH:mm:ss')]
-            ]
-        });
+        setIsExporting(true);
+        try {
+            await exportTypeSalesExcel({
+                data: groupedData,
+                grandTotal: grandTotal,
+                summary: {
+                    totalTransactions: grandTotal.count,
+                    totalRevenue: grandTotal.penjualanTotal,
+                    averageTransaction: grandTotal.count > 0 ? Math.round(grandTotal.penjualanTotal / grandTotal.count) : 0
+                },
+                fileName: `Laporan_Tipe_Penjualan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`,
+                headerInfo: [
+                    ["Outlet", outletName],
+                    ["Tanggal", dateRangeText],
+                    ["Tanggal Export", dayjs().format('DD/MM/YYYY HH:mm:ss')]
+                ]
+            });
+        } catch (error) {
+            console.error("Export error:", error);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
-    // Show loading state
-    if (loading) {
-        return <TypeSalesSkeleton />;
-    }
+    if (loading && groupedData.length === 0) return <TypeSalesSkeleton />;
 
-    // Show error state
     if (error) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            <div className="flex justify-center items-center h-[60vh]">
+                <div className="text-red-500 text-center bg-white p-8 rounded-2xl shadow-sm border">
+                    <p className="text-xl font-bold mb-2">Terjadi Kesalahan</p>
+                    <p className="text-gray-500 mb-6">{error}</p>
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={fetchData}
+                        className="bg-primary text-white text-[13px] px-6 py-2 rounded-lg hover:bg-primary/90 transition-all font-medium"
                     >
                         Refresh
                     </button>
@@ -301,20 +232,20 @@ const TypeSales = () => {
     }
 
     return (
-        <div className="">
+        <div className="min-h-screen bg-transparent">
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
-                    <FaChevronRight />
-                    <span>Tipe Penjualan</span>
+            <div className="flex justify-between items-center px-6 py-4 mb-4">
+                <h1 className="flex gap-2 items-center text-xl text-primary font-bold">
+                    <span className="opacity-60 font-medium text-lg">Laporan</span>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <Link to="/admin/sales-menu" className="opacity-60 font-medium text-lg hover:opacity-100 transition-opacity">Laporan Penjualan</Link>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <span className="text-lg">Tipe Penjualan</span>
                 </h1>
                 <button
                     onClick={exportToExcel}
                     disabled={isExporting || groupedData.length === 0}
-                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-primary hover:bg-primary/90 text-white text-[13px] px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95"
                 >
                     {isExporting ? (
                         <>
@@ -329,40 +260,37 @@ const TypeSales = () => {
                 </button>
             </div>
 
-            {/* Filters */}
             <div className="px-6">
-                <div className="flex justify-between py-3 gap-2">
-                    <div className="flex flex-col col-span-3 w-2/5">
-                        <div className="relative text-gray-500">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={dateRange}
-                                onChange={handleDateRangeChange}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-                        </div>
+                <div className="flex justify-between py-3 gap-4">
+                    <div className="w-2/5">
+                        <Datepicker
+                            showFooter
+                            showShortcuts
+                            value={dateRange}
+                            onChange={handleDateRangeChange}
+                            displayFormat="DD-MM-YYYY"
+                            inputClassName="w-full text-[13px] border border-gray-200 py-2 pr-[25px] pl-[12px] rounded-lg cursor-pointer focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm h-[38px]"
+                            popoverDirection="down"
+                        />
                     </div>
 
-                    <div className="flex justify-end gap-2 w-2/5">
-                        <div className="flex flex-col col-span-3 w-2/5">
+                    <div className="flex justify-end gap-3 w-1/2">
+                        <div className="flex-1">
                             <input
                                 type="text"
-                                placeholder="Tipe Penjualan"
+                                placeholder="Cari tipe penjualan..."
                                 value={searchTerm}
                                 onChange={handleSearchChange}
-                                className="text-[13px] border py-2 pr-[25px] pl-[12px] rounded focus:ring-1 focus:ring-green-900 focus:outline-none"
+                                className="w-full text-[13px] border border-gray-200 py-2 pr-[25px] pl-[12px] rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm h-[38px] focus:outline-none"
                             />
                         </div>
 
-                        <div className="flex flex-col col-span-3">
+                        <div className="w-1/3">
                             <Select
                                 options={options}
                                 value={options.find((opt) => opt.value === selectedOutlet) || options[0]}
                                 onChange={handleOutletChange}
-                                placeholder="Pilih outlet..."
+                                placeholder="Semua Outlet"
                                 className="text-[13px]"
                                 classNamePrefix="react-select"
                                 styles={customStyles}
@@ -372,75 +300,52 @@ const TypeSales = () => {
                     </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
+                <div className="overflow-x-auto rounded-xl shadow-sm border border-gray-100 bg-white">
                     <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Tipe Penjualan</th>
-                                <th className="px-4 py-3 font-normal text-right">Jumlah Transaksi</th>
-                                <th className="px-4 py-3 font-normal text-right">Total Transaksi</th>
-                                <th className="px-4 py-3 font-normal text-right">Total Fee</th>
+                        <thead>
+                            <tr className="text-left text-[13px] text-gray-400 border-b border-gray-50">
+                                <th className="px-6 py-4 font-medium uppercase tracking-wider">Tipe Penjualan</th>
+                                <th className="px-6 py-4 font-medium uppercase tracking-wider text-right">Jumlah Transaksi</th>
+                                <th className="px-6 py-4 font-medium uppercase tracking-wider text-right">Total Transaksi</th>
                             </tr>
                         </thead>
-                        {loading ? (
-                            <tbody>
-                                <tr>
-                                    <td colSpan={4} className="text-center py-8">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900 mx-auto"></div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        ) : groupedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {groupedData.map((group, index) => (
-                                    <tr key={index} className="text-left text-sm hover:bg-gray-50">
-                                        <td className="px-4 py-3">
-                                            {group.orderType}
+                        <tbody className="text-sm">
+                            {groupedData.length > 0 ? (
+                                groupedData.map((group, index) => (
+                                    <tr key={index} className="hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors">
+                                        <td className="px-6 py-4 text-gray-900 font-medium">{group.orderType}</td>
+                                        <td className="px-6 py-4 text-right text-gray-600 font-medium">
+                                            {group.count?.toLocaleString('id-ID')}
                                         </td>
-                                        <td className="px-4 py-3 text-right">
-                                            {group.count.toLocaleString('id-ID')}
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
+                                        <td className="px-6 py-4 text-right font-bold text-gray-900">
                                             {formatCurrency(group.penjualanTotal)}
                                         </td>
-                                        <td className="px-4 py-3 text-right">
-                                            {formatCurrency(0)}
-                                        </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={3} className="py-20 text-center text-gray-400">Tidak ada data ditemukan</td>
                                 </tr>
-                            </tbody>
-                        )}
-                        <tfoot className="border-t font-semibold text-sm">
+                            )}
+                        </tbody>
+                        <tfoot className="bg-gray-50/50 font-semibold text-sm border-t">
                             <tr>
-                                <td className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-6 py-4 text-gray-900 border-r border-gray-100">Grand Total</td>
+                                <td className="px-6 py-4 text-right">
+                                    <span className="bg-white border border-gray-200 text-gray-900 inline-block px-3 py-1 rounded-lg">
                                         {grandTotal.count.toLocaleString('id-ID')}
-                                    </p>
+                                    </span>
                                 </td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-6 py-4 text-right">
+                                    <span className="bg-primary text-white inline-block px-3 py-1 rounded-lg">
                                         {formatCurrency(grandTotal.penjualanTotal)}
-                                    </p>
-                                </td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(0)}
-                                    </p>
+                                    </span>
                                 </td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
                 <Paginated
                     currentPage={currentPage}
                     setCurrentPage={handlePageChange}

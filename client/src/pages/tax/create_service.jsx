@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { FaTimes } from "react-icons/fa";
 import { toast } from "react-toastify";
 

@@ -44,7 +44,8 @@ export default function AnalyticsTabs() {
             </div>
 
             {/* CSS Scrollbar */}
-            <style jsx>{`
+            <style dangerouslySetInnerHTML={{
+                __html: `
         .scrollbar-visible::-webkit-scrollbar {
           height: 0;
         }
@@ -55,7 +56,7 @@ export default function AnalyticsTabs() {
         .scrollbar-visible::-webkit-scrollbar-track {
           background: #e5e7eb;
         }
-      `}</style>
+      `}} />
         </div>
     );
 }

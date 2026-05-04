@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Save, ArrowLeft, Award, Users, Gift, Percent, CheckCircle2 } from "lucide-react";
 
 const UpdateLoyaltyProgram = () => {
@@ -53,7 +53,7 @@ const UpdateLoyaltyProgram = () => {
     e.preventDefault();
     try {
       await axios.put(`/api/promotion/loyalty/${id}`, form);
-      console.log(form);
+      // console.log(form);
       alert("Loyalty program updated successfully");
       navigate("/admin/loyalty");
     } catch (err) {

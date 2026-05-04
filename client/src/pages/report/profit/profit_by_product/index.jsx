@@ -1,158 +1,38 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaFileExcel, FaSync } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
 import dayjs from "dayjs";
-
+import { useSelector } from "react-redux";
+import useDebounce from "@/hooks/useDebounce";
 
 const ProfitByProductManagement = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
 
     const [orders, setOrders] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [tempSearch, setTempSearch] = useState("");
-    const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
+    // Initial state from URL
+    const [dateRange, setDateRange] = useState(() => {
+        const start = searchParams.get('startDate');
+        const end = searchParams.get('endDate');
+        return {
+            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
+            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+        };
     });
-    const [filteredData, setFilteredData] = useState([]);
-    const [isInitialized, setIsInitialized] = useState(false);
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outlet') || "");
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || "");
+    const debouncedSearch = useDebounce(searchTerm, 500);
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page')) || 1);
 
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 50;
-
-    const dropdownRef = useRef(null);
-
-    // Initialize filters from URL on component mount
-    useEffect(() => {
-        const page = parseInt(searchParams.get('page')) || 1;
-        const searchQuery = searchParams.get('search') || '';
-        const outlet = searchParams.get('outlet') || '';
-        const startDate = searchParams.get('startDate');
-        const endDate = searchParams.get('endDate');
-
-        setCurrentPage(page);
-        setTempSearch(searchQuery);
-        setTempSelectedOutlet(outlet);
-
-        if (startDate && endDate) {
-            setValue({
-                startDate: startDate,
-                endDate: endDate
-            });
-        } else {
-            setValue({
-                startDate: dayjs(),
-                endDate: dayjs()
-            });
-        }
-
-        setIsInitialized(true);
-    }, []);
-
-    // Update URL when filters change
-    useEffect(() => {
-        if (!isInitialized) return;
-
-        const params = new URLSearchParams();
-
-        if (currentPage > 1) {
-            params.set('page', currentPage.toString());
-        }
-
-        if (tempSearch) {
-            params.set('search', tempSearch);
-        }
-
-        if (tempSelectedOutlet) {
-            params.set('outlet', tempSelectedOutlet);
-        }
-
-        if (value?.startDate && value?.endDate) {
-            const formatDate = (dateStr) => {
-                if (dayjs.isDayjs(dateStr)) {
-                    return dateStr.format('YYYY-MM-DD');
-                }
-                const date = new Date(dateStr);
-                return date.toISOString().split('T')[0];
-            };
-
-            params.set('startDate', formatDate(value.startDate));
-            params.set('endDate', formatDate(value.endDate));
-        }
-
-        setSearchParams(params, { replace: true });
-    }, [currentPage, tempSearch, tempSelectedOutlet, value, isInitialized]);
-
-    // Fetch orders and outlets data
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const orderResponse = await axios.get('/api/orders');
-
-                const orderData = Array.isArray(orderResponse.data) ?
-                    orderResponse.data :
-                    (orderResponse.data && Array.isArray(orderResponse.data.data)) ?
-                        orderResponse.data.data : [];
-
-                const completedData = orderData.filter(item => item.status === "Completed");
-
-                setOrders(completedData);
-                setFilteredData(completedData);
-
-                const outletsResponse = await axios.get('/api/outlet');
-
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                setOrders([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
 
     const customSelectStyles = {
         control: (provided, state) => ({
@@ -188,189 +68,174 @@ const ProfitByProductManagement = () => {
         }),
     };
 
+    const outletOptions = useMemo(() => [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet.name,
+            label: outlet.name,
+        })),
+    ], [outlets]);
+
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
-        }).format(amount);
+        }).format(amount || 0);
     };
 
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
+        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
+        if (selectedOutlet) params.set('outlet', selectedOutlet);
+        if (debouncedSearch) params.set('search', debouncedSearch);
+        if (currentPage > 1) params.set('page', currentPage.toString());
+        setSearchParams(params, { replace: true });
+    }, [dateRange, selectedOutlet, debouncedSearch, currentPage, setSearchParams]);
 
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-    };
+    useEffect(() => {
+        updateURLParams();
+    }, [updateURLParams]);
 
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
+    // Fetch data with parameters
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            // Ideally should pass dates to API, but for now matching existing behavior
+            // if /api/orders supports it. 
+            const params = {
+                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD'),
+                mode: 'all'
+            };
 
-    const options = [
-        { value: "", label: "Semua Outlet" },
-        ...outlets.map((outlet) => ({
-            value: outlet.name, // PERBAIKAN: gunakan name, bukan _id
-            label: outlet.name,
-        })),
-    ];
+            const response = await axios.get('/api/report/orders', { params });
+            const orderData = Array.isArray(response.data) ?
+                response.data :
+                (response.data?.data && Array.isArray(response.data.data)) ?
+                    response.data.data : [];
 
-    // Apply filter function - PERBAIKAN LOGIC
-    const applyFilter = useCallback(() => {
-        let filteredOrders = ensureArray([...orders]);
-
-        // 1. Filter by date range FIRST
-        if (value && value.startDate && value.endDate) {
-            filteredOrders = filteredOrders.filter(order => {
-                try {
-                    if (!order.createdAt) return false;
-
-                    const orderDate = new Date(order.createdAt);
-                    let startDate, endDate;
-
-                    if (dayjs.isDayjs(value.startDate)) {
-                        startDate = value.startDate.toDate();
-                        endDate = value.endDate.toDate();
-                    } else {
-                        startDate = new Date(value.startDate);
-                        endDate = new Date(value.endDate);
-                    }
-
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    if (isNaN(orderDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    return orderDate >= startDate && orderDate <= endDate;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
+            // Filter completed only as per original logic
+            setOrders(orderData.filter(item => item.status === "Completed"));
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching orders:", err);
+            setError("Gagal memuat data pesanan. Silakan coba lagi.");
+        } finally {
+            setLoading(false);
         }
+    }, [dateRange]);
 
-        // 2. Filter by outlet
-        if (tempSelectedOutlet) {
-            filteredOrders = filteredOrders.filter(order => {
-                try {
-                    // PERBAIKAN: cek berbagai kemungkinan struktur data outlet
-                    const outletName =
-                        order.cashier?.outlet?.[0]?.outletId?.name ||
-                        order.cashier?.outlet?.[0]?.name ||
-                        order.outlet?.name ||
-                        order.outletName ||
-                        "";
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
-                    return outletName === tempSelectedOutlet;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
+    const handleRefresh = () => {
+        fetchData();
+    };
 
-        // 3. Filter items by product name/category
+    // Derived filtered data (items)
+    const filteredItems = useMemo(() => {
         let result = [];
 
+        // 1. Filter orders by outlet first (since outlet is at order level in this component's logic)
+        let filteredOrders = orders;
+        if (selectedOutlet) {
+            filteredOrders = orders.filter(order => {
+                const outletName =
+                    order.cashier?.outlet?.[0]?.outletId?.name ||
+                    order.cashier?.outlet?.[0]?.name ||
+                    order.outlet?.name ||
+                    order.outletName || "";
+                return outletName === selectedOutlet;
+            });
+        }
+
+        // 2. Flatten items and apply search
         filteredOrders.forEach(order => {
             if (!order.items || !Array.isArray(order.items)) return;
 
             order.items.forEach(item => {
-                try {
-                    const menuItem = item?.menuItem;
-                    if (!menuItem) return;
+                const menuItem = item?.menuItem;
+                if (!menuItem) return;
 
-                    // Check if item matches search filter
-                    let matchesSearch = true;
-                    if (tempSearch) {
-                        const name = (menuItem.name || '').toLowerCase();
-                        const category = (menuItem.category?.name || '').toLowerCase();
-                        const searchTerm = tempSearch.toLowerCase();
+                let matchesSearch = true;
+                if (debouncedSearch) {
+                    const name = (menuItem.name || '').toLowerCase();
+                    const category = (menuItem.category?.name || '').toLowerCase();
+                    const s = debouncedSearch.toLowerCase();
+                    matchesSearch = name.includes(s) || category.includes(s);
+                }
 
-                        matchesSearch = name.includes(searchTerm) || category.includes(searchTerm);
-                    }
-
-                    if (matchesSearch) {
-                        // Create new object with order info + item info
-                        result.push({
-                            ...order,
-                            items: [item] // Only include the matching item
-                        });
-                    }
-                } catch (err) {
-                    console.error("Error processing item:", err);
+                if (matchesSearch) {
+                    result.push({
+                        _id: `${order._id}_${menuItem._id}_${result.length}`,
+                        orderId: order._id,
+                        orderNumber: order.orderNumber,
+                        menuItem: menuItem,
+                        quantity: item.quantity || 1
+                    });
                 }
             });
         });
 
-        setFilteredData(result);
-        setCurrentPage(1);
-    }, [orders, tempSearch, tempSelectedOutlet, value]);
+        return result;
+    }, [orders, selectedOutlet, debouncedSearch]);
 
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        if (isInitialized) {
-            applyFilter();
-        }
-    }, [applyFilter, isInitialized]);
+    const totals = useMemo(() => {
+        let totalPenjualanKotor = 0;
+        let totalDiskon = 0;
+        let totalPembelian = 0;
+        let totalLabaProduk = 0;
 
-    // Paginate the filtered data
-    const paginatedData = useMemo(() => {
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
+        filteredItems.forEach(item => {
+            const menuItem = item.menuItem || {};
+            const price = menuItem.price || 0;
+            const diskon = menuItem.diskon || 0;
+            const pembelian = menuItem.pembelian || 0;
+            const quantity = item.quantity || 1;
 
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return filteredData.slice(startIndex, endIndex);
-    }, [currentPage, filteredData]);
+            totalPenjualanKotor += price * quantity;
+            totalDiskon += diskon * quantity;
+            totalPembelian += pembelian * quantity;
+            totalLabaProduk += (price - pembelian) * quantity;
+        });
 
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+        const totalLabaPersen = totalPenjualanKotor > 0
+            ? ((totalLabaProduk / totalPenjualanKotor) * 100).toFixed(2)
+            : 0;
 
-    // Export current data to Excel
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Get outlet name
-        const outletName = tempSelectedOutlet || 'Semua Outlet';
-
-        // Format date for display
-        const formatDateForExcel = (dateStr) => {
-            if (dayjs.isDayjs(dateStr)) {
-                return dateStr.format('DD-MM-YYYY');
-            }
-            const date = new Date(dateStr);
-            const pad = (n) => n.toString().padStart(2, "0");
-            return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
+        return {
+            totalPenjualanKotor,
+            totalDiskon,
+            totalPembelian,
+            totalLabaProduk,
+            totalLabaPersen
         };
+    }, [filteredItems]);
 
-        // Create workbook
-        const wb = XLSX.utils.book_new();
+    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+    const paginatedItems = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredItems, currentPage]);
 
-        // Create header data
+    const exportToExcel = () => {
+        const outletName = selectedOutlet || 'Semua Outlet';
+        const rangeStr = `${dayjs(dateRange.startDate).format('DD-MM-YYYY')} s/d ${dayjs(dateRange.endDate).format('DD-MM-YYYY')}`;
+
         const headerData = [
             ['Laporan Laba Produk'],
             [],
             ['Outlet', outletName],
-            ['Tanggal', `${formatDateForExcel(value.startDate)} s/d ${formatDateForExcel(value.endDate)}`],
+            ['Tanggal', rangeStr],
             [],
             ['Produk', 'Kategori', 'Penjualan Kotor', 'Diskon Produk', 'Pembelian', 'Laba Produk', '% Laba Produk']
         ];
 
-        // Prepare data rows
-        const dataRows = filteredData.map(order => {
-            const item = order.items?.[0] || {};
+        const dataRows = filteredItems.map(item => {
             const menuItem = item.menuItem || {};
             const price = menuItem.price || 0;
             const diskon = menuItem.diskon || 0;
@@ -394,7 +259,6 @@ const ProfitByProductManagement = () => {
             ];
         });
 
-        // Add Grand Total row
         const grandTotal = [
             'Grand Total',
             '',
@@ -405,348 +269,176 @@ const ProfitByProductManagement = () => {
             totals.totalPenjualanKotor > 0 ? (totals.totalLabaProduk / totals.totalPenjualanKotor) : 0
         ];
 
-        // Combine all data
         const allData = [...headerData, ...dataRows, grandTotal];
-
-        // Create worksheet
         const ws = XLSX.utils.aoa_to_sheet(allData);
 
-        // Set column widths
-        ws['!cols'] = [
-            { wch: 25 }, // Produk
-            { wch: 18 }, // Kategori
-            { wch: 18 }, // Penjualan Kotor
-            { wch: 15 }, // Diskon Produk
-            { wch: 15 }, // Pembelian
-            { wch: 18 }, // Laba Produk
-            { wch: 15 }  // % Laba Produk
-        ];
+        // Styling and formatting
+        ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
 
-        // Styling
-        const range = XLSX.utils.decode_range(ws['!ref']);
-
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                if (!ws[cellAddress]) continue;
-
-                // Header title (row 0)
-                if (R === 0) {
-                    ws[cellAddress].s = {
-                        font: { bold: true, sz: 14 },
-                        alignment: { horizontal: 'left', vertical: 'center' }
-                    };
-                }
-
-                // Outlet and Tanggal info (rows 2-3)
-                if ((R === 2 || R === 3) && C === 0) {
-                    ws[cellAddress].s = {
-                        font: { bold: true },
-                        alignment: { horizontal: 'left', vertical: 'center' }
-                    };
-                }
-
-                // Column headers (row 5)
-                if (R === 5) {
-                    ws[cellAddress].s = {
-                        font: { bold: true },
-                        fill: { fgColor: { rgb: "F3F4F6" } },
-                        border: {
-                            top: { style: 'thin', color: { rgb: "000000" } },
-                            bottom: { style: 'thin', color: { rgb: "000000" } },
-                            left: { style: 'thin', color: { rgb: "000000" } },
-                            right: { style: 'thin', color: { rgb: "000000" } }
-                        },
-                        alignment: { horizontal: 'center', vertical: 'center' }
-                    };
-                }
-
-                // Data rows (from row 6 to before grand total)
-                if (R > 5 && R < range.e.r) {
-                    // Format currency columns (C, D, E, F = columns 2,3,4,5)
-                    if (C >= 2 && C <= 5) {
-                        ws[cellAddress].t = 'n';
-                        ws[cellAddress].z = '#,##0';
-                    }
-                    // Format percentage column (G = column 6)
-                    if (C === 6) {
-                        ws[cellAddress].t = 'n';
-                        ws[cellAddress].z = '0%';
-                    }
-
-                    ws[cellAddress].s = {
-                        border: {
-                            top: { style: 'thin', color: { rgb: "E5E7EB" } },
-                            bottom: { style: 'thin', color: { rgb: "E5E7EB" } },
-                            left: { style: 'thin', color: { rgb: "E5E7EB" } },
-                            right: { style: 'thin', color: { rgb: "E5E7EB" } }
-                        },
-                        alignment: {
-                            horizontal: C <= 1 ? 'left' : 'right',
-                            vertical: 'center'
-                        }
-                    };
-                }
-
-                // Grand Total row (last row)
-                if (R === range.e.r) {
-                    ws[cellAddress].s = {
-                        font: { bold: true },
-                        fill: { fgColor: { rgb: "F3F4F6" } },
-                        border: {
-                            top: { style: 'thin', color: { rgb: "000000" } },
-                            bottom: { style: 'thin', color: { rgb: "000000" } },
-                            left: { style: 'thin', color: { rgb: "000000" } },
-                            right: { style: 'thin', color: { rgb: "000000" } }
-                        },
-                        alignment: {
-                            horizontal: C <= 1 ? 'left' : 'right',
-                            vertical: 'center'
-                        }
-                    };
-
-                    // Format currency for grand total
-                    if (C >= 2 && C <= 5) {
-                        ws[cellAddress].t = 'n';
-                        ws[cellAddress].z = '#,##0';
-                    }
-                    // Format percentage for grand total
-                    if (C === 6) {
-                        ws[cellAddress].t = 'n';
-                        ws[cellAddress].z = '0%';
-                    }
-                }
-            }
-        }
-
-        // Merge cells for title
-        ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } } // Merge title across all columns
-        ];
-
-        // Add worksheet to workbook
+        const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Laba Produk");
-
-        // Generate filename
-        const startDateStr = formatDateForExcel(value.startDate);
-        const endDateStr = formatDateForExcel(value.endDate);
-        const filename = `Laporan_Laba_Produk_${outletName.replace(/\s+/g, '_')}_${startDateStr}_to_${endDateStr}.xlsx`;
-
-        // Write file
+        const filename = `Laporan_Laba_Produk_${outletName.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.xlsx`;
         XLSX.writeFile(wb, filename);
     };
-    // Calculate totals - PERBAIKAN: dari filteredData bukan paginatedData
-    const calculateTotals = () => {
-        let totalPenjualanKotor = 0;
-        let totalDiskon = 0;
-        let totalPembelian = 0;
-        let totalLabaProduk = 0;
 
-        filteredData.forEach(order => {
-            order.items?.forEach(item => {
-                const menuItem = item.menuItem || {};
-                const price = menuItem.price || 0;
-                const diskon = menuItem.diskon || 0;
-                const pembelian = menuItem.pembelian || 0;
-                const quantity = item.quantity || 1; // Jika ada quantity
-
-                totalPenjualanKotor += price * quantity;
-                totalDiskon += diskon * quantity;
-                totalPembelian += pembelian * quantity;
-                totalLabaProduk += (price - pembelian) * quantity;
-            });
-        });
-
-        const totalLabaPersen = totalPenjualanKotor > 0
-            ? ((totalLabaProduk / totalPenjualanKotor) * 100).toFixed(2)
-            : 0;
-
-        return {
-            totalPenjualanKotor,
-            totalDiskon,
-            totalPembelian,
-            totalLabaProduk,
-            totalLabaPersen
-        };
-    };
-
-    const totals = calculateTotals();
-
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+    return (
+        <div className="min-h-screen bg-gray-50 pb-10">
+            {/* Header */}
+            <div className="flex justify-end px-6 items-center py-4 space-x-4 border-b bg-white">
+                <FaBell className="text-gray-400 cursor-pointer" />
+                <span className="text-sm font-medium">Hi Baraja</span>
+                <Link to="/admin/menu" className="text-gray-400">
+                    <FaUser size={24} />
+                </Link>
             </div>
-        );
-    }
 
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            {/* Breadcrumb & Actions */}
+            <div className="px-6 py-4 flex justify-between items-center bg-white shadow-sm">
+                <div className="flex items-center text-sm text-gray-500 font-medium">
+                    <FaClipboardList className="mr-2" />
+                    <span>Laporan</span>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <Link to="/admin/profit-menu" className="hover:text-green-900 transition-colors">Laporan Laba & Rugi</Link>
+                    <FaChevronRight className="mx-2 text-[10px]" />
+                    <span className="text-green-900 font-semibold">Laba Produk</span>
+                </div>
+                <div className="flex gap-2">
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
+                        <FaSync className={loading ? "animate-spin" : ""} />
                         Refresh
+                    </button>
+                    <button
+                        onClick={exportToExcel}
+                        disabled={loading || filteredItems.length === 0}
+                        className="flex items-center gap-2 bg-green-900 text-white text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-800 transition-colors disabled:opacity-50"
+                    >
+                        <FaFileExcel />
+                        Ekspor Excel
                     </button>
                 </div>
             </div>
-        );
-    }
 
-    return (
-        <div className="px-6">
-            {/* Breadcrumb */}
-            <div className="flex justify-between items-center py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/profit-menu">Laporan Laba & Rugi</Link>
-                    <FaChevronRight />
-                    <span>Laba Produk</span>
-                </div>
-                <button
-                    onClick={exportToExcel}
-                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-                >
-                    Ekspor ke Excel
-                </button>
-            </div>
-
-            {/* Filters */}
-            <div className="pb-[15px] mb-[60px]">
-                <div className="flex w-full justify-between py-2">
-                    <div className="w-2/5">
-                        <div className="relative text-gray-500">
+            <div className="px-6 mt-6">
+                {/* Filters */}
+                <div className="bg-white p-5 rounded-lg shadow-sm mb-6 border border-gray-100">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Rentang Tanggal</label>
                             <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={setDateRange}
+                                showShortcuts={true}
+                                showFooter={true}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border border-gray-200 py-2 px-3 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
                                 popoverDirection="down"
+                                separator="sampai"
                             />
                         </div>
-                    </div>
-                    <div className="flex justify-end gap-2 w-2/5">
-                        <div className="relative w-2/5">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Cari Produk / Kategori"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
-                            />
-                        </div>
-                        <div className="relative text-gray-500 w-2/5">
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Outlet</label>
                             <Select
-                                className="text-sm"
-                                classNamePrefix="react-select"
-                                placeholder="Pilih Outlet"
-                                options={options}
-                                isSearchable
-                                value={
-                                    options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
-                                }
-                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                                options={outletOptions}
+                                value={outletOptions.find(opt => opt.value === selectedOutlet) || outletOptions[0]}
+                                onChange={(selected) => {
+                                    setSelectedOutlet(selected.value);
+                                    setCurrentPage(1);
+                                }}
                                 styles={customSelectStyles}
+                                isSearchable
+                                placeholder="Pilih Outlet"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-[12px] font-semibold text-gray-500 uppercase mb-1">Cari Produk</label>
+                            <div className="relative">
+                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari Produk / Kategori"
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full text-[13px] border border-gray-200 py-2 pl-10 pr-4 rounded focus:ring-2 focus:ring-green-900 outline-none transition-all"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {error && (
+                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
+                        {error}
+                    </div>
+                )}
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded bg-white shadow-slate-200 shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Produk</th>
-                                <th className="px-4 py-3 font-normal">Kategori</th>
-                                <th className="px-4 py-3 font-normal text-right">Penjualan Kotor</th>
-                                <th className="px-4 py-3 font-normal text-right">Diskon Produk</th>
-                                <th className="px-4 py-3 font-normal text-right">Pembelian</th>
-                                <th className="px-4 py-3 font-normal text-right">Laba Produk</th>
-                                <th className="px-4 py-3 font-normal text-right">% Laba Produk</th>
-                            </tr>
-                        </thead>
-                        {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((order, orderIndex) => {
-                                    const item = order.items?.[0];
-                                    if (!item) return null;
-
-                                    const menuItem = item.menuItem || {};
-                                    const price = menuItem.price || 0;
-                                    const diskon = menuItem.diskon || 0;
-                                    const pembelian = menuItem.pembelian || 0;
-                                    const labaproduk = price - pembelian;
-                                    const labaprodukpersen = price > 0
-                                        ? ((labaproduk / price) * 100).toFixed(2)
-                                        : 0;
-
-                                    return (
-                                        <tr
-                                            className="text-left text-sm cursor-pointer hover:bg-slate-50 border-b"
-                                            key={`${order._id}-${orderIndex}`}
-                                        >
-                                            <td className="px-4 py-3">{menuItem.name || '-'}</td>
-                                            <td className="px-4 py-3">{menuItem.category?.name || '-'}</td>
-                                            <td className="px-4 py-3 text-right">{formatCurrency(price)}</td>
-                                            <td className="px-4 py-3 text-right">{formatCurrency(diskon)}</td>
-                                            <td className="px-4 py-3 text-right">{formatCurrency(pembelian)}</td>
-                                            <td className="px-4 py-3 text-right">{formatCurrency(labaproduk)}</td>
-                                            <td className="px-4 py-3 text-right">{labaprodukpersen}%</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7} className="text-gray-400">
-                                        Tidak ada data ditemukan
-                                    </td>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden animate-fadeIn mb-6">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <tr>
+                                    <th className="px-6 py-4">Produk</th>
+                                    <th className="px-6 py-4">Kategori</th>
+                                    <th className="px-6 py-4 text-right">Penjualan Kotor</th>
+                                    <th className="px-6 py-4 text-right">Diskon Produk</th>
+                                    <th className="px-6 py-4 text-right">Pembelian</th>
+                                    <th className="px-6 py-4 text-right">Laba Produk</th>
+                                    <th className="px-6 py-4 text-right">% Laba Produk</th>
                                 </tr>
+                            </thead>
+                            <tbody className="text-[13px] divide-y divide-gray-50 text-gray-600">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={7} className="py-20 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-900"></div>
+                                        </td>
+                                    </tr>
+                                ) : paginatedItems.length > 0 ? (
+                                    paginatedItems.map((item, index) => {
+                                        const menuItem = item.menuItem || {};
+                                        const price = menuItem.price || 0;
+                                        const diskon = menuItem.diskon || 0;
+                                        const pembelian = menuItem.pembelian || 0;
+                                        const laba = price - pembelian;
+                                        const labaPersen = price > 0 ? ((laba / price) * 100).toFixed(2) : 0;
+
+                                        return (
+                                            <tr key={item._id} className="hover:bg-green-50/30 transition-colors">
+                                                <td className="px-6 py-4 font-medium text-gray-900">{menuItem.name || "-"}</td>
+                                                <td className="px-6 py-4 italic text-gray-500">{menuItem.category?.name || "-"}</td>
+                                                <td className="px-6 py-4 text-right font-mono">{formatCurrency(price)}</td>
+                                                <td className="px-6 py-4 text-right text-red-500 font-mono">{formatCurrency(diskon)}</td>
+                                                <td className="px-6 py-4 text-right font-mono">{formatCurrency(pembelian)}</td>
+                                                <td className="px-6 py-4 text-right font-bold text-green-700 font-mono">{formatCurrency(laba)}</td>
+                                                <td className="px-6 py-4 text-right font-bold text-blue-600 font-mono">{labaPersen}%</td>
+                                            </tr>
+                                        );
+                                    })
+                                ) : (
+                                    <tr>
+                                        <td colSpan={7} className="py-20 text-center text-gray-400 font-medium italic">Tidak ada data ditemukan</td>
+                                    </tr>
+                                )}
                             </tbody>
-                        )}
-                        <tfoot className="border-t font-semibold text-sm">
-                            <tr>
-                                <td className="p-[15px]" colSpan={2}>Grand Total</td>
-                                <td className="p-[15px] text-right">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(totals.totalPenjualanKotor)}
-                                    </p>
-                                </td>
-                                <td className="p-[15px] text-right">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(totals.totalDiskon)}
-                                    </p>
-                                </td>
-                                <td className="p-[15px] text-right">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(totals.totalPembelian)}
-                                    </p>
-                                </td>
-                                <td className="p-[15px] text-right">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(totals.totalLabaProduk)}
-                                    </p>
-                                </td>
-                                <td className="p-[15px] text-right">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {totals.totalLabaPersen}%
-                                    </p>
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                            <tfoot className="bg-gray-50 border-t border-gray-100 font-bold text-[13px] text-gray-900">
+                                <tr>
+                                    <td className="px-6 py-4" colSpan={2}>GRAND TOTAL</td>
+                                    <td className="px-6 py-4 text-right font-mono">{formatCurrency(totals.totalPenjualanKotor)}</td>
+                                    <td className="px-6 py-4 text-right text-red-600 font-mono">{formatCurrency(totals.totalDiskon)}</td>
+                                    <td className="px-6 py-4 text-right font-mono">{formatCurrency(totals.totalPembelian)}</td>
+                                    <td className="px-6 py-4 text-right text-green-800 font-mono">{formatCurrency(totals.totalLabaProduk)}</td>
+                                    <td className="px-6 py-4 text-right font-mono text-blue-800">{totals.totalLabaPersen}%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
 
                 <Paginated

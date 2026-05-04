@@ -73,9 +73,7 @@ const MovementSideModal = ({ movement, onClose, formatDateTime, capitalizeWords 
                             {movement.notes || "-"}
                         </span>
                     </div>
-                    {console.log(movement.notes)}
                 </div>
-
                 {/* footer */}
                 <div className="p-4 border-t bg-gray-50 flex justify-end">
                     <button

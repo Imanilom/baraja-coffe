@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import {
     FaUsers,
     FaChevronRight,
@@ -285,7 +285,7 @@ const EmployeeManagement = () => {
             allowances: formData.allowances
         };
 
-        console.log('Sending payload:', payload); // Debug log
+        // console.log('Sending payload:', payload); // Debug log
 
         try {
             if (selectedEmployee) {

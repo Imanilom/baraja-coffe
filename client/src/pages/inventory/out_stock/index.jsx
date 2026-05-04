@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import { FaChevronRight, FaInfoCircle, FaBoxes, FaChevronLeft, FaSearch } from "react-icons/fa";
 import Datepicker from "react-tailwindcss-datepicker";
@@ -46,7 +46,13 @@ const OutStockManagement = () => {
         const fetchData = async () => {
             try {
                 const [orderRes, catRes] = await Promise.all([
-                    axios.get("/api/orders"),
+                    axios.get("/api/report/orders", {
+                        params: {
+                            startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                            endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD'),
+                            mode: 'all'
+                        }
+                    }),
                     axios.get("/api/menu/categories"),
                 ]);
 

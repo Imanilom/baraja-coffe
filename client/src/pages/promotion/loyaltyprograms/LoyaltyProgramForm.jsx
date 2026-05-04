@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Award, Gift, Users, Percent, CheckCircle2, Save, ArrowLeft } from 'lucide-react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
@@ -54,7 +54,7 @@ const LoyaltyProgramForm = ({ onSubmit, initialData = {} }) => {
     if (onCancel) {
       onCancel();
     } else {
-      console.log('Navigate back to /admin/loyalty');
+      // console.log('Navigate back to /admin/loyalty');
     }
   };
 

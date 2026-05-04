@@ -1,71 +1,121 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import axios from "axios";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
-import { useReactToPrint } from "react-to-print";
+import { useSelector } from "react-redux";
 import TypeTransactionTable from "./table";
 import TypeTransactionTableSkeleton from "./skeleton";
 import { exportTypeTransactionExcel } from '../../../../utils/exportTypeTransactionExcel';
+import useDebounce from "@/hooks/useDebounce";
 
 const TypeTransaction = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const { outlets } = useSelector((state) => state.outlet);
 
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db',
-            minHeight: '34px',
+            borderColor: state.isFocused ? 'var(--primary-color, #005429)' : '#e5e7eb',
+            minHeight: '38px',
             fontSize: '13px',
-            color: '#6b7280',
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            borderRadius: '0.5rem',
+            boxShadow: state.isFocused ? '0 0 0 1px var(--primary-color, #005429)' : 'none',
             '&:hover': {
-                borderColor: '#9ca3af',
+                borderColor: 'var(--primary-color, #005429)',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280',
-        }),
-        input: (provided) => ({
-            ...provided,
-            color: '#6b7280',
-        }),
-        placeholder: (provided) => ({
-            ...provided,
-            color: '#9ca3af',
-            fontSize: '13px',
+            color: '#374151',
+            fontWeight: '500',
         }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151',
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            color: state.isSelected ? 'white' : '#374151',
+            backgroundColor: state.isSelected 
+                ? 'var(--primary-color, #005429)' 
+                : state.isFocused ? 'rgba(0, 84, 41, 0.05)' : 'white',
             cursor: 'pointer',
+            '&:active': {
+                backgroundColor: 'var(--primary-color, #005429)',
+            }
         }),
     };
 
     const [products, setProducts] = useState([]);
-    const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-    const [selectedOutlet, setSelectedOutlet] = useState("");
-    const [selectedStatus, setSelectedStatus] = useState([]);
-    const [dateRange, setDateRange] = useState(null);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
-    const [isExporting, setIsExporting] = useState(false); // State for export loading
+    const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
+    const [selectedStatus, setSelectedStatus] = useState(() => {
+        const statusParam = searchParams.get('status');
+        if (!statusParam) return [];
+        return statusParam.includes(',') ? statusParam.split(',') : [statusParam];
+    });
+    const [dateRange, setDateRange] = useState(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        if (startDateParam && endDateParam) {
+            return {
+                startDate: dayjs(startDateParam),
+                endDate: dayjs(endDateParam),
+            };
+        }
+        return { startDate: dayjs(), endDate: dayjs() };
+    });
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || "");
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1);
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Update status transaksi
+    const updateStatus = useCallback(async (orderId, newStatus) => {
+        setIsUpdatingStatus(true);
+
+        // Endpoint candidates: coba berurutan sampai yang berhasil
+        const endpoints = [
+            { method: 'patch', url: `/api/report/orders/${orderId}/status`, body: { status: newStatus } },
+            { method: 'put', url: `/api/report/orders/${orderId}`, body: { status: newStatus } },
+        ];
+
+        let lastError = null;
+        for (const ep of endpoints) {
+            try {
+                console.log(`[updateStatus] Trying ${ep.method.toUpperCase()} ${ep.url}`);
+                await axios[ep.method](ep.url, ep.body);
+                console.log(`[updateStatus] Success with ${ep.method.toUpperCase()} ${ep.url}`);
+                // Update local state tanpa refetch
+                setProducts(prev => prev.map(p =>
+                    p._id === orderId ? { ...p, status: newStatus } : p
+                ));
+                setSelectedTrx(prev => prev && prev._id === orderId ? { ...prev, status: newStatus } : prev);
+                setIsUpdatingStatus(false);
+                return { success: true };
+            } catch (err) {
+                const statusCode = err.response?.status;
+                console.warn(`[updateStatus] ${ep.method.toUpperCase()} ${ep.url} failed (${statusCode}):`, err.message);
+                if (statusCode === 404) {
+                    lastError = null; // Endpoint tidak ada, coba berikutnya
+                    continue;
+                }
+                // Error lain (400, 500, etc) = endpoint ada tapi ada masalah lain
+                lastError = err.response?.data?.message || err.message || 'Gagal mengubah status';
+                break;
+            }
+        }
+
+        setIsUpdatingStatus(false);
+        return {
+            success: false,
+            message: lastError || 'Endpoint update status belum tersedia di backend. Hubungi developer.'
+        };
+    }, []);
 
     const ITEMS_PER_PAGE = 20;
-
-    const dropdownRef = useRef(null);
-    const receiptRef = useRef();
-    const handlePrint = useReactToPrint({
-        content: () => receiptRef.current,
-        documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
-    });
 
     const statusOptions = [
         { value: "Waiting", label: "Waiting" },
@@ -75,150 +125,59 @@ const TypeTransaction = () => {
         { value: "Cancelled", label: "Cancelled" },
     ];
 
-    // Initialize from URL params
-    useEffect(() => {
-        const startDateParam = searchParams.get('startDate');
-        const endDateParam = searchParams.get('endDate');
-        const outletParam = searchParams.get('outletId');
-        const statusParam = searchParams.get('status');
-        const searchParam = searchParams.get('search');
-        const pageParam = searchParams.get('page');
-
-        if (startDateParam && endDateParam) {
-            setDateRange({
-                startDate: dayjs(startDateParam),
-                endDate: dayjs(endDateParam),
-            });
-        } else {
-            setDateRange({
-                startDate: dayjs(),
-                endDate: dayjs()
-            });
-        }
-
-        if (outletParam) {
-            setSelectedOutlet(outletParam);
-        }
-
-        if (statusParam) {
-            const statusArray = statusParam.includes(',')
-                ? statusParam.split(',')
-                : [statusParam];
-            setSelectedStatus(statusArray);
-        }
-
-        if (searchParam) {
-            setSearchTerm(searchParam);
-        }
-
-        if (pageParam) {
-            setCurrentPage(parseInt(pageParam, 10));
-        }
-    }, []);
-
     // Update URL params
-    const updateURLParams = (newDateRange, newOutlet, newStatus, newSearch, newPage) => {
+    const updateURLParams = useCallback((newDateRange, newOutlet, newStatus, newSearch, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
-            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
-            params.set('startDate', startDate);
-            params.set('endDate', endDate);
+            params.set('startDate', dayjs(newDateRange.startDate).format('YYYY-MM-DD'));
+            params.set('endDate', dayjs(newDateRange.endDate).format('YYYY-MM-DD'));
         }
 
-        if (newOutlet) {
-            params.set('outletId', newOutlet);
-        }
-
-        if (newStatus && Array.isArray(newStatus) && newStatus.length > 0) {
-            params.set('status', newStatus.join(','));
-        }
-
-        if (newSearch) {
-            params.set('search', newSearch);
-        }
-
-        if (newPage && newPage > 1) {
-            params.set('page', newPage.toString());
-        }
+        if (newOutlet) params.set('outletId', newOutlet);
+        if (newStatus && Array.isArray(newStatus) && newStatus.length > 0) params.set('status', newStatus.join(','));
+        if (newSearch) params.set('search', newSearch);
+        if (newPage && newPage > 1) params.set('page', newPage.toString());
 
         setSearchParams(params);
-    };
+    }, [setSearchParams]);
 
-    // Fetch products with payment details
-    const fetchProducts = async () => {
+    const fetchData = useCallback(async () => {
+        if (!dateRange?.startDate || !dateRange?.endDate) return;
+
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            params.append('mode', 'all');
+            const params = {
+                mode: 'all',
+                startDate: dayjs(dateRange.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(dateRange.endDate).format('YYYY-MM-DD')
+            };
 
-            if (dateRange?.startDate && dateRange?.endDate) {
-                params.append('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
-                params.append('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
-            }
+            if (selectedOutlet) params.outlet = selectedOutlet;
+            if (debouncedSearchTerm) params.search = debouncedSearchTerm;
 
-            if (selectedOutlet) {
-                params.append('outlet', selectedOutlet);
-            }
-
-            if (searchTerm) {
-                params.append('search', searchTerm);
-            }
-
-            const response = await axios.get(`/api/report/orders?${params.toString()}`);
-
-            const productsData = Array.isArray(response.data?.data)
-                ? response.data.data
-                : [];
+            const response = await axios.get('/api/report/orders', { params });
+            const productsData = Array.isArray(response.data?.data) ? response.data.data : [];
 
             setProducts(productsData);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);
-            setError("Failed to load products.");
+            setError("Gagal memuat data transaksi.");
             setProducts([]);
         } finally {
             setLoading(false);
         }
-    };
-
-    const fetchOutlets = async () => {
-        try {
-            const response = await axios.get('/api/outlet');
-
-            const outletsData = Array.isArray(response.data)
-                ? response.data
-                : (response.data && Array.isArray(response.data.data))
-                    ? response.data.data
-                    : [];
-
-            setOutlets(outletsData);
-            setError(null);
-        } catch (err) {
-            console.error("Error fetching outlets:", err);
-            setError("Failed to load outlets. Please try again later.");
-            setOutlets([]);
-        }
-    };
+    }, [dateRange, selectedOutlet, debouncedSearchTerm]);
 
     useEffect(() => {
-        fetchOutlets();
-    }, []);
+        fetchData();
+    }, [fetchData]);
 
-    useEffect(() => {
-        if (dateRange) {
-            fetchProducts();
-        }
-    }, [dateRange, selectedOutlet, searchTerm]);
-
-    const options = [
+    const options = useMemo(() => [
         { value: "", label: "Semua Outlet" },
-        ...outlets.map((outlet) => ({
-            value: outlet._id,
-            label: outlet.name,
-        })),
-    ];
+        ...outlets.map((outlet) => ({ value: outlet._id, label: outlet.name })),
+    ], [outlets]);
 
     // Handle filter changes
     const handleDateRangeChange = (newValue) => {
@@ -235,17 +194,9 @@ const TypeTransaction = () => {
     };
 
     const handleStatusChange = (selectedValues) => {
-        let newStatus;
-
-        if (Array.isArray(selectedValues)) {
-            newStatus = selectedValues.map(v => v.value || v);
-        } else if (selectedValues && selectedValues.value !== undefined) {
-            newStatus = selectedValues.value ? [selectedValues.value] : [];
-        } else if (selectedValues === null || selectedValues === undefined) {
-            newStatus = [];
-        } else {
-            newStatus = [];
-        }
+        const newStatus = Array.isArray(selectedValues)
+            ? selectedValues.map(v => v.value || v)
+            : (selectedValues?.value ? [selectedValues.value] : []);
 
         setSelectedStatus(newStatus);
         setCurrentPage(1);
@@ -267,22 +218,14 @@ const TypeTransaction = () => {
     // Apply filter function
     const filteredData = useMemo(() => {
         let filtered = Array.isArray(products) ? [...products] : [];
-
         if (selectedStatus && Array.isArray(selectedStatus) && selectedStatus.length > 0) {
-            filtered = filtered.filter(product => {
-                return selectedStatus.includes(product.status);
-            });
+            filtered = filtered.filter(product => selectedStatus.includes(product.status));
         }
-
         return filtered;
     }, [products, selectedStatus]);
 
     // Paginate the filtered data
     const paginatedData = useMemo(() => {
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
         return filteredData.slice(startIndex, endIndex);
@@ -307,19 +250,13 @@ const TypeTransaction = () => {
 
     const { grandTotalFinal } = useMemo(() => {
         const totals = { grandTotalFinal: 0 };
-        if (!Array.isArray(filteredData)) return totals;
         filteredData.forEach(product => {
-            try {
-                const grandTotal = Math.round(Number(product?.grandTotal) || 0);
-                totals.grandTotalFinal += grandTotal;
-            } catch (err) {
-                console.error("Error calculating totals for product:", err);
-            }
+            totals.grandTotalFinal += Math.round(Number(product?.grandTotal) || 0);
         });
         return totals;
     }, [filteredData]);
 
-    // Export to Excel function - Direct export without modal
+    // Export to Excel function
     const handleExportExcel = async () => {
         if (!filteredData || filteredData.length === 0) {
             alert("Tidak ada data untuk diekspor");
@@ -327,75 +264,28 @@ const TypeTransaction = () => {
         }
 
         setIsExporting(true);
-
         try {
-            // Get outlet name
             const outletName = selectedOutlet
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
-            // Get date range text
-            const dateRangeText = dateRange?.startDate && dateRange?.endDate
-                ? `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`
-                : dayjs().format('DD/MM/YYYY');
-
-            // Get status text
-            const statusText = selectedStatus && selectedStatus.length > 0
-                ? selectedStatus.join(', ')
-                : 'Semua Status';
-
-            // Calculate summary statistics
-            const statusBreakdown = {};
-            filteredData.forEach(item => {
-                const status = item.status || 'Unknown';
-                statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
-            });
-
-            // Calculate top outlet
-            const outletCounts = {};
-            filteredData.forEach(item => {
-                const outletName = item.outlet?.name || 'Unknown';
-                outletCounts[outletName] = (outletCounts[outletName] || 0) + 1;
-            });
-            const topOutlet = Object.entries(outletCounts).reduce((max, [name, count]) =>
-                count > (max.count || 0) ? { name, count } : max, {});
-
-            // Calculate top payment method
-            const paymentCounts = {};
-            filteredData.forEach(item => {
-                const method = item.payments?.[0]?.payment_method || 'Unknown';
-                paymentCounts[method] = (paymentCounts[method] || 0) + 1;
-            });
-            const topPaymentMethod = Object.entries(paymentCounts).reduce((max, [method, count]) =>
-                count > (max.count || 0) ? { method, count } : max, {});
-
-            // Calculate top order type
-            const orderTypeCounts = {};
-            filteredData.forEach(item => {
-                const type = item.orderType || 'Unknown';
-                orderTypeCounts[type] = (orderTypeCounts[type] || 0) + 1;
-            });
-            const topOrderType = Object.entries(orderTypeCounts).reduce((max, [type, count]) =>
-                count > (max.count || 0) ? { type, count } : max, {});
+            const dateRangeText = `${dayjs(dateRange.startDate).format('DD/MM/YYYY')} - ${dayjs(dateRange.endDate).format('DD/MM/YYYY')}`;
+            const statusText = selectedStatus && selectedStatus.length > 0 ? selectedStatus.join(', ') : 'Semua Status';
 
             const summary = {
                 totalTransactions: filteredData.length,
                 totalRevenue: grandTotalFinal,
-                averageTransaction: filteredData.length > 0
-                    ? Math.round(grandTotalFinal / filteredData.length)
-                    : 0,
-                statusBreakdown,
-                topOutlet: topOutlet.name ? topOutlet : null,
-                topPaymentMethod: topPaymentMethod.method ? topPaymentMethod : null,
-                topOrderType: topOrderType.type ? topOrderType : null
+                averageTransaction: filteredData.length > 0 ? Math.round(grandTotalFinal / filteredData.length) : 0,
+                statusBreakdown: filteredData.reduce((acc, item) => {
+                    acc[item.status || 'Unknown'] = (acc[item.status || 'Unknown'] || 0) + 1;
+                    return acc;
+                }, {})
             };
 
-            // Generate filename
             const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
             const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
             const fileName = `Laporan_Status_Penjualan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
 
-            // Call export helper
             await exportTypeTransactionExcel({
                 data: filteredData,
                 grandTotal: grandTotalFinal,
@@ -408,7 +298,6 @@ const TypeTransaction = () => {
                     ["Pencarian", searchTerm || "-"]
                 ]
             });
-
         } catch (error) {
             console.error("Error exporting to Excel:", error);
             alert("Gagal mengekspor data. Silakan coba lagi.");
@@ -419,13 +308,13 @@ const TypeTransaction = () => {
 
     if (error) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
+            <div className="flex justify-center items-center h-[60vh]">
+                <div className="text-red-500 text-center bg-white p-8 rounded-2xl shadow-sm border">
+                    <p className="text-xl font-bold mb-2">Terjadi Kesalahan</p>
+                    <p className="text-gray-500 mb-6">{error}</p>
                     <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        onClick={fetchData}
+                        className="bg-primary text-white text-[13px] px-6 py-2 rounded-lg hover:bg-primary/90 transition-all font-medium"
                     >
                         Refresh
                     </button>
@@ -435,21 +324,21 @@ const TypeTransaction = () => {
     }
 
     return (
-        <div className="mb-[50px]">
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
-                    <FaChevronRight />
-                    <span>Status Penjualan</span>
+        <div className="min-h-screen bg-transparent mb-[50px]">
+            {/* Breadcrumb */}
+            <div className="flex justify-between items-center px-6 py-4 mb-4">
+                <h1 className="flex gap-2 items-center text-xl text-primary font-bold">
+                    <span className="opacity-60 font-medium text-lg">Laporan</span>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <Link to="/admin/sales-menu" className="opacity-60 font-medium text-lg hover:opacity-100 transition-opacity">Laporan Penjualan</Link>
+                    <FaChevronRight className="opacity-30 text-xs mt-1" />
+                    <span className="text-lg">Status Penjualan</span>
                 </h1>
 
-                {/* Direct Export Button - No Modal */}
                 <button
                     onClick={handleExportExcel}
                     disabled={isExporting || !filteredData || filteredData.length === 0}
-                    className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-primary hover:bg-primary/90 text-white text-[13px] px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95"
                 >
                     {isExporting ? (
                         <>
@@ -465,7 +354,7 @@ const TypeTransaction = () => {
                 </button>
             </div>
 
-            {loading ? (
+            {loading && filteredData.length === 0 ? (
                 <TypeTransactionTableSkeleton />
             ) : (
                 <TypeTransactionTable
@@ -486,12 +375,13 @@ const TypeTransaction = () => {
                     searchTerm={searchTerm}
                     handleSearchChange={handleSearchChange}
                     customSelectStyles={customSelectStyles}
-                    receiptRef={receiptRef}
                     currentPage={currentPage}
                     handlePageChange={handlePageChange}
                     totalPages={totalPages}
                     ITEMS_PER_PAGE={ITEMS_PER_PAGE}
                     filteredData={filteredData}
+                    updateStatus={updateStatus}
+                    isUpdatingStatus={isUpdatingStatus}
                 />
             )}
         </div>

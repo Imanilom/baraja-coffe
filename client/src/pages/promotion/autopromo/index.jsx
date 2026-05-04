@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { FaChevronRight, FaPlus, FaCalendarAlt, FaStore, FaFilter, FaTimes } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import axios from "axios";
+import axios from '@/lib/axios';
 import Select from "react-select";
 import PromoTable from "./promotable";
 import MessageAlertPromotion from "../messageAlertPromotion";

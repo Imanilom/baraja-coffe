@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import {
   getDownloadURL,
   getStorage,

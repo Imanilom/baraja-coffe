@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
@@ -37,58 +37,69 @@ const CustomerManagement = () => {
 
     // Fetch customer and order data
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchCustomers = async () => {
             setLoading(true);
             try {
-                // Fetch customers
-                const customerResponse = await axios.get(`/api/user/staff`);
-                const customers = customerResponse.data.filter(
+                const response = await axios.get(`/api/user/staff`);
+                const customersList = response.data.filter(
                     (user) => user.role?.name === "customer"
                 );
-
-                // Fetch orders
-                const orderResponse = await axios.get(`/api/orders`);
-                const ordersData = orderResponse.data.data ? orderResponse.data.data : orderResponse.data;
-
-                setCustomer(customers);
-                setOrders(ordersData);
-                setFilteredData(customers);
+                setCustomer(customersList);
+                setFilteredData(customersList);
                 setError(null);
+                
+                // Fetch orders in background after customers are loaded
+                fetchOrders();
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Gagal memuat data. Silakan coba lagi.");
-                setCustomer([]);
-                setOrders([]);
-                setFilteredData([]);
+                console.error("Error fetching customers:", err);
+                setError("Gagal memuat data pelanggan. Silakan coba lagi.");
             } finally {
                 setLoading(false);
             }
         };
-        fetchData();
+
+        const fetchOrders = async () => {
+            try {
+                const response = await axios.get(`/api/report/orders`, {
+                    params: { mode: 'all' }
+                });
+                const ordersData = response.data.data || response.data;
+                setOrders(Array.isArray(ordersData) ? ordersData : []);
+            } catch (err) {
+                console.error("Error fetching orders statistics:", err);
+                // We don't set global error here to keep customer list visible
+            }
+        };
+
+        fetchCustomers();
     }, []);
 
-    // Calculate order count for each customer
-    const getCustomerOrderCount = (customerId, customerUsername) => {
-        return orders.filter(order => {
-            // Handle both cases:
-            // 1. order.user is ObjectId string: "507f1f77bcf86cd799439011"
-            // 2. order.user is username string: "ahmad"
+    // Create a lookup map for order counts to avoid O(N*M) filtering on every render
+    const customerOrderCounts = useMemo(() => {
+        const counts = {};
+        orders.forEach(order => {
             const userId = typeof order.user === 'string' ? order.user : order.user?._id;
+            if (userId) {
+                counts[userId] = (counts[userId] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [orders]);
 
-            // Check if user matches by ID or username
-            return userId === customerId || userId === customerUsername;
-        }).length;
+    // Helper to get order count from map
+    const getCount = (customerId, customerUsername) => {
+        return (customerOrderCounts[customerId] || 0) + (customerOrderCounts[customerUsername] || 0);
     };
 
-    // Get most loyal customer
-    const getMostLoyalCustomer = () => {
+    // Memoize loyal customer calculation
+    const loyalCustomerData = useMemo(() => {
         if (customer.length === 0) return null;
 
         let maxOrders = 0;
         let loyalCustomer = null;
 
         customer.forEach(cust => {
-            const orderCount = getCustomerOrderCount(cust._id, cust.username);
+            const orderCount = getCount(cust._id, cust.username);
             if (orderCount > maxOrders) {
                 maxOrders = orderCount;
                 loyalCustomer = cust;
@@ -96,7 +107,7 @@ const CustomerManagement = () => {
         });
 
         return { customer: loyalCustomer, orderCount: maxOrders };
-    };
+    }, [customer, customerOrderCounts]);
 
     // Check if customer was created today
     const isCreatedToday = (createdAt) => {
@@ -188,15 +199,13 @@ const CustomerManagement = () => {
         XLSX.writeFile(wb, "Data_Pelanggan.xlsx");
     };
 
-    // Get statistics
+    // Stats are now derived from memoized data
     const totalCustomers = customer.length;
     const newCustomersThisMonth = customer.filter(c => {
         const date = new Date(c.createdAt);
         const now = new Date();
         return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     }).length;
-
-    const loyalCustomerData = getMostLoyalCustomer();
 
     if (loading) {
         return (
@@ -238,13 +247,13 @@ const CustomerManagement = () => {
                 <div className="mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                                    <FaUsers className="text-green-600 text-xl" />
+                            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                                    <FaUsers className="text-green-600 text-lg" />
                                 </div>
                                 Manajemen Pelanggan
                             </h1>
-                            <p className="text-gray-600 mt-1">Kelola dan pantau data pelanggan Anda</p>
+                            <p className="text-gray-500 text-[11px] mt-0.5">Kelola dan pantau data pelanggan Anda</p>
                         </div>
                         <div className="flex gap-3">
                             <button
@@ -266,199 +275,196 @@ const CustomerManagement = () => {
                 </div>
             </div>
 
-            <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="mx-auto px-4 sm:px-6 lg:px-8 py-4">
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-sm p-4 text-white">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-blue-100 text-sm font-medium mb-1">Total Pelanggan</p>
-                                <h3 className="text-4xl font-bold">{totalCustomers}</h3>
+                                <p className="text-blue-100 text-[10px] font-bold uppercase tracking-wider mb-1">Total Pelanggan</p>
+                                <h3 className="text-2xl font-black">{totalCustomers}</h3>
                             </div>
-                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                                <FaUsers className="text-3xl" />
+                            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <FaUsers className="text-xl" />
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-lg p-6 text-white">
+                    <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg shadow-sm p-4 text-white">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-amber-100 text-sm font-medium mb-1">Pelanggan Loyal</p>
+                                <p className="text-amber-100 text-[10px] font-bold uppercase tracking-wider mb-1">Pelanggan Loyal</p>
                                 {loyalCustomerData?.customer ? (
                                     <>
-                                        <h3 className="text-2xl font-bold truncate">{loyalCustomerData.customer.username}</h3>
-                                        <p className="text-amber-100 text-xs mt-1">{loyalCustomerData.orderCount} order</p>
+                                        <h3 className="text-lg font-black truncate max-w-[140px]">{loyalCustomerData.customer.username}</h3>
+                                        <p className="text-amber-100 text-[10px] mt-0.5">{loyalCustomerData.orderCount} order</p>
                                     </>
                                 ) : (
-                                    <h3 className="text-xl font-bold">Belum ada data</h3>
+                                    <h3 className="text-lg font-black">Belum ada data</h3>
                                 )}
                             </div>
-                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                                <FaTrophy className="text-3xl" />
+                            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <FaTrophy className="text-xl" />
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+                    <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-sm p-4 text-white">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-green-100 text-sm font-medium mb-1">Pelanggan Baru</p>
-                                <h3 className="text-4xl font-bold">{newCustomersThisMonth}</h3>
-                                <p className="text-green-100 text-xs mt-1">Bulan ini</p>
+                                <p className="text-green-100 text-[10px] font-bold uppercase tracking-wider mb-1">Pelanggan Baru</p>
+                                <h3 className="text-2xl font-black">{newCustomersThisMonth}</h3>
+                                <p className="text-green-100 text-[10px] mt-0.5">Bulan ini</p>
                             </div>
-                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                                <FaUserPlus className="text-3xl" />
+                            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <FaUserPlus className="text-xl" />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Search Bar */}
-                <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-                    <div className="relative max-w-md">
-                        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+                    <div className="relative max-w-sm">
+                        <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
                         <input
                             type="text"
                             placeholder="Cari nama, email, atau telepon..."
                             value={tempSearch}
                             onChange={(e) => setTempSearch(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-4 focus:ring-green-100 outline-none transition-all duration-200"
+                            className="w-full pl-9 pr-4 py-2 text-xs border border-gray-200 rounded-lg focus:border-green-500 focus:ring-1 focus:ring-green-100 outline-none transition-all duration-200"
                         />
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                <div className="bg-white rounded-lg shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-gray-100">
+                            <thead className="bg-gray-50/50">
                                 <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                                         <div className="flex items-center gap-2">
-                                            <FaUser className="text-gray-400" />
+                                            <FaUser className="text-gray-400" size={10} />
                                             Nama
                                         </div>
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                                         <div className="flex items-center gap-2">
-                                            <FaPhone className="text-gray-400" />
+                                            <FaPhone className="text-gray-400" size={10} />
                                             Telepon
                                         </div>
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                                         <div className="flex items-center gap-2">
-                                            <FaEnvelope className="text-gray-400" />
+                                            <FaEnvelope className="text-gray-400" size={10} />
                                             Email
                                         </div>
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                                         Tipe
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                        Total Order
+                                    <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                        Order
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                                         Status
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                        <div className="flex items-center gap-2">
-                                            <FaStickyNote className="text-gray-400" />
-                                            Catatan
-                                        </div>
+                                    <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                        Catatan
                                     </th>
-                                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    <th className="px-5 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                                         Aksi
                                     </th>
                                 </tr>
                             </thead>
                             {paginatedData.length > 0 ? (
-                                <tbody className="bg-white divide-y divide-gray-200">
+                                <tbody className="bg-white divide-y divide-gray-50">
                                     {paginatedData.map((data) => {
-                                        const orderCount = getCustomerOrderCount(data._id, data.username);
+                                        const orderCount = getCount(data._id, data.username);
                                         const isNewToday = isCreatedToday(data.createdAt);
 
                                         return (
-                                            <tr key={data._id} className="hover:bg-gray-50 transition-colors duration-150">
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                            <tr key={data._id} className="hover:bg-gray-50/50 transition-colors duration-150 group">
+                                                <td className="px-5 py-2.5 whitespace-nowrap">
                                                     <div className="flex items-center">
-                                                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-semibold mr-3">
+                                                        <div className="w-8 h-8 bg-green-50 rounded-full flex items-center justify-center text-[#005429] font-bold text-xs mr-3">
                                                             {data.username?.charAt(0).toUpperCase() || "?"}
                                                         </div>
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="font-medium text-gray-900">{data.username || "-"}</span>
+                                                                <span className="text-xs font-bold text-gray-800">{data.username || "-"}</span>
                                                                 {isNewToday && (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 animate-pulse">
-                                                                        <FaStar className="text-xs" />
-                                                                        Baru Hari Ini
+                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-green-100 text-green-700">
+                                                                        <FaStar className="text-[8px]" />
+                                                                        Baru
                                                                     </span>
                                                                 )}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                                                <td className="px-5 py-2.5 whitespace-nowrap text-[11px] text-gray-600">
                                                     {data.phone || "-"}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                                                <td className="px-5 py-2.5 whitespace-nowrap text-[11px] text-gray-600">
                                                     {data.email || "-"}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                <td className="px-5 py-2.5 whitespace-nowrap">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 uppercase tracking-tight">
                                                         {data.consumerType || "Regular"}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold text-sm">
+                                                <td className="px-5 py-2.5 whitespace-nowrap">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-bold text-[11px] text-gray-700">
                                                             {orderCount}
                                                         </span>
                                                         {orderCount >= 10 && (
-                                                            <FaTrophy className="text-amber-500" title="Pelanggan Loyal" />
+                                                            <FaTrophy className="text-amber-500 text-[10px]" title="Pelanggan Loyal" />
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${data.isActive !== false
-                                                        ? "bg-green-100 text-green-800"
-                                                        : "bg-red-100 text-red-800"
+                                                <td className="px-5 py-2.5 whitespace-nowrap">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${data.isActive !== false
+                                                        ? "bg-green-50 text-green-700"
+                                                        : "bg-red-50 text-red-700"
                                                         }`}>
                                                         {data.isActive !== false ? "Aktif" : "Tidak Aktif"}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-gray-600 max-w-xs truncate">
+                                                <td className="px-5 py-2.5 text-[11px] text-gray-500 max-w-xs truncate">
                                                     {data.catatan || "-"}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                <td className="px-5 py-2.5 whitespace-nowrap text-right">
                                                     <div className="relative inline-block" ref={openDropdown === data._id ? dropdownRef : null}>
                                                         <button
                                                             onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
-                                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-150"
+                                                            className="p-1.5 hover:bg-gray-100 rounded transition-colors duration-150"
                                                         >
-                                                            <FaEllipsisV className="text-gray-600" />
+                                                            <FaEllipsisV className="text-gray-400 text-xs" />
                                                         </button>
                                                         {openDropdown === data._id && (
-                                                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                                                            <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-xl border border-gray-100 z-20 overflow-hidden">
                                                                 <Link
                                                                     to={`/admin/customer-update/${data._id}`}
-                                                                    className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 rounded-t-lg"
+                                                                    className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-gray-700 hover:bg-gray-50 transition-colors duration-150"
                                                                 >
-                                                                    <FaPencilAlt className="text-blue-600" />
+                                                                    <FaPencilAlt className="text-blue-500 text-[10px]" />
                                                                     <span>Edit</span>
                                                                 </Link>
                                                                 <button
                                                                     onClick={() => toggleActiveStatus(data._id, data.isActive)}
-                                                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 rounded-b-lg"
+                                                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-gray-700 hover:bg-gray-50 transition-colors duration-150 border-t border-gray-50"
                                                                 >
                                                                     {data.isActive !== false ? (
                                                                         <>
-                                                                            <FaToggleOff className="text-red-600" />
+                                                                            <FaToggleOff className="text-red-500 text-[10px]" />
                                                                             <span>Nonaktifkan</span>
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <FaToggleOn className="text-green-600" />
+                                                                            <FaToggleOn className="text-green-500 text-[10px]" />
                                                                             <span>Aktifkan</span>
                                                                         </>
                                                                     )}

@@ -2,7 +2,7 @@
 // import React, { useEffect, useState } from "react";
 // import { exportToExcel } from "../../../utils/exportHelper";
 // import Datepicker from "react-tailwindcss-datepicker";
-// import axios from "axios";
+// import axios from '@/lib/axios';
 
 // const ExportFilter = ({ isOpen, onClose }) => {
 //     const [isExporting, setIsExporting] = useState(false);
@@ -412,7 +412,7 @@ import dayjs from "dayjs";
 import React, { useEffect, useState } from "react";
 import { exportToExcel } from "../../../utils/exportHelper";
 import Datepicker from "react-tailwindcss-datepicker";
-import axios from "axios";
+import axios from '@/lib/axios';
 
 const ExportFilter = ({ isOpen, onClose }) => {
     const [isExporting, setIsExporting] = useState(false);
@@ -457,9 +457,11 @@ const ExportFilter = ({ isOpen, onClose }) => {
 
     const fetchOrder = async () => {
         try {
-            const orderResponse = await axios.get('/api/orders');
+            const orderResponse = await axios.get('/api/report/orders', {
+                params: { mode: 'all' }
+            });
             const orderData = orderResponse.data.data || [];
-            console.log('Total orders fetched:', orderData.length);
+            // console.log('Total orders fetched:', orderData.length);
 
             // Fetch payment details untuk setiap order
             const ordersWithPayment = await Promise.all(

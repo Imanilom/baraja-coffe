@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link, useNavigate } from "react-router-dom";
 import { FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaBoxes, FaPencilAlt, FaTrash, FaExpand, FaCompress } from "react-icons/fa";
 import DetailMejaModal from "./detailtablemodal";
