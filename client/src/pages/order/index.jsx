@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 
 const outlets = [
@@ -20,7 +20,7 @@ export default function OrderPage() {
     try {
       const response = await axios.get("/api/menu-items");
       setMenuItems(response.data?.data || []);
-      console.log(menuItems)
+      // console.log(menuItems)
       const uniqueCategories = [
         "all",
         ...new Set(response.data?.data.map((item) => item.category)),

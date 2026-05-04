@@ -9,9 +9,12 @@ const PrivateRoute = ({ allowedRoles }) => {
     return <Navigate to="/sign-in" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
-    // Redirect to home if the user does not have the required role
-    return <Navigate to="/" replace />;
+  if (allowedRoles) {
+    const userRole = typeof currentUser.role === 'object' ? currentUser.role.name : currentUser.role;
+    if (!allowedRoles.includes(userRole)) {
+      // Redirect to home if the user does not have the required role
+      return <Navigate to="/" replace />;
+    }
   }
 
   // Render the requested route if the user is authenticated and authorized
