@@ -1001,6 +1001,8 @@ const normalizePaymentMethodName = (methodName) => {
     { key: 'BRI', display: 'BRI' },
     { key: 'BCA', display: 'BCA' },
     { key: 'BNI', display: 'BNI' },
+    { key: 'BTN', display: 'BTN (Bank Tabungan Negara)' },
+    { key: 'BJB', display: 'BJB (Bank Jawa Barat)' },
     { key: 'MANDIRI', display: 'Mandiri' },
     { key: 'CIMB', display: 'CIMB' },
     { key: 'PERMATA', display: 'Permata' },
