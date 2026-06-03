@@ -11,13 +11,13 @@ class _BottomNavigationState extends State<BottomNavigation> {
   int _currentIndex = 0; // Indeks awal
 
   // Daftar rute tujuan berdasarkan indeks
-  final List<String> _routes = ['/home', '/menu', '/history', '/profile'];
+  final List<String> _routes = ['/home', '/voucher', '/history', '/profile'];
 
   @override
   Widget build(BuildContext context) {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: Color(0xFF076A3B),
+      selectedItemColor: const Color(0xFF076A3B),
       unselectedItemColor: Colors.grey,
       currentIndex: _currentIndex, // Indeks tab aktif
       onTap: (index) {
@@ -32,8 +32,8 @@ class _BottomNavigationState extends State<BottomNavigation> {
           label: 'Home',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.shopping_cart),
-          label: 'Order',
+          icon: Icon(Icons.percent),
+          label: 'Voucher',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.history),

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import axios from '@/lib/axios';
 
 const CreateVoucher = ({ onClose, fetchVouchers }) => {
   const [formData, setFormData] = useState({
@@ -127,3 +127,4 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
 };
 
 export default CreateVoucher;
+

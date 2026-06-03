@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +16,17 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _initHive();
+  }
+
+  Future<void> _initHive() async {
+    await Hive.initFlutter();
+    await Hive.openBox('authBox');
+  }
+
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -25,10 +36,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://your-api-url/api/auth/signin'),
+        Uri.parse('https://bcc4-36-83-134-204.ngrok-free.app/api/auth/signin'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'email': _emailController.text,
+          'identifier': _emailController.text,
           'password': _passwordController.text,
         }),
       );
@@ -36,12 +47,11 @@ class _LoginScreenState extends State<LoginScreen> {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        // Simpan token ke SharedPreferences
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', responseData['token']);
-        
+        var authBox = Hive.box('authBox');
+        await authBox.put('auth_token', responseData['token']);
+
         // Navigasi ke home screen
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(responseData['message'] ?? 'Login failed')),
@@ -142,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         WidgetSpan(
                           child: GestureDetector(
-                            onTap: () => Navigator.pushNamed(context, '/main'),
+                            onTap: () => Navigator.pushNamed(context, '/register'),
                             child: const Text(
                               'Daftar',
                               style: TextStyle(

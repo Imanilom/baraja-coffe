@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Cleveland:wght@400..700&display=swap');
+
+:root {
+  --army: #336547;
+  --beige: #ffffdd;
+}
+
+.font-cleveland {
+  font-family: "Cleveland", cursive;
+}
+
+/* Tambahkan definisi text-beige */
+.text-beige {
+  color: var(--beige);
+}
+
+/* Perbaiki hover state untuk tombol bg-army */
+.bg-army:hover {
+  background-color: #2a5238; /* Warna army yang lebih gelap */
+}
+
+.bg-army {
+  background-color: var(--army);
+}
+
+.text-army {
+  color: var(--army);
+}
+
+.bg-beige {
+  background-color: var(--beige);
+}
+
+.hover\:bg-beige:hover {
+  background-color: var(--beige);
+}

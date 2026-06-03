@@ -1,0 +1,25 @@
+# Ignore mobile app directories (Flutter builds have thousands of files)
+mobile/
+testing_go_router/
+
+# Ignore frontend/client if any
+client/
+frontend/
+
+# Ignore dependencies
+node_modules/
+
+# Ignore git
+.git/
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore temporary files
+*.tmp
+.cache/
+
+# Ignore test outputs
+coverage/
+.nyc_output/

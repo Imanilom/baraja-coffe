@@ -1,0 +1,340 @@
+﻿cargo :    Compiling 
+serde_derive v1.0.228
+At line:1 char:1
++ cargo check 2>&1 | 
+Out-File -FilePath "ca
+rgo_check_output.txt" 
+-Encod ...
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (   Compili   
+ ng serde_derive v    
+1.0.228:String) [    
+], RemoteExceptio    n
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+   Compiling 
+tokio-macros v2.6.0
+   Compiling 
+futures-macro v0.3.31
+   Compiling 
+zerovec-derive v0.11.2
+   Compiling 
+displaydoc v0.2.5
+   Compiling 
+tracing-attributes 
+v0.1.31
+   Compiling 
+zerofrom-derive v0.1.6
+   Compiling 
+yoke-derive v0.8.1
+   Compiling 
+async-trait v0.1.89
+   Compiling 
+thiserror-impl v1.0.69
+   Compiling 
+openssl-sys v0.9.111
+   Compiling 
+rustc_version v0.2.3
+   Compiling 
+phf_codegen v0.11.3
+   Compiling 
+darling_macro v0.13.4
+    Checking winreg 
+v0.50.0
+    Checking 
+crc32fast v1.5.0
+warning: 
+openssl-sys@0.9.111: 
+Could not find 
+directory of OpenSSL 
+installation, and 
+this `-sys` crate 
+cannot proceed 
+without this 
+knowledge. If OpenSSL 
+is installed and this 
+crate had trouble 
+finding it,  you can 
+set the `OPENSSL_DIR` 
+environment variable 
+for the compilation 
+process. See stderr 
+section below for 
+further information.
+error: failed to run 
+custom build command 
+for `openssl-sys 
+v0.9.111`
+
+Caused by:
+  process didn't exit 
+successfully: `D:\Kerj
+aan\baraja-coffe\api\r
+ust-kafka-migration\ta
+rget\debug\build\opens
+sl-sys-14730d7bf0862e9
+8\build-script-main` 
+(exit code: 101)
+  --- stdout
+  cargo:rustc-check-cf
+g=cfg(osslconf, values
+("OPENSSL_NO_OCB", 
+"OPENSSL_NO_SM4", 
+"OPENSSL_NO_SEED", 
+"OPENSSL_NO_CHACHA", 
+"OPENSSL_NO_CAST", 
+"OPENSSL_NO_IDEA", "OP
+ENSSL_NO_CAMELLIA", 
+"OPENSSL_NO_RC4", 
+"OPENSSL_NO_BF", 
+"OPENSSL_NO_PSK", "OPE
+NSSL_NO_DEPRECATED_3_0
+", 
+"OPENSSL_NO_SCRYPT", 
+"OPENSSL_NO_SM3", 
+"OPENSSL_NO_RMD160", 
+"OPENSSL_NO_EC2M", 
+"OPENSSL_NO_OCSP", 
+"OPENSSL_NO_CMS", 
+"OPENSSL_NO_COMP", 
+"OPENSSL_NO_SOCK", 
+"OPENSSL_NO_STDIO", 
+"OPENSSL_NO_EC", "OPEN
+SSL_NO_SSL3_METHOD", 
+"OPENSSL_NO_KRB5", 
+"OPENSSL_NO_TLSEXT", 
+"OPENSSL_NO_SRP", 
+"OPENSSL_NO_SRTP", 
+"OPENSSL_NO_RFC3779", 
+"OPENSSL_NO_SHA", "OPE
+NSSL_NO_NEXTPROTONEG",
+ "OPENSSL_NO_ENGINE", 
+"OPENSSL_NO_BUF_FREELI
+STS", 
+"OPENSSL_NO_RC2"))
+  cargo:rustc-check-cf
+g=cfg(openssl)
+  cargo:rustc-check-cf
+g=cfg(libressl)
+  cargo:rustc-check-cf
+g=cfg(boringssl)
+  cargo:rustc-check-cf
+g=cfg(awslc)
+  cargo:rustc-check-cf
+g=cfg(libressl250)
+  cargo:rustc-check-cf
+g=cfg(libressl251)
+  cargo:rustc-check-cf
+g=cfg(libressl252)
+  cargo:rustc-check-cf
+g=cfg(libressl261)
+  cargo:rustc-check-cf
+g=cfg(libressl270)
+  cargo:rustc-check-cf
+g=cfg(libressl271)
+  cargo:rustc-check-cf
+g=cfg(libressl273)
+  cargo:rustc-check-cf
+g=cfg(libressl280)
+  cargo:rustc-check-cf
+g=cfg(libressl281)
+  cargo:rustc-check-cf
+g=cfg(libressl291)
+  cargo:rustc-check-cf
+g=cfg(libressl310)
+  cargo:rustc-check-cf
+g=cfg(libressl321)
+  cargo:rustc-check-cf
+g=cfg(libressl332)
+  cargo:rustc-check-cf
+g=cfg(libressl340)
+  cargo:rustc-check-cf
+g=cfg(libressl350)
+  cargo:rustc-check-cf
+g=cfg(libressl360)
+  cargo:rustc-check-cf
+g=cfg(libressl361)
+  cargo:rustc-check-cf
+g=cfg(libressl370)
+  cargo:rustc-check-cf
+g=cfg(libressl380)
+  cargo:rustc-check-cf
+g=cfg(libressl381)
+  cargo:rustc-check-cf
+g=cfg(libressl382)
+  cargo:rustc-check-cf
+g=cfg(libressl390)
+  cargo:rustc-check-cf
+g=cfg(libressl400)
+  cargo:rustc-check-cf
+g=cfg(libressl410)
+  cargo:rustc-check-cf
+g=cfg(libressl420)
+  cargo:rustc-check-cf
+g=cfg(ossl101)
+  cargo:rustc-check-cf
+g=cfg(ossl102)
+  cargo:rustc-check-cf
+g=cfg(ossl102f)
+  cargo:rustc-check-cf
+g=cfg(ossl102h)
+  cargo:rustc-check-cf
+g=cfg(ossl110)
+  cargo:rustc-check-cf
+g=cfg(ossl110f)
+  cargo:rustc-check-cf
+g=cfg(ossl110g)
+  cargo:rustc-check-cf
+g=cfg(ossl110h)
+  cargo:rustc-check-cf
+g=cfg(ossl111)
+  cargo:rustc-check-cf
+g=cfg(ossl111b)
+  cargo:rustc-check-cf
+g=cfg(ossl111c)
+  cargo:rustc-check-cf
+g=cfg(ossl111d)
+  cargo:rustc-check-cf
+g=cfg(ossl300)
+  cargo:rustc-check-cf
+g=cfg(ossl310)
+  cargo:rustc-check-cf
+g=cfg(ossl320)
+  cargo:rustc-check-cf
+g=cfg(ossl330)
+  cargo:rustc-check-cf
+g=cfg(ossl340)
+  cargo:rerun-if-env-c
+hanged=X86_64_PC_WINDO
+WS_MSVC_OPENSSL_LIB_DI
+R
+  X86_64_PC_WINDOWS_MS
+VC_OPENSSL_LIB_DIR 
+unset
+  cargo:rerun-if-env-c
+hanged=OPENSSL_LIB_DIR
+  OPENSSL_LIB_DIR 
+unset
+  cargo:rerun-if-env-c
+hanged=X86_64_PC_WINDO
+WS_MSVC_OPENSSL_INCLUD
+E_DIR
+  X86_64_PC_WINDOWS_MS
+VC_OPENSSL_INCLUDE_DIR
+ unset
+  cargo:rerun-if-env-c
+hanged=OPENSSL_INCLUDE
+_DIR
+  OPENSSL_INCLUDE_DIR 
+unset
+  cargo:rerun-if-env-c
+hanged=X86_64_PC_WINDO
+WS_MSVC_OPENSSL_DIR
+  X86_64_PC_WINDOWS_MS
+VC_OPENSSL_DIR unset
+  cargo:rerun-if-env-c
+hanged=OPENSSL_DIR
+  OPENSSL_DIR unset
+  note: vcpkg did not 
+find openssl: Could 
+not find library in 
+Vcpkg tree C:\Users\me
+mer\vcpkg\installed\x6
+4-windows-static-md\li
+b\libssl.lib
+  cargo:warning=Could 
+not find directory of 
+OpenSSL installation, 
+and this `-sys` crate 
+cannot proceed 
+without this 
+knowledge. If OpenSSL 
+is installed and this 
+crate had trouble 
+finding it,  you can 
+set the `OPENSSL_DIR` 
+environment variable 
+for the compilation 
+process. See stderr 
+section below for 
+further information.
+
+  --- stderr
+
+
+  Could not find 
+directory of OpenSSL 
+installation, and 
+this `-sys` crate 
+cannot
+  proceed without 
+this knowledge. If 
+OpenSSL is installed 
+and this crate had
+  trouble finding it, 
+ you can set the 
+`OPENSSL_DIR` 
+environment variable 
+for the
+  compilation process.
+
+  Make sure you also 
+have the development 
+packages of openssl 
+installed.
+  For example, 
+`libssl-dev` on 
+Ubuntu or 
+`openssl-devel` on 
+Fedora.
+
+  If you're in a 
+situation where you 
+think the directory 
+*should* be found
+  automatically, 
+please open a bug at h
+ttps://github.com/rust
+-openssl/rust-openssl
+  and include 
+information about 
+your system as well 
+as this message.
+
+  $HOST = 
+x86_64-pc-windows-msvc
+  $TARGET = 
+x86_64-pc-windows-msvc
+  openssl-sys = 
+0.9.111
+
+
+  It looks like 
+you're compiling for 
+MSVC but we couldn't 
+detect an OpenSSL
+  installation. If 
+there isn't one 
+installed then you 
+can try the 
+rust-openssl
+  README for more 
+information about how 
+to download 
+precompiled binaries 
+of
+  OpenSSL:
+
+  https://github.com/r
+ust-openssl/rust-opens
+sl#windows
+
+
+warning: build 
+failed, waiting for 
+other jobs to 
+finish...

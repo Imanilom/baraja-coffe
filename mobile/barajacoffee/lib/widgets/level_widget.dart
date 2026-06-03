@@ -34,9 +34,9 @@ class LevelWidget extends StatelessWidget {
         // Nama Level
         Text(
           "Level: ${level["name"]}",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        SizedBox(height: 5),
+        const SizedBox(height: 5),
 
         // Keuntungan Level
         Text(
@@ -44,19 +44,19 @@ class LevelWidget extends StatelessWidget {
           style: TextStyle(fontSize: 14, color: Colors.green[700]),
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: 15),
+        const SizedBox(height: 15),
 
         // Progress Bar Menuju Level Berikutnya
         if (level["next"] != null) ...[
           Text("Naik Level ${level["name"]} ke ${getUserLevel()["next"] != null ? getUserLevel()["next"].toString() : "Max"}"),
-          SizedBox(height: 5),
+          const SizedBox(height: 5),
           LinearProgressIndicator(
             value: progress,
             backgroundColor: Colors.grey[300],
             color: Colors.green[700],
             minHeight: 10,
           ),
-          SizedBox(height: 5),
+          const SizedBox(height: 5),
           Text(
             "Butuh $remainingPoints Points Lagi untuk Level ${getUserLevel()["next"] != null ? getUserLevel()["next"].toString() : "Max"}",
             style: TextStyle(fontSize: 12, color: Colors.grey[700]),

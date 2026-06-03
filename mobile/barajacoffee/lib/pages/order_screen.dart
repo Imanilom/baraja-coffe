@@ -18,21 +18,21 @@ class _OrderScreenState extends State<OrderScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Konfirmasi Pesanan"),
+        title: const Text("Konfirmasi Pesanan"),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Padding(
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               "Ringkasan Pesanan",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
 
             // Daftar item yang dipesan
             Expanded(
@@ -42,7 +42,7 @@ class _OrderScreenState extends State<OrderScreen> {
                   String itemName = widget.cartItems.keys.elementAt(index);
                   int quantity = widget.cartItems[itemName]!;
                   return ListTile(
-                    leading: Icon(Icons.fastfood, color: Color(0xFF076A3B)),
+                    leading: const Icon(Icons.fastfood, color: Color(0xFF076A3B)),
                     title: Text(itemName),
                     subtitle: Text("Jumlah: $quantity"),
                   );
@@ -50,13 +50,13 @@ class _OrderScreenState extends State<OrderScreen> {
               ),
             ),
 
-            Divider(),
+            const Divider(),
 
-            Text(
+            const Text(
               "Pilih Metode Pembayaran",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
 
             // Metode pembayaran (E-Wallet & Debit)
             Column(
@@ -66,7 +66,7 @@ class _OrderScreenState extends State<OrderScreen> {
               ],
             ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // **Tombol di tengah layar**
             Center(
@@ -79,7 +79,7 @@ class _OrderScreenState extends State<OrderScreen> {
                         });
 
                         // Animasi loading, lalu checklist, lalu kembali ke /main
-                        Future.delayed(Duration(seconds: 2), () {
+                        Future.delayed(const Duration(seconds: 2), () {
                           setState(() {
                             isProcessing = false;
                           });
@@ -92,7 +92,7 @@ class _OrderScreenState extends State<OrderScreen> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                content: Column(
+                                content: const Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(Icons.check_circle, color: Colors.green, size: 80),
@@ -109,22 +109,22 @@ class _OrderScreenState extends State<OrderScreen> {
                             },
                           );
 
-                          Future.delayed(Duration(seconds: 2), () {
+                          Future.delayed(const Duration(seconds: 2), () {
                             Navigator.pop(context); // Tutup dialog
                             Navigator.pushNamed(context, "/main"); // Kembali ke /main
                           });
                         });
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF076A3B),
+                  backgroundColor: const Color(0xFF076A3B),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  padding: EdgeInsets.symmetric(vertical: 16, horizontal: 40),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 40),
                 ),
                 child: isProcessing
-                    ? CircularProgressIndicator(color: Colors.white) // Animasi loading di tengah
-                    : Text(
+                    ? const CircularProgressIndicator(color: Colors.white) // Animasi loading di tengah
+                    : const Text(
                         "Konfirmasi Pembayaran",
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
@@ -149,15 +149,15 @@ class _OrderScreenState extends State<OrderScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(
-            color: selectedPaymentMethod == title ? Color(0xFF076A3B) : Colors.grey.shade300,
+            color: selectedPaymentMethod == title ? const Color(0xFF076A3B) : Colors.grey.shade300,
             width: 2,
           ),
         ),
         child: ListTile(
-          leading: Icon(icon, color: Color(0xFF076A3B)),
+          leading: Icon(icon, color: const Color(0xFF076A3B)),
           title: Text(title),
           trailing: selectedPaymentMethod == title
-              ? Icon(Icons.check_circle, color: Color(0xFF076A3B))
+              ? const Icon(Icons.check_circle, color: Color(0xFF076A3B))
               : null,
         ),
       ),

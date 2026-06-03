@@ -131,12 +131,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   TextFormField(
                     controller: _usernameController,
                     decoration: const InputDecoration(
-                      labelText: 'Username',
-                      hintText: 'Masukkan username',
+                      labelText: 'Email',
+                      hintText: 'Masukkan Email',
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Username harus diisi';
+                        return 'Email harus diisi';
                       }
                       return null;
                     },
@@ -196,7 +196,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         children: [
                           WidgetSpan(
                             child: GestureDetector(
-                              onTap: () => Navigator.pushNamed(context, '/login'),
+                              onTap: () => Navigator.pushNamed(context, '/main'),
                               child: const Text(
                                 'Masuk',
                                 style: TextStyle(

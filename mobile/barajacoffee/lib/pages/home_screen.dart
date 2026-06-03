@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import '../assets/component/store_screen.dart';
+import 'store_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -8,6 +8,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      
       backgroundColor: Colors.grey[200], // Background utama abu muda
       body: SingleChildScrollView(
         child: Column(
@@ -41,7 +42,7 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Card(
                 margin: const EdgeInsets.only(top: 5),
-                elevation: 6,
+                elevation: 2,
                 shadowColor: Colors.black26,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
@@ -62,15 +63,15 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(Icons.wallet_giftcard, color: Color(0xFF076A3B)),
-                          const SizedBox(width: 6),
-                          const Text('5', style: TextStyle(fontSize: 16)),
-                          const SizedBox(width: 16),
-                          const Icon(Icons.emoji_events, color: Colors.orange),
-                          const SizedBox(width: 6),
-                          const Text('150', style: TextStyle(fontSize: 16)),
+                          Icon(Icons.wallet_giftcard, color: Color(0xFF076A3B)),
+                          SizedBox(width: 6),
+                          Text('5', style: TextStyle(fontSize: 16)),
+                          SizedBox(width: 16),
+                          Icon(Icons.emoji_events, color: Colors.orange),
+                          SizedBox(width: 6),
+                          Text('150', style: TextStyle(fontSize: 16)),
                         ],
                       ),
                     ],
@@ -123,7 +124,8 @@ class HomeScreen extends StatelessWidget {
             ),
 
             // Grid Menu Menarik
-            Padding(
+            Container(
+              color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: GridView.count(
                 shrinkWrap: true,
@@ -165,7 +167,7 @@ class HomeScreen extends StatelessWidget {
                     icon: const Icon(Icons.phone),
                     label: const Text('Hubungi Kami'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF076A3B),
+                      backgroundColor: const Color(0xFF076A3B),
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -201,7 +203,7 @@ class HomeScreen extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => StoreListScreen(orderType: title)),
+            MaterialPageRoute(builder: (context) => StoreScreen(orderType: title)),
           );
         },
         child: Card(
@@ -211,7 +213,7 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(
               children: [
-                Icon(icon, size: 30, color: Color(0xFF076A3B)),
+                Icon(icon, size: 30, color: const Color(0xFF076A3B)),
                 const SizedBox(height: 6),
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
@@ -232,7 +234,7 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 40, color: Color(0xFF076A3B)),
+            Icon(icon, size: 40, color: const Color(0xFF076A3B)),
             const SizedBox(height: 2),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
             Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12), textAlign: TextAlign.center),
