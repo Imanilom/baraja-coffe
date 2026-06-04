@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { useSelector } from "react-redux";
-import Paginated from "../../components/paginated";
+import Paginated from "../../components/Paginated";
 import Select from "react-select";
 
 const EmployeeManagement = () => {

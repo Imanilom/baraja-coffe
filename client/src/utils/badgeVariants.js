@@ -7,3 +7,4 @@ export const badgeVariants = {
     warning: "text-yellow-500",
     info: "text-blue-500",
 };
+

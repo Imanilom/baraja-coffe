@@ -9,7 +9,7 @@ import {
 } from "react-icons/fa";
 import Header from "../admin/header";
 import Select from "react-select";
-import Paginated from "../../components/paginated";
+import Paginated from "../../components/Paginated";
 import CreateTax from "./create_tax";
 import CreateService from "./create_service";
 import { toast } from "react-toastify";

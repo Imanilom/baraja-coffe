@@ -242,3 +242,4 @@ const UpdateDepartemen = () => {
 };
 
 export default UpdateDepartemen;
+

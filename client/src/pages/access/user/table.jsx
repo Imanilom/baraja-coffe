@@ -9,7 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import ConfirmationModalActive from "./ConfirmationModalActive";
 import Select from "react-select";
 import UserTableSkeleton from "./skeleton";
-import Paginated from "../../../components/paginated";
+import Paginated from "../../../components/Paginated";
 
 const ITEMS_PER_PAGE = 10;
 

@@ -85,6 +85,22 @@ router.get('/payment-methods-and-types', (req, res) => {
             isActive: true,
         },
         {
+            id: 'btn',
+            name: 'BTN (Bank Tabungan Negara)',
+            typeCode: 'BTN',
+            methodIds: ['debit', 'banktransfer', 'qris'],
+            isDigital: false,
+            isActive: true,
+        },
+        {
+            id: 'bjb',
+            name: 'BJB (Bank Jawa Barat)',
+            typeCode: 'BJB',
+            methodIds: ['debit', 'banktransfer', 'qris'],
+            isDigital: false,
+            isActive: true,
+        },
+        {
             id: 'mandiri',
             name: 'Mandiri',
             typeCode: 'Mandiri',
@@ -156,6 +172,24 @@ router.get('/payment-methods', (req, res) => {
             bank_code: 'bca',
         },
         {
+            name: 'BTN',
+            icon: 'btn.png',
+            color: '#0052CC', // BTN brand color
+            payment_method: 'bank_transfer',
+            payment_method_name: 'Bank Transfer',
+            isBank: true,
+            bank_code: 'btn',
+        },
+        {
+            name: 'BJB',
+            icon: 'bjb.png',
+            color: '#003DA5', // BJB brand color
+            payment_method: 'bank_transfer',
+            payment_method_name: 'Bank Transfer',
+            isBank: true,
+            bank_code: 'bjb',
+        },
+        {
             name: 'Mandiri',
             icon: 'mandiri.png',
             color: '#FFA000', // Colors.amber[700]
@@ -216,6 +250,28 @@ router.get('/payment-methods', (req, res) => {
             payment_method_name: 'Bank Transfer PT',
             isBank: true,
             bank_code: 'bri_pt',
+            isPtBank: true, // ✅ Flag untuk identifikasi bank milik PT
+            groOnly: true,  // ✅ Hanya tampil di GRO mode
+        },
+        {
+            name: 'BTN (PT SCN)',
+            icon: 'btn.png',
+            color: '#0052CC',
+            payment_method: 'cash', // ✅ Uses Cash flow (no Midtrans)
+            payment_method_name: 'Bank Transfer PT',
+            isBank: true,
+            bank_code: 'btn_pt',
+            isPtBank: true, // ✅ Flag untuk identifikasi bank milik PT
+            groOnly: true,  // ✅ Hanya tampil di GRO mode
+        },
+        {
+            name: 'BJB (PT SCN)',
+            icon: 'bjb.png',
+            color: '#003DA5',
+            payment_method: 'cash', // ✅ Uses Cash flow (no Midtrans)
+            payment_method_name: 'Bank Transfer PT',
+            isBank: true,
+            bank_code: 'bjb_pt',
             isPtBank: true, // ✅ Flag untuk identifikasi bank milik PT
             groOnly: true,  // ✅ Hanya tampil di GRO mode
         },

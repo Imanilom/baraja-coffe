@@ -8,7 +8,7 @@ import { FaChevronRight, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import { useSelector } from "react-redux";
 import Select from "react-select";
-import Paginated from "../../../../components/paginated";
+import Paginated from "../../../../components/Paginated";
 import DailySalesSkeleton from "./skeleton";
 import { exportDailySalesExcel } from '../../../../utils/exportDailySalesExcel';
 

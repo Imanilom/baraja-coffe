@@ -244,3 +244,4 @@ function formatCurrency(v) {
     if (typeof v !== "number") return v;
     return v.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 }
+

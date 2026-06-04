@@ -53,3 +53,4 @@ const ConfirmationModalActive = ({ isOpen, onClose, onConfirm, menu, newStatus }
 };
 
 export default ConfirmationModalActive;
+

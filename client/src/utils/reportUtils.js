@@ -91,3 +91,4 @@ export const formatCurrency = (amount) => {
         maximumFractionDigits: 0
     }).format(amount || 0);
 };
+

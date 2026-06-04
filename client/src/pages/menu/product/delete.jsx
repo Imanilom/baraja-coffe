@@ -21,3 +21,4 @@ const DeleteMenu = ({ id, fetchMenus }) => {
 };
 
 export default DeleteMenu;
+

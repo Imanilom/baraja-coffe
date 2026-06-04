@@ -365,3 +365,4 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
 };
 
 export default CreateVoucher;
+

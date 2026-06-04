@@ -3,7 +3,7 @@ import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
 import { FaTicketAlt, FaTrashAlt, FaPencilAlt, FaSearch, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaTag, FaExclamationTriangle, FaCheckCircle, FaTimes } from "react-icons/fa";
-import Paginated from "../../components/paginated";
+import Paginated from "../../components/Paginated";
 import { useSelector } from "react-redux";
 import ConfirmModal from "../../components/modal/confirmmodal";
 import SuccessModal from "../../components/modal/successmodal";

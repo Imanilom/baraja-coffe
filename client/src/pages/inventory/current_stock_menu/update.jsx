@@ -187,3 +187,4 @@ const UpdateStockForm = ({ product, onSave, onCancel, currentUser, fetchStockCar
 };
 
 export default UpdateStockForm;
+

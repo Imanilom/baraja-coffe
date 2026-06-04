@@ -496,3 +496,4 @@ const DigitalPayment = () => {
 };
 
 export default DigitalPayment;
+

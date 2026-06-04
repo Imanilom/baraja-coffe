@@ -157,3 +157,4 @@ const UpdateVoucher = ({ voucher, onClose, fetchVouchers }) => {
 };
 
 export default UpdateVoucher;
+

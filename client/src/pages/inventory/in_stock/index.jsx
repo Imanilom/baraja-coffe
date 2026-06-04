@@ -8,7 +8,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
 import Header from "../../admin/header";
-import MovementSideModal from "../../../components/movementSideModal";
+import MovementSideModal from "../../../components/MovementSideModal";
 import { useSelector } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
 
@@ -342,3 +342,4 @@ const InStockManagement = () => {
 };
 
 export default InStockManagement;
+

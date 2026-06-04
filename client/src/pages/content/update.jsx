@@ -4,7 +4,7 @@ import { app } from "../../firebase";
 import axios from '@/lib/axios';
 import { FaChevronRight, FaImage, FaTimes, FaUpload, FaTrash } from "react-icons/fa";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import MessageAlert from "../../components/messageAlert";
+import MessageAlert from "../../components/MessageAlert";
 import { useSelector } from "react-redux";
 
 const UpdateContent = () => {

@@ -10,7 +10,7 @@ import dayjs from "dayjs";
 import { useSelector, useDispatch } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
 import { setReportData } from "@/redux/report/reportSlice";
-import Paginated from "@/components/paginated";
+import Paginated from "@/components/Paginated";
 import Header from "@/components/Header";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 

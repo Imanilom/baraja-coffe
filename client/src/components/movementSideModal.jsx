@@ -89,3 +89,4 @@ const MovementSideModal = ({ movement, onClose, formatDateTime, capitalizeWords 
 };
 
 export default MovementSideModal;
+

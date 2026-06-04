@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from '@/lib/axios';
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash, FaChevronRight, FaPlus } from 'react-icons/fa';
-import Paginated from '../../../components/paginated';
-import MessageAlert from '../../../components/messageAlert';
+import Paginated from '../../../components/Paginated';
+import MessageAlert from '../../../components/MessageAlert';
 import ConfirmModal from "../../../components/modal/confirmmodal";
 import CategorySkeleton from "./component/skeleton/skeleton";
 

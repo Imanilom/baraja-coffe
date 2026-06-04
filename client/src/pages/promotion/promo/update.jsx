@@ -302,3 +302,4 @@ const UpdatePromoPage = () => {
 };
 
 export default UpdatePromoPage;
+

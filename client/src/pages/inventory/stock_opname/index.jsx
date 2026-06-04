@@ -9,7 +9,7 @@ import Select from "react-select";
 import { useSelector, useDispatch } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
 import { setReportData } from "@/redux/report/reportSlice";
-import Paginated from "@/components/paginated";
+import Paginated from "@/components/Paginated";
 import Header from "@/pages/admin/header";
 
 const StockOpnameManagement = () => {
@@ -411,3 +411,4 @@ const StockOpnameManagement = () => {
 };
 
 export default StockOpnameManagement;
+

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { FaChevronRight, FaPlus } from "react-icons/fa";
 import { useSelector } from "react-redux";
-import MessageAlert from "../../../components/messageAlert";
+import MessageAlert from "../../../components/MessageAlert";
 import UserTable from "./table";
 
 const UserManagement = () => {

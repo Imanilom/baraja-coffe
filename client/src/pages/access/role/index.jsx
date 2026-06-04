@@ -3,7 +3,7 @@ import axios from '@/lib/axios';
 import { Link, useNavigate } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaPlus } from "react-icons/fa";
 import * as XLSX from "xlsx";
-import MessageAlert from "../../../components/messageAlert";
+import MessageAlert from "../../../components/MessageAlert";
 import RoleTable from "./table";
 import CreateRole from "./create";
 
@@ -176,3 +176,4 @@ const RoleManagement = () => {
 };
 
 export default RoleManagement;
+
