@@ -11,7 +11,7 @@ const Home = lazy(() => import("./pages/Home"));
 const About = lazy(() => import("./pages/About"));
 const SignUp = lazy(() => import("./pages/SignUp"));
 const Profile = lazy(() => import("./pages/Profile"));
-const Download = lazy(() => import("./components/Download"));
+const Download = lazy(() => import("./components/download"));
 const AdminLayout = lazy(() => import("./pages/admin/index"));
 const Example = lazy(() => import("./pages/example"));
 
