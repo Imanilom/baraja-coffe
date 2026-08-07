@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FaSearch, FaPlus, FaTrash, FaBox, FaShopware, FaPencilAlt } from 'react-icons/fa';
-import UnderDevelopment from '../../components/Repair';
+import UnderDevelopment from '../../components/repair';
 
 const AssetManagement = () => {
     const [assets, setAssets] = useState([]);

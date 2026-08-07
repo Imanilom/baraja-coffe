@@ -104,19 +104,17 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'mandiri',
             name: 'Mandiri',
             typeCode: 'Mandiri',
-            methodIds: [],
-            // methodIds: ['debit', 'banktransfer', 'qris'],
+            methodIds: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
-            isActive: false,
+            isActive: true,
         },
         {
             id: 'bsi',
             name: 'BSI',
             typeCode: 'BSI',
-            methodIds: [],
-            // methodIds: ['debit', 'banktransfer', 'qris'],
+            methodIds: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
-            isActive: false,
+            isActive: true,
         },
     ];
 
@@ -197,6 +195,15 @@ router.get('/payment-methods', (req, res) => {
             payment_method_name: 'Bank Transfer',
             isBank: true,
             bank_code: 'mandiri',
+        },
+        {
+            name: 'BSI',
+            icon: 'bsi.png',
+            color: '#00A39D', // BSI color
+            payment_method: 'bank_transfer',
+            payment_method_name: 'Bank Transfer',
+            isBank: true,
+            bank_code: 'bsi',
         },
         {
             name: 'Bayar di kasir',

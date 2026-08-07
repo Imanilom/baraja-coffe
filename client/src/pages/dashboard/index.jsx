@@ -10,15 +10,15 @@ import {
     FaFilter,
     FaClock,
 } from "react-icons/fa";
-import SalesChart from "./charts/SalesChart";
-import TopProductTable from "./table/TopProductTable";
-import CardItem from "./cardItem/CardItem";
-import FoodChart from "./charts/FoodChart";
-import DrinkChart from "./charts/DrinkChart";
+import SalesChart from "./charts/saleschart";
+import TopProductTable from "./table/topproducttable";
+import CardItem from "./cardItem/carditem";
+import FoodChart from "./charts/foodchart";
+import DrinkChart from "./charts/drinkchart";
 import { useSelector } from "react-redux";
-import TotalOrder from "./charts/TotalOrder";
+import TotalOrder from "./charts/totalorder";
 import { Link } from "react-router-dom";
-import TransactionType from "./table/TransactionType";
+import TransactionType from "./table/transactionType";
 
 const formatRupiah = (amount) => {
     const num = typeof amount === 'number' ? amount : parseFloat(amount);

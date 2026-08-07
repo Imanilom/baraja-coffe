@@ -38,6 +38,11 @@ const DigitalPayment = () => {
             dana: methods.includes('dana'),
             mandiriQris: methods.includes('mandiriQris'),
             briQris: methods.includes('briQris'),
+            bcaQris: methods.includes('bcaQris'),
+            bniQris: methods.includes('bniQris'),
+            bsiQris: methods.includes('bsiQris'),
+            btnQris: methods.includes('btnQris'),
+            bjbQris: methods.includes('bjbQris'),
         };
     });
 
@@ -145,8 +150,13 @@ const DigitalPayment = () => {
         if (payMethod.qris) activeMethods.push('QRIS');
         if (payMethod.dana) activeMethods.push('DANA');
         if (payMethod.linkAja) activeMethods.push('Link Aja');
-        if (payMethod.mandiriQris) activeMethods.push('Mandiri QRIS');
-        if (payMethod.briQris) activeMethods.push('BRI QRIS');
+        if (payMethod.mandiriQris) activeMethods.push('Mandiri QRIS', 'QRIS Mandiri');
+        if (payMethod.briQris) activeMethods.push('BRI QRIS', 'QRIS BRI');
+        if (payMethod.bcaQris) activeMethods.push('BCA QRIS', 'QRIS BCA');
+        if (payMethod.bniQris) activeMethods.push('BNI QRIS', 'QRIS BNI');
+        if (payMethod.bsiQris) activeMethods.push('BSI QRIS', 'QRIS BSI');
+        if (payMethod.btnQris) activeMethods.push('BTN QRIS', 'QRIS BTN');
+        if (payMethod.bjbQris) activeMethods.push('BJB QRIS', 'QRIS BJB');
 
         if (activeMethods.length > 0) {
             result = result.filter(p => activeMethods.includes(p.paymentMethod));
@@ -332,8 +342,13 @@ const DigitalPayment = () => {
                             { id: 'qris', label: 'QRIS' },
                             { id: 'dana', label: 'DANA' },
                             { id: 'mandiriQris', label: 'Mandiri QRIS' },
-                            { id: 'briQris', label: 'BRI QRIS' }
-                        ].map(method => (
+                            { id: 'briQris', label: 'BRI QRIS' },
+                            { id: 'bcaQris', label: 'BCA QRIS' },
+                            { id: 'bniQris', label: 'BNI QRIS' },
+                            { id: 'bsiQris', label: 'BSI QRIS' },
+                            { id: 'btnQris', label: 'BTN QRIS' },
+                            { id: 'bjbQris', label: 'BJB QRIS' }
+                        ].map((method) => (
                             <label key={method.id} className="flex items-center cursor-pointer group">
                                 <div className="relative">
                                     <input
