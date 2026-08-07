@@ -6,7 +6,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
-import Paginated from '../../../components/paginated';
+import Paginated from '../../../components/Paginated';
 import CreateArea from "./create";
 import UpdateArea from "./update";
 

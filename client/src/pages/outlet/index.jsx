@@ -2,21 +2,21 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from '@/lib/axios';
 import { FaPlus, FaSearch, FaMapMarkerAlt, FaPhoneAlt, FaPencilAlt, FaTrashAlt, FaStore } from 'react-icons/fa';
-import Paginated from '../../components/paginated';
+import Paginated from '../../components/Paginated';
 import ConfirmModal from '../../components/modal/confirmmodal';
-import MessageAlert from '../../components/messageAlert';
+import MessageAlert from '../../components/MessageAlert';
 
 const OutletManagementPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    
+
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    
+
     // Modal states
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
-    
+
     // Alert states
     const [alertMessage, setAlertMessage] = useState('');
     const [alertType, setAlertType] = useState('success');
@@ -87,7 +87,7 @@ const OutletManagementPage = () => {
 
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
-        
+
         try {
             await axios.delete(`/api/outlet/${itemToDelete._id}`);
             showAlert(`Outlet "${itemToDelete.name}" berhasil dihapus.`);
@@ -170,7 +170,7 @@ const OutletManagementPage = () => {
                                             <td className="p-4 text-center text-slate-500 font-medium">
                                                 {(currentPage - 1) * itemsPerPage + index + 1}
                                             </td>
-                                            
+
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100/50 group-hover:scale-105 transition-transform">
@@ -182,7 +182,7 @@ const OutletManagementPage = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            
+
                                             <td className="p-4">
                                                 <div className="flex items-start gap-2">
                                                     <FaMapMarkerAlt className="text-slate-400 mt-1 flex-shrink-0" />
@@ -192,14 +192,14 @@ const OutletManagementPage = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            
+
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <FaPhoneAlt className="text-slate-400" />
                                                     <span className="font-semibold text-slate-600 text-xs">{item.contactNumber || '-'}</span>
                                                 </div>
                                             </td>
-                                            
+
                                             <td className="p-4">
                                                 <div className="flex items-center justify-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                                                     <Link
@@ -236,7 +236,7 @@ const OutletManagementPage = () => {
                             </tbody>
                         </table>
                     </div>
-                    
+
                     {/* Pagination */}
                     {!loading && filteredOutlets.length > 0 && (
                         <div className="p-4 border-t border-slate-200/80 bg-slate-50/30">
