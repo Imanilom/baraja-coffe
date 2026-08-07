@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from '@/lib/axios';
 import { FaPlus, FaSearch, FaMapMarkerAlt, FaPhoneAlt, FaPencilAlt, FaTrashAlt, FaStore } from 'react-icons/fa';
-import Paginated from '../../components/Paginated';
+import Paginated from '../../components/paginated';
 import ConfirmModal from '../../components/modal/confirmmodal';
-import MessageAlert from '../../components/MessageAlert';
+import MessageAlert from '../../components/messageAlert';
 
 const OutletManagementPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
