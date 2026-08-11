@@ -12,7 +12,7 @@ COPY . .
 
 # Install deps untuk client dan build
 WORKDIR /app/client
-RUN npm ci && npm run build
+RUN npm install && npm run build
 
 # === Stage kedua: runtime ===
 FROM node:18-alpine AS runner
