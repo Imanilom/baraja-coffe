@@ -4728,14 +4728,33 @@ const processWebAppOrder = async ({
       };
     } else {
       const paymentAmount = grandTotalAfterTax;
-
-      const midtransRes = await createMidtransCoreTransaction(
-        orderId,
-        Number(paymentAmount),
-        Array.isArray(validatedPaymentDetails)
+      const paymentMethod = Array.isArray(validatedPaymentDetails)
           ? validatedPaymentDetails[0]?.method || 'other'
-          : validatedPaymentDetails?.method || 'other'
-      );
+          : validatedPaymentDetails?.method || 'other';
+
+      let midtransRes;
+      if (['btn', 'bsi', 'bjb', 'mandiri'].includes(paymentMethod.toLowerCase()) || 
+         (paymentMethod.toLowerCase() === 'qris' && ['btn', 'bsi', 'bjb', 'mandiri'].some(b => validatedPaymentDetails?.method_type?.toLowerCase() === b))) {
+        
+        const btnResponse = await generateQRIS(orderId, Number(paymentAmount));
+        midtransRes = {
+          transaction_id: btnResponse.referenceNo,
+          transaction_status: 'pending',
+          actions: [{
+            name: "generate-qr-code",
+            method: "GET",
+            url: await QRCode.toDataURL(btnResponse.qrContent)
+          }],
+          qr_string: btnResponse.qrContent,
+          raw_response: btnResponse
+        };
+      } else {
+        midtransRes = await createMidtransCoreTransaction(
+          orderId,
+          Number(paymentAmount),
+          paymentMethod
+        );
+      }
 
       return {
         type: 'app_payment_order',
@@ -6037,6 +6056,9 @@ export const charge = async (req, res) => {
           };
 
           // Setup payment method specific params
+          let response;
+          let isBtnQris = false;
+
           if (payment_type === 'bank_transfer') {
             if (!bank_transfer?.bank) {
               return res.status(400).json({ success: false, message: 'Bank is required' });
@@ -6045,14 +6067,45 @@ export const charge = async (req, res) => {
           } else if (payment_type === 'gopay') {
             chargeParams.gopay = {};
           } else if (payment_type === 'qris') {
-            chargeParams.qris = {};
+            if (['BTN', 'BSI', 'BJB', 'Mandiri', 'QRIS'].includes(method_type)) {
+              isBtnQris = true;
+            } else {
+              chargeParams.qris = {};
+            }
           } else if (payment_type === 'shopeepay') {
             chargeParams.shopeepay = {};
           } else if (payment_type === 'credit_card') {
             chargeParams.credit_card = { secure: true };
           }
 
-          const response = await coreApi.charge(chargeParams);
+          if (isBtnQris) {
+            try {
+              const btnResponse = await generateQRIS(payment_code, parseInt(newAmountToPay));
+              
+              const actions = [{
+                name: "generate-qr-code",
+                method: "GET",
+                url: await QRCode.toDataURL(btnResponse.qrContent),
+              }];
+              
+              response = {
+                transaction_id: btnResponse.referenceNo,
+                transaction_status: 'pending',
+                fraud_status: 'accept',
+                transaction_time: new Date().toISOString(),
+                expiry_time: dayjs().add(30, 'minute').format('YYYY-MM-DD HH:mm:ss'), // BTN doesn't return expiry time directly on generate
+                actions: actions,
+                qr_string: btnResponse.qrContent,
+                currency: 'IDR',
+                merchant_id: btnResponse.merchantName,
+                raw_response: btnResponse
+              };
+            } catch (error) {
+               return res.status(500).json({ success: false, message: 'Failed to generate BTN QRIS: ' + error.message });
+            }
+          } else {
+            response = await coreApi.charge(chargeParams);
+          }
 
           // Update existing final payment (NON-CASH)
           await Payment.updateOne(
@@ -6376,6 +6429,9 @@ export const charge = async (req, res) => {
       },
     };
 
+    let response;
+    let isBtnQris = false;
+
     if (payment_type === 'bank_transfer') {
       if (!bank_transfer?.bank) {
         return res.status(400).json({ success: false, message: 'Bank is required' });
@@ -6384,14 +6440,45 @@ export const charge = async (req, res) => {
     } else if (payment_type === 'gopay') {
       chargeParams.gopay = {};
     } else if (payment_type === 'qris') {
-      chargeParams.qris = {};
+      if (['BTN', 'BSI', 'BJB', 'Mandiri', 'QRIS'].includes(method_type)) {
+        isBtnQris = true;
+      } else {
+        chargeParams.qris = {};
+      }
     } else if (payment_type === 'shopeepay') {
       chargeParams.shopeepay = {};
     } else if (payment_type === 'credit_card') {
       chargeParams.credit_card = { secure: true };
     }
 
-    const response = await coreApi.charge(chargeParams);
+    if (isBtnQris) {
+      try {
+        const btnResponse = await generateQRIS(payment_code, parseInt(amount));
+        
+        const actions = [{
+          name: "generate-qr-code",
+          method: "GET",
+          url: await QRCode.toDataURL(btnResponse.qrContent),
+        }];
+        
+        response = {
+          transaction_id: btnResponse.referenceNo,
+          transaction_status: 'pending',
+          fraud_status: 'accept',
+          transaction_time: new Date().toISOString(),
+          expiry_time: dayjs().add(30, 'minute').format('YYYY-MM-DD HH:mm:ss'),
+          actions: actions,
+          qr_string: btnResponse.qrContent,
+          currency: 'IDR',
+          merchant_id: btnResponse.merchantName,
+          raw_response: btnResponse
+        };
+      } catch (error) {
+         return res.status(500).json({ success: false, message: 'Failed to generate BTN QRIS: ' + error.message });
+      }
+    } else {
+      response = await coreApi.charge(chargeParams);
+    }
 
     // ✅ CATATAN: Untuk non-cash payment, Midtrans akan set expiry_time sendiri
     // Monitoring system akan skip reservasi saat check expiry

@@ -14,6 +14,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Download = lazy(() => import("./components/download"));
 const AdminLayout = lazy(() => import("./pages/admin/index"));
 const Example = lazy(() => import("./pages/example"));
+const DewaadminOrders = lazy(() => import("./pages/dewaadmin_orders/index"));
 
 // Admin Pages
 const Dashboard = lazy(() => import("./pages/dashboard"));
@@ -83,6 +84,10 @@ const DailySales = lazy(() => import("./pages/report/sales/daily_sales"));
 const HourlySales = lazy(() => import("./pages/report/sales/hourly_sales"));
 const CustomerSales = lazy(() => import("./pages/report/sales/customer_sales"));
 const PaymentMethodSales = lazy(() => import("./pages/report/sales/payment_method_sales"));
+
+// PAYMENT METHOD MANAGEMENT
+const PaymentMethodList = lazy(() => import("./pages/admin/payment_method/index"));
+const CreatePaymentMethod = lazy(() => import("./pages/admin/payment_method/create"));
 const TypeSales = lazy(() => import("./pages/report/sales/type_sales"));
 const CategorySales = lazy(() => import("./pages/report/sales/category_sales"));
 const OutletSales = lazy(() => import("./pages/report/sales/outlet_sales"));
@@ -190,12 +195,13 @@ export default function App() {
               <Route path="/download" element={<Download />} />
 
               {/* Halaman Admin dengan Sidebar */}
-              <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan", "cashier senior", "super kasir"]} />}>
+              <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "dewaadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan", "cashier senior", "super kasir"]} />}>
                 <Route path="/admin" element={<AdminLayout />}>
                   {/* <Route index element={<AdminDashboard />} /> */}
                   <Route path="dashboard" element={<Dashboard />} />
                   <Route path="restaurant-analytics" element={<AnalyticsDashboard />} />
                   <Route path="example" element={<Example />} />
+                  <Route path="dewaadmin/orders" element={<DewaadminOrders />} />
                   <Route path="menu-receipt/:id" element={<ReceiptMenu />} />
                   <Route path="menu" element={<Menumanagement />} />
                   <Route path="menu-create" element={<Menucreate />} />
@@ -214,6 +220,10 @@ export default function App() {
                   <Route path="table-plan/create" element={<CreateTable />} />
                   <Route path="table-plan/update/:id" element={<UpdateTableForm />} />
                   <Route path="generate-qr" element={<QRCodeGenerator />} />
+                  
+                  {/* Payment Method Management */}
+                  <Route path="payment-method" element={<PaymentMethodList />} />
+                  <Route path="payment-method/create" element={<CreatePaymentMethod />} />
                   {/* Purchase */}
 
                   {/* supplier */}

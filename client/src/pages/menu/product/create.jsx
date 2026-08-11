@@ -113,9 +113,8 @@ const CreateMenu = () => {
       formData.append('image', compressedBlob, file.name);
       formData.append('kategori', 'menu'); // kategori untuk organize file
 
-      // Upload ke PHP backend
-      // GANTI URL ini dengan URL PHP upload.php Anda
-      const response = await axios.post('https://img.barajacoffee.com/api.php', formData, {
+      // Upload ke backend
+      const response = await axios.post('/api/menu/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

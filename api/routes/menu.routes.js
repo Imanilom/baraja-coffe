@@ -39,6 +39,13 @@ const router = express.Router();
 const adminAccess = verifyToken(['admin', 'superadmin', 'marketing', 'akuntan', 'operational', 'super kasir']);
 
 // MenuItem Routes
+router.post('/upload', adminAccess, upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No image provided' });
+  }
+  const imageURL = `${process.env.BASE_URL || 'http://localhost:3000'}/images/${req.file.filename}`;
+  res.status(200).json({ success: true, imageURL });
+});
 router.post('/menu-items', upload.single('images'), createMenuItem); // Create a new MenuItem
 router.get('/menu-items', getMenuItemsWithRecipes); // Get all MenuItems with Recipes
 router.get('/all-menu-items', getMenuItems); // Get all MenuItems

@@ -71,7 +71,7 @@ import {
 } from '../controllers/gro.controller.js';
 
 import { verifyToken } from '../utils/verifyUser.js';
-import { midtransWebhook } from '../controllers/webhookController.js';
+import { midtransWebhook, btnQrisWebhook } from '../controllers/webhookController.js';
 import { createAppOrder } from '../controllers/testapporder.controller.js';
 // import { chargeWithLocking, createAppOrderWithLocking } from '../controllers/testapporder.controller.js';
 
@@ -106,6 +106,7 @@ router.get("/getPayment/:orderId", getPendingPaymentOrders);
 // router.post("/chargeCash", chargeCash);
 
 router.post('/midtrans/webhook', midtransWebhook);
+router.post('/btn-qris/webhook', btnQrisWebhook);
 
 // TODO: End route untuk melakukan charge from aplication
 

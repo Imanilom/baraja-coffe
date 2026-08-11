@@ -967,3 +967,103 @@ function mapOrderForCashier(order) {
     orderAnalysis: getOrderBreakdown(order.items)
   };
 }
+
+export const btnQrisWebhook = async (req, res) => {
+  let requestId = Math.random().toString(36).substr(2, 9);
+  try {
+    const { originalPartnerReferenceNo, originalReferenceNo, latestTransactionStatus, amount, transactionStatusDesc } = req.body;
+    
+    console.log(`[WEBHOOK BTN ${requestId}] Received notification:`, req.body);
+
+    if (!originalPartnerReferenceNo) {
+      return res.status(400).json({ responseCode: "4005202", responseMessage: "Missing fields" });
+    }
+
+    const orderId = originalPartnerReferenceNo;
+
+    const result = await LockUtil.withOrderLock(`webhook-btn-${orderId}`, async () => {
+       const existingPayment = await Payment.findOne({
+         $or: [
+           { order_id: orderId },
+           { payment_code: orderId },
+           { transaction_id: orderId }
+         ]
+       });
+
+       if (!existingPayment) throw new Error('Payment record not found');
+       
+       let status = 'pending';
+       let paymentStatus = 'Pending';
+       let orderStatus = undefined;
+
+       // 00 - Success, 04 - Refunded, 05 - Canceled, 06 - Failed, 07 - Not found
+       if (latestTransactionStatus === '00') {
+           status = 'settlement';
+           paymentStatus = 'Settlement';
+       }
+       else if (latestTransactionStatus === '04') {
+           status = 'refund';
+           paymentStatus = 'Failed';
+           orderStatus = 'Canceled';
+       }
+       else if (latestTransactionStatus === '05' || latestTransactionStatus === '06') {
+           status = 'cancel';
+           paymentStatus = 'Failed';
+           orderStatus = 'Canceled';
+       }
+
+       existingPayment.status = status;
+       if (status === 'settlement') existingPayment.paidAt = new Date();
+       
+       const updatedPayment = await Payment.findOneAndUpdate(
+        {
+          $or: [
+            { order_id: orderId },
+            { payment_code: orderId },
+            { transaction_id: orderId }
+          ]
+        },
+        {
+          status: status,
+          paidAt: status === 'settlement' ? new Date() : existingPayment.paidAt,
+          raw_response: { ...existingPayment.raw_response, ...req.body, webhook_received_at: new Date() }
+        },
+        { new: true, runValidators: true }
+      );
+
+       const targetOrderId = updatedPayment.order_id;
+       const order = await Order.findOne({ order_id: targetOrderId }).populate('cashierId', 'name').populate('outlet', 'name address');
+       if (!order) throw new Error('Order not found');
+
+       if (orderStatus) order.status = orderStatus;
+       if (paymentStatus) order.paymentStatus = paymentStatus;
+       await order.save();
+
+       // Socket IO notification
+       const ioInstance = io;
+       if (ioInstance) {
+         if (status === 'settlement') {
+           ioInstance.to(order.outlet._id.toString()).emit("payment-success", {
+             orderId: order.order_id,
+             paymentId: updatedPayment._id,
+             status: 'success'
+           });
+           ioInstance.to(`order_${order.order_id}`).emit("payment_success", {
+             order_id: order.order_id,
+             status: 'paid'
+           });
+         }
+       }
+    });
+
+    res.status(200).json({
+      responseCode: "2005200",
+      responseMessage: "Request has been processed successfully",
+      additionalInfo: {}
+    });
+
+  } catch (err) {
+    console.error(`[WEBHOOK BTN ${requestId}] Error:`, err);
+    res.status(500).json({ responseCode: "5005200", responseMessage: "Internal Server Error" });
+  }
+};

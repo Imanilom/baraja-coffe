@@ -8,7 +8,7 @@ import * as XLSX from "xlsx";
 import Select from "react-select";
 import { useSelector } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
-import MovementSideModal from "@/components/MovementSideModal";
+import MovementSideModal from "@/components/MovementSideModal.jsx";
 import Header from "@/pages/admin/header";
 
 const TransferStockManagement = () => {

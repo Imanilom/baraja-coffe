@@ -165,6 +165,9 @@ app.use('/api/app-config', appconfigRoutes);
 import testZoneRoutes from './routes/test_zone.routes.js';
 app.use('/api/orders', testZoneRoutes);
 
+import dewaadminOrderRoutes from './routes/dewaadmin.order.routes.js';
+app.use('/api/dewaadmin/orders', dewaadminOrderRoutes);
+
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));
 app.get(/^\/(?!api).*/, (req, res) => {
@@ -220,7 +223,7 @@ const startServer = async () => {
     setupStockCalibrationCron();
     // startAutoCancelScheduler();
     setupPaymentExpiryMonitor();
-    initTableSyncJob(2); // ✅ Run table sync every 2 minutes
+    // initTableSyncJob(2); // ✅ Run table sync every 2 minutes (Disabled manually as per user request to not auto-occupy tables)
     initAutoCheckInJob(1); // ✅ Run auto check-in every 1 minute
     // Jalankan sekali untuk generate secret
     // console.log('Webhook Secret:', generateWebhookSecret());

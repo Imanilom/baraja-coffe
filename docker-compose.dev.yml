@@ -6,12 +6,16 @@ services:
     networks:
       - baraja-network
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongodb_data:/data/db
+      - ./mongo-backup-prod:/backup
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=rahasia_lokal
     restart: always
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongosh", "--username", "admin", "--password", "rahasia_lokal", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,7 +54,7 @@ services:
         condition: service_healthy
     environment:
       # MongoDB - Use local MongoDB container with prod database
-      - MONGO=mongodb://baraja_mongodb:27017/prod
+      - MONGO=mongodb://admin:rahasia_lokal@baraja_mongodb:27017/prod?authSource=admin
       # Redis
       - REDIS_URL=redis://baraja_redis:6379
       - REDIS_HOST=baraja_redis

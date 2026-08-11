@@ -8,6 +8,7 @@
     "dev": "nodemon api/index.js",
     "start": "node api/index.js",
     "seed": "node api/seeders/areaSeeder.js",
+    "db:import": "docker exec baraja_mongodb mongorestore --username admin --password rahasia_lokal --authenticationDatabase admin --drop /backup",
     "build": "npm install && npm install --prefix client && npm run build --prefix client"
   },
   "keywords": [],

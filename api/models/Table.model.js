@@ -89,107 +89,21 @@ tableSchema.add({
 });
 
 
+tableSchema.statics.syncTableStatus = async function (outletId) {
+  return {
+    totalTables: 0,
+    occupiedTables: 0,
+    updatedTables: 0,
+    details: [],
+    skipped: true,
+    reason: "Auto-sync disabled per user request"
+  };
+};
+
 tableSchema.statics.syncTableStatusWithActiveOrders = async function (outletId) {
-  try {
-    // ✅ HAPUS SEMUA FILTER WAKTU - Ambil SEMUA order aktif tanpa batasan
-    const activeOrders = await mongoose.model('Order').find({
-      outlet: outletId,
-      status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] },
-      orderType: { $in: ['Dine-In', 'Reservation'] },
-      tableNumber: { $exists: true, $ne: null }
-    }).select('tableNumber status orderType order_id');
-
-    const occupiedTableNumbers = activeOrders
-      .map(order => order.tableNumber?.toUpperCase())
-      .filter(Boolean);
-
-    console.log(`📊 Found ${occupiedTableNumbers.length} occupied tables:`, occupiedTableNumbers);
-
-    // Ambil semua meja aktif untuk outlet ini
-    const areas = await mongoose.model('Area').find({ outlet_id: outletId }).select('_id');
-    const areaIds = areas.map(area => area._id);
-
-    const allTables = await this.find({
-      area_id: { $in: areaIds },
-      is_active: true
-    });
-
-    console.log(`📋 Total active tables: ${allTables.length}`);
-
-    let updatedCount = 0;
-    const updateResults = [];
-
-    for (const table of allTables) {
-      const tableNumberUpper = table.table_number.toUpperCase();
-      const shouldBeOccupied = occupiedTableNumbers.includes(tableNumberUpper);
-      const currentStatus = table.status;
-
-      if (shouldBeOccupied && currentStatus !== 'occupied') {
-        console.log(`🔄 Updating table ${table.table_number} from ${currentStatus} to occupied`);
-
-        table.status = 'occupied';
-        table.is_available = false;
-        table.updatedAt = new Date();
-
-        // Tambahkan history
-        if (!table.statusHistory) table.statusHistory = [];
-        table.statusHistory.push({
-          fromStatus: currentStatus,
-          toStatus: 'occupied',
-          updatedBy: 'System Sync',
-          notes: `Auto-sync: Active order found`,
-          updatedAt: new Date()
-        });
-
-        await table.save();
-        updatedCount++;
-        updateResults.push({
-          table: table.table_number,
-          from: currentStatus,
-          to: 'occupied',
-          reason: 'Active order found'
-        });
-
-      } else if (!shouldBeOccupied && currentStatus !== 'available') {
-        console.log(`🔄 Updating table ${table.table_number} from ${currentStatus} to available`);
-
-        table.status = 'available';
-        table.is_available = true;
-        table.updatedAt = new Date();
-
-        // Tambahkan history
-        if (!table.statusHistory) table.statusHistory = [];
-        table.statusHistory.push({
-          fromStatus: currentStatus,
-          toStatus: 'available',
-          updatedBy: 'System Sync',
-          notes: 'Auto-sync: No active orders found',
-          updatedAt: new Date()
-        });
-
-        await table.save();
-        updatedCount++;
-        updateResults.push({
-          table: table.table_number,
-          from: currentStatus,
-          to: 'available',
-          reason: 'No active orders'
-        });
-      }
-    }
-
-    console.log(`✅ Successfully updated ${updatedCount} tables`);
-    return {
-      totalTables: allTables.length,
-      occupiedTables: occupiedTableNumbers.length,
-      updatedTables: updatedCount,
-      details: updateResults
-    };
-
-  } catch (error) {
-    console.error('❌ Error syncing table status:', error);
-    throw error;
-  }
+  return {
+    totalTables: 0, occupiedTables: 0, updatedTables: 0, details: [], skipped: true, reason: 'Auto-sync disabled per user request'
+  };
 };
 
 tableSchema.statics.forceResetTableStatus = async function (tableNumber, outletId) {

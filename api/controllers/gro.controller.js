@@ -4369,10 +4369,10 @@ export const getTableAvailability = async (req, res) => {
       const occupancyInfo = tableOccupancyInfo[tableNumberUpper] || null;
 
       // Check consistency between table status and actual orders
-      const statusConsistent = isOccupiedInSystem === hasActiveOrder;
+      const statusConsistent = true; // Disabled consistency check per user request
 
       // Determine final availability status
-      const finalIsAvailable = table.status === 'available' && !hasActiveOrder;
+      const finalIsAvailable = table.status === 'available'; // Ignored active orders per user request
 
       // Deteksi inconsistencies untuk auto-repair
       if (!statusConsistent) {

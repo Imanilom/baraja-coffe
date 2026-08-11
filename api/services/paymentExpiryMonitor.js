@@ -256,10 +256,12 @@ const autoCompleteExpiredOnProcessOrders = async () => {
 
         // Cari semua order dengan status OnProcess yang dibuat hari sebelumnya
         // ✅ EXCLUDE orders dengan openBillStatus: "active" - tidak boleh di-auto-complete
+        // ✅ ONLY INCLUDE yang sudah dibayar (splitPaymentStatus: completed / overpaid)
         const expiredOnProcessOrders = await Order.find({
             status: 'OnProcess',
             createdAtWIB: { $lt: today },
-            openBillStatus: { $ne: 'active' } // Skip open bill yang masih aktif
+            openBillStatus: { $ne: 'active' }, // Skip open bill yang masih aktif
+            splitPaymentStatus: { $in: ['completed', 'overpaid'] } // HANYA yang sudah dibayar
         }).lean();
 
         if (expiredOnProcessOrders.length === 0) {
@@ -808,7 +810,7 @@ export const triggerActivateReservedOrders = async () => {
 /**
  * ✅ API endpoints
  */
-export const manualActivateReservedOrders = async (req, res) => {
+export async function manualActivateReservedOrders(req, res) {
     try {
         const result = await autoActivateReservedOrders();
         res.status(200).json({

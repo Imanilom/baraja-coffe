@@ -1471,6 +1471,7 @@ class DailyProfitController {
             },
           })
           .sort({ createdAt: -1 })
+          .allowDiskUse(true)
           .lean();
       };
 
@@ -1488,7 +1489,7 @@ class DailyProfitController {
           let isFirstBatch = true;
           let processedCount = 0;
 
-          const cursor = Order.find(filters)
+          const cursor = Order.find(filters, null, { allowDiskUse: true })
             .populate('outlet', 'name')
             .populate('cashierId', 'username phone')
             .sort({ createdAt: -1 })
@@ -1632,7 +1633,7 @@ class DailyProfitController {
           });
 
         case 'ids':
-          const orderIds = await Order.find(filters)
+          const orderIds = await Order.find(filters, null, { allowDiskUse: true })
             .select('order_id createdAt status')
             .sort({ createdAt: -1 })
             .lean();
@@ -1768,6 +1769,9 @@ class DailyProfitController {
 
     } catch (error) {
       console.error('Get orders with payments error:', error);
+      if (res.headersSent) {
+        return res.end();
+      }
       res.status(500).json({
         success: false,
         message: 'Failed to fetch orders with payments',
