@@ -21,7 +21,7 @@ module.exports = {
             watch: false,
             env: {
                 NODE_ENV: "production",
-                MONGO_URI: env.MONGO_PROD || env.MONGO_URI
+                MONGO_URI: env.MONGO_PROD || env.MONGO_URI || process.env.MONGO_PROD || process.env.MONGO_URI
             }
         }
     ]
