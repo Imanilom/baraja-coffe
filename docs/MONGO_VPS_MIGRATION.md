@@ -44,7 +44,7 @@ After saving `.env`, load the migration variables in the current shell and verif
 ```bash
 export ATLAS_URI='mongodb+srv://<atlas-user>:<atlas-password>@<cluster>/prod'
 export VPS_URI='mongodb://baraja_admin:<url-encoded-password>@127.0.0.1:27017/prod?authSource=admin'
-export DROP_TARGET=1
+export TARGET_DB=prod_clone
 
 bash -n scripts/migrate-atlas-to-vps.sh
 docker compose -f docker-compose.yml -f docker-compose.vps.yml config --quiet
@@ -59,7 +59,7 @@ docker compose -f docker-compose.yml -f docker-compose.vps.yml ps
 docker compose -f docker-compose.yml -f docker-compose.vps.yml logs --tail=200 mongodb app
 ```
 
-Do not paste real passwords into shell history or commit `.env`. The migration script requires typing `MIGRATE-DROP` before replacing existing target data.
+Do not paste real passwords into shell history or commit `.env`. The migration script writes only to `prod_clone` and never drops data.
 
 ## 1. Prepare the VPS
 
@@ -105,25 +105,25 @@ For the complete automated migration, use `scripts/migrate-atlas-to-vps.sh` from
 ```bash
 export ATLAS_URI='mongodb+srv://<atlas-user>:<atlas-password>@<cluster>/prod'
 export VPS_URI='mongodb://baraja_admin:<url-encoded-password>@127.0.0.1:27017/prod?authSource=admin'
-export DROP_TARGET=1
+export TARGET_DB=prod_clone
 
 bash scripts/migrate-atlas-to-vps.sh
 ```
 
-The script requires typing `MIGRATE-DROP` before replacing existing target data. Leave `DROP_TARGET=0` to preserve existing VPS data and merge the restored documents.
+The script always restores into a clone database (`prod_clone` by default), never drops data, and blocks `TARGET_DB=prod`. The Atlas `prod` database is not modified.
 
 Copy the archive securely, then restore into the VPS MongoDB instance:
 
 ```bash
-mongorestore --uri "$VPS_URI" --archive=baraja-prod.archive.gz --gzip --drop
+mongorestore --uri "$VPS_URI" --archive=baraja-prod.archive.gz --gzip --nsFrom='prod.*' --nsTo='prod_clone.*'
 ```
 
 Verify the important collections and counts before cutover:
 
 ```bash
-mongosh "$VPS_URI" --eval 'db.orders.countDocuments()'
-mongosh "$VPS_URI" --eval 'db.payments.countDocuments()'
-mongosh "$VPS_URI" --eval 'db.orders.getIndexes()'
+mongosh "$VPS_URI" --eval 'const dbClone = db.getSiblingDB("prod_clone"); print(dbClone.orders.countDocuments())'
+mongosh "$VPS_URI" --eval 'const dbClone = db.getSiblingDB("prod_clone"); print(dbClone.payments.countDocuments())'
+mongosh "$VPS_URI" --eval 'printjson(db.getSiblingDB("prod_clone").orders.getIndexes())'
 ```
 
 When using the Docker MongoDB service, place the archive in `./backups` and run the restore with the MongoDB image:
@@ -132,10 +132,10 @@ When using the Docker MongoDB service, place the archive in `./backups` and run 
 mkdir -p backups
 cp baraja-prod.archive.gz backups/
 docker compose -f docker-compose.yml -f docker-compose.vps.yml run --rm --no-deps mongodb \
-	mongorestore --uri "$VPS_URI" --archive=/backup/baraja-prod.archive.gz --gzip --drop
+	mongorestore --uri "$VPS_URI" --archive=/backup/baraja-prod.archive.gz --gzip --nsFrom='prod.*' --nsTo='prod_clone.*'
 ```
 
-Do not use `--drop` after production writes begin.
+The clone restore does not use `--drop`. Existing documents in the clone database are preserved.
 
 ## 4. Application cutover
 

@@ -3,13 +3,12 @@ set -Eeuo pipefail
 
 # Migrates one MongoDB database from Atlas to the local MongoDB VPS service.
 # Required environment variables: ATLAS_URI, VPS_URI
-# Optional: SOURCE_DB, TARGET_DB, BACKUP_DIR, DROP_TARGET, COMPOSE_FILES
+# Optional: SOURCE_DB, TARGET_DB, BACKUP_DIR, COMPOSE_FILES
 
 SOURCE_DB="${SOURCE_DB:-prod}"
-TARGET_DB="${TARGET_DB:-prod}"
+TARGET_DB="${TARGET_DB:-prod_clone}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 ARCHIVE_NAME="${ARCHIVE_NAME:-baraja-${SOURCE_DB}-$(date +%Y%m%d-%H%M%S).archive.gz}"
-DROP_TARGET="${DROP_TARGET:-0}"
 COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml -f docker-compose.vps.yml}"
 ARCHIVE_PATH="${BACKUP_DIR}/${ARCHIVE_NAME}"
 
@@ -33,13 +32,9 @@ require_env() {
 require_command docker
 require_env ATLAS_URI
 require_env VPS_URI
+[[ "$TARGET_DB" != "prod" ]] || fail "TARGET_DB=prod is blocked; use a clone database such as prod_clone"
 
 mkdir -p "$BACKUP_DIR"
-
-if [[ "$DROP_TARGET" == "1" ]]; then
-  read -r -p "This will DROP existing data in ${TARGET_DB}. Type MIGRATE-DROP to continue: " confirmation
-  [[ "$confirmation" == "MIGRATE-DROP" ]] || fail "Migration cancelled"
-fi
 
 log "Checking Docker Compose configuration"
 # shellcheck disable=SC2086
@@ -82,10 +77,6 @@ restore_args=(
   --nsFrom="${SOURCE_DB}.*"
   --nsTo="${TARGET_DB}.*"
 )
-if [[ "$DROP_TARGET" == "1" ]]; then
-  restore_args+=(--drop)
-fi
-
 log "Restoring all collections and indexes into '${TARGET_DB}'"
 # shellcheck disable=SC2086
  docker compose $COMPOSE_FILES run --rm --no-deps mongodb "${restore_args[@]}"
@@ -95,6 +86,6 @@ docker run --rm \
   -e VPS_URI \
   mongo:7 \
   mongosh "$VPS_URI" --quiet --eval \
-  'const names = db.getCollectionNames().filter((name) => !name.startsWith("system.")); printjson(names.map((name) => ({ collection: name, count: db.getCollection(name).countDocuments() })));'
+  "const clone = db.getSiblingDB('${TARGET_DB}'); const names = clone.getCollectionNames().filter((name) => !name.startsWith('system.')); printjson(names.map((name) => ({ collection: name, count: clone.getCollection(name).countDocuments() })));"
 
 log "Migration completed. Archive retained at ${ARCHIVE_PATH}"
