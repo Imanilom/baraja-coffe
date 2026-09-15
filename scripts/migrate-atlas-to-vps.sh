@@ -60,6 +60,7 @@ done
 
 log "Dumping Atlas database '${SOURCE_DB}' to ${ARCHIVE_PATH}"
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -e ATLAS_URI \
   -v "$(cd "$BACKUP_DIR" && pwd):/backup" \
   mongo:7 \
