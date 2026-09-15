@@ -23,7 +23,10 @@ export const autoCancelUnpaidOrders = async () => {
 
     // Connect to database jika belum connected
     if (mongoose.connection.readyState !== 1) {
-      connection = await mongoose.connect(process.env.MONGODB_URI, {
+      const mongoUri = process.env.MONGO_URI || process.env.MONGO_PROD || process.env.MONGO;
+      if (!mongoUri) throw new Error('MongoDB URI is missing. Set MONGO_URI.');
+
+      connection = await mongoose.connect(mongoUri, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
       });

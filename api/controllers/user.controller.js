@@ -378,7 +378,7 @@ export const getUserProfile = async (req, res) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyJwt(token);
 
     const user = await User.findById(decoded.id)
       .select('-password')

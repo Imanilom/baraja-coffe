@@ -2,8 +2,8 @@ import User from '../models/user.model.js';
 import Role from "../models/Role.model.js";
 import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
-import jwt from 'jsonwebtoken';
 import admin from 'firebase-admin';
+import { signJwt, verifyJwt } from '../utils/jwt.js';
 import { Device } from "../models/Device.model.js";
 import { DeviceQuota } from "../models/DeviceQuota.model.js";
 import { verifyToken } from '../utils/verifyUser.js';
@@ -46,7 +46,7 @@ export const verifyOTP = async (req, res, next) => {
       const user = await User.findOne({ phoneNumber });
       if (!user) return next(errorHandler(404, 'User not found'));
 
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+      const token = signJwt({ id: user._id }, { expiresIn: '1h' });
       const { password: hashedPassword, ...rest } = user._doc;
 
       res
@@ -94,9 +94,8 @@ export const signup = async (req, res, next) => {
     const savedUser = await newUser.save();
 
     // Buat token
-    const token = jwt.sign(
+    const token = signJwt(
       { id: savedUser._id, role: customerRole.name },
-      process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
@@ -227,14 +226,13 @@ export const signin = async (req, res, next) => {
     }
 
     // ✅ Simpan role.name, bukan ObjectId
-    const token = jwt.sign(
+    const token = signJwt(
       {
         id: user._id,
         rolePermission: user.role.permissions,
         role: user.role.name,
         cashierType: user.cashierType,
       },
-      process.env.JWT_SECRET,
       { expiresIn: tokenExpiry }
     );
 
@@ -335,9 +333,8 @@ export const googleAuth = async (req, res) => {
     }
 
     // Buat token (simpan role.name supaya gampang dipakai frontend)
-    const token = jwt.sign(
+    const token = signJwt(
       { id: user._id, role: user.role?.name || customerRole.name },
-      process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 

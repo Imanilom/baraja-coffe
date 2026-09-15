@@ -1,0 +1,32 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: baraja_mongodb_vps
+    network_mode: "host"
+    restart: always
+    command: ["mongod", "--bind_ip", "127.0.0.1", "--auth"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?MONGO_ROOT_USERNAME is required}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD is required}
+    volumes:
+      - baraja_mongodb_data:/data/db
+      - ./backups:/backup:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --host 127.0.0.1 --username $$MONGO_INITDB_ROOT_USERNAME --password $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --quiet --eval 'db.adminCommand({ ping: 1 }).ok' | grep 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  app:
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  baraja_mongodb_data:
+    name: baraja_mongodb_data

@@ -1,6 +1,6 @@
-import jwt from "jsonwebtoken";
 import { errorHandler } from './error.js';
 import User from "../models/user.model.js";
+import { verifyJwt } from './jwt.js';
 
 /**
  * Verifikasi token & role
@@ -25,7 +25,7 @@ export const verifyToken = (allowedRoles = []) => {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = verifyJwt(token);
       const user = await User.findById(decoded.id).populate("role");
 
       if (!user) {
@@ -90,7 +90,7 @@ export const googleToken = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyJwt(token);
     req.user = decoded; // Menyimpan decoded token di req.user
     next();
   } catch (err) {
@@ -108,7 +108,7 @@ export const authMiddleware = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyJwt(token);
     req.user = decoded;
     console.log('Token valid, user ID:', decoded); // Tambahkan log ini
     next();

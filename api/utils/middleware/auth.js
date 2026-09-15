@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import { verifyJwt } from '../jwt.js';
 
 export const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -10,8 +10,8 @@ export const authMiddleware = (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET); // JWT_SECRET ada di .env
-        req.user = decoded; // Token harus memuat user.id, user.role, dll
+        const decoded = verifyJwt(token);
+        req.user = decoded;
         next();
     } catch (err) {
         return res.status(401).json({ success: false, message: 'Invalid or expired token' });

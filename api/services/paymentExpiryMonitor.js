@@ -254,14 +254,21 @@ const autoCompleteExpiredOnProcessOrders = async () => {
 
         log.info(`Checking for OnProcess orders from previous dates`);
 
+        const paidOrderIds = await Payment.distinct('order_id', {
+            status: { $in: ['settlement', 'paid', 'capture', 'success'] }
+        });
+
         // Cari semua order dengan status OnProcess yang dibuat hari sebelumnya
         // ✅ EXCLUDE orders dengan openBillStatus: "active" - tidak boleh di-auto-complete
-        // ✅ ONLY INCLUDE yang sudah dibayar (splitPaymentStatus: completed / overpaid)
+        // ✅ ONLY INCLUDE yang sudah dibayar
         const expiredOnProcessOrders = await Order.find({
             status: 'OnProcess',
             createdAtWIB: { $lt: today },
             openBillStatus: { $ne: 'active' }, // Skip open bill yang masih aktif
-            splitPaymentStatus: { $in: ['completed', 'overpaid'] } // HANYA yang sudah dibayar
+            $or: [
+                { splitPaymentStatus: { $in: ['completed', 'overpaid'] } },
+                { order_id: { $in: paidOrderIds } }
+            ]
         }).lean();
 
         if (expiredOnProcessOrders.length === 0) {
@@ -533,9 +540,10 @@ const cleanupOrphanedPayments = async () => {
  * ✅ PERBAIKAN: Exclude Reservation orders dari auto-cancel
  */
 const monitorExpiredPayments = async () => {
-    const session = await mongoose.startSession();
+    let session;
 
     try {
+        session = await mongoose.startSession();
         const now = new Date();
 
         log.info('Starting payment expiry monitor...');
@@ -722,7 +730,9 @@ const monitorExpiredPayments = async () => {
         log.error('Error in monitorExpiredPayments:', error.message);
         return { error: error.message };
     } finally {
-        await session.endSession();
+        if (session) {
+            await session.endSession();
+        }
     }
 };
 /**

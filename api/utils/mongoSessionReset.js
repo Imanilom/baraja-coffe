@@ -24,7 +24,9 @@ export async function resetMongoSessions() {
     // Fallback method if killAllSessions fails
     try {
       await mongoose.disconnect();
-      await mongoose.connect(process.env.MONGODB_URI);
+      const mongoUri = process.env.MONGO_URI || process.env.MONGO_PROD || process.env.MONGO;
+      if (!mongoUri) throw new Error('MongoDB URI is missing. Set MONGO_URI.');
+      await mongoose.connect(mongoUri);
       console.log('Fallback: Reconnected MongoDB successfully');
       return { success: true, method: 'reconnect' };
     } catch (fallbackError) {

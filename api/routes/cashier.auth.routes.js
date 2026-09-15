@@ -1,7 +1,7 @@
 // routes/authRoutes.js
 import express from 'express';
-import jwt from 'jsonwebtoken';
 import { Device } from '../models/Device.model.js';
+import { signJwt, verifyJwt } from '../utils/jwt.js';
 import { DeviceSession } from '../models/DeviceSession.model.js';
 import User from "../models/user.model.js";
 import { Outlet } from '../models/Outlet.model.js';
@@ -56,13 +56,12 @@ router.post('/login-outlet', async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
+    const token = signJwt(
       {
         userId: user._id,
         outletId: outlet._id,
         role: user.role
       },
-      process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
 

@@ -4,8 +4,10 @@ node_modules
 # Ignore log file
 *.log
 
-# Ignore environment file jika tidak perlu di-build ke container
-#.env
+# Never copy credentials into the image; pass them at runtime.
+.env
+.env.*
+!.env.example
 
 node_modules
 **/node_modules

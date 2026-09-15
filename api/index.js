@@ -176,6 +176,9 @@ app.get(/^\/(?!api).*/, (req, res) => {
 
 // 🔹 WebSocket server
 const wss = new WebSocket.Server({ port: 8080 });
+wss.on('error', (error) => {
+  console.error('WebSocket server error:', error.message);
+});
 wss.on('connection', (ws) => {
   console.log('WebSocket client connected');
 
@@ -204,20 +207,18 @@ app.use((err, req, res, next) => {
 // =====================================================
 const startServer = async () => {
   try {
-    // await mongoose.connect(process.env.MONGO, {
-    //   serverSelectionTimeoutMS: 10000,
-    //   maxPoolSize: 50, // Increase pool size for high concurrency
-    //   minPoolSize: 10, // Maintain minimum connections
-    //   socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-    // });
-    // console.log('✅ Connected to MongoDB TEST');
-    await mongoose.connect(process.env.MONGO_PROD, {
+    const mongoUri = process.env.MONGO_URI || process.env.MONGO_PROD || process.env.MONGO;
+    if (!mongoUri) {
+      throw new Error('MongoDB URI is missing. Set MONGO_URI.');
+    }
+
+    await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
       maxPoolSize: 50, // Increase pool size for high concurrency
       minPoolSize: 10, // Maintain minimum connections
       socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
-    console.log('✅ Connected to MongoDB PROD');
+    console.log(`✅ Connected to MongoDB database: ${mongoose.connection.name}`);
 
 
     setupStockCalibrationCron();

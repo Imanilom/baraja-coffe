@@ -972,7 +972,7 @@ export const btnQrisWebhook = async (req, res) => {
   let requestId = Math.random().toString(36).substr(2, 9);
   try {
     const { originalPartnerReferenceNo, originalReferenceNo, latestTransactionStatus, amount, transactionStatusDesc } = req.body;
-    
+
     console.log(`[WEBHOOK BTN ${requestId}] Received notification:`, req.body);
 
     if (!originalPartnerReferenceNo) {
@@ -982,40 +982,40 @@ export const btnQrisWebhook = async (req, res) => {
     const orderId = originalPartnerReferenceNo;
 
     const result = await LockUtil.withOrderLock(`webhook-btn-${orderId}`, async () => {
-       const existingPayment = await Payment.findOne({
-         $or: [
-           { order_id: orderId },
-           { payment_code: orderId },
-           { transaction_id: orderId }
-         ]
-       });
+      const existingPayment = await Payment.findOne({
+        $or: [
+          { order_id: orderId },
+          { payment_code: orderId },
+          { transaction_id: orderId }
+        ]
+      });
 
-       if (!existingPayment) throw new Error('Payment record not found');
-       
-       let status = 'pending';
-       let paymentStatus = 'Pending';
-       let orderStatus = undefined;
+      if (!existingPayment) throw new Error('Payment record not found');
 
-       // 00 - Success, 04 - Refunded, 05 - Canceled, 06 - Failed, 07 - Not found
-       if (latestTransactionStatus === '00') {
-           status = 'settlement';
-           paymentStatus = 'Settlement';
-       }
-       else if (latestTransactionStatus === '04') {
-           status = 'refund';
-           paymentStatus = 'Failed';
-           orderStatus = 'Canceled';
-       }
-       else if (latestTransactionStatus === '05' || latestTransactionStatus === '06') {
-           status = 'cancel';
-           paymentStatus = 'Failed';
-           orderStatus = 'Canceled';
-       }
+      let status = 'pending';
+      let paymentStatus = 'Pending';
+      let orderStatus = undefined;
 
-       existingPayment.status = status;
-       if (status === 'settlement') existingPayment.paidAt = new Date();
-       
-       const updatedPayment = await Payment.findOneAndUpdate(
+      // 00 - Success, 04 - Refunded, 05 - Canceled, 06 - Failed, 07 - Not found
+      if (latestTransactionStatus === '00') {
+        status = 'settlement';
+        paymentStatus = 'Settlement';
+      }
+      else if (latestTransactionStatus === '04') {
+        status = 'refund';
+        paymentStatus = 'Failed';
+        orderStatus = 'Canceled';
+      }
+      else if (latestTransactionStatus === '05' || latestTransactionStatus === '06') {
+        status = 'cancel';
+        paymentStatus = 'Failed';
+        orderStatus = 'Canceled';
+      }
+
+      existingPayment.status = status;
+      if (status === 'settlement') existingPayment.paidAt = new Date();
+
+      const updatedPayment = await Payment.findOneAndUpdate(
         {
           $or: [
             { order_id: orderId },
@@ -1031,29 +1031,29 @@ export const btnQrisWebhook = async (req, res) => {
         { new: true, runValidators: true }
       );
 
-       const targetOrderId = updatedPayment.order_id;
-       const order = await Order.findOne({ order_id: targetOrderId }).populate('cashierId', 'name').populate('outlet', 'name address');
-       if (!order) throw new Error('Order not found');
+      const targetOrderId = updatedPayment.order_id;
+      const order = await Order.findOne({ order_id: targetOrderId }).populate('cashierId', 'name').populate('outlet', 'name address');
+      if (!order) throw new Error('Order not found');
 
-       if (orderStatus) order.status = orderStatus;
-       if (paymentStatus) order.paymentStatus = paymentStatus;
-       await order.save();
+      if (orderStatus) order.status = orderStatus;
+      if (paymentStatus) order.paymentStatus = paymentStatus;
+      await order.save();
 
-       // Socket IO notification
-       const ioInstance = io;
-       if (ioInstance) {
-         if (status === 'settlement') {
-           ioInstance.to(order.outlet._id.toString()).emit("payment-success", {
-             orderId: order.order_id,
-             paymentId: updatedPayment._id,
-             status: 'success'
-           });
-           ioInstance.to(`order_${order.order_id}`).emit("payment_success", {
-             order_id: order.order_id,
-             status: 'paid'
-           });
-         }
-       }
+      // Socket IO notification
+      const ioInstance = io;
+      if (ioInstance) {
+        if (status === 'settlement') {
+          ioInstance.to(order.outlet._id.toString()).emit("payment-success", {
+            orderId: order.order_id,
+            paymentId: updatedPayment._id,
+            status: 'success'
+          });
+          ioInstance.to(`order_${order.order_id}`).emit("payment_success", {
+            order_id: order.order_id,
+            status: 'paid'
+          });
+        }
+      }
     });
 
     res.status(200).json({
