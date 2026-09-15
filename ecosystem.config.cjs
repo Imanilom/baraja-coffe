@@ -1,4 +1,15 @@
-require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
+
+// Parse .env manual tanpa dotenv
+const envPath = path.join(__dirname, ".env");
+const env = {};
+if (fs.existsSync(envPath)) {
+    fs.readFileSync(envPath, "utf8").split("\n").forEach(line => {
+        const match = line.match(/^([^#=]+)=(.*)$/);
+        if (match) env[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, "");
+    });
+}
 
 module.exports = {
     apps: [
@@ -10,7 +21,7 @@ module.exports = {
             watch: false,
             env: {
                 NODE_ENV: "production",
-                MONGO_URI: process.env.MONGO_PROD || process.env.MONGO_URI
+                MONGO_URI: env.MONGO_PROD || env.MONGO_URI
             }
         }
     ]
