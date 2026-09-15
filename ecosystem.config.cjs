@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 module.exports = {
     apps: [
         {
@@ -7,7 +9,8 @@ module.exports = {
             exec_mode: "fork", // cluster mode
             watch: false,
             env: {
-                NODE_ENV: "production"
+                NODE_ENV: "production",
+                MONGO_URI: process.env.MONGO_PROD || process.env.MONGO_URI
             }
         }
     ]
