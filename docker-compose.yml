@@ -21,6 +21,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - MONGO_URI=${MONGO_PROD:?MONGO_PROD is required}
       - MONGO_PROD=${MONGO_PROD:?MONGO_PROD is required}
