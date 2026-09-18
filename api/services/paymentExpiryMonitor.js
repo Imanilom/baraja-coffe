@@ -304,6 +304,64 @@ const autoCompleteExpiredOnProcessOrders = async () => {
 };
 
 /**
+ * ✅ Auto-complete Workstation orders yang sudah lebih dari 2 jam (stuck)
+ */
+const autoCompleteWorkstationOrders = async () => {
+    try {
+        const now = getWIBNow();
+        const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+        log.info(`Checking for workstation orders older than 2 hours...`);
+
+        // Cari order yang memiliki item dengan kitchenStatus belum served
+        // dan order tersebut dibuat lebih dari 2 jam yang lalu
+        const pendingWorkstationOrders = await Order.find({
+            "items.kitchenStatus": { $in: ['pending', 'printed', 'cooking', 'ready'] },
+            createdAtWIB: { $lt: twoHoursAgo },
+            status: { $ne: 'Canceled' } // Skip yang sudah dibatalkan
+        }).lean();
+
+        if (pendingWorkstationOrders.length === 0) {
+            log.success(`No pending workstation orders found`);
+            return { completedCount: 0, totalFound: 0 };
+        }
+
+        log.info(`Found ${pendingWorkstationOrders.length} orders with pending workstation items older than 2 hours`);
+
+        const orderIds = pendingWorkstationOrders.map(order => order._id);
+
+        // Update semua item yang masih stuck di workstation menjadi served
+        const result = await Order.updateMany(
+            { _id: { $in: orderIds } },
+            {
+                $set: {
+                    "items.$[elem].kitchenStatus": "served",
+                    "items.$[elem].isPrinted": true,
+                    "items.$[elem].printedAt": getWIBNow(),
+                    updatedAtWIB: getWIBNow()
+                }
+            },
+            {
+                arrayFilters: [{ "elem.kitchenStatus": { $in: ['pending', 'printed', 'cooking', 'ready'] } }]
+            }
+        );
+
+        // Emit refresh event if io is available in global
+        if (global.io) {
+            global.io.emit('refresh_workstation_data');
+        }
+
+        log.success(`Auto-completed workstation items in ${result.modifiedCount} orders`);
+        return { completedCount: result.modifiedCount, totalFound: pendingWorkstationOrders.length };
+
+    } catch (error) {
+        log.error('Error in autoCompleteWorkstationOrders:', error.message);
+        return { error: error.message };
+    }
+};
+
+
+/**
  * ✅ Auto-activate Reserved orders 30 menit sebelum waktu target
  * Prioritas waktu target:
  * 1. food_serving_time (jika ada)
@@ -757,6 +815,13 @@ export const setupPaymentExpiryMonitor = () => {
     });
     log.success('OnProcess auto-complete monitor started - Running daily at 01:00 WIB');
 
+    // Auto-complete Workstation items - setiap jam (menit ke 0)
+    cron.schedule('0 * * * *', async () => {
+        log.info(`[${getWIBNow().toISOString()}] Running auto-complete for workstation items...`);
+        await autoCompleteWorkstationOrders();
+    });
+    log.success('Workstation auto-complete monitor started - Running every hour');
+
     // Cleanup orphaned payments - setiap hari jam 02:00 WIB
     cron.schedule('0 2 * * *', async () => {
         log.info(`[${getWIBNow().toISOString()}] Running orphaned payments cleanup...`);
@@ -803,6 +868,16 @@ export const triggerCleanupOrphanedPayments = async () => {
     return {
         success: true,
         message: 'Orphaned payments cleanup completed',
+        result
+    };
+};
+
+export const triggerWorkstationAutoComplete = async () => {
+    log.info('🔄 Manual trigger: Workstation auto-complete');
+    const result = await autoCompleteWorkstationOrders();
+    return {
+        success: true,
+        message: 'Workstation auto-complete check completed',
         result
     };
 };
@@ -1024,6 +1099,7 @@ export default {
     triggerOnProcessAutoComplete,
     triggerCleanupOrphanedPayments,
     triggerActivateReservedOrders,
+    triggerWorkstationAutoComplete,
     manualCheckExpiredPayments,
     manualTriggerOnProcessComplete,
     manualTriggerCleanupOrphaned,

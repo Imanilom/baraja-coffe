@@ -66,6 +66,7 @@ import { generateWebhookSecret } from './utils/tokenGenerator.js';
 import attendanceRoutes from './routes/attendance.route.js';
 import hrRoutes from './routes/hr.route.js';
 import { setupPaymentExpiryMonitor } from './services/paymentExpiryMonitor.js';
+import chatbotRoutes from './routes/chatbot.routes.js';
 
 dotenv.config();
 
@@ -146,6 +147,7 @@ app.use('/api/dev', DevRoutes);
 app.use('/api/event', EventRoutes);
 app.use('/api/ticket', TicketRoutes);
 app.use('/api/accounting', AccountingRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/roles', roleRoutes);
