@@ -497,7 +497,7 @@ class DailyProfitController {
   //       } catch (err) {
   //         matchStage.outlet = req.query.outlet;
   //       }
-      if (req.query.excludeOrderType) matchStage.orderType = { $ne: req.query.excludeOrderType };
+  //     if (req.query.excludeOrderType) matchStage.orderType = { $ne: req.query.excludeOrderType };
   //     }
 
   //     // Filter by date range
@@ -1795,17 +1795,13 @@ class DailyProfitController {
   //     const page = parseInt(req.query.page) || 1;
   //     const limit = parseInt(req.query.limit) || 20;
   //     const mode = req.query.mode || 'paginated';
-
   //     const searchTerm = req.query.search || '';
-
   //     const filters = {};
-
   //     if (req.query.status) filters.status = req.query.status;
   //     if (req.query.orderType) filters.orderType = req.query.orderType;
-      if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
+  //     if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
   //     if (req.query.outlet) filters.outlet = req.query.outlet;
-      if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
-
+  //     if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
   //     // Date range filter
   //     if (req.query.startDate || req.query.endDate) {
   //       filters.createdAt = {};
@@ -2790,7 +2786,7 @@ class DailyProfitController {
   //       } catch (err) {
   //         matchStage.outlet = req.query.outlet;
   //       }
-      if (req.query.excludeOrderType) matchStage.orderType = { $ne: req.query.excludeOrderType };
+  //     if (req.query.excludeOrderType) matchStage.orderType = { $ne: req.query.excludeOrderType };
   //     }
 
   //     // Filter by date range
