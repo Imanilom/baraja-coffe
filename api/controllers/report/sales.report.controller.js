@@ -80,6 +80,7 @@ class DailyProfitController {
       }
 
       if (orderType) filter.orderType = { $in: orderType.split(',') };
+      if (req.query.excludeOrderType) filter.orderType = { $ne: req.query.excludeOrderType };
 
       // Summary stats dengan lookup ke Payment
       const summaryPipeline = [
@@ -496,6 +497,7 @@ class DailyProfitController {
   //       } catch (err) {
   //         matchStage.outlet = req.query.outlet;
   //       }
+      if (req.query.excludeOrderType) matchStage.orderType = { $ne: req.query.excludeOrderType };
   //     }
 
   //     // Filter by date range
@@ -853,6 +855,7 @@ class DailyProfitController {
         } catch (err) {
           matchStage.outlet = req.query.outlet;
         }
+      if (req.query.excludeOrderType) matchStage.orderType = { $ne: req.query.excludeOrderType };
       }
 
       // Filter by date range
@@ -1264,6 +1267,7 @@ class DailyProfitController {
       const filters = { status: 'Completed' };
 
       if (req.query.outlet) filters.outlet = req.query.outlet;
+      if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
 
       // Date range filter
       if (req.query.startDate || req.query.endDate) {
@@ -1407,7 +1411,9 @@ class DailyProfitController {
 
       if (req.query.status) filters.status = req.query.status;
       if (req.query.orderType) filters.orderType = req.query.orderType;
+      if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
       if (req.query.outlet) filters.outlet = req.query.outlet;
+      if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
 
       // Date range filter
       if (req.query.startDate || req.query.endDate) {
@@ -1796,7 +1802,9 @@ class DailyProfitController {
 
   //     if (req.query.status) filters.status = req.query.status;
   //     if (req.query.orderType) filters.orderType = req.query.orderType;
+      if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
   //     if (req.query.outlet) filters.outlet = req.query.outlet;
+      if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
 
   //     // Date range filter
   //     if (req.query.startDate || req.query.endDate) {
@@ -2670,6 +2678,7 @@ class DailyProfitController {
       const filters = { status: 'Completed' };
 
       if (req.query.outlet) filters.outlet = req.query.outlet;
+      if (req.query.excludeOrderType) filters.orderType = { $ne: req.query.excludeOrderType };
 
       // Date range filter with Jakarta timezone
       if (req.query.startDate || req.query.endDate) {
@@ -2781,6 +2790,7 @@ class DailyProfitController {
   //       } catch (err) {
   //         matchStage.outlet = req.query.outlet;
   //       }
+      if (req.query.excludeOrderType) matchStage.orderType = { $ne: req.query.excludeOrderType };
   //     }
 
   //     // Filter by date range
@@ -3126,6 +3136,7 @@ class DailyProfitController {
         } catch (err) {
           matchStage.outlet = req.query.outlet;
         }
+      if (req.query.excludeOrderType) matchStage.orderType = { $ne: req.query.excludeOrderType };
       }
 
       // Filter by date range

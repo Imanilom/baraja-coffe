@@ -7,6 +7,7 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import { Order } from '../models/order.model.js';
 import Payment from '../models/Payment.model.js';
 import btnQrisService from './btnQris.service.js';
+import CustomerChatbotProfile from '../models/CustomerChatbotProfile.model.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,171 @@ if (!fs.existsSync(SESSIONS_DIR)) {
 const getWIBNow = () => {
     const now = new Date();
     return new Date(now.getTime() + (7 * 60 * 60 * 1000));
+};
+
+// ===== CUSTOMER DATA COLLECTION HELPERS =====
+
+const HARI_INDONESIA = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+/**
+ * Track setiap interaksi/pesan masuk dari pelanggan.
+ * Update: totalInteractions, interactionHours, interactionDays, lastInteractionAt, name, firstSeenAt
+ */
+const trackInteraction = async (sender, pushName) => {
+    try {
+        const phoneClean = sender.replace(/[^0-9]/g, '');
+        const now = getWIBNow();
+        const hour = String(now.getUTCHours()); // Already WIB via getWIBNow offset
+        const dayIndex = now.getUTCDay();
+        const dayName = HARI_INDONESIA[dayIndex];
+
+        const updateOps = {
+            $inc: {
+                totalInteractions: 1,
+                [`interactionHours.${hour}`]: 1,
+                [`interactionDays.${dayName}`]: 1
+            },
+            $set: {
+                name: pushName || 'Pelanggan',
+                whatsappJid: sender,
+                lastInteractionAt: now
+            },
+            $setOnInsert: {
+                phone: phoneClean,
+                firstSeenAt: now
+            }
+        };
+
+        await CustomerChatbotProfile.findOneAndUpdate(
+            { phone: phoneClean },
+            updateOps,
+            { upsert: true, new: true }
+        );
+    } catch (err) {
+        console.error('[TRACK INTERACTION ERROR]', err.message);
+    }
+};
+
+/**
+ * Track pesanan berhasil: update favoriteItems, orderHistory, totalOrders, totalSpent, tags
+ */
+const trackOrder = async (sender, pushName, orderedItems, totalAmount, orderType, orderId, menuItems) => {
+    try {
+        const phoneClean = sender.replace(/[^0-9]/g, '');
+        const now = getWIBNow();
+
+        // Build items summary for orderHistory
+        const itemsSummary = orderedItems.map(oi => {
+            const menuItem = menuItems.find(m => m._id.toString() === oi.item?.toString());
+            return {
+                name: menuItem?.name || 'Unknown',
+                quantity: oi.quantity,
+                price: oi.price
+            };
+        });
+
+        // Find or create profile
+        let profile = await CustomerChatbotProfile.findOneAndUpdate(
+            { phone: phoneClean },
+            {
+                $inc: {
+                    totalOrders: 1,
+                    totalSpent: totalAmount
+                },
+                $set: {
+                    name: pushName || 'Pelanggan',
+                    whatsappJid: sender,
+                    lastOrderAt: now
+                },
+                $setOnInsert: {
+                    phone: phoneClean,
+                    firstSeenAt: now
+                }
+            },
+            { upsert: true, new: true }
+        );
+
+        // Update favoriteItems
+        for (const oi of orderedItems) {
+            const menuItem = menuItems.find(m => m._id.toString() === oi.item?.toString());
+            if (!menuItem) continue;
+
+            const existingIdx = profile.favoriteItems.findIndex(
+                fi => fi.menuItemId?.toString() === menuItem._id.toString()
+            );
+
+            if (existingIdx >= 0) {
+                profile.favoriteItems[existingIdx].orderCount += oi.quantity;
+                profile.favoriteItems[existingIdx].lastOrdered = now;
+            } else {
+                profile.favoriteItems.push({
+                    menuItemId: menuItem._id,
+                    menuItemName: menuItem.name,
+                    orderCount: oi.quantity,
+                    lastOrdered: now
+                });
+            }
+        }
+
+        // Sort favoriteItems by orderCount descending, keep top 30
+        profile.favoriteItems.sort((a, b) => b.orderCount - a.orderCount);
+        if (profile.favoriteItems.length > 30) {
+            profile.favoriteItems = profile.favoriteItems.slice(0, 30);
+        }
+
+        // Push to orderHistory (max 50)
+        profile.orderHistory.push({
+            orderId: orderId,
+            items: itemsSummary,
+            totalAmount: totalAmount,
+            orderType: orderType,
+            orderedAt: now
+        });
+        if (profile.orderHistory.length > 50) {
+            profile.orderHistory = profile.orderHistory.slice(-50);
+        }
+
+        // Recalculate averageOrderValue
+        if (profile.totalOrders > 0) {
+            profile.averageOrderValue = Math.round(profile.totalSpent / profile.totalOrders);
+        }
+
+        // Auto-assign tags
+        const tags = new Set();
+        if (profile.totalOrders >= 10) tags.add('Pelanggan Setia');
+        else if (profile.totalOrders >= 5) tags.add('Pelanggan Reguler');
+        else if (profile.totalOrders >= 1) tags.add('Pelanggan Baru');
+
+        // Check peak hours from interactionHours
+        const hours = profile.interactionHours || new Map();
+        let nightCount = 0, morningCount = 0, totalHourCount = 0;
+        for (const [h, count] of hours.entries()) {
+            const hNum = parseInt(h);
+            totalHourCount += count;
+            if (hNum >= 22 || hNum < 4) nightCount += count;
+            if (hNum >= 6 && hNum < 10) morningCount += count;
+        }
+        if (totalHourCount > 3) {
+            if (nightCount / totalHourCount > 0.4) tags.add('Night Owl');
+            if (morningCount / totalHourCount > 0.4) tags.add('Early Bird');
+        }
+
+        // Check favorite categories
+        const topItems = profile.favoriteItems.slice(0, 5).map(fi => fi.menuItemName.toLowerCase());
+        const hasCoffee = topItems.some(n => /latte|espresso|americano|cappuccino|braun|coffee|kopi/i.test(n));
+        const hasFood = topItems.some(n => /nasi|goreng|spaghetti|aglio|pasta|ayam|kambing/i.test(n));
+        if (hasCoffee) tags.add('Coffee Lover');
+        if (hasFood) tags.add('Food Enthusiast');
+
+        if (profile.totalSpent >= 1000000) tags.add('Big Spender');
+
+        profile.tags = [...tags];
+
+        await profile.save();
+        console.log(`[TRACK ORDER] Profile updated for ${phoneClean} (${pushName}): ${profile.totalOrders} orders, Rp ${profile.totalSpent.toLocaleString('id-ID')}`);
+    } catch (err) {
+        console.error('[TRACK ORDER ERROR]', err.message);
+    }
 };
 
 const getConfig = () => {
@@ -413,6 +579,9 @@ const createUnifiedOrder = async (sender, pushName, replyText, userMessage, conf
         
         const finalReply = `Terima kasih Kak ${pushName}! Pesanan Kakak telah dikonfirmasi dan **RESMI TERINPUT DI KASIR POS**.\n\n📌 *Nomor Order*: \`#${order_id}\`\n\n${paymentInfoText}`;
         
+        // Track order data ke CustomerChatbotProfile (non-blocking)
+        trackOrder(sender, pushName, orderedItems, totalAmount, orderTypeStr, order_id, items).catch(() => {});
+        
         return {
             order: newOrder,
             reply: finalReply,
@@ -428,6 +597,9 @@ const createUnifiedOrder = async (sender, pushName, replyText, userMessage, conf
 export const processIncomingMessage = async (payload) => {
     const { sender, message, pushName = 'Pelanggan' } = payload;
     const config = getConfig();
+    
+    // Track interaksi pelanggan (non-blocking)
+    trackInteraction(sender, pushName).catch(() => {});
     
     if (config.bot_status === 'maintenance') {
         return {

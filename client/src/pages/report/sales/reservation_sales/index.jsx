@@ -7,8 +7,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import { exportToExcel } from "../../../../utils/exportHelper";
 import { useReactToPrint } from "react-to-print";
-import SalesTransactionTable from "./table";
-import SalesTransactionTableSkeleton from "./skeleton";
+import ReservationSalesTable from "./table";
+import ReservationSalesTableSkeleton from "./skeleton";
 import { useSelector } from "react-redux";
 
 import useDebounce from "../../../../hooks/useDebounce";
@@ -18,7 +18,7 @@ dayjs.extend(timezone);
 
 const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
-const SalesTransaction = () => {
+const ReservationSales = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
     const customSelectStyles = {
@@ -176,7 +176,7 @@ const SalesTransaction = () => {
             params.append('page', currentPage);
             params.append('limit', limit);
             params.append('status', 'Completed');
-            params.append('excludeOrderType', 'Reservation');
+            params.append('orderType', 'Reservation');
 
             if (selectedOutlet) {
                 params.append('outlet', selectedOutlet);
@@ -501,7 +501,7 @@ const SalesTransaction = () => {
             const countParams = new URLSearchParams();
             countParams.append('mode', 'count');
             countParams.append('status', 'Completed');
-            countParams.append('excludeOrderType', 'Reservation');
+            countParams.append('orderType', 'Reservation');
 
             if (selectedOutlet) {
                 countParams.append('outlet', selectedOutlet);
@@ -564,7 +564,7 @@ const SalesTransaction = () => {
                         params.append('page', pageNum);
                         params.append('limit', BATCH_LIMIT);
                         params.append('status', 'Completed');
-            params.append('excludeOrderType', 'Reservation');
+            params.append('orderType', 'Reservation');
 
                         if (selectedOutlet) params.append('outlet', selectedOutlet);
                         if (dateRange?.startDate && dateRange?.endDate) {
@@ -992,9 +992,9 @@ const SalesTransaction = () => {
 
             {
                 loading ? (
-                    <SalesTransactionTableSkeleton />
+                    <ReservationSalesTableSkeleton />
                 ) : (
-                    <SalesTransactionTable
+                    <ReservationSalesTable
                         paginatedData={filteredData}
                         grandTotalFinal={grandTotalFinal}
                         setSelectedTrx={setSelectedTrx}
@@ -1028,4 +1028,4 @@ const SalesTransaction = () => {
     );
 };
 
-export default SalesTransaction;
+export default ReservationSales;

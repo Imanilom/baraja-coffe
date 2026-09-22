@@ -15,6 +15,7 @@ const Download = lazy(() => import("./components/download"));
 const AdminLayout = lazy(() => import("./pages/admin/index"));
 const Example = lazy(() => import("./pages/example"));
 const DewaadminOrders = lazy(() => import("./pages/dewaadmin_orders/index"));
+const CustomerInsights = lazy(() => import("./pages/customer_insights/index"));
 
 // Admin Pages
 const Dashboard = lazy(() => import("./pages/dashboard"));
@@ -74,6 +75,7 @@ const CreateExpenditureList = lazy(() => import("./pages/purchase/expenditurelis
 // Report
 const Summary = lazy(() => import("./pages/report/sales/summary"));
 const SalesTransaction = lazy(() => import("./pages/report/sales/sales_transaction"));
+const ReservationSales = lazy(() => import("./pages/report/sales/reservation_sales"));
 const SalesMenu = lazy(() => import("./pages/report/sales/index"));
 const OperationalMenu = lazy(() => import("./pages/report/operational"));
 const ProfitMenu = lazy(() => import("./pages/report/profit"));
@@ -202,6 +204,7 @@ export default function App() {
                   <Route path="restaurant-analytics" element={<AnalyticsDashboard />} />
                   <Route path="example" element={<Example />} />
                   <Route path="dewaadmin/orders" element={<DewaadminOrders />} />
+                  <Route path="customer-insights" element={<CustomerInsights />} />
                   <Route path="menu-receipt/:id" element={<ReceiptMenu />} />
                   <Route path="menu" element={<Menumanagement />} />
                   <Route path="menu-create" element={<Menucreate />} />
@@ -251,6 +254,7 @@ export default function App() {
                   {/* Sales */}
                   <Route path="digital-payment" element={<DigitalPayment />} />
                   <Route path="transaction-sales" element={<SalesTransaction />} />
+                  <Route path="reservation-sales" element={<ReservationSales />} />
                   <Route path="type-transaction" element={<TypeTransaction />} />
                   <Route path="product-sales" element={<ProductSales />} />
                   <Route path="device-sales" element={<DeviceSales />} />

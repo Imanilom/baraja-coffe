@@ -19,6 +19,7 @@ import {
 const salesMenuItems = [
     { to: "/admin/summary", icon: FaBook, label: "Ringkasan" },
     { to: "/admin/transaction-sales", icon: FaFileInvoiceDollar, label: "Data Transaksi Penjualan" },
+    { to: "/admin/reservation-sales", icon: FaFileInvoiceDollar, label: "Laporan Penjualan Reservasi" },
     { to: "/admin/product-sales", icon: FaShoppingBag, label: "Penjualan Produk" },
     { to: "/admin/outlet-sales", icon: FaStore, label: "Penjualan Per Outlet" },
     { to: "/admin/daily-sales", icon: FaSignal, label: "Penjualan Harian" },
