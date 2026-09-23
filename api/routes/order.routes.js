@@ -107,7 +107,7 @@ router.get("/getPayment/:orderId", getPendingPaymentOrders);
 // router.post("/chargeCash", chargeCash);
 
 router.post('/midtrans/webhook', midtransWebhook);
-router.post('/btn-qris/webhook', btnQrisWebhook);
+router.post('/snap/v1/qr/qr-mpm-notify', btnQrisWebhook);
 router.post('/btn-qris/generate', generateBtnQris);
 router.post('/btn-qris/query', queryBtnPayment);
 router.post('/btn-qris/cancel', cancelBtnPayment);
