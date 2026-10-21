@@ -21,6 +21,7 @@ import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
+import 'package:kasirbaraja/services/customer_display_service.dart';
 import 'package:collection/collection.dart';
 import 'package:uuid/uuid.dart';
 import 'package:kasirbaraja/providers/orders/saved_order_provider.dart';
@@ -987,6 +988,31 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       );
 
       debugPrint('✅ Recalculation complete: grandTotal=$grandTotal');
+
+      // ✅ Sync with Customer Display
+      try {
+        final device = await HiveService.getDevice();
+        final deviceId = device?.deviceId ?? device?.id ?? 'kasir-1';
+        
+        final cartItemsJson = orderAfterPromo.items.map((item) {
+          return {
+            'name': item.menuItem.name,
+            'price': item.menuItem.originalPrice ?? 0,
+            'quantity': item.quantity,
+          };
+        }).toList();
+
+        await customerDisplayService.syncCart(
+          deviceId: deviceId,
+          cartItems: cartItemsJson,
+          subTotal: totalBeforeDiscount,
+          tax: totalTax,
+          discount: totalDiscount + orderCustomDiscount,
+          grandTotal: grandTotal,
+        );
+      } catch (e) {
+        debugPrint('⚠️ Failed to sync with customer display: $e');
+      }
     } catch (e, stackTrace) {
       debugPrint('❌ Error in recalculation: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -1018,8 +1044,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   // ORDER SUBMISSION
   // ============================================================================
 
-  Future<bool> submitOrder() async {
-    if (state == null) return false;
+  Future<Map<String, dynamic>?> submitOrder() async {
+    if (state == null) return null;
 
     try {
       final cashier = await HiveService.getCashier();
@@ -1049,7 +1075,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       // ✅ Cleanup saved order if applicable
       await _cleanupSavedOrder();
 
-      return order.isNotEmpty;
+      return order.isNotEmpty ? order : null;
     } catch (e) {
       debugPrint('Error submitting order: $e');
       // Do NOT reset key here, so retry uses same key

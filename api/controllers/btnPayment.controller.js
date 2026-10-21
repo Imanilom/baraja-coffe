@@ -1,7 +1,24 @@
+import crypto from 'crypto';
 import btnQrisService from '../services/btnQris.service.js';
 import { Order } from '../models/order.model.js';
 // import OrderWeb from '../models/OrderWeb.model.js'; // Model ini tidak ada
 import Payment from '../models/Payment.model.js';
+
+export const generateBtnCallbackPartnerId = async (req, res) => {
+  let partnerId;
+  do {
+    partnerId = crypto.randomUUID();
+  } while (partnerId.toLowerCase() === process.env.BTN_API_KEY?.toLowerCase());
+
+  return res.status(201).json({
+    success: true,
+    data: {
+      partnerId,
+      environmentVariable: 'BTN_CALLBACK_PARTNER_ID',
+      note: 'Register this callback partner ID with BTN and set it as BTN_CALLBACK_PARTNER_ID. Keep BTN_API_KEY unchanged for Baraja requests to BTN.'
+    }
+  });
+};
 
 export const generateBtnQris = async (req, res) => {
   try {

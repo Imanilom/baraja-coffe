@@ -1,0 +1,32 @@
+{
+  "name": "Baraja Coffee - Manager Authorization Portal",
+  "short_name": "Baraja Approval",
+  "description": "Portal Otorisasi Remote Manager & Supervisor Baraja Coffee",
+  "start_url": "approval.php",
+  "id": "approval.php",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F5F7F0",
+  "theme_color": "#4F6B41",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

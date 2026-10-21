@@ -1,0 +1,23 @@
+{
+    "name": "Baraja Customer Display",
+    "short_name": "Baraja Display",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#1E2D23",
+    "theme_color": "#1E2D23",
+    "description": "Layar Tampilan Pelanggan Kasir Digital Baraja Coffee Amphitheater Cirebon.",
+    "orientation": "landscape",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "favicon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

@@ -8,6 +8,7 @@ import { processSelectedPromos } from '../../helpers/promo.handler.js';
 import mongoose from 'mongoose';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
 import { triggerImmediatePrint, broadcastCashOrderToKitchen } from '../../helpers/broadcast.helper.js';
+import { orderQueue } from '../../queues/order.queue.js';
 
 // ========== CREATE ORDER HANDLER (UPDATED) ==========
 export async function createOrderHandler({

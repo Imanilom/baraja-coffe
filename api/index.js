@@ -68,6 +68,7 @@ import hrRoutes from './routes/hr.route.js';
 import { setupPaymentExpiryMonitor } from './services/paymentExpiryMonitor.js';
 import chatbotRoutes from './routes/chatbot.routes.js';
 import customerProfileRoutes from './routes/customerProfile.routes.js';
+import customerDisplayRoutes from './routes/customerDisplay.routes.js';
 
 dotenv.config();
 
@@ -150,6 +151,7 @@ app.use('/api/ticket', TicketRoutes);
 app.use('/api/accounting', AccountingRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/customer-profiles', customerProfileRoutes);
+app.use('/api/customer-display', customerDisplayRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/roles', roleRoutes);
@@ -174,7 +176,7 @@ app.use('/api/dewaadmin/orders', dewaadminOrderRoutes);
 
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));
-app.get(/^\/(?!api).*/, (req, res) => {
+ app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
 

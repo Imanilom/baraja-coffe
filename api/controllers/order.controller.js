@@ -2273,7 +2273,7 @@ export async function generateOrderId(tableNumber) {
   const key = `order_seq_${tableOrDayCode}_${dateStr}`;
 
   let attempts = 0;
-  const maxAttempts = 20;
+  const maxAttempts = 100;
 
   while (attempts < maxAttempts) {
     attempts++;
@@ -5086,7 +5086,7 @@ const checkOutletOperatingHours = (outlet) => {
   const parseToMinutes = (timeStr) => {
     if (!timeStr) return null;
     const s = String(timeStr).trim().toUpperCase();
-    const m = s.match(/(\d{1,2}):(\d{2})/);
+    const m = s.match(/(\d{1,2})[:.](\d{2})/);
     if (!m) return null;
 
     let hh = parseInt(m[1], 10);
@@ -9372,10 +9372,8 @@ export const cashierCharge = async (req, res) => {
       paymentType: is_down_payment ? 'Down Payment' : 'Full',
       amount: gross_amount,
       totalAmount: updatedOrder.grandTotal,
-      // ✅ UPDATED: Use remainingAmount from frontend if provided, otherwise calculate
-      remainingAmount: remaining_amount !== undefined
-        ? remaining_amount
-        : Math.max(0, updatedOrder.grandTotal - totalPaid),
+      // ✅ UPDATED: Always calculate remainingAmount securely on the backend
+      remainingAmount: Math.max(0, updatedOrder.grandTotal - totalPaid),
       tendered_amount: tendered_amount || gross_amount,
       change_amount: change_amount || 0,
       fraud_status: 'accept',

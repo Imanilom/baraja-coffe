@@ -16,6 +16,7 @@ const AdminLayout = lazy(() => import("./pages/admin/index"));
 const Example = lazy(() => import("./pages/example"));
 const DewaadminOrders = lazy(() => import("./pages/dewaadmin_orders/index"));
 const CustomerInsights = lazy(() => import("./pages/customer_insights/index"));
+const CustomerDisplay = lazy(() => import("./pages/customer_display/index"));
 
 // Admin Pages
 const Dashboard = lazy(() => import("./pages/dashboard"));
@@ -195,6 +196,7 @@ export default function App() {
               <Route path="/about" element={<About />} />
               <Route path="/example" element={<Example />} />
               <Route path="/download" element={<Download />} />
+              <Route path="/customer-display/:deviceId" element={<CustomerDisplay />} />
 
               {/* Halaman Admin dengan Sidebar */}
               <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "dewaadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan", "cashier senior", "super kasir"]} />}>

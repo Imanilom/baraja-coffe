@@ -1127,6 +1127,18 @@ export default function socketHandler(io) {
             console.log(`Device ${socket.id} left area ${areaRoom} and group ${group}`);
         });
 
+        socket.on('join_customer_display', (deviceId, callback) => {
+            try {
+                const roomName = `customer_display_${deviceId}`;
+                socket.join(roomName);
+                console.log(`📺 Socket ${socket.id} joined customer display room: ${roomName}`);
+                if (callback) callback({ success: true, room: roomName });
+            } catch (error) {
+                console.error(`Error joining customer display room:`, error);
+                if (callback) callback({ success: false, error: error.message });
+            }
+        });
+
         socket.on('disconnect', async (reason) => {
             console.log('❌ Client disconnected:', socket.id, 'Reason:', reason);
             clearInterval(pingInterval);

@@ -6,7 +6,53 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { PrintLogger } from '../services/print-logger.service.js';
 import { PrintLog } from '../models/print-log.model.js';
+import Reservation from '../models/Reservation.model.js';
 dotenv.config();
+
+const autoCompleteOrderIfItemsServed = async (order) => {
+  const activeItems = order.items.filter(item => !item.isCancelled);
+  if (
+    order.status === 'Completed' ||
+    activeItems.length === 0 ||
+    !activeItems.every(item => item.kitchenStatus === 'served')
+  ) {
+    return false;
+  }
+
+  if (order.reservation) {
+    const reservationId = order.reservation._id || order.reservation;
+    const reservation = await Reservation
+      .findById(reservationId)
+      .select('status')
+      .lean();
+
+    if (['confirmed', 'checked-in', 'in-progress'].includes(reservation?.status)) {
+      return false;
+    }
+  }
+
+  order.status = 'Completed';
+  order.autoCompletedAt = new Date();
+  order.autoCompletedReason = 'All active workstation items served';
+  return true;
+};
+
+const broadcastAutoCompletedOrder = (orderId, workstationType) => {
+  if (!global.io) return;
+
+  const updateData = {
+    order_id: orderId,
+    status: 'Completed',
+    orderStatus: 'Completed',
+    timestamp: new Date()
+  };
+
+  global.io.to(`order_${orderId}`).emit('order_status_update', updateData);
+  global.io.to('cashier_room').emit('workstation_order_updated', updateData);
+  if (workstationType) {
+    global.io.to(`${workstationType}_room`).emit('workstation_order_updated', updateData);
+  }
+};
 
 // ============================================
 // PRINT TRACKING FUNCTIONS
@@ -796,7 +842,9 @@ export const updateKitchenItemStatus = async (req, res) => {
       itemToUpdate.printedAt = new Date();
     }
 
+    const autoCompleted = await autoCompleteOrderIfItemsServed(order);
     await order.save();
+    if (autoCompleted) broadcastAutoCompletedOrder(orderId, 'kitchen');
 
     const updatedOrder = await Order.findOne({ order_id: orderId })
       .populate('items.menuItem')
@@ -917,7 +965,9 @@ export const bulkUpdateKitchenItems = async (req, res) => {
       });
     }
 
+    const autoCompleted = await autoCompleteOrderIfItemsServed(order);
     await order.save();
+    if (autoCompleted) broadcastAutoCompletedOrder(orderId, 'kitchen');
 
     const updatedOrder = await Order.findOne({ order_id: orderId })
       .populate('items.menuItem')
@@ -1107,7 +1157,9 @@ export const updateWorkstationItemStatus = async (req, res) => {
       itemToUpdate.printedAt = new Date();
     }
 
+    const autoCompleted = await autoCompleteOrderIfItemsServed(order);
     await order.save();
+    if (autoCompleted) broadcastAutoCompletedOrder(orderId, workstationType);
 
     const updatedOrder = await Order.findOne({ order_id: orderId })
       .populate('items.menuItem')
@@ -1240,7 +1292,9 @@ export const bulkUpdateWorkstationItems = async (req, res) => {
       });
     }
 
+    const autoCompleted = await autoCompleteOrderIfItemsServed(order);
     await order.save();
+    if (autoCompleted) broadcastAutoCompletedOrder(orderId, workstationType);
 
     const updatedOrder = await Order.findOne({ order_id: orderId })
       .populate('items.menuItem')

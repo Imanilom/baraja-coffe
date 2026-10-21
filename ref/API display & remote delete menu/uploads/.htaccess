@@ -1,0 +1,5 @@
+# Unset duplicate CORS headers for uploads directory
+<IfModule mod_headers.c>
+    Header unset Access-Control-Allow-Origin
+    Header set Access-Control-Allow-Origin "*"
+</IfModule>

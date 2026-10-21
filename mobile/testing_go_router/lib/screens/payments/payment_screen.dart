@@ -19,6 +19,10 @@ import 'package:kasirbaraja/providers/orders/pending_order_provider.dart'; // �
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
 import 'package:kasirbaraja/providers/orders/saved_order_provider.dart'; // ✅ NEW
+import 'package:kasirbaraja/services/customer_display_service.dart'; // ✅ NEW QRIS
+import 'package:socket_io_client/socket_io_client.dart' as IO; // ✅ NEW QRIS
+import 'package:kasirbaraja/utils/app_config.dart'; // ✅ NEW QRIS
+
 // ✅ NEW: Import UUID
 
 // Provider tipe pembayaran yang sudah kamu punya
@@ -212,10 +216,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // Get the current order from provider to detect changes
     final currentOrder = ref.read(orderDetailProvider);
     if (currentOrder == null) return true; // Allow if can't verify
-    
+
     final originalItemCount = widget.order.items.length;
     final currentItemCount = currentOrder.items.length;
-    
+
     // If item count differs → FRAUD DETECTED
     if (originalItemCount != currentItemCount) {
       debugPrint(
@@ -223,12 +227,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       );
       return false;
     }
-    
+
     // Check each item still exists and hasn't been modified
     for (int i = 0; i < originalItemCount; i++) {
       final original = widget.order.items[i];
       final current = currentOrder.items[i];
-      
+
       // Compare item IDs and quantities
       if (original.menuItem.id != current.menuItem.id ||
           original.quantity != current.quantity) {
@@ -238,7 +242,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         return false;
       }
     }
-    
+
     // All checks passed - items haven't been modified
     return true;
   }
@@ -521,9 +525,94 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
   }
 
+  Future<void> _handleQRISPaymentSuccess({
+    required Map<String, dynamic> responseData,
+    required OrderDetailModel finalOrder,
+    required VoidCallback onSuccessAction,
+  }) async {
+    String? qrisString;
+    final payments = responseData['payments'] as List<dynamic>?;
+    if (payments != null) {
+      for (var p in payments) {
+        if (p['method'] == 'QRIS' || p['method'] == 'BTN_QRIS') {
+          qrisString =
+              p['qr_string'] ??
+              (p['raw_response'] != null
+                  ? p['raw_response']['qrContent']
+                  : null);
+          if (qrisString != null) break;
+        }
+      }
+    }
+
+    if (qrisString == null) {
+      final payment = responseData['payment'];
+      if (payment != null &&
+          (payment['method'] == 'QRIS' || payment['method'] == 'BTN_QRIS')) {
+        qrisString =
+            payment['qr_string'] ??
+            (payment['raw_response'] != null
+                ? payment['raw_response']['qrContent']
+                : null);
+      }
+    }
+
+    if (qrisString != null) {
+      try {
+        await CustomerDisplayService().showQris(qrisString);
+      } catch (e) {
+        debugPrint('CustomerDisplayService error: $e');
+      }
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text(
+              'Menunggu Pembayaran',
+              textAlign: TextAlign.center,
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  'Menunggu pelanggan menyelesaikan pembayaran QRIS...',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      final socket = IO.io(AppConfig.baseUrl, <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': false,
+      });
+      socket.connect();
+      socket.on('payment_success', (data) {
+        final orderId = data['orderId'] ?? data['order_id'];
+        if (orderId == finalOrder.orderId) {
+          debugPrint('✅ Payment Success Event Received for $orderId!');
+          socket.disconnect();
+          if (mounted) {
+            Navigator.of(context).pop(); // Close waiting dialog
+            onSuccessAction();
+          }
+        }
+      });
+    } else {
+      onSuccessAction();
+    }
+  }
+
   Future<void> _finishOrderToBackend() async {
     final sw = Stopwatch()..start();
-    
+
     // ✅ NEW: Verify items haven't been deleted during payment screen (FIX #4)
     if (!_verifyOrderItemsNotModified()) {
       if (context.mounted) {
@@ -565,39 +654,46 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         debugPrint('submitOrder took: ${sw.elapsedMilliseconds}ms');
 
         debugPrint('result submitOrder: $result');
-        if (result && context.mounted) {
+        if (result != null && result.isNotEmpty && context.mounted) {
           setState(() {
             _submitStatus = SubmitStatus.success;
           });
           ref.invalidate(orderHistoryProvider);
-          final savedPrinter = ref.read(savedPrintersProvider.notifier);
-          savedPrinter.printToPrinter(
-            orderDetail: ref.read(orderDetailProvider) ?? widget.order,
-            printType: 'all',
+
+          Navigator.pop(context); // Close submitting dialog
+
+          final responseData = result['data'] ?? result['order'] ?? result;
+          final finalOrder = ref.read(orderDetailProvider) ?? widget.order;
+
+          await _handleQRISPaymentSuccess(
+            responseData: responseData,
+            finalOrder: finalOrder,
+            onSuccessAction: () {
+              final savedPrinter = ref.read(savedPrintersProvider.notifier);
+              savedPrinter.printToPrinter(
+                orderDetail: finalOrder,
+                printType: 'all',
+              );
+              try {
+                final menuRepo = MenuItemRepository();
+                menuRepo
+                    .decreaseLocalStockFromOrderItems(widget.order.items)
+                    .catchError((e) {
+                      debugPrint('decreaseLocalStockFromOrderItems gagal: $e');
+                    });
+                ref.invalidate(reservationMenuItemProvider);
+                debugPrint('✅ Stok lokal berhasil dikurangi setelah transaksi');
+              } catch (e) {
+                debugPrint('⚠️ Gagal mengurangi stok lokal: $e');
+              }
+              if (mounted) {
+                context.goNamed(
+                  'payment-success',
+                  extra: {'orderDetail': finalOrder},
+                );
+              }
+            },
           );
-          try {
-            final menuRepo = MenuItemRepository();
-
-            // Kurangi stok di Hive sesuai qty yang dibeli
-            menuRepo
-                .decreaseLocalStockFromOrderItems(widget.order.items)
-                .catchError((e) {
-                  debugPrint('decreaseLocalStockFromOrderItems gagal: $e');
-                });
-
-            // refresh menu badge stok
-            ref.invalidate(reservationMenuItemProvider);
-
-            debugPrint('✅ Stok lokal berhasil dikurangi setelah transaksi');
-          } catch (e) {
-            debugPrint('⚠️ Gagal mengurangi stok lokal: $e');
-          }
-          if (mounted) {
-            context.goNamed(
-              'payment-success',
-              extra: {'orderDetail': ref.read(orderDetailProvider)},
-            );
-          }
         }
       }
     } on DioException catch (e) {
@@ -725,28 +821,37 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           }
         }
 
-        // 7. Print Customer Receipt (forceReprint bypasses delta=0 after saveOpenBill sync)
-        final printers = ref.read(savedPrintersProvider);
-        if (printers.isNotEmpty) {
-          await PrinterService.printDocuments(
-            orderDetail: finalOrder,
-            printType: 'customer',
-            printers: printers,
-            forceReprint: true,
-          );
-        }
-
-        // 8. Navigate Success
         if (mounted) {
           Navigator.pop(context); // Close loading dialog
-          context.goNamed(
-            'payment-success',
-            extra: {
-              'orderDetail': finalOrder,
-              'isCloseBill': true,
-            }, // ✅ Use order with Backend ID
-          );
         }
+
+        await _handleQRISPaymentSuccess(
+          responseData: responseData,
+          finalOrder: finalOrder,
+          onSuccessAction: () async {
+            // 7. Print Customer Receipt (forceReprint bypasses delta=0 after saveOpenBill sync)
+            final printers = ref.read(savedPrintersProvider);
+            if (printers.isNotEmpty) {
+              await PrinterService.printDocuments(
+                orderDetail: finalOrder,
+                printType: 'customer',
+                printers: printers,
+                forceReprint: true,
+              );
+            }
+
+            // 8. Navigate Success
+            if (mounted) {
+              context.goNamed(
+                'payment-success',
+                extra: {
+                  'orderDetail': finalOrder,
+                  'isCloseBill': true,
+                }, // ✅ Use order with Backend ID
+              );
+            }
+          },
+        );
       } else {
         throw Exception('Failed to create order: Valid response missing');
       }

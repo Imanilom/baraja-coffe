@@ -73,7 +73,14 @@ import {
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook, btnQrisWebhook } from '../controllers/webhookController.js';
 import { createAppOrder } from '../controllers/testapporder.controller.js';
-import { generateBtnQris, queryBtnPayment, cancelBtnPayment, refundBtnPayment } from '../controllers/btnPayment.controller.js';
+import {
+  generateBtnCallbackPartnerId,
+  generateBtnQris,
+  queryBtnPayment,
+  cancelBtnPayment,
+  refundBtnPayment
+} from '../controllers/btnPayment.controller.js';
+import { btnQrisCallbackAuth } from '../middlewares/btnQrisCallbackAuth.js';
 // import { chargeWithLocking, createAppOrderWithLocking } from '../controllers/testapporder.controller.js';
 
 const router = express.Router();
@@ -107,7 +114,8 @@ router.get("/getPayment/:orderId", getPendingPaymentOrders);
 // router.post("/chargeCash", chargeCash);
 
 router.post('/midtrans/webhook', midtransWebhook);
-router.post('/snap/v1/qr/qr-mpm-notify', btnQrisWebhook);
+router.post('/snap/v1/qr/qr-mpm-notify', btnQrisCallbackAuth, btnQrisWebhook);
+router.post('/btn-qris/callback-partner-id', verifyToken(['admin', 'superadmin']), generateBtnCallbackPartnerId);
 router.post('/btn-qris/generate', generateBtnQris);
 router.post('/btn-qris/query', queryBtnPayment);
 router.post('/btn-qris/cancel', cancelBtnPayment);

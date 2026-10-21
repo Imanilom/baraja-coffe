@@ -13,7 +13,6 @@ import {
   deleteMarketListItem,
   deleteAdditionalExpense,
   getRequests,
-  getCashFlow,
   addCashIn,
   withdrawCash,
   getBalanceSummary,
@@ -116,9 +115,7 @@ router.post('/cashflow/out', inventoryAccess, withdrawCash);
 
 router.get('/cashflow/balance', inventoryAccess, getBalanceSummary);
 
-router.get('/cashflow', allAuthenticated, getCashFlow);
-
-router.get('/cashflow', getFilteredCashFlow);
+router.get('/cashflow', allAuthenticated, getFilteredCashFlow);
 
 router.get('/marketlist', getMarketListReportByDate);
 
