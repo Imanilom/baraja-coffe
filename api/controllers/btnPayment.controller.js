@@ -20,6 +20,21 @@ export const generateBtnCallbackPartnerId = async (req, res) => {
   });
 };
 
+export const getBtnCallbackPartnerId = (req, res) => {
+  const partnerId = process.env.BTN_CALLBACK_PARTNER_ID;
+  if (!partnerId) {
+    return res.status(503).json({
+      success: false,
+      message: 'BTN callback partner ID is not configured'
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: { partnerId }
+  });
+};
+
 export const generateBtnQris = async (req, res) => {
   try {
     const { orderId, amount, isWebOrder } = req.body;
