@@ -66,6 +66,73 @@ export const chargeTicket = async (req, res) => {
         // Gunakan gross_amount dari event jika tidak disediakan
         const gross_amount = transaction_details?.gross_amount || (event.ticketPrice * quantity);
 
+        // === Handle Midtrans Snap (Web pop-up snap.pay) ===
+        if (payment_type === 'snap') {
+            const snapTransaction = await snap.createTransaction({
+                transaction_details: {
+                    order_id: payment_code,
+                    gross_amount: parseInt(gross_amount)
+                },
+                customer_details: {
+                    first_name: user.name || 'Customer',
+                    email: user.email || '',
+                    phone: user.phone || ''
+                }
+            });
+
+            // Simpan record Payment dengan status pending
+            const payment = new Payment({
+                transaction_id: snapTransaction.token,
+                order_id: order_id,
+                payment_code: payment_code,
+                amount: parseInt(gross_amount),
+                totalAmount: parseInt(gross_amount),
+                method: 'snap',
+                status: 'pending',
+                paymentType: 'Full',
+                remainingAmount: 0,
+                relatedPaymentId: null,
+                raw_response: snapTransaction
+            });
+            const savedPayment = await payment.save();
+
+            // Simpan record TicketPurchase
+            const ticketPurchase = new TicketPurchase({
+                event: event_id,
+                user: user_id,
+                payment_id: savedPayment._id,
+                quantity: quantity,
+                totalPrice: parseInt(gross_amount),
+                order_id: order_id,
+                status: 'pending'
+            });
+            const savedTicketPurchase = await ticketPurchase.save();
+
+            // Update Event kuota soldTickets
+            await Event.findByIdAndUpdate(
+                event_id,
+                {
+                    $inc: { soldTickets: quantity },
+                    $addToSet: {
+                        ticketPurchases: savedTicketPurchase._id,
+                        ticket_purchases: savedTicketPurchase._id
+                    }
+                }
+            );
+
+            return res.status(200).json({
+                success: true,
+                order_id: order_id,
+                payment_code: payment_code,
+                snapToken: snapTransaction.token,
+                redirect_url: snapTransaction.redirect_url,
+                ticketPurchaseId: savedTicketPurchase._id,
+                paymentId: savedPayment._id,
+                totalAmount: parseInt(gross_amount),
+                quantity: quantity
+            });
+        }
+
         // === Setup payment parameters ===
         let chargeParams = {
             payment_type: payment_type,

@@ -260,6 +260,17 @@ const OrderSchema = new mongoose.Schema({
   idempotencyKey: { type: String, index: true, unique: true, sparse: true },
   user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   user: { type: String, required: true, default: 'Guest' },
+  // ? CUSTOMER PHONE: Nomor HP pelanggan dari input kasir
+  customerPhone: {
+    type: String,
+    default: null,
+    trim: true,
+    index: true
+  },
+  contact: {
+    phone: { type: String, default: null, trim: true },
+    email: { type: String, default: null, trim: true }
+  },
   cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   groId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   device_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Device', default: null },

@@ -3409,7 +3409,13 @@ const closeOpenBillHandler = async ({
 
     // Update customer info
     if (customerName) order.user = customerName;
-    if (customerPhone) order.contact = { phone: customerPhone };
+    if (customerPhone) {
+      order.customerPhone = customerPhone;
+      order.contact = {
+        ...(order.contact || {}),
+        phone: customerPhone
+      };
+    }
 
     // 🐛 DEBUG: Log before setting isSplitPayment
     console.log('🔍 BEFORE setting isSplitPayment:', {
@@ -8533,6 +8539,7 @@ export const getCashierOrderById = async (req, res) => {
     // Struktur return mengikuti getPendingOrders dengan fitur khusus tetap ada
     const enrichedOrder = {
       ...order,
+      customerPhone: order.customerPhone || order.contact?.phone || null,
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
       items: formattedItems,
@@ -9188,6 +9195,7 @@ export const getCashierOrderHistory = async (req, res) => {
 
       return {
         ...order,
+        customerPhone: order.customerPhone || order.contact?.phone || null,
         appliedPromos: appliedPromosdata,
         updatedAtWIB: toISOJakartaWithOffset(updatedAtFromPayment),
         cashierId: undefined,
@@ -10485,6 +10493,7 @@ export function toOrderDTO(orderDoc, paymentDocs = []) {
     _id: toStr(o._id),
     order_id: o.order_id ?? '',
     user: o.user?.name ?? o.user ?? '',
+    customerPhone: o.customerPhone || o.contact?.phone || null,
     items,
 
     status: o.status ?? 'Pending',

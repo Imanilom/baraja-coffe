@@ -27,10 +27,38 @@ kanal aman terpisah dan tidak sama dengan credential Open API BTN.
 
 ### Mendapatkan access token
 
+#### Request manual di Postman
+
+Buat request baru dengan pengaturan berikut:
+
+1. Method: `POST`.
+2. URL: `https://{{DOMAIN_BARAJA}}/api/btn-qris/oauth/token`.
+3. Tab **Authorization**: pilih **Basic Auth**, lalu isi `Username` dengan
+   `BTN_CALLBACK_OAUTH_CLIENT_ID` dan `Password` dengan
+   `BTN_CALLBACK_OAUTH_CLIENT_SECRET`.
+4. Tab **Body**: pilih **x-www-form-urlencoded** dan tambahkan satu field:
+   `grant_type` = `client_credentials`.
+5. Tekan **Send**. Jangan mengirim `BTN_CALLBACK_OAUTH_TOKEN_SECRET` sebagai
+   password atau Bearer token.
+
+Respons sukses berisi `access_token`. Gunakan hanya nilai `access_token` dari
+respons itu sebagai Bearer token pada request Partner ID.
+
+#### Postman OAuth 2.0 helper
+
+Jika menggunakan tab **Authorization > OAuth 2.0**, konfigurasi **Get New
+Access Token** dengan **Grant Type** `Client Credentials`, **Access Token
+URL** endpoint di atas, **Client ID** dan **Client Secret** dari Baraja, serta
+**Client Authentication** `Send as Basic Auth header`. Tekan **Get New Access
+Token**, lalu gunakan token hasilnya sebagai Bearer untuk request Partner ID.
+
+Jangan memilih endpoint callback QRIS sebagai Access Token URL; token URL adalah
+`/api/btn-qris/oauth/token`.
+
 ```http
 POST https://{{DOMAIN_BARAJA}}/api/btn-qris/oauth/token
-Content-Type: application/x-www-form-urlencoded
 Authorization: Basic {{BASE64_CLIENT_ID_COLON_CLIENT_SECRET}}
+Content-Type: application/x-www-form-urlencoded
 
 grant_type=client_credentials
 ```

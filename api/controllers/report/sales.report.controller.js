@@ -1437,6 +1437,8 @@ class DailyProfitController {
         filters.$or = [
           { order_id: { $regex: searchTerm, $options: 'i' } },
           { user: { $regex: searchTerm, $options: 'i' } },
+          { customerPhone: { $regex: searchTerm, $options: 'i' } },
+          { 'contact.phone': { $regex: searchTerm, $options: 'i' } },
           { 'items.menuItemData.name': { $regex: searchTerm, $options: 'i' } },
         ];
       }
@@ -4486,7 +4488,14 @@ class DailyProfitController {
             _id: '$customerName',
             customerId: { $first: { $ifNull: ['$user_id', null] } },
             customerName: { $first: '$customerName' },
-            customerPhone: { $first: { $ifNull: ['$customerDetails.phone', null] } },
+            customerPhone: {
+              $first: {
+                $ifNull: [
+                  '$customerPhone',
+                  { $ifNull: ['$contact.phone', '$customerDetails.phone'] }
+                ]
+              }
+            },
             customerType: { $first: { $ifNull: ['$customerDetails.consumerType', '-'] } },
             transactionCount: { $sum: 1 },
             totalSales: { $sum: '$grandTotal' },

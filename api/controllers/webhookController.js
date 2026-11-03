@@ -6,6 +6,9 @@ import { socketManagement } from '../utils/socketManagement.js';
 import GoSendBooking from '../models/GoSendBooking.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 import { LockUtil } from '../utils/lock.util.js';
+import TicketPurchase from '../models/TicketPurchase.model.js';
+import Event from '../models/Event.model.js';
+import fetch from 'node-fetch';
 
 export const midtransWebhook = async (req, res) => {
   let requestId = Math.random().toString(36).substr(2, 9);
@@ -124,6 +127,108 @@ export const midtransWebhook = async (req, res) => {
 
       // ✅ PERBAIKAN: Cari order berdasarkan order_id dari payment record
       const targetOrderId = updatedPayment.order_id; // Selalu gunakan order_id dari payment
+
+      // =================================================================
+      // 🎫 PERCABANGAN TIKET EVENT
+      // Cek apakah order ini adalah pembelian tiket (prefix TICKET- atau
+      // ada record TicketPurchase yang cocok di database)
+      // =================================================================
+      const isTicketByPrefix = targetOrderId && targetOrderId.startsWith('TICKET-');
+      const ticketExistsInDb = isTicketByPrefix
+        ? false // sudah pasti tiket, skip extra DB check
+        : await TicketPurchase.exists({
+            $or: [
+              { order_id: targetOrderId },
+              { payment_id: updatedPayment._id }
+            ]
+          });
+      const isTicket = isTicketByPrefix || !!ticketExistsInDb;
+
+      if (isTicket) {
+        console.log(
+          `[WEBHOOK ${requestId}] 🎫 Memproses notifikasi Tiket Event: ${targetOrderId}`
+        );
+
+        const ticket = await TicketPurchase.findOne({
+          $or: [
+            { order_id: targetOrderId },
+            { payment_id: updatedPayment._id }
+          ]
+        }).populate('event');
+
+        if (!ticket) {
+          console.error(
+            `[WEBHOOK ${requestId}] Ticket purchase record not found for: ${targetOrderId}`
+          );
+          throw new Error('Ticket purchase not found');
+        }
+
+        // 1. Update status tiket berdasarkan status Midtrans
+        if (['capture', 'settlement'].includes(transaction_status) && fraud_status === 'accept') {
+          ticket.status = 'paid';
+          await ticket.save();
+          console.log(
+            `[WEBHOOK ${requestId}] ✅ Tiket ${targetOrderId} berhasil diupdate menjadi PAID`
+          );
+
+        } else if (['deny', 'cancel', 'expire'].includes(transaction_status)) {
+          ticket.status = 'cancelled';
+          await ticket.save();
+
+          // Kembalikan kapasitas/kuota event jika batal/expired
+          if (ticket.event) {
+            await Event.findByIdAndUpdate(ticket.event._id, {
+              $inc: { soldTickets: -ticket.quantity }
+            });
+            console.log(
+              `[WEBHOOK ${requestId}] Kuota event dikembalikan sebanyak ${ticket.quantity}`
+            );
+          }
+        }
+
+        // 2. Emit socket update untuk web/aplikasi
+        if (io) {
+          io.to(`ticket_${targetOrderId}`).emit('ticket_payment_status', {
+            order_id: targetOrderId,
+            status: ticket.status,
+            transaction_status
+          });
+        }
+
+        // 3. Forward notifikasi ke Web Event PHP (non-fatal jika gagal)
+        try {
+          const phpWebhookUrl =
+            process.env.PHP_EVENT_WEBHOOK_URL ||
+            'https://events.barajacoffee.com/midtrans-notification.php';
+          const forwardRes = await fetch(phpWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(5000)
+          });
+          console.log(
+            `[WEBHOOK ${requestId}] Forwarded webhook ke PHP event, HTTP status: ${forwardRes.status}`
+          );
+        } catch (forwardErr) {
+          console.warn(
+            `[WEBHOOK ${requestId}] Gagal forward ke PHP event (non-fatal):`,
+            forwardErr.message
+          );
+        }
+
+        // Selesai untuk tiket -- kembalikan result agar LockUtil bisa wrap dengan benar
+        return {
+          success: true,
+          isTicket: true,
+          order_id: targetOrderId,
+          transaction_status,
+          ticket_status: ticket.status,
+          message: 'Ticket webhook processed successfully'
+        };
+      }
+      // =================================================================
+      // Jika BUKAN tiket, lanjutkan alur pesanan cafe/resto reguler
+      // =================================================================
 
       const order = await Order.findOne({ order_id: targetOrderId })
         .populate('user_id', 'name email phone')
@@ -326,10 +431,12 @@ export const midtransWebhook = async (req, res) => {
 
     res.status(200).json({
       status: 'ok',
-      message: 'Webhook processed successfully',
+      message: result.message || 'Webhook processed successfully',
       order_id: result.order_id,
       transaction_status: result.transaction_status,
-      order_type: result.order_type
+      ...(result.isTicket
+        ? { ticket_status: result.ticket_status, is_ticket: true }
+        : { order_type: result.order_type })
     });
 
   } catch (error) {
@@ -353,7 +460,7 @@ export const midtransWebhook = async (req, res) => {
       return res.status(404).json({ message: error.message });
     }
 
-    if (error.message.includes('Order not found')) {
+    if (error.message.includes('Order not found') || error.message.includes('Ticket purchase not found')) {
       return res.status(404).json({ message: error.message });
     }
 

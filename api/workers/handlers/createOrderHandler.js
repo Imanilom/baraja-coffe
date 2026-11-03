@@ -260,6 +260,7 @@ async function createOrderWithSimpleTransaction({
       type,
       user,
       contact,
+      customerPhone,
       notes,
       isSplitPayment = false,
       delivery_option,
@@ -616,6 +617,20 @@ async function createOrderWithSimpleTransaction({
 
     if (contact) {
       baseOrderData.contact = contact;
+    }
+
+    // ? Mapping nomor handphone pelanggan dari kasir
+    const resolvedPhone = customerPhone ||
+                          orderData.phoneNumber ||
+                          orderData.phone ||
+                          contact?.phone ||
+                          null;
+    if (resolvedPhone) {
+      baseOrderData.customerPhone = resolvedPhone;
+      baseOrderData.contact = {
+        ...(baseOrderData.contact || {}),
+        phone: resolvedPhone
+      };
     }
 
     if (device_id) {
