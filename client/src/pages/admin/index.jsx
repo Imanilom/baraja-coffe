@@ -6,7 +6,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "../../redux/user/userSlice";
 import { fetchOutlets } from "../../redux/outlet/outletSlice";
 import { jwtDecode } from "jwt-decode";
-import { FaHome, FaShoppingCart, FaCog, FaUser } from "react-icons/fa";
 import Header from "./header";
 
 const AdminDashboard = () => {
@@ -56,6 +55,8 @@ const AdminDashboard = () => {
       }
     }
   }, [currentUser, dispatch, navigate]);
+
+
 
   return (
     <>
@@ -110,4 +111,3 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
-

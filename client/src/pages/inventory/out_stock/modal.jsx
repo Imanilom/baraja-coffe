@@ -55,4 +55,3 @@ const Modal = ({ show, onClose, onSubmit }) => {
 };
 
 export default Modal;
-

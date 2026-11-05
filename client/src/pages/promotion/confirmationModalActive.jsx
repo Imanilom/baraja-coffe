@@ -79,4 +79,3 @@ const ConfirmationModalActive = ({ isOpen, onClose, onConfirm, voucher, newStatu
 };
 
 export default ConfirmationModalActive;
-

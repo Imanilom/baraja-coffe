@@ -49,19 +49,32 @@ export default function SignIn() {
       // console.log("Full response JSON:", data);
 
       dispatch(signInSuccess(data));
-      if (
-        data.role === 'superadmin' ||
-        data.role === 'admin' ||
-        data.role === 'akuntan' ||
-        data.role === 'marketing' ||
-        data.role === 'hrd' ||
-        data.role === 'gro' ||
-        data.role === 'inventory' ||
-        data.role === 'cashier senior' ||
-        data.role === 'super kasir'
-      ) {
-        if (data.isActive === true) {
-          if (data.role === "cashier senior") {
+
+      const rawRole = typeof data.role === 'object' ? data.role?.name : data.role;
+      const role = (rawRole || '').toLowerCase().trim();
+
+      const allowedRoles = [
+        'superadmin',
+        'super admin',
+        'admin',
+        'akuntan',
+        'marketing',
+        'hrd',
+        'gro',
+        'inventory',
+        'cashier senior',
+        'super kasir',
+        'qc',
+        'operational',
+        'staff'
+      ];
+
+      const disallowedRoles = ['cashier', 'cashier junior', 'customer'];
+      const isAllowed = allowedRoles.includes(role) || (role !== '' && !disallowedRoles.includes(role));
+
+      if (isAllowed) {
+        if (data.isActive !== false) {
+          if (role === "cashier senior") {
             navigate('/admin/menu');
           } else {
             navigate('/admin/dashboard');

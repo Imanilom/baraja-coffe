@@ -3,7 +3,7 @@ import axios from '@/lib/axios';
 import { Link } from "react-router-dom";
 import { FaPlus, FaEdit, FaTrash, FaImage, FaEye, FaTimes, FaCalendarAlt, FaFilter } from "react-icons/fa";
 import { useSelector } from "react-redux";
-import MessageAlert from "../../components/MessageAlert";
+import MessageAlert from "../../components/messageAlert";
 
 const ContentIndex = () => {
   const { currentUser } = useSelector((state) => state.user);

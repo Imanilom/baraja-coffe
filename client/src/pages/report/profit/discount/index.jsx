@@ -16,7 +16,8 @@ import {
     FaUsers
 } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import Select from "react-select";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
@@ -42,8 +43,8 @@ const DiscountManagement = () => {
         const start = searchParams.get('startDate');
         const end = searchParams.get('endDate');
         return {
-            startDate: start ? dayjs(start).toDate() : dayjs().subtract(7, 'day').toDate(),
-            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+            startDate: start ? start : dayjs().subtract(7, 'day').format('YYYY-MM-DD'),
+            endDate: end ? end : dayjs().format('YYYY-MM-DD')
         };
     });
     const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
@@ -231,10 +232,43 @@ const DiscountManagement = () => {
                 return;
             }
 
-            const ws = XLSX.utils.json_to_sheet(dataToExport);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Data Diskon");
-            XLSX.writeFile(wb, filename);
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('Data Diskon');
+            const hFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF005429' } };
+            const aFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+            const thin  = { style: 'thin', color: { argb: 'FFD1D5DB' } };
+            const bdr   = { top: thin, left: thin, bottom: thin, right: thin };
+
+            const headers = Object.keys(dataToExport[0]);
+            ws.columns = headers.map(h => ({ header: h, width: 22 }));
+
+            ws.mergeCells(`A1:` + String.fromCharCode(65 + headers.length - 1) + `1`);
+            Object.assign(ws.getCell('A1'), { value: 'LAPORAN DISKON & PROMO',
+                font: { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF005429' } },
+                alignment: { horizontal: 'center' } });
+            ws.getRow(1).height = 26;
+            ws.addRow([]);
+
+            const hRow = ws.addRow(headers);
+            hRow.eachCell(cell => {
+                cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = hFill; cell.border = bdr; cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            });
+            hRow.height = 20;
+
+            dataToExport.forEach((item, idx) => {
+                const row = ws.addRow(headers.map(h => item[h]));
+                row.height = 18;
+                row.eachCell((cell, col) => {
+                    cell.border = bdr;
+                    cell.alignment = { vertical: 'middle', horizontal: typeof cell.value === 'number' ? 'right' : 'left' };
+                    if (idx % 2 === 1) cell.fill = aFill;
+                    if (typeof cell.value === 'number' && cell.value > 100) cell.numFmt = '"Rp"#,##0;"Rp"-#,##0';
+                });
+            });
+
+            const buffer = await wb.xlsx.writeBuffer();
+            saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), filename);
         } catch (err) {
             console.error("Error exporting to Excel:", err);
             alert('Gagal mengekspor data. Silakan coba lagi.');

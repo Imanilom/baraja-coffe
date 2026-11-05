@@ -10,8 +10,15 @@ const PrivateRoute = ({ allowedRoles }) => {
   }
 
   if (allowedRoles) {
-    const userRole = typeof currentUser.role === 'object' ? currentUser.role.name : currentUser.role;
-    if (!allowedRoles.includes(userRole)) {
+    const rawRole = typeof currentUser.role === 'object' ? currentUser.role?.name : currentUser.role;
+    const userRole = (rawRole || '').toLowerCase().trim();
+    const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase().trim());
+    
+    // Disallow cashier & customer roles from general admin routes
+    const disallowedRoles = ['cashier', 'cashier junior', 'customer'];
+    const hasAccess = normalizedAllowed.includes(userRole) || (userRole !== '' && !disallowedRoles.includes(userRole));
+
+    if (!hasAccess) {
       // Redirect to home if the user does not have the required role
       return <Navigate to="/" replace />;
     }

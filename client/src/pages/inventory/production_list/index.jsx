@@ -9,7 +9,7 @@ import * as XLSX from "xlsx";
 
 import Header from "../../admin/header";
 import MessageAlert from "../messageAlert";
-import Paginated from "../../../components/Paginated";
+import Paginated from "../../../components/paginated";
 
 
 const ProductionListManagement = () => {
@@ -427,4 +427,3 @@ const ProductionListManagement = () => {
 };
 
 export default ProductionListManagement;
-

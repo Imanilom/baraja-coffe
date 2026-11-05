@@ -4,6 +4,7 @@ import axios from '@/lib/axios';
 import { Link, useLocation } from "react-router-dom";
 import { FaChevronRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import ConfirmationModal from "./dialog/confirmmodal";
 import ToppingForm from "./component/topping";
 import AddonForm from "./component/varian";
@@ -37,6 +38,7 @@ const CreateMenu = () => {
     subCategory: "",
     rawMaterials: [],
     availableAt: [],
+    imageURL: "",
   });
 
   const [toppings, setToppings] = useState([]);
@@ -113,24 +115,25 @@ const CreateMenu = () => {
       formData.append('image', compressedBlob, file.name);
       formData.append('kategori', 'menu'); // kategori untuk organize file
 
-      // Upload ke backend
-      const response = await axios.post('/api/menu/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      // Upload ke PHP backend
+      const response = await fetch('https://img.barajacoffee.com/api.php', {
+        method: 'POST',
+        body: formData,
       });
+      
+      const data = await response.json();
 
-      // Response format: { success: true, imageURL: "http://..." }
-      if (response.data.success) {
-        return response.data.imageURL;
+      if (data.success) {
+        return data.imageURL;
       } else {
-        throw new Error(response.data.message || 'Upload gagal');
+        toast.warning(data.message || 'Gagal upload gambar ke server external. Menu akan dibuat tanpa gambar baru.');
+        return "";
       }
 
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert('Gagal upload gambar: ' + (error.response?.data?.message || error.message));
-      throw error;
+      toast.warning('Gagal upload gambar: ' + (error.message || 'Server image offline') + '. Menu tetap akan dibuat.');
+      return "";
     } finally {
       setUploading(false);
     }
@@ -210,12 +213,57 @@ const CreateMenu = () => {
     const valueToSend = isChecked ? "kitchen" : "bar";
     e.preventDefault();
 
+    // Validasi kategori utama
+    if (!selectedMainCategory) {
+      toast.error("Pilih Kategori Utama terlebih dahulu.");
+      return;
+    }
+
+    // Validasi kategori
+    if (!formData.category) {
+      toast.error("Pilih Kategori terlebih dahulu.");
+      return;
+    }
+
+    // Validasi toppings
+    if (toppings && toppings.length > 0) {
+      for (let i = 0; i < toppings.length; i++) {
+        if (!toppings[i].name || !toppings[i].name.trim()) {
+          toast.error(`Nama topping ke-${i + 1} tidak boleh kosong.`);
+          return;
+        }
+      }
+    }
+
+    // Validasi addons (variasi)
+    if (addons && addons.length > 0) {
+      for (let i = 0; i < addons.length; i++) {
+        const addon = addons[i];
+        if (!addon.name || !addon.name.trim()) {
+          toast.error(`Nama variasi ke-${i + 1} tidak boleh kosong.`);
+          return;
+        }
+        if (!addon.options || addon.options.length === 0) {
+          toast.error(`Variasi "${addon.name}" harus memiliki minimal satu opsi.`);
+          return;
+        }
+        for (let j = 0; j < addon.options.length; j++) {
+          const opt = addon.options[j];
+          if (!opt.label || !opt.label.trim()) {
+            toast.error(`Nama opsi ke-${j + 1} pada variasi "${addon.name}" tidak boleh kosong.`);
+            return;
+          }
+        }
+      }
+    }
+
     try {
-      let imageURL = "";
+      let imageURL = formData.imageURL;
 
       // Upload image ke PHP jika ada
       if (imageFile) {
-        imageURL = await uploadToPHP(imageFile); // Upload ke PHP, dapat URL
+        const uploadedUrl = await uploadToPHP(imageFile); // Upload ke PHP, dapat URL
+        if (uploadedUrl) imageURL = uploadedUrl;
       }
 
       // Payload untuk database Anda sendiri
@@ -226,7 +274,7 @@ const CreateMenu = () => {
         imageURL: imageURL || "", // HANYA URL/LINK gambar yang disimpan
         mainCat: selectedMainCategory,
         category: formData.category,
-        subCategory: formData.subCategory || null,
+        subCategory: (formData.subCategory && formData.subCategory !== "") ? formData.subCategory : null,
         availableAt: formData.availableAt,
         rawMaterials: formData.rawMaterials || [],
         toppings: toppings.map((top) => ({
@@ -246,11 +294,13 @@ const CreateMenu = () => {
 
       // Simpan ke database Anda (data + URL gambar)
       await axios.post("/api/menu/menu-items", payload);
+      toast.success(`Menu ${formData.name} berhasil dibuat`);
       navigate(`/admin/menu?page=${returnPage}`, { state: { success: `Menu ${formData.name} berhasil dibuat` } });
 
     } catch (err) {
       console.error("Gagal kirim data:", err);
-      alert("Gagal menyimpan menu. Silakan coba lagi.");
+      const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || "Gagal menyimpan menu. Silakan coba lagi.";
+      toast.error(errMsg);
     }
   };
 
@@ -395,41 +445,72 @@ const CreateMenu = () => {
                 />
               </div>
 
-              <div className="flex items-center space-x-4 py-4">
-                {compressedImageURL ? (
-                  <img
-                    src={compressedImageURL}
-                    alt="Preview"
-                    className="h-24 w-24 object-cover rounded cursor-pointer"
-                    onClick={() => fileRef.current.click()}
+              <div className="py-4 space-y-3">
+                <label className="text-xs block font-medium uppercase text-green-950">Gambar Menu</label>
+                <div className="flex items-center space-x-4">
+                  {compressedImageURL || formData.imageURL ? (
+                    <img
+                      src={compressedImageURL || formData.imageURL}
+                      alt="Preview"
+                      className="h-24 w-24 object-cover rounded cursor-pointer border"
+                      onClick={() => fileRef.current.click()}
+                    />
+                  ) : (
+                    <div
+                      className="h-24 w-24 flex items-center justify-center bg-gray-100 border border-gray-300 rounded cursor-pointer hover:bg-gray-200 transition"
+                      onClick={() => fileRef.current.click()}
+                    >
+                      <span className="text-gray-500 text-2xl">+</span>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    ref={fileRef}
+                    className="hidden"
+                    onChange={handleImageChange}
                   />
-                ) : (
-                  <div
-                    className="h-24 w-24 flex items-center justify-center bg-gray-200 rounded cursor-pointer"
-                    onClick={() => fileRef.current.click()}
-                  >
-                    <span className="text-gray-500 text-xl">+</span>
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current.click()}
+                      className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border text-xs text-gray-700 font-medium rounded-lg transition"
+                    >
+                      Pilih File Gambar
+                    </button>
+                    {(compressedImageURL || formData.imageURL) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImageFile(null);
+                          setCompressedImageURL(null);
+                          setFormData((prev) => ({ ...prev, imageURL: "" }));
+                        }}
+                        className="text-red-600 text-xs hover:underline text-left font-medium"
+                      >
+                        Hapus gambar
+                      </button>
+                    )}
                   </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                  ref={fileRef}
-                  className="hidden"
-                  onChange={handleImageChange}
-                />
-                {compressedImageURL && (
-                  <button
-                    type="button"
-                    onClick={() => {
+                </div>
+
+                <div className="pt-2">
+                  <label className="text-[11px] block font-semibold text-gray-500 mb-1.5 uppercase">
+                    Atau Paste Link/URL Gambar
+                  </label>
+                  <input
+                    type="text"
+                    name="imageURL"
+                    placeholder="https://example.com/gambar.jpg"
+                    value={formData.imageURL || ""}
+                    onChange={(e) => {
                       setImageFile(null);
                       setCompressedImageURL(null);
+                      setFormData((prev) => ({ ...prev, imageURL: e.target.value }));
                     }}
-                    className="text-red-500 text-sm hover:underline"
-                  >
-                    Hapus gambar
-                  </button>
-                )}
+                    className="w-full py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-800"
+                  />
+                </div>
               </div>
 
               <div>

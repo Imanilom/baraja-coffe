@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaSync, FaFileExcel, FaSearch, FaUpload } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSync, FaFileExcel, FaSearch } from "react-icons/fa";
 import { FaArrowTrendUp, FaArrowTrendDown, FaScaleBalanced } from "react-icons/fa6";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import Select from "react-select";
 import dayjs from "dayjs";
 import { useSelector, useDispatch } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
 import { setReportData } from "@/redux/report/reportSlice";
-import Paginated from "@/components/Paginated";
+import Paginated from "@/components/paginated";
 import Header from "@/components/Header";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { matchCashStatementTransactions, parseCashStatementWorkbook } from "@/utils/cashStatementReconciliation";
 
 const Reconciliation = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -25,19 +25,14 @@ const Reconciliation = () => {
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [statementTransactions, setStatementTransactions] = useState([]);
-    const [statementFileName, setStatementFileName] = useState("");
-    const [statementError, setStatementError] = useState(null);
-    const [manualMatches, setManualMatches] = useState({});
-    const statementFileRef = useRef(null);
 
     // Initial state from URL
     const [dateRange, setDateRange] = useState(() => {
         const start = searchParams.get('startDate');
         const end = searchParams.get('endDate');
         return {
-            startDate: start ? dayjs(start).toDate() : dayjs().startOf('month').toDate(),
-            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+            startDate: start ? start : dayjs().startOf('month').format('YYYY-MM-DD'),
+            endDate: end ? end : dayjs().format('YYYY-MM-DD')
         };
     });
     const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
@@ -153,71 +148,6 @@ const Reconciliation = () => {
         return filteredData.slice(start, start + ITEMS_PER_PAGE);
     }, [filteredData, currentPage]);
 
-    const purchaseExpenses = useMemo(() => cachedData.flatMap((cashFlow) => {
-        const marketList = cashFlow.relatedMarketList;
-        if (!marketList || typeof marketList !== "object" || Number(cashFlow.cashOut) <= 0) return [];
-
-        const items = Array.isArray(marketList.items) ? marketList.items : [];
-        const additionalExpenses = Array.isArray(marketList.additionalExpenses)
-            ? marketList.additionalExpenses
-            : [];
-        const description = [
-            cashFlow.description,
-            ...items.flatMap((item) => [item.supplierName, item.productName]),
-            ...additionalExpenses.map((expense) => expense.name),
-        ].filter(Boolean).join(" ");
-
-        return [{
-            id: String(cashFlow._id || marketList._id),
-            date: marketList.date || cashFlow.date,
-            amount: Number(cashFlow.cashOut),
-            description,
-        }];
-    }), [cachedData]);
-
-    const automaticMatches = useMemo(
-        () => matchCashStatementTransactions(statementTransactions, purchaseExpenses),
-        [statementTransactions, purchaseExpenses]
-    );
-
-    const resolvedMatches = useMemo(() => {
-        const matches = {};
-        statementTransactions.forEach((transaction) => {
-            const expenseId = Object.prototype.hasOwnProperty.call(manualMatches, transaction.id)
-                ? manualMatches[transaction.id]
-                : automaticMatches[transaction.id];
-            if (expenseId) matches[transaction.id] = expenseId;
-        });
-        return matches;
-    }, [statementTransactions, manualMatches, automaticMatches]);
-
-    const handleStatementUpload = async (event) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file) return;
-
-        setStatementError(null);
-        try {
-            const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
-            const transactions = parseCashStatementWorkbook(workbook, XLSX)
-                .filter((transaction) => transaction.amount < 0);
-
-            if (transactions.length === 0) {
-                throw new Error("Tidak ada transaksi debit yang dapat dibaca. Pastikan file memuat tanggal, deskripsi, dan nominal mutasi.");
-            }
-
-            setStatementTransactions(transactions);
-            setStatementFileName(file.name);
-            setManualMatches({});
-        } catch (uploadError) {
-            console.error("Gagal membaca mutasi rekening:", uploadError);
-            setStatementTransactions([]);
-            setStatementFileName("");
-            setManualMatches({});
-            setStatementError(uploadError.message || "File mutasi tidak dapat dibaca.");
-        }
-    };
-
     const totals = useMemo(() => {
         return filteredData.reduce((acc, curr) => {
             const cashIn = curr.cashIn || 0;
@@ -264,7 +194,7 @@ const Reconciliation = () => {
         }).format(amount || 0);
     };
 
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
         const exportData = [];
         filteredData.forEach(cf => {
             if (cf.cashIn > 0) {
@@ -298,10 +228,47 @@ const Reconciliation = () => {
             });
         });
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Rekap Kas");
-        XLSX.writeFile(wb, `Laporan_Rekap_Kas_${dayjs().format('YYYYMMDD')}.xlsx`);
+                const wsData = typeof exportData !== 'undefined' ? exportData : dataToExport;
+        if (!wsData || wsData.length === 0) { alert('Tidak ada data'); return; }
+
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Laporan');
+        const hFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF005429' } };
+        const aFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+        const thin  = { style: 'thin', color: { argb: 'FFD1D5DB' } };
+        const bdr   = { top: thin, left: thin, bottom: thin, right: thin };
+
+        const headers = Object.keys(wsData[0]);
+        ws.columns = headers.map(h => ({ header: h, width: 22 }));
+
+        ws.mergeCells("A1:" + String.fromCharCode(65 + headers.length - 1) + "1");
+        Object.assign(ws.getCell('A1'), { value: 'LAPORAN OPERASIONAL',
+            font: { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF005429' } },
+            alignment: { horizontal: 'center' } });
+        ws.getRow(1).height = 26;
+        ws.addRow([]);
+
+        const hRow = ws.addRow(headers);
+        hRow.eachCell(cell => {
+            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = hFill; cell.border = bdr; cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+        hRow.height = 20;
+
+        wsData.forEach((item, idx) => {
+            const row = ws.addRow(headers.map(h => item[h]));
+            row.height = 18;
+            row.eachCell((cell, col) => {
+                cell.border = bdr;
+                cell.alignment = { vertical: 'middle', horizontal: typeof cell.value === 'number' ? 'right' : 'left' };
+                if (idx % 2 === 1) cell.fill = aFill;
+                if (typeof cell.value === 'number' && cell.value > 1000) cell.numFmt = '"Rp"#,##0;"Rp"-#,##0';
+            });
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+            'Laporan_Operasional_' + dayjs().format('YYYYMMDD') + '.xlsx');
     };
 
     return (
@@ -319,21 +286,6 @@ const Reconciliation = () => {
                     <span className="text-green-900 font-semibold">Rekap Kas (Reconciliation)</span>
                 </div>
                 <div className="flex gap-2">
-                    <input
-                        ref={statementFileRef}
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={handleStatementUpload}
-                        className="hidden"
-                    />
-                    <button
-                        onClick={() => statementFileRef.current?.click()}
-                        disabled={loading}
-                        className="flex items-center gap-2 bg-white border border-green-900 text-green-900 text-[13px] px-4 py-2 rounded shadow-sm hover:bg-green-50 transition-colors disabled:opacity-50"
-                    >
-                        <FaUpload />
-                        Cocokkan Mutasi
-                    </button>
                     <button
                         onClick={handleRefresh}
                         disabled={loading}
@@ -465,113 +417,6 @@ const Reconciliation = () => {
                     </div>
                 )}
 
-                {statementError && (
-                    <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 border border-red-100 text-sm font-medium">
-                        {statementError}
-                    </div>
-                )}
-
-                {statementTransactions.length > 0 && (
-                    <section className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
-                        <div className="p-5 border-b border-gray-100 flex flex-wrap justify-between items-center gap-3">
-                            <div>
-                                <h2 className="text-sm font-bold text-gray-800">Pencocokan Mutasi Belanja</h2>
-                                <p className="text-xs text-gray-500 mt-1">{statementFileName} · {statementTransactions.length} transaksi debit</p>
-                            </div>
-                            <div className="flex gap-4 text-xs font-semibold">
-                                <span className="text-green-700">
-                                    Cocok: {Object.keys(resolvedMatches).length}
-                                </span>
-                                <span className="text-amber-700">
-                                    Belum cocok: {statementTransactions.length - Object.keys(resolvedMatches).length}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="max-h-[520px] overflow-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="sticky top-0 bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                    <tr>
-                                        <th className="px-4 py-3">Tanggal Mutasi</th>
-                                        <th className="px-4 py-3">Deskripsi Mutasi</th>
-                                        <th className="px-4 py-3 text-right">Nominal</th>
-                                        <th className="px-4 py-3 min-w-[320px]">Transaksi Belanja</th>
-                                        <th className="px-4 py-3 text-center">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="text-xs divide-y divide-gray-50 text-gray-600">
-                                    {statementTransactions.map((transaction) => {
-                                        const selectedExpenseId = resolvedMatches[transaction.id] || "";
-                                        const isManual = Object.prototype.hasOwnProperty.call(manualMatches, transaction.id);
-                                        const claimedByOther = new Set(
-                                            Object.entries(resolvedMatches)
-                                                .filter(([transactionId]) => transactionId !== transaction.id)
-                                                .map(([, expenseId]) => expenseId)
-                                        );
-                                        const selectedExpense = purchaseExpenses.find((expense) => expense.id === selectedExpenseId);
-
-                                        return (
-                                            <tr key={transaction.id} className="hover:bg-gray-50">
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    {dayjs(transaction.date).format("DD MMM YYYY")}
-                                                </td>
-                                                <td className="px-4 py-3 min-w-[240px] max-w-[420px]">
-                                                    <div className="line-clamp-3">{transaction.description || "-"}</div>
-                                                    <div className="text-[10px] text-gray-400 mt-1">{transaction.sheetName}</div>
-                                                </td>
-                                                <td className="px-4 py-3 text-right whitespace-nowrap text-red-600 font-semibold">
-                                                    {formatCurrency(Math.abs(transaction.amount))}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <select
-                                                        value={selectedExpenseId}
-                                                        onChange={(event) => setManualMatches((previous) => ({
-                                                            ...previous,
-                                                            [transaction.id]: event.target.value,
-                                                        }))}
-                                                        className="w-full border border-gray-200 rounded px-2 py-2 text-xs text-gray-700"
-                                                    >
-                                                        <option value="">Pilih transaksi belanja...</option>
-                                                        {purchaseExpenses.map((expense) => (
-                                                            <option
-                                                                key={expense.id}
-                                                                value={expense.id}
-                                                                disabled={claimedByOther.has(expense.id)}
-                                                            >
-                                                                {dayjs(expense.date).format("DD MMM YYYY")} · {formatCurrency(expense.amount)} · {expense.description}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    {selectedExpense && Math.abs(Math.abs(transaction.amount) - selectedExpense.amount) > 1 && (
-                                                        <div className="text-[10px] text-amber-700 mt-1">
-                                                            Nominal berbeda: {formatCurrency(selectedExpense.amount)}
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 text-center whitespace-nowrap">
-                                                    {selectedExpenseId ? (
-                                                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${isManual ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
-                                                            {isManual ? "Manual" : "Otomatis"}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-700">
-                                                            Belum cocok
-                                                        </span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                            {purchaseExpenses.length === 0 && (
-                                <p className="p-5 text-center text-sm text-amber-700">
-                                    Belum ada transaksi belanja pada rentang tanggal laporan. Atur rentang tanggal lalu tekan Refresh.
-                                </p>
-                            )}
-                        </div>
-                    </section>
-                )}
-
                 {/* Table */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
                     <div className="overflow-x-auto">
@@ -669,3 +514,4 @@ const Reconciliation = () => {
 };
 
 export default Reconciliation;
+

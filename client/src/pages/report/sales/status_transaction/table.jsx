@@ -3,7 +3,7 @@ import { FaSearch } from "react-icons/fa";
 import Select from "react-select";
 import Datepicker from "react-tailwindcss-datepicker";
 import TransactionModal from "./modal";
-import Paginated from "../../../../components/Paginated";
+import Paginated from "../../../../components/paginated";
 import StatusCheckboxFilter from "./status_checkbox";
 
 const TypeTransactionTable = ({
@@ -85,7 +85,7 @@ const TypeTransactionTable = ({
                         <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
                         <input
                             type="text"
-                            placeholder="Cari Produk / Pelanggan / ID..."
+                            placeholder="Cari Produk / Pelanggan / No HP / ID..."
                             value={searchTerm}
                             onChange={(e) => handleSearchChange(e.target.value)}
                             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm h-[38px] focus:outline-none"
@@ -123,6 +123,7 @@ const TypeTransactionTable = ({
                                 <th className="px-6 py-4">Waktu</th>
                                 <th className="px-6 py-4">Kasir</th>
                                 <th className="px-6 py-4">ID Struk</th>
+                                <th className="px-6 py-4">Pelanggan</th>
                                 <th className="px-6 py-4">Daftar Produk</th>
                                 <th className="px-6 py-4">Tipe</th>
                                 <th className="px-6 py-4">Status</th>
@@ -141,6 +142,9 @@ const TypeTransactionTable = ({
                                         const orderType = product?.orderType || {};
                                         const status = product?.status || "N/A";
                                         const paymentStatus = product?.paymentDetails?.status || "-";
+                                        const customerName = product?.user || "Guest";
+                                        const tableNumber = product?.tableNumber;
+                                        const customerPhone = product?.customerPhone || product?.customer_phone || product?.contact?.phone || product?.phoneNumber || product?.user_id?.phone || product?.recipientInfo?.phone || product?.phone || "";
 
                                         // Baca payment method dari array payments (sama seperti sales_transaction)
                                         const payments = product?.payments || [];
@@ -211,6 +215,23 @@ const TypeTransactionTable = ({
                                                 <td className="px-6 py-4 text-gray-600 font-medium">{formatDateTime(date) || "N/A"}</td>
                                                 <td className="px-6 py-4 text-gray-700">{cashier?.username || "-"}</td>
                                                 <td className="px-6 py-4 font-mono text-gray-400 text-[11px]">{orderId || "N/A"}</td>
+                                                <td className="px-6 py-4">
+                                                    <div className="font-semibold text-gray-800 text-xs">
+                                                        {customerName}
+                                                    </div>
+                                                    <div className="text-[11px] text-gray-500 flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                        {tableNumber && (
+                                                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded text-[10px] font-semibold">
+                                                                Meja {tableNumber}
+                                                            </span>
+                                                        )}
+                                                        {customerPhone && (
+                                                            <span className="font-mono text-gray-500 text-[11px]">
+                                                                {customerPhone}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-6 py-4 text-gray-600 max-w-xs truncate">{menuNames.join(", ")}</td>
                                                 <td className="px-6 py-4 font-medium text-gray-500">{orderType || "N/A"}</td>
                                                 <td className="px-6 py-4">
@@ -232,7 +253,7 @@ const TypeTransactionTable = ({
                                         console.error(`Error rendering product ${index}:`, err, product);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="8" className="px-4 py-3 text-red-500">
+                                                <td colSpan="9" className="px-4 py-3 text-red-500">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -243,14 +264,14 @@ const TypeTransactionTable = ({
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={8}>Tidak ada data ditemukan</td>
+                                    <td colSpan={9}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
 
                         <tfoot className="bg-gray-50/50 font-semibold text-sm border-t">
                             <tr>
-                                <td className="px-6 py-4 text-gray-900 border-r border-gray-100 uppercase text-[11px] font-bold tracking-widest" colSpan="6">
+                                <td className="px-6 py-4 text-gray-900 border-r border-gray-100 uppercase text-[11px] font-bold tracking-widest" colSpan="7">
                                     Grand Total
                                 </td>
                                 <td className="px-6 py-4 text-right" colSpan="2">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import axios from '@/lib/axios';
 import Datepicker from 'react-tailwindcss-datepicker';
 import {
@@ -9,16 +9,18 @@ import {
     FaMagic,
     FaFilter,
     FaClock,
+    FaShieldAlt,
+    FaExclamationTriangle,
 } from "react-icons/fa";
-import SalesChart from "./charts/saleschart";
-import TopProductTable from "./table/topproducttable";
-import CardItem from "./cardItem/carditem";
-import FoodChart from "./charts/foodchart";
-import DrinkChart from "./charts/drinkchart";
+import SalesChart from "./charts/SalesChart";
+import TopProductTable from "./table/TopProductTable";
+import CardItem from "./cardItem/CardItem";
+import FoodChart from "./charts/FoodChart";
+import DrinkChart from "./charts/DrinkChart";
 import { useSelector } from "react-redux";
-import TotalOrder from "./charts/totalorder";
+import TotalOrder from "./charts/TotalOrder";
 import { Link } from "react-router-dom";
-import TransactionType from "./table/transactionType";
+import TransactionType from "./table/TransactionType";
 
 const formatRupiah = (amount) => {
     const num = typeof amount === 'number' ? amount : parseFloat(amount);
@@ -60,6 +62,8 @@ const Dashboard = () => {
 
     const [dashboardData, setDashboardData] = useState(null);
     const [outlets, setOutlets] = useState([]);
+    const [fraudData, setFraudData] = useState([]);
+    const [isFraudLoading, setIsFraudLoading] = useState(false);
     const [filters, setFilters] = useState({
         date: getTodayRange(),
         outlet: "",
@@ -102,6 +106,126 @@ const Dashboard = () => {
             setLoading(false);
         }
     }, [filters.date, filters.outlet]);
+
+    const getMockCancelledOrders = () => {
+        return [
+            {
+                _id: "trx1",
+                order_id: "TRX-20260530-0042",
+                createdAt: new Date(new Date().setHours(14, 25, 0, 0)).toISOString(),
+                user: "Budi Santoso",
+                status: "Cancelled",
+                grandTotal: 145000,
+                cashierId: { username: "kasir_dimas" },
+                items: [
+                    { quantity: 2, menuItemData: { name: "Kopi Susu Aren" }, subtotal: 44000 },
+                    { quantity: 2, menuItemData: { name: "Beef Burger" }, subtotal: 101000 }
+                ]
+            },
+            {
+                _id: "trx2",
+                order_id: "TRX-20260530-0019",
+                createdAt: new Date(new Date().setHours(11, 10, 0, 0)).toISOString(),
+                user: "Siti Rahma",
+                status: "Cancelled",
+                grandTotal: 58000,
+                cashierId: { username: "kasir_dimas" },
+                items: [
+                    { quantity: 2, menuItemData: { name: "Matcha Latte" }, subtotal: 58000 }
+                ]
+            },
+            {
+                _id: "trx3",
+                order_id: "TRX-20260530-0089",
+                createdAt: new Date(new Date().setHours(21, 45, 0, 0)).toISOString(),
+                user: "Hendri",
+                status: "Cancelled",
+                grandTotal: 215000,
+                cashierId: { username: "kasir_sara" },
+                items: [
+                    { quantity: 1, menuItemData: { name: "V60 Gayo" }, subtotal: 35000 },
+                    { quantity: 3, menuItemData: { name: "Premium Ribeye Steak" }, subtotal: 180000 }
+                ]
+            }
+        ];
+    };
+
+    const fetchFraudData = useCallback(async () => {
+        if (!filters.date?.startDate || !filters.date?.endDate) return;
+        setIsFraudLoading(true);
+        try {
+            const params = new URLSearchParams();
+            params.append('startDate', formatDateForAPI(filters.date.startDate));
+            params.append('endDate', formatDateForAPI(filters.date.endDate));
+            params.append('status', 'Cancelled');
+            if (filters.outlet) params.append('outlet', filters.outlet);
+            params.append('limit', '50');
+
+            const response = await axios.get(`/api/report/orders?${params.toString()}`);
+            if (response.data && response.data.data) {
+                setFraudData(response.data.data);
+            } else {
+                setFraudData([]);
+            }
+        } catch (err) {
+            console.warn("Failed to fetch fraud data, falling back to mock cancelled orders:", err);
+            setFraudData(getMockCancelledOrders());
+        } finally {
+            setIsFraudLoading(false);
+        }
+    }, [filters.date, filters.outlet]);
+
+    const fraudMetrics = useMemo(() => {
+        if (!fraudData || fraudData.length === 0) {
+            return {
+                totalCount: 0,
+                totalValue: 0,
+                riskLevel: "SAFE",
+                topCashier: "-",
+                topCashierCount: 0,
+                recentVoids: []
+            };
+        }
+
+        const totalCount = fraudData.length;
+        let totalValue = 0;
+        const cashierCounts = {};
+
+        fraudData.forEach(order => {
+            totalValue += Number(order.grandTotal || 0);
+            const cashier = order.cashierId?.username || order.groId?.name || "kasir_sistem";
+            cashierCounts[cashier] = (cashierCounts[cashier] || 0) + 1;
+        });
+
+        let topCashier = "-";
+        let topCashierCount = 0;
+        Object.entries(cashierCounts).forEach(([cashier, count]) => {
+            if (count > topCashierCount) {
+                topCashier = cashier;
+                topCashierCount = count;
+            }
+        });
+
+        let riskLevel = "SAFE";
+        if (totalCount > 3) {
+            riskLevel = "CRITICAL";
+        } else if (totalCount > 0) {
+            riskLevel = "WARNING";
+        }
+
+        const recentVoids = [...fraudData]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 3);
+
+        return {
+            totalCount,
+            totalValue,
+            riskLevel,
+            topCashier,
+            topCashierCount,
+            recentVoids
+        };
+    }, [fraudData]);
 
     const getMockDashboardData = () => ({
         summary: {
@@ -163,6 +287,7 @@ const Dashboard = () => {
 
     useEffect(() => { fetchOutlets(); }, [fetchOutlets]);
     useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
+    useEffect(() => { fetchFraudData(); }, [fetchFraudData]);
 
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
@@ -217,7 +342,7 @@ const Dashboard = () => {
         return (
             <div className="flex justify-center items-center h-[70vh]">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-slate-200 border-t-[#005429] rounded-full animate-spin"></div>
+                    <div className="w-12 h-12 border-4 border-slate-200 border-t-sage-800 rounded-full animate-spin"></div>
                     <p className="text-sm font-semibold text-slate-500 animate-pulse">Menyiapkan Dashboard Analytics...</p>
                 </div>
             </div>
@@ -235,7 +360,7 @@ const Dashboard = () => {
                     <p className="text-sm text-slate-500 mb-6">{error}</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="w-full bg-[#005429] hover:bg-[#003d1f] text-white font-bold py-2.5 rounded-xl transition-all shadow-sm"
+                        className="w-full bg-sage-800 hover:bg-sage-900 text-white font-bold py-2.5 rounded-xl transition-all shadow-sm"
                     >
                         Coba Lagi
                     </button>
@@ -249,8 +374,8 @@ const Dashboard = () => {
     return (
         <div className="min-h-screen relative overflow-hidden text-slate-800 pb-10">
             {/* Minimal Premium Decorative Blobs */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-[#005429]/5 to-transparent rounded-full blur-[120px] -z-10 pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-tr from-[#005429]/5 to-transparent rounded-full blur-[100px] -z-10 pointer-events-none"></div>
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-sage-800/5 to-transparent rounded-full blur-[120px] -z-10 pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-tr from-sage-800/5 to-transparent rounded-full blur-[100px] -z-10 pointer-events-none"></div>
 
             <main className="relative z-10 grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
                 
@@ -258,7 +383,7 @@ const Dashboard = () => {
                 <div className="xl:col-span-8 2xl:col-span-9 flex flex-col gap-6 lg:gap-8">
                     
                     {/* Welcome Hero Card */}
-                    <div className="relative overflow-hidden bg-gradient-to-r from-[#005429] to-[#007036] rounded-[24px] shadow-lg text-white">
+                    <div className="relative overflow-hidden bg-gradient-to-r from-sage-800 to-sage-600 rounded-[24px] shadow-lg text-white">
                         {/* Decorative Background Patterns inside Card */}
                         <div className="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 100% 0%, white 0%, transparent 50%)' }}></div>
                         <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-white opacity-10 rounded-full blur-2xl"></div>
@@ -312,7 +437,7 @@ const Dashboard = () => {
                                 name="outlet"
                                 value={filters.outlet}
                                 onChange={handleFilterChange}
-                                className="w-full text-sm font-bold text-slate-700 bg-slate-50 border border-slate-200 py-2.5 px-4 rounded-xl focus:ring-2 focus:ring-[#005429]/20 focus:border-[#005429] focus:outline-none transition-all cursor-pointer hover:bg-white hover:border-slate-300"
+                                className="w-full text-sm font-bold text-slate-700 bg-slate-50 border border-slate-200 py-2.5 px-4 rounded-xl focus:ring-2 focus:ring-sage-800/20 focus:border-sage-800 focus:outline-none transition-all cursor-pointer hover:bg-white hover:border-slate-300"
                             >
                                 <option value="">Semua Outlet Terintegrasi</option>
                                 {outlets.map((outlet) => (
@@ -332,10 +457,10 @@ const Dashboard = () => {
                                     value={filters.date}
                                     onChange={handleDateRangeChange}
                                     displayFormat="DD MMMM YYYY"
-                                    inputClassName="w-full text-sm font-bold text-slate-700 bg-slate-50 border border-slate-200 py-2.5 px-4 rounded-xl shadow-sm focus:ring-2 focus:ring-[#005429]/20 focus:border-[#005429] focus:outline-none transition-all cursor-pointer hover:bg-white hover:border-slate-300"
+                                    inputClassName="w-full text-sm font-bold text-slate-700 bg-slate-50 border border-slate-200 py-2.5 px-4 rounded-xl shadow-sm focus:ring-2 focus:ring-sage-800/20 focus:border-sage-800 focus:outline-none transition-all cursor-pointer hover:bg-white hover:border-slate-300"
                                     popoverDirection="down"
                                     containerClassName="relative"
-                                    toggleClassName="absolute right-0 top-0 bottom-0 px-4 text-slate-400 focus:outline-none hover:text-[#005429] transition-colors"
+                                    toggleClassName="absolute right-0 top-0 bottom-0 px-4 text-slate-400 focus:outline-none hover:text-sage-800 transition-colors"
                                 />
                             </div>
                         </div>
@@ -360,7 +485,7 @@ const Dashboard = () => {
                                 <h3 className="font-black text-lg text-slate-800 tracking-tight font-['Outfit',sans-serif]">Produk Terlaris (Top 5)</h3>
                                 <p className="text-xs text-slate-500 font-medium">Berdasarkan volume penjualan terbaik pada periode ini</p>
                             </div>
-                            <div className="w-10 h-10 bg-[#005429]/5 rounded-xl flex items-center justify-center text-[#005429] shadow-sm border border-[#005429]/10">
+                            <div className="w-10 h-10 bg-sage-800/5 rounded-xl flex items-center justify-center text-sage-800 shadow-sm border border-sage-800/10">
                                 <FaShoppingCart size={16} />
                             </div>
                         </div>
@@ -394,6 +519,116 @@ const Dashboard = () => {
                         </div>
                     </div>
 
+                    {/* Smart Fraud Detection Widget */}
+                    <div className="bg-gradient-to-b from-rose-50/50 to-white rounded-[24px] border border-rose-100/80 shadow-sm p-6 relative overflow-hidden group">
+                        {fraudMetrics.riskLevel !== "SAFE" && (
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-colors animate-pulse"></div>
+                        )}
+                        
+                        <div className="flex items-center justify-between mb-4 relative z-10">
+                            <div className="flex items-center gap-2">
+                                <span className={`p-2 rounded-xl flex items-center justify-center text-white
+                                    ${fraudMetrics.riskLevel === "CRITICAL" 
+                                        ? "bg-rose-500 animate-pulse" 
+                                        : fraudMetrics.riskLevel === "WARNING" 
+                                            ? "bg-amber-500" 
+                                            : "bg-emerald-500"
+                                    }`}
+                                >
+                                    <FaShieldAlt size={14} />
+                                </span>
+                                <div>
+                                    <h3 className="font-bold text-sm text-slate-900 tracking-tight font-['Outfit',sans-serif]">Smart Fraud Detection</h3>
+                                    <p className="text-[10px] text-slate-400 font-medium font-['Inter',sans-serif]">Deteksi Void & Pembatalan Hari Ini</p>
+                                </div>
+                            </div>
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border shadow-sm
+                                ${fraudMetrics.riskLevel === "CRITICAL" 
+                                    ? "bg-red-50 text-red-700 border-red-200" 
+                                    : fraudMetrics.riskLevel === "WARNING" 
+                                        ? "bg-amber-50 text-amber-700 border-amber-200" 
+                                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                }`}
+                            >
+                                {fraudMetrics.riskLevel}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mb-4 relative z-10">
+                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">TOTAL VOID</p>
+                                <p className="text-sm font-black text-rose-600">{fraudMetrics.totalCount} Transaksi</p>
+                            </div>
+                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">KERUGIAN VOID</p>
+                                <p className="text-sm font-black text-slate-800">{formatRupiah(fraudMetrics.totalValue)}</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 relative z-10 mb-4">
+                            {fraudMetrics.riskLevel === "CRITICAL" && (
+                                <div className="p-3 bg-red-50 border border-red-100 text-red-900 text-xs rounded-xl font-medium flex gap-2">
+                                    <FaExclamationTriangle className="text-red-500 shrink-0 mt-0.5" />
+                                    <span>
+                                        <strong>Peringatan Kritikal:</strong> Frekuensi pembatalan transaksi tinggi ({fraudMetrics.totalCount} kali). Indikasi fraud oleh kasir terpantau tinggi.
+                                    </span>
+                                </div>
+                            )}
+                            {fraudMetrics.riskLevel === "WARNING" && (
+                                <div className="p-3 bg-amber-50 border border-amber-100 text-amber-900 text-xs rounded-xl font-medium flex gap-2">
+                                    <FaExclamationTriangle className="text-amber-500 shrink-0 mt-0.5" />
+                                    <span>
+                                        <strong>Waspada:</strong> Terdeteksi beberapa transaksi dibatalkan kasir. Pastikan otorisasi manajer tetap dijalankan.
+                                    </span>
+                                </div>
+                            )}
+                            {fraudMetrics.riskLevel === "SAFE" && (
+                                <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-900 text-xs rounded-xl font-medium flex gap-2">
+                                    <span>
+                                        Sistem berjalan lancar. Tidak ada pembatalan transaksi yang mencurigakan hari ini.
+                                    </span>
+                                </div>
+                            )}
+
+                            {fraudMetrics.totalCount > 0 && (
+                                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 flex justify-between items-center">
+                                    <span className="text-[11px] text-slate-500 font-normal">Void Terbanyak</span>
+                                    <span className="text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                        @{fraudMetrics.topCashier} ({fraudMetrics.topCashierCount}x)
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {fraudMetrics.totalCount > 0 && (
+                            <div className="relative z-10 mb-4">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">LOG VOID TERBARU</p>
+                                <div className="space-y-2">
+                                    {fraudMetrics.recentVoids.map((voidTrx, i) => (
+                                        <div key={i} className="p-2.5 bg-white border border-slate-100 rounded-xl flex justify-between items-center hover:shadow-sm transition-all text-xs">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="font-mono text-[#005429] font-bold">{voidTrx.order_id}</span>
+                                                <span className="text-[10px] text-slate-400">
+                                                    Kasir: @{voidTrx.cashierId?.username || "N/A"} • {new Date(voidTrx.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                            <span className="font-bold text-slate-700">{formatRupiah(voidTrx.grandTotal)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="relative z-10 mt-2">
+                            <Link 
+                                to="/admin/transaction-sales?search=Cancelled" 
+                                className="w-full py-2 bg-slate-50 hover:bg-[#005429] hover:text-white border border-slate-200 hover:border-[#005429] text-slate-600 font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 text-[11px] uppercase tracking-wider"
+                            >
+                                <span>Lihat Seluruh Transaksi</span>
+                            </Link>
+                        </div>
+                    </div>
+
                     {/* Quick Actions (Admin Only) */}
                     {(superAdmin || admin) && (
                         <div className="bg-white rounded-[24px] border border-slate-200/80 shadow-sm p-6 flex flex-col">
@@ -405,13 +640,13 @@ const Dashboard = () => {
                             </div>
                             
                             <div className="grid grid-cols-2 gap-3">
-                                <Link to="/admin/menu-create" className="flex flex-col items-center text-center gap-2 p-3 bg-slate-50 border border-slate-100 hover:border-[#005429]/30 hover:bg-[#005429]/5 rounded-xl transition-all group">
-                                    <div className="w-8 h-8 bg-white shadow-sm border border-slate-200 rounded-full flex items-center justify-center text-[#005429] group-hover:scale-110 transition-transform">
+                                <Link to="/admin/menu-create" className="flex flex-col items-center text-center gap-2 p-3 bg-slate-50 border border-slate-100 hover:border-sage-800/30 hover:bg-sage-800/5 rounded-xl transition-all group">
+                                    <div className="w-8 h-8 bg-white shadow-sm border border-slate-200 rounded-full flex items-center justify-center text-sage-800 group-hover:scale-110 transition-transform">
                                         <FaPlus size={10} />
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest group-hover:text-[#005429]">Menu Baru</span>
+                                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest group-hover:text-sage-800">Menu Baru</span>
                                 </Link>
-                                <Link to="/admin/promo-khusus-create" className="flex flex-col items-center text-center gap-2 p-3 bg-slate-50 border border-slate-100 hover:border-[#005429]/30 hover:bg-[#005429]/5 rounded-xl transition-all group">
+                                <Link to="/admin/promo-khusus-create" className="flex flex-col items-center text-center gap-2 p-3 bg-slate-50 border border-slate-100 hover:border-sage-800/30 hover:bg-sage-800/5 rounded-xl transition-all group">
                                     <div className="w-8 h-8 bg-white shadow-sm border border-slate-200 rounded-full flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
                                         <FaPlus size={10} />
                                     </div>

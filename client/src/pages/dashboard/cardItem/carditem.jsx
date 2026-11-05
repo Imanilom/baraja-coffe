@@ -63,4 +63,3 @@ const CardItem = ({ title, icon, percentage, amount, isPositive, value, route })
 };
 
 export default CardItem;
-

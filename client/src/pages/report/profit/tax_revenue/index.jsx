@@ -3,7 +3,8 @@ import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSync, FaFileExcel } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import Select from "react-select";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
@@ -21,8 +22,8 @@ const TaxRevenueManagement = () => {
         const start = searchParams.get('startDate');
         const end = searchParams.get('endDate');
         return {
-            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
-            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+            startDate: start ? start : dayjs().format('YYYY-MM-DD'),
+            endDate: end ? end : dayjs().format('YYYY-MM-DD')
         };
     });
     const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
@@ -78,17 +79,26 @@ const TaxRevenueManagement = () => {
         }).format(amount || 0);
     };
 
-    const updateURLParams = useCallback(() => {
+    const updateURLParams = useCallback((newDateRange, newOutlet) => {
         const params = new URLSearchParams();
-        if (dateRange.startDate) params.set('startDate', dayjs(dateRange.startDate).format('YYYY-MM-DD'));
-        if (dateRange.endDate) params.set('endDate', dayjs(dateRange.endDate).format('YYYY-MM-DD'));
-        if (selectedOutlet) params.set('outletId', selectedOutlet);
-        setSearchParams(params, { replace: true });
-    }, [dateRange, selectedOutlet, setSearchParams]);
+        if (newDateRange?.startDate) params.set('startDate', dayjs(newDateRange.startDate).format('YYYY-MM-DD'));
+        if (newDateRange?.endDate) params.set('endDate', dayjs(newDateRange.endDate).format('YYYY-MM-DD'));
+        if (newOutlet) params.set('outletId', newOutlet);
+        setSearchParams(params);
+    }, [setSearchParams]);
 
-    useEffect(() => {
-        updateURLParams();
-    }, [updateURLParams]);
+    const handleDateRangeChange = (newValue) => {
+        if (newValue?.startDate && newValue?.endDate) {
+            setDateRange(newValue);
+            updateURLParams(newValue, selectedOutlet);
+        }
+    };
+
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected?.value || "";
+        setSelectedOutlet(newOutlet);
+        updateURLParams(dateRange, newOutlet);
+    };
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -176,27 +186,89 @@ const TaxRevenueManagement = () => {
         fetchData();
     };
 
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
         const outletName = selectedOutlet ? outlets.find(o => o._id === selectedOutlet)?.name : "Semua Outlet";
         const filename = `Laporan_Pajak_${outletName.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.xlsx`;
 
-        const dataToExport = groupedTaxes.map(tax => ({
-            "Nama Pajak": tax.name,
-            "Tipe": tax.type,
-            "Persentase": `${tax.percentage}%`,
-            "Jumlah Transaksi": tax.count,
-            "Total Pajak": tax.totalAmount
-        }));
-
-        if (dataToExport.length === 0) {
+        if (groupedTaxes.length === 0) {
             alert("Tidak ada data untuk diekspor");
             return;
         }
 
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Pajak");
-        XLSX.writeFile(wb, filename);
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Data Pajak');
+
+        const titleFont  = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF005429' } };
+        const infoFont   = { name: 'Calibri', size: 11 };
+        const headerFont = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF005429' } };
+        const totalFill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
+        const altFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+        const thin       = { style: 'thin', color: { argb: 'FFD1D5DB' } };
+        const border     = { top: thin, left: thin, bottom: thin, right: thin };
+        const rpFmt      = '"Rp"#,##0;"Rp"-#,##0';
+
+        const cols = [
+            { header: 'Nama Pajak',         width: 28 },
+            { header: 'Tipe',               width: 18 },
+            { header: 'Persentase',         width: 14 },
+            { header: 'Jumlah Transaksi',   width: 20 },
+            { header: 'Total Pajak',        width: 22 },
+        ];
+        ws.columns = cols.map(c => ({ width: c.width }));
+
+        ws.mergeCells('A1:E1');
+        const t = ws.getCell('A1');
+        t.value = 'LAPORAN PAJAK';
+        t.font = titleFont;
+        t.alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(1).height = 28;
+
+        ws.mergeCells('A2:E2');
+        ws.getCell('A2').value = `Outlet: ${outletName}`;
+        ws.getCell('A2').font = infoFont;
+
+        ws.mergeCells('A3:E3');
+        ws.getCell('A3').value = `Periode: ${dayjs(dateRange.startDate).format('DD-MM-YYYY')} s/d ${dayjs(dateRange.endDate).format('DD-MM-YYYY')}`;
+        ws.getCell('A3').font = infoFont;
+
+        ws.addRow([]);
+
+        const hRow = ws.addRow(cols.map(c => c.header));
+        hRow.height = 20;
+        hRow.eachCell(cell => {
+            cell.font = headerFont; cell.fill = headerFill;
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = border;
+        });
+
+        let totalTax = 0;
+        groupedTaxes.forEach((tax, idx) => {
+            totalTax += tax.totalAmount || 0;
+            const row = ws.addRow([
+                tax.name, tax.type, `${tax.percentage}%`, tax.count, tax.totalAmount
+            ]);
+            row.height = 18;
+            row.eachCell((cell, col) => {
+                cell.border = border;
+                cell.alignment = { vertical: 'middle', horizontal: col === 1 || col === 2 || col === 3 ? 'left' : 'right' };
+                if (idx % 2 === 1) cell.fill = altFill;
+                if (col === 5) cell.numFmt = rpFmt;
+            });
+        });
+
+        const totRow = ws.addRow(['GRAND TOTAL', '', '', groupedTaxes.reduce((s, t) => s + t.count, 0), totalTax]);
+        totRow.height = 22;
+        totRow.eachCell((cell, col) => {
+            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF005429' } };
+            cell.fill = totalFill;
+            cell.border = { ...border, top: { style: 'medium', color: { argb: 'FF005429' } } };
+            cell.alignment = { vertical: 'middle', horizontal: col <= 3 ? 'left' : 'right' };
+            if (col === 5) cell.numFmt = rpFmt;
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), filename);
     };
 
     return (

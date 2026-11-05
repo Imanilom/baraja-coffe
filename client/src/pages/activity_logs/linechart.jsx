@@ -96,4 +96,3 @@ const ActivityLineChart = ({ logs = [], loading = false }) => {
 };
 
 export default ActivityLineChart;
-

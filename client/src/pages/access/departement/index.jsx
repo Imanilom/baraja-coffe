@@ -198,4 +198,3 @@ const DepartementTable = () => {
 };
 
 export default DepartementTable;
-

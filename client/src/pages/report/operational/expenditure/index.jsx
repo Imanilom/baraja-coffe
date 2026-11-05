@@ -4,7 +4,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaSync, FaFileExcel, FaSearch, FaMoneyBillWave, FaShoppingCart, FaReceipt } from "react-icons/fa";
 import { FaArrowTrendDown } from "react-icons/fa6";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import Select from "react-select";
 import dayjs from "dayjs";
 import { useSelector, useDispatch } from "react-redux";
@@ -29,8 +30,8 @@ const ExpenditureManagement = () => {
         const start = searchParams.get('startDate');
         const end = searchParams.get('endDate');
         return {
-            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
-            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+            startDate: start ? start : dayjs().format('YYYY-MM-DD'),
+            endDate: end ? end : dayjs().format('YYYY-MM-DD')
         };
     });
     const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
@@ -210,7 +211,7 @@ const ExpenditureManagement = () => {
 
     const COLORS = ['#005429', '#EAB308', '#3B82F6', '#EF4444', '#8B5CF6'];
 
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
         const exportData = filteredData.map(item => ({
             "Tanggal": dayjs(item.date).format('DD-MM-YYYY'),
             "Jenis": item.type,
@@ -220,10 +221,47 @@ const ExpenditureManagement = () => {
             "Jumlah": item.amount
         }));
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Pengeluaran");
-        XLSX.writeFile(wb, `Laporan_Pengeluaran_${dayjs().format('YYYYMMDD')}.xlsx`);
+                const wsData = typeof exportData !== 'undefined' ? exportData : dataToExport;
+        if (!wsData || wsData.length === 0) { alert('Tidak ada data'); return; }
+
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Laporan');
+        const hFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF005429' } };
+        const aFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+        const thin  = { style: 'thin', color: { argb: 'FFD1D5DB' } };
+        const bdr   = { top: thin, left: thin, bottom: thin, right: thin };
+
+        const headers = Object.keys(wsData[0]);
+        ws.columns = headers.map(h => ({ header: h, width: 22 }));
+
+        ws.mergeCells("A1:" + String.fromCharCode(65 + headers.length - 1) + "1");
+        Object.assign(ws.getCell('A1'), { value: 'LAPORAN OPERASIONAL',
+            font: { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF005429' } },
+            alignment: { horizontal: 'center' } });
+        ws.getRow(1).height = 26;
+        ws.addRow([]);
+
+        const hRow = ws.addRow(headers);
+        hRow.eachCell(cell => {
+            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = hFill; cell.border = bdr; cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+        hRow.height = 20;
+
+        wsData.forEach((item, idx) => {
+            const row = ws.addRow(headers.map(h => item[h]));
+            row.height = 18;
+            row.eachCell((cell, col) => {
+                cell.border = bdr;
+                cell.alignment = { vertical: 'middle', horizontal: typeof cell.value === 'number' ? 'right' : 'left' };
+                if (idx % 2 === 1) cell.fill = aFill;
+                if (typeof cell.value === 'number' && cell.value > 1000) cell.numFmt = '"Rp"#,##0;"Rp"-#,##0';
+            });
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+            'Laporan_Operasional_' + dayjs().format('YYYYMMDD') + '.xlsx');
     };
 
     return (
@@ -462,4 +500,5 @@ const ExpenditureManagement = () => {
 };
 
 export default ExpenditureManagement;
+
 

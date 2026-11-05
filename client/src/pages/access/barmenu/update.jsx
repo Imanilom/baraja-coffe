@@ -112,4 +112,3 @@ const UpdateSidebarMenu = () => {
 };
 
 export default UpdateSidebarMenu;
-

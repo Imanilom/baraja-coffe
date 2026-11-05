@@ -102,6 +102,27 @@ const Sidebar = ({ isSidebarOpen }) => {
       sections[section].push(menuItem);
     });
 
+    // Ensure 'Sistem & Promo' has 'Pengaturan Integration & Keys' and 'Metode Pembayaran'
+    if (!sections['Sistem & Promo']) {
+      sections['Sistem & Promo'] = [];
+    }
+    const hasSettings = sections['Sistem & Promo'].some(m => m.path === '/settings' || m.path === '/admin/settings');
+    if (!hasSettings) {
+      sections['Sistem & Promo'].push({
+        name: 'Pengaturan Integration & Keys',
+        path: '/admin/settings',
+        icon: 'Key'
+      });
+    }
+    const hasPaymentMethods = sections['Sistem & Promo'].some(m => m.path === '/admin/payment-methods');
+    if (!hasPaymentMethods) {
+      sections['Sistem & Promo'].push({
+        name: 'Metode Pembayaran',
+        path: '/admin/payment-methods',
+        icon: 'CreditCard'
+      });
+    }
+
     // Define section order (User requested: Overview -> Laporan -> Menu -> Inventory)
     const sectionOrder = ['Overview', 'Laporan', 'Manajemen Menu', 'Inventory', 'Operasional', 'HR & Staff', 'Sistem & Promo', 'Lainnya'];
 

@@ -8,7 +8,7 @@ import {
     FaEyeSlash,
 } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
-import MessageAlert from "../../../components/MessageAlert";
+import MessageAlert from "../../../components/messageAlert";
 import CreateUserSkeleton from "./create_user_skeleton";
 
 const CreateUser = () => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+﻿import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from '@/lib/axios';
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload, FaEye, FaChevronLeft } from "react-icons/fa";
@@ -33,7 +33,7 @@ const PaymentMethodSales = () => {
                 endDate: dayjs(endDateParam).toDate(),
             };
         }
-        return { startDate: dayjs().toDate(), endDate: dayjs().toDate() };
+        return { startDate: dayjs().format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') };
     });
 
     const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1);

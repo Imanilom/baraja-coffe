@@ -1,5 +1,6 @@
 import React from "react";
 import PdfButton from "../pdfButton";
+import { FaWhatsapp } from "react-icons/fa";
 
 const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateTime, formatCurrency }) => {
     const finalTotal =
@@ -126,6 +127,30 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                         <div className="flex justify-between">
                             <span className="font-medium text-gray-600">No Meja</span>
                             <p>{selectedTrx.tableNumber}</p>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="font-medium text-gray-600">No. Handphone</span>
+                            {(() => {
+                                const customerPhone = selectedTrx.customerPhone || selectedTrx.customer_phone || selectedTrx.contact?.phone || selectedTrx.phoneNumber || selectedTrx.user_id?.phone || selectedTrx.recipientInfo?.phone || selectedTrx.phone || "-";
+                                const cleanPhone = customerPhone !== "-" ? customerPhone.replace(/[^0-9]/g, '').replace(/^0/, '62') : null;
+                                return (
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-mono text-gray-800">{customerPhone}</p>
+                                        {cleanPhone && (
+                                            <a
+                                                href={`https://wa.me/${cleanPhone}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-2 py-0.5 rounded border border-green-200 transition-colors"
+                                                title="Chat via WhatsApp"
+                                            >
+                                                <FaWhatsapp className="text-green-600 text-xs" />
+                                                <span>WA</span>
+                                            </a>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
 

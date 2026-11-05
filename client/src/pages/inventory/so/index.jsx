@@ -8,7 +8,7 @@ import * as XLSX from "xlsx";
 
 import Header from "../../admin/header";
 import BubbleAlert from "../stockcard/bubblralert";
-import Paginated from "../../../components/Paginated";
+import Paginated from "../../../components/paginated";
 
 
 const SoManagement = () => {
@@ -396,4 +396,3 @@ const SoManagement = () => {
 };
 
 export default SoManagement;
-

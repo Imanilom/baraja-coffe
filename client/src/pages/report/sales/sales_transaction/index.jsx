@@ -4,9 +4,10 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
-import { FaChevronRight, FaDownload } from "react-icons/fa";
 import { exportToExcel } from "../../../../utils/exportHelper";
+import { exportSalesListPDF } from "../../../../utils/exportSalesPDF";
 import { useReactToPrint } from "react-to-print";
+import { FaChevronRight, FaDownload, FaFilePdf } from "react-icons/fa";
 import SalesTransactionTable from "./table";
 import SalesTransactionTableSkeleton from "./skeleton";
 import { useSelector } from "react-redux";
@@ -58,6 +59,8 @@ const SalesTransaction = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [isExportingPDF, setIsExportingPDF] = useState(false);
+    const [exportPDFProgress, setExportPDFProgress] = useState("");
 
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
@@ -176,7 +179,6 @@ const SalesTransaction = () => {
             params.append('page', currentPage);
             params.append('limit', limit);
             params.append('status', 'Completed');
-            params.append('excludeOrderType', 'Reservation');
 
             if (selectedOutlet) {
                 params.append('outlet', selectedOutlet);
@@ -501,7 +503,6 @@ const SalesTransaction = () => {
             const countParams = new URLSearchParams();
             countParams.append('mode', 'count');
             countParams.append('status', 'Completed');
-            countParams.append('excludeOrderType', 'Reservation');
 
             if (selectedOutlet) {
                 countParams.append('outlet', selectedOutlet);
@@ -564,7 +565,6 @@ const SalesTransaction = () => {
                         params.append('page', pageNum);
                         params.append('limit', BATCH_LIMIT);
                         params.append('status', 'Completed');
-            params.append('excludeOrderType', 'Reservation');
 
                         if (selectedOutlet) params.append('outlet', selectedOutlet);
                         if (dateRange?.startDate && dateRange?.endDate) {
@@ -887,6 +887,333 @@ const SalesTransaction = () => {
         }
     };
 
+    const handleExportPDF = async () => {
+        setIsExportingPDF(true);
+        setExportPDFProgress("Menyiapkan...");
+
+        try {
+            setExportPDFProgress("Menghitung total data...");
+            const countParams = new URLSearchParams();
+            countParams.append('mode', 'count');
+            countParams.append('status', 'Completed');
+
+            if (selectedOutlet) {
+                countParams.append('outlet', selectedOutlet);
+            }
+
+            if (dateRange?.startDate && dateRange?.endDate) {
+                countParams.append('startDate', formatDateForAPI(dateRange.startDate));
+                countParams.append('endDate', formatDateForAPI(dateRange.endDate));
+            }
+
+            if (searchTerm) {
+                countParams.append('search', searchTerm);
+            }
+
+            let totalCount = 0;
+            try {
+                const countResponse = await axios.get(`/api/report/orders?${countParams.toString()}`);
+                totalCount = countResponse.data.count || 0;
+            } catch (countError) {
+                console.error('❌ Error getting count:', countError);
+                alert('Gagal mendapatkan jumlah data. Silakan coba lagi.');
+                setIsExportingPDF(false);
+                return;
+            }
+
+            if (totalCount === 0) {
+                alert('Tidak ada data untuk di-export.');
+                setIsExportingPDF(false);
+                return;
+            }
+
+            if (totalCount > 3000) {
+                const proceed = window.confirm(
+                    `⚠️ Peringatan: Anda akan mengekspor ${totalCount.toLocaleString()} transaksi ke PDF.\n\n` +
+                    `Untuk PDF detail, jumlah data yang direkomendasikan adalah < 3000 agar performa peramban tetap optimal.\n` +
+                    `Apakah Anda ingin melanjutkan?`
+                );
+                if (!proceed) {
+                    setIsExportingPDF(false);
+                    return;
+                }
+            }
+
+            let allData = [];
+            const BATCH_LIMIT = 500;
+
+            const fetchPageWithRetry = async (pageNum) => {
+                let attempts = 0;
+                const MAX_RETRIES = 3;
+
+                while (attempts < MAX_RETRIES) {
+                    try {
+                        const params = new URLSearchParams();
+                        params.append('mode', 'paginated');
+                        params.append('page', pageNum);
+                        params.append('limit', BATCH_LIMIT);
+                        params.append('status', 'Completed');
+
+                        if (selectedOutlet) params.append('outlet', selectedOutlet);
+                        if (dateRange?.startDate && dateRange?.endDate) {
+                            params.append('startDate', formatDateForAPI(dateRange.startDate));
+                            params.append('endDate', formatDateForAPI(dateRange.endDate));
+                        }
+                        if (searchTerm) params.append('search', searchTerm);
+
+                        const response = await axios.get(`/api/report/orders?${params.toString()}`, {
+                            timeout: 120000
+                        });
+
+                        return Array.isArray(response.data?.data) ? response.data.data : [];
+                    } catch (error) {
+                        attempts++;
+                        console.error(`❌ Batch ${pageNum} failed (Attempt ${attempts})`);
+                        if (attempts >= MAX_RETRIES) throw error;
+                        await new Promise(r => setTimeout(r, 1000 * attempts));
+                    }
+                }
+            };
+
+            const CONCURRENCY = 3;
+            let processedCount = 0;
+
+            const totalEstimatedPages = Math.ceil(totalCount / BATCH_LIMIT);
+            const pageQueue = Array.from({ length: totalEstimatedPages }, (_, i) => i + 1);
+            const results = new Array(totalEstimatedPages).fill(null);
+
+            const processQueue = async () => {
+                while (pageQueue.length > 0) {
+                    const currentPage = pageQueue.shift();
+                    try {
+                        const data = await fetchPageWithRetry(currentPage);
+                        results[currentPage - 1] = data;
+                        processedCount += data.length;
+                        setExportPDFProgress(`Mengunduh (${Math.round((processedCount / totalCount) * 100)}%)...`);
+                    } catch (err) {
+                        console.error(`Failed to fetch page ${currentPage}`);
+                        throw err;
+                    }
+                }
+            };
+
+            const workers = Array(Math.min(CONCURRENCY, totalEstimatedPages))
+                .fill(null)
+                .map(() => processQueue());
+
+            try {
+                await Promise.all(workers);
+                allData = results.flat().filter(item => item);
+            } catch (err) {
+                console.error("Parallel fetch failed:", err);
+                alert("Gagal mengunduh data. Koneksi tidak stabil.");
+                setIsExportingPDF(false);
+                return;
+            }
+
+            setExportPDFProgress("Memproses data...");
+
+            if (allData.length === 0) {
+                alert('Tidak ada data yang berhasil di-fetch.');
+                setIsExportingPDF(false);
+                return;
+            }
+
+            const validOrders = allData.filter(order => {
+                return order.items && Array.isArray(order.items) && order.items.length > 0;
+            });
+
+            if (validOrders.length === 0) {
+                alert('Tidak ada transaksi valid untuk di-export.');
+                setIsExportingPDF(false);
+                return;
+            }
+
+            const formatDateTimeExport = (isoString) => {
+                return dayjs(isoString).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY HH:mm:ss');
+            };
+
+            const outletMap = {};
+            outlets.forEach(outlet => {
+                outletMap[outlet._id] = outlet;
+            });
+
+            const formattedExportData = [];
+
+            validOrders.forEach((order) => {
+                try {
+                    const outletId = order.outlet?._id || order.outlet;
+                    const outletObj = outletMap[outletId];
+                    const outletName = outletObj?.name || 'Unknown Outlet';
+                    const outletCode = outletObj?._id || '-';
+
+                    const paymentMethod = order.actualPaymentMethod || order.paymentMethod || '-';
+                    const paymentStatus = order.paymentDetails?.status || order.status || '-';
+                    const paymentCode = order.paymentDetails?.payment_code || '-';
+                    const transactionId = order.paymentDetails?.transaction_id || '-';
+
+                    const itemsSubtotal = order.items.reduce((acc, item) => {
+                        return acc + (Number(item.subtotal) || 0);
+                    }, 0);
+
+                    const customAmountSubtotal = (order.customAmountItems || []).reduce((acc, customItem) => {
+                        return acc + (Number(customItem.amount) || 0);
+                    }, 0);
+
+                    const filteredItemsSubtotal = itemsSubtotal + customAmountSubtotal;
+                    const proportionalTax = order.totalTax || 0;
+                    const proportionalServiceCharge = order.totalServiceFee || 0;
+                    const totalDiscount = (order.discounts?.autoPromoDiscount || 0) +
+                        (order.discounts?.manualDiscount || 0) +
+                        (order.discounts?.voucherDiscount || 0);
+
+                    const filteredGrandTotal = order.grandTotal;
+
+                    order.items.forEach((item, index) => {
+                        const itemName = item.menuItemData?.name || item.menuItem?.name || 'Produk tidak diketahui';
+                        const itemSKU = item.menuItemData?.sku || item.menuItem?.sku || '-';
+                        const itemPrice = item.menuItemData?.price || item.menuItem?.price || 0;
+
+                        let itemCategory = '-';
+                        if (item.menuItemData?.category) {
+                            itemCategory = typeof item.menuItemData.category === 'object'
+                                ? item.menuItemData.category.name
+                                : item.menuItemData.category;
+                        } else if (item.menuItem?.category) {
+                            itemCategory = typeof item.menuItem.category === 'object'
+                                ? item.menuItem.category.name
+                                : item.menuItem.category;
+                        }
+
+                        const addonLabels = [];
+                        const processAddons = (addons) => {
+                            if (!Array.isArray(addons)) return;
+                            addons.forEach(addon => {
+                                if (Array.isArray(addon?.options)) {
+                                    addon.options.forEach(option => {
+                                        if (option?.label && !addonLabels.includes(option.label)) {
+                                            addonLabels.push(option.label);
+                                        }
+                                    });
+                                }
+                            });
+                        };
+
+                        processAddons(item?.addons);
+                        processAddons(item?.menuItemData?.selectedAddons);
+
+                        const fullProductName = addonLabels.length > 0
+                            ? `${itemName} (${addonLabels.join(', ')})`
+                            : itemName;
+
+                        formattedExportData.push({
+                            "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
+                            "ID Struk": order.order_id || '-',
+                            "Status Order": order.status || '-',
+                            "Status Pembayaran": paymentStatus === 'Completed' || order.status === 'Completed' ? 'Lunas' : 'DP',
+                            "ID / Kode Outlet": outletCode,
+                            "Outlet": outletName,
+                            "Tipe Penjualan": order.orderType || '-',
+                            "Kasir": order.cashierId?.username || '-',
+                            "No. Hp Pelanggan": order.cashierId?.phone || '-',
+                            "Nama Pelanggan": order.user || '-',
+                            "SKU": itemSKU,
+                            "Nama Produk": fullProductName,
+                            "Kategori": itemCategory,
+                            "Jumlah Produk": item.quantity || 0,
+                            "Harga Produk": itemPrice,
+                            "Penjualan Kotor": Number(item.subtotal) || 0,
+                            "Diskon Produk": 0,
+                            "Subtotal": index === 0 ? filteredItemsSubtotal : '',
+                            "Diskon Transaksi": index === 0 ? totalDiscount : '',
+                            "Pajak": index === 0 ? Math.round(proportionalTax) : '',
+                            "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '',
+                            "Pembulatan": 0,
+                            "Poin Ditukar": 0,
+                            "Biaya Admin": 0,
+                            "Total": index === 0 ? Math.round(filteredGrandTotal) : '',
+                            "Metode Pembayaran": index === 0 ? paymentMethod : '',
+                            "Kode Pembayaran": index === 0 ? paymentCode : '',
+                            "Transaction ID": index === 0 ? transactionId : '',
+                            "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
+                            "Kode Voucher": order.appliedVoucher?.code || '-'
+                        });
+                    });
+
+                    (order.customAmountItems || []).forEach((customItem, index) => {
+                        const isFirstRow = index === 0 && order.items.length === 0;
+
+                        formattedExportData.push({
+                            "Tanggal & Waktu": formatDateTimeExport(order.createdAt),
+                            "ID Struk": order.order_id || '-',
+                            "Status Order": order.status || '-',
+                            "Status Pembayaran": paymentStatus === 'Completed' || order.status === 'Completed' ? 'Lunas' : 'DP',
+                            "ID / Kode Outlet": outletCode,
+                            "Outlet": outletName,
+                            "Tipe Penjualan": order.orderType || '-',
+                            "Kasir": order.cashierId?.username || '-',
+                            "No. Hp Pelanggan": order.cashierId?.phone || '-',
+                            "Nama Pelanggan": order.user || '-',
+                            "SKU": '-',
+                            "Nama Produk": `[Custom] ${customItem.name || 'Custom Amount'}`,
+                            "Kategori": 'Custom Amount',
+                            "Jumlah Produk": 1,
+                            "Harga Produk": Number(customItem.amount) || 0,
+                            "Penjualan Kotor": Number(customItem.amount) || 0,
+                            "Subtotal": isFirstRow ? filteredItemsSubtotal : '',
+                            "Diskon Transaksi": isFirstRow ? totalDiscount : '',
+                            "Pajak": isFirstRow ? Math.round(proportionalTax) : '',
+                            "Service Charge": isFirstRow ? Math.round(proportionalServiceCharge) : '',
+                            "Pembulatan": 0,
+                            "Poin Ditukar": 0,
+                            "Biaya Admin": 0,
+                            "Total": isFirstRow ? Math.round(filteredGrandTotal) : '',
+                            "Metode Pembayaran": isFirstRow ? paymentMethod : '',
+                            "Kode Pembayaran": isFirstRow ? paymentCode : '',
+                            "Transaction ID": isFirstRow ? transactionId : '',
+                            "Pembayaran": isFirstRow ? Math.round(filteredGrandTotal) : '',
+                            "Kode Voucher": order.appliedVoucher?.code || '-'
+                        });
+                    });
+                } catch (err) {
+                    console.error('Error processing order:', order.order_id, err);
+                }
+            });
+
+            const formatDate = (dateObj) => {
+                if (!dateObj) return "semua-tanggal";
+                return dayjs(dateObj).tz(DEFAULT_TIMEZONE).format('DD-MM-YYYY');
+            };
+
+            const startLabel = formatDate(dateRange?.startDate);
+            const endLabel = formatDate(dateRange?.endDate);
+            const fileName = `Laporan_Penjualan_${startLabel}_${endLabel}.pdf`;
+
+            const outletLabel = selectedOutlet
+                ? outlets.find(o => o._id === selectedOutlet)?.name || "Semua Outlet"
+                : "Semua Outlet";
+
+            const headerInfo = [
+                ["Periode", `${startLabel} - ${endLabel}`],
+                ["Outlet", outletLabel],
+            ];
+
+            if (searchTerm) {
+                headerInfo.push(["Pencarian", searchTerm]);
+            }
+
+            setExportPDFProgress("Mengompilasi PDF...");
+            await exportSalesListPDF(formattedExportData, fileName, headerInfo);
+
+        } catch (error) {
+            console.error('❌ Export PDF error:', error);
+            alert('Terjadi kesalahan saat ekspor PDF.\n\n' + error.message);
+        } finally {
+            setIsExportingPDF(false);
+            setExportPDFProgress("");
+        }
+    };
+
     if (error) {
         return (
             <div className="flex justify-center items-center h-[60vh]">
@@ -934,6 +1261,26 @@ const SalesTransaction = () => {
                             <>
                                 <FaDownload size={12} />
                                 Ekspor Excel
+                            </>
+                        )}
+                    </button>
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={isExportingPDF || filteredData.length === 0}
+                        className={`px-4 py-1.5 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-md active:scale-95 ${isExportingPDF || filteredData.length === 0
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed border'
+                            : 'bg-red-700 text-white hover:bg-red-800'
+                            }`}
+                    >
+                        {isExportingPDF ? (
+                            <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white"></div>
+                                <span>{exportPDFProgress || "PROSES..."}</span>
+                            </>
+                        ) : (
+                            <>
+                                <FaFilePdf size={12} />
+                                Ekspor PDF
                             </>
                         )}
                     </button>

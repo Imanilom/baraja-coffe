@@ -69,4 +69,3 @@ export default function TopProductChart({ data }) {
         </div>
     );
 }
-

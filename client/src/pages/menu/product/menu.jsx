@@ -1,9 +1,12 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { FaPlus } from 'react-icons/fa';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { FaPlus, FaTags, FaDownload, FaUpload } from 'react-icons/fa';
 import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
-import MessageAlert from "../../../components/MessageAlert";
+import MessageAlert from "../../../components/messageAlert";
 import MenuTable from "./component/table";
+import BulkPriceUpdateModal from "./dialog/bulkPriceUpdateModal";
+import BulkPriceImportModal from "./dialog/bulkPriceImportModal";
+import { exportMenuItemsExcel } from "@/utils/exportMenuItemsExcel";
 
 const Menu = () => {
     const customStyles = {
@@ -73,6 +76,10 @@ const Menu = () => {
     const [checkedItems, setCheckedItems] = useState([]);
     const [checkAll, setCheckAll] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [isBulkPriceModalOpen, setIsBulkPriceModalOpen] = useState(false);
+    const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false);
+    const [importFile, setImportFile] = useState(null);
+    const importFileRef = useRef(null);
 
     const [alertMessage, setAlertMessage] = useState("");
     const [alertType, setAlertType] = useState("success");
@@ -141,6 +148,15 @@ const Menu = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        if (searchParams.get('openBulkPrice') === 'true') {
+            setIsBulkPriceModalOpen(true);
+            const newParams = new URLSearchParams(searchParams);
+            newParams.delete('openBulkPrice');
+            setSearchParams(newParams, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
 
     const handlePageChange = useCallback((newPage) => {
         const pageNumber = typeof newPage === 'function' ? newPage(currentPage) : newPage;
@@ -263,6 +279,66 @@ const Menu = () => {
         }
     }, []);
 
+    // Calculate stats widgets
+    const stats = useMemo(() => {
+        const total = menuItems.length;
+        const active = menuItems.filter(item => item.isActive).length;
+        const inactive = total - active;
+        const noRecipe = menuItems.filter(item => !hasRecipe(item.id || item._id)).length;
+        return { total, active, inactive, noRecipe };
+    }, [menuItems, hasRecipe]);
+
+    // Handle export excel
+    const handleExportExcel = useCallback(async () => {
+        try {
+            await exportMenuItemsExcel(menuItems);
+            setAlertMessage("Daftar menu berhasil diexport ke Excel");
+            setAlertType("success");
+            setAlertKey(prev => prev + 1);
+        } catch (err) {
+            console.error("Gagal export excel:", err);
+            setAlertMessage("Gagal export excel. Silakan coba lagi.");
+            setAlertType("error");
+            setAlertKey(prev => prev + 1);
+        }
+    }, [menuItems]);
+
+    // Handle bulk status update
+    const handleBulkStatusUpdate = useCallback(async (newStatus) => {
+        try {
+            setLoading(true);
+            await Promise.all(checkedItems.map(id => 
+                axios.put(`/api/menu/menu-items/activated/${id}`, { isActive: newStatus })
+            ));
+            setCheckedItems([]);
+            setCheckAll(false);
+            await fetchData();
+
+            setAlertMessage(`${checkedItems.length} menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}`);
+            setAlertType("success");
+            setAlertKey(prev => prev + 1);
+        } catch (error) {
+            console.error("Gagal mengupdate status secara massal:", error);
+            setAlertMessage('Gagal mengubah status menu secara massal. Silakan coba lagi.');
+            setAlertType("error");
+            setAlertKey(prev => prev + 1);
+        } finally {
+            setLoading(false);
+        }
+    }, [checkedItems, fetchData]);
+
+    // Handle importing Excel file
+    const handleImportFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Reset file input so same file can be uploaded again
+        e.target.value = "";
+
+        setImportFile(file);
+        setIsBulkImportModalOpen(true);
+    };
+
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen bg-transparent">
@@ -294,6 +370,31 @@ const Menu = () => {
                     <p className="text-sm font-medium text-slate-500 mt-1">Kelola informasi produk dan harga</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => importFileRef.current.click()}
+                        className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-sm font-semibold"
+                    >
+                        <FaUpload /> Import Excel
+                    </button>
+                    <input
+                        type="file"
+                        ref={importFileRef}
+                        accept=".xlsx"
+                        className="hidden"
+                        onChange={handleImportFileChange}
+                    />
+                    <button
+                        onClick={handleExportExcel}
+                        className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-sm font-semibold"
+                    >
+                        <FaDownload /> Export Excel
+                    </button>
+                    <button
+                        onClick={() => setIsBulkPriceModalOpen(true)}
+                        className="bg-white border border-[#005429] text-[#005429] hover:bg-[#005429]/5 px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-sm font-semibold"
+                    >
+                        <FaTags /> Ubah Harga Massal
+                    </button>
                     <Link
                         to="/admin/menu-create"
                         state={{ returnPage: currentPage, returnTab: 'menu' }}
@@ -301,6 +402,61 @@ const Menu = () => {
                     >
                         <FaPlus /> Tambah Produk
                     </Link>
+                </div>
+            </div>
+
+            {/* Stats Cards Dashboard */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                {/* Total Produk */}
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 p-5 rounded-2xl shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+                    <div>
+                        <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Total Produk</p>
+                        <p className="text-2xl font-black text-slate-800 mt-1 font-['Outfit',sans-serif]">{stats.total}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-[#005429]/10 group-hover:text-[#005429] group-hover:border-[#005429]/20 transition-all duration-300">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                    </div>
+                </div>
+
+                {/* Produk Aktif */}
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 p-5 rounded-2xl shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+                    <div>
+                        <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Produk Aktif</p>
+                        <p className="text-2xl font-black text-emerald-600 mt-1 font-['Outfit',sans-serif]">{stats.active}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-emerald-50/50 border border-emerald-100/50 rounded-xl flex items-center justify-center text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                </div>
+
+                {/* Produk Nonaktif */}
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 p-5 rounded-2xl shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+                    <div>
+                        <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Produk Nonaktif</p>
+                        <p className="text-2xl font-black text-slate-600 mt-1 font-['Outfit',sans-serif]">{stats.inactive}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-slate-100/50 border border-slate-200/20 rounded-xl flex items-center justify-center text-slate-500 group-hover:bg-slate-500 group-hover:text-white transition-all duration-300">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                </div>
+
+                {/* Tanpa Resep */}
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 p-5 rounded-2xl shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+                    <div>
+                        <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Tanpa Resep</p>
+                        <p className="text-2xl font-black text-amber-600 mt-1 font-['Outfit',sans-serif]">{stats.noRecipe}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-amber-50/50 border border-amber-100/50 rounded-xl flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-all duration-300">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
                 </div>
             </div>
 
@@ -338,6 +494,26 @@ const Menu = () => {
                 hasRecipe={hasRecipe}
                 recipeFilter={recipeFilter}
                 setRecipeFilter={setRecipeFilter}
+                handleBulkStatusUpdate={handleBulkStatusUpdate}
+            />
+
+            <BulkPriceUpdateModal
+                isOpen={isBulkPriceModalOpen}
+                onClose={() => setIsBulkPriceModalOpen(false)}
+                menuItems={menuItems}
+                categories={category}
+                fetchData={fetchData}
+            />
+
+            <BulkPriceImportModal
+                isOpen={isBulkImportModalOpen}
+                onClose={() => {
+                    setIsBulkImportModalOpen(false);
+                    setImportFile(null);
+                }}
+                file={importFile}
+                menuItems={menuItems}
+                fetchData={fetchData}
             />
         </div>
     );

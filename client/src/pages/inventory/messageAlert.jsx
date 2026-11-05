@@ -33,4 +33,3 @@ const MessageAlert = () => {
 };
 
 export default MessageAlert;
-

@@ -95,7 +95,7 @@ const CreateStock = () => {
         fetchProduct();
     }, []);
 
-    const productOptions = menu.map(p => ({
+    const productOptions = product.map(p => ({
         value: p._id,
         label: p.name,
         _id: p._id,

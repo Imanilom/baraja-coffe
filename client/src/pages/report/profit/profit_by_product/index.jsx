@@ -3,9 +3,10 @@ import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaFileExcel, FaSync } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import Select from "react-select";
-import Paginated from "../../../../components/Paginated";
+import Paginated from "../../../../components/paginated";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
@@ -23,8 +24,8 @@ const ProfitByProductManagement = () => {
         const start = searchParams.get('startDate');
         const end = searchParams.get('endDate');
         return {
-            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
-            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+            startDate: start ? start : dayjs().format('YYYY-MM-DD'),
+            endDate: end ? end : dayjs().format('YYYY-MM-DD')
         };
     });
     const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outlet') || "");
@@ -222,20 +223,41 @@ const ProfitByProductManagement = () => {
         return filteredItems.slice(start, start + ITEMS_PER_PAGE);
     }, [filteredItems, currentPage]);
 
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
+        if (!filteredItems || filteredItems.length === 0) { alert('Tidak ada data untuk diekspor'); return; }
         const outletName = selectedOutlet || 'Semua Outlet';
-        const rangeStr = `${dayjs(dateRange.startDate).format('DD-MM-YYYY')} s/d ${dayjs(dateRange.endDate).format('DD-MM-YYYY')}`;
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Laba Produk');
+        const hFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF005429' } };
+        const aFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+        const tFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
+        const thin  = { style: 'thin', color: { argb: 'FFD1D5DB' } };
+        const bdr   = { top: thin, left: thin, bottom: thin, right: thin };
+        const rpFmt = '"Rp"#,##0;"Rp"-#,##0';
 
-        const headerData = [
-            ['Laporan Laba Produk'],
-            [],
-            ['Outlet', outletName],
-            ['Tanggal', rangeStr],
-            [],
-            ['Produk', 'Kategori', 'Penjualan Kotor', 'Diskon Produk', 'Pembelian', 'Laba Produk', '% Laba Produk']
-        ];
+        ws.columns = [{ width: 28 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 14 }];
 
-        const dataRows = filteredItems.map(item => {
+        ws.mergeCells('A1:G1');
+        Object.assign(ws.getCell('A1'), { value: 'LAPORAN LABA PRODUK',
+            font: { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF005429' } },
+            alignment: { horizontal: 'center' } });
+        ws.getRow(1).height = 26;
+
+        ws.mergeCells('A2:G2');
+        ws.getCell('A2').value = `Outlet: ${outletName}`;
+        ws.mergeCells('A3:G3');
+        ws.getCell('A3').value = `Periode: ${dayjs(dateRange.startDate).format('DD-MM-YYYY')} s/d ${dayjs(dateRange.endDate).format('DD-MM-YYYY')}`;
+        ws.addRow([]);
+
+        const headers = ['Produk', 'Kategori', 'Penjualan Kotor', 'Diskon Produk', 'Pembelian', 'Laba Produk', '% Laba'];
+        const hRow = ws.addRow(headers);
+        hRow.eachCell(cell => {
+            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = hFill; cell.border = bdr; cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+        hRow.height = 20;
+
+        filteredItems.forEach((item, idx) => {
             const menuItem = item.menuItem || {};
             const price = menuItem.price || 0;
             const diskon = menuItem.diskon || 0;
@@ -243,42 +265,42 @@ const ProfitByProductManagement = () => {
             const quantity = item.quantity || 1;
 
             const penjualanKotor = price * quantity;
-            const diskonTotal = diskon * quantity;
-            const pembelianTotal = pembelian * quantity;
             const labaProduk = (price - pembelian) * quantity;
             const labaPersen = price > 0 ? (labaProduk / penjualanKotor) : 0;
 
-            return [
-                menuItem.name || "-",
-                menuItem.category?.name || "-",
-                penjualanKotor,
-                diskonTotal,
-                pembelianTotal,
-                labaProduk,
-                labaPersen
-            ];
+            const row = ws.addRow([
+                menuItem.name || "-", menuItem.category?.name || "-",
+                penjualanKotor, diskon * quantity, pembelian * quantity,
+                labaProduk, labaPersen
+            ]);
+            row.height = 18;
+            row.eachCell((cell, col) => {
+                cell.border = bdr;
+                cell.alignment = { vertical: 'middle', horizontal: col <= 2 ? 'left' : 'right' };
+                if (idx % 2 === 1) cell.fill = aFill;
+                if (col >= 3 && col <= 6) cell.numFmt = rpFmt;
+                if (col === 7) cell.numFmt = '0.00"%"';
+            });
         });
 
-        const grandTotal = [
-            'Grand Total',
-            '',
-            totals.totalPenjualanKotor,
-            totals.totalDiskon,
-            totals.totalPembelian,
-            totals.totalLabaProduk,
-            totals.totalPenjualanKotor > 0 ? (totals.totalLabaProduk / totals.totalPenjualanKotor) : 0
-        ];
+        const gLabaPersen = totals.totalPenjualanKotor > 0 ? (totals.totalLabaProduk / totals.totalPenjualanKotor) : 0;
+        const totRow = ws.addRow([
+            'GRAND TOTAL', '',
+            totals.totalPenjualanKotor, totals.totalDiskon, totals.totalPembelian,
+            totals.totalLabaProduk, gLabaPersen
+        ]);
+        totRow.height = 22;
+        totRow.eachCell((cell, col) => {
+            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF005429' } };
+            cell.fill = tFill; cell.border = { ...bdr, top: { style: 'medium', color: { argb: 'FF005429' } } };
+            cell.alignment = { vertical: 'middle', horizontal: col <= 2 ? 'left' : 'right' };
+            if (col >= 3 && col <= 6) cell.numFmt = rpFmt;
+            if (col === 7) cell.numFmt = '0.00"%"';
+        });
 
-        const allData = [...headerData, ...dataRows, grandTotal];
-        const ws = XLSX.utils.aoa_to_sheet(allData);
-
-        // Styling and formatting
-        ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Laba Produk");
-        const filename = `Laporan_Laba_Produk_${outletName.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.xlsx`;
-        XLSX.writeFile(wb, filename);
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+            `Laporan_Laba_Produk_${outletName.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.xlsx`);
     };
 
     return (

@@ -56,7 +56,33 @@ export const midtransWebhook = async (req, res) => {
       if (!existingPayment) {
         console.error(`[WEBHOOK ${requestId}] Payment record not found for: ${order_id}`);
 
-        // ✅ TAMBAHAN: Coba cari order langsung untuk debugging
+        // 🎫 SMART ROUTING: Jika order berasal dari Web Event (prefix TIKET-, TICKET-, atau ORDER-)
+        if (typeof order_id === 'string' && (order_id.startsWith('TIKET-') || order_id.startsWith('TICKET-') || order_id.startsWith('ORDER-'))) {
+          console.log(`[WEBHOOK ${requestId}] 🎫 Meneruskan notifikasi Event Web ke PHP: ${order_id}`);
+          try {
+            const phpWebhookUrl = process.env.PHP_EVENT_WEBHOOK_URL || 'https://events.barajacoffee.com/midtrans-notification.php';
+            const forwardRes = await fetch(phpWebhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(req.body),
+              signal: AbortSignal.timeout(5000)
+            });
+            console.log(`[WEBHOOK ${requestId}] ✅ Berhasil forward ke PHP Event (Status: ${forwardRes.status})`);
+          } catch (forwardErr) {
+            console.warn(`[WEBHOOK ${requestId}] ⚠️ Gagal forward ke PHP Event:`, forwardErr.message);
+          }
+
+          // Balas HTTP 200 OK ke Midtrans agar Midtrans tidak menganggap webhook gagal
+          return {
+            success: true,
+            isTicket: true,
+            order_id,
+            transaction_status,
+            message: 'External event webhook forwarded to PHP event successfully'
+          };
+        }
+
+        // Cek order reguler cafe
         const orderCheck = await Order.findOne({ order_id: order_id });
         if (orderCheck) {
           console.log(`[WEBHOOK ${requestId}] Order found but payment record missing:`, {

@@ -42,6 +42,8 @@ export const exportTypeTransactionExcel = async ({
         "Outlet",
         "Tipe Order",
         "Pelanggan",
+        "No. Meja",
+        "No. HP",
         "Metode Pembayaran",
         "Status",
         "Total",
@@ -58,7 +60,7 @@ export const exportTypeTransactionExcel = async ({
             fgColor: { argb: "FFD9D9D9" }
         };
         cell.alignment = {
-            horizontal: (i === 7) ? "right" : "left" // Total right aligned
+            horizontal: (i === 9) ? "right" : "left" // Total right aligned
         };
     });
 
@@ -69,27 +71,47 @@ export const exportTypeTransactionExcel = async ({
     // 4. DATA ROWS
     // =====================
     data.forEach(item => {
+        const custPhone = item.customerPhone || item.customer_phone || item.contact?.phone || item.phoneNumber || item.user_id?.phone || item.recipientInfo?.phone || item.phone || "-";
+
+        // Ambil metode pembayaran
+        const payments = item?.payments || [];
+        const paymentMethods = [];
+        payments.forEach(p => {
+            const pStatus = p.status?.toLowerCase();
+            if (pStatus === "settlement" || pStatus === "paid" || pStatus === "completed" || pStatus === "capture" || pStatus === "partial") {
+                const methodName = p.method_type || p.method || p.paymentMethod || "";
+                if (methodName && !paymentMethods.includes(methodName)) {
+                    paymentMethods.push(methodName);
+                }
+            }
+        });
+        const paymentMethod = paymentMethods.length > 0
+            ? paymentMethods.join(", ")
+            : (item?.actualPaymentMethod || item?.payments?.[0]?.payment_method || "-");
+
         const rowData = [
             item.order_id || "-",
             item.createdAt ? formatDateTime(item.createdAt) : "-",
-            item.outlet?.name || "-",
+            item.cashierId?.outlet?.[0]?.outletId?.name || item.outlet?.name || "-",
             item.orderType || "-",
-            item.customer?.name || "Guest",
-            item.payments?.[0]?.payment_method || "-",
+            item.user || item.customer?.name || "Guest",
+            item.tableNumber ? String(item.tableNumber) : "-",
+            custPhone,
+            paymentMethod,
             item.status || "-",
             item.grandTotal || 0,
-            item.cashier?.name || "-"
+            item.cashierId?.username || item.cashier?.name || "-"
         ];
 
         rowData.forEach((value, i) => {
             const cell = sheet.getCell(currentRow, i + 1);
 
-            if (i === 7) {
+            if (i === 9) {
                 // Total - numeric with currency format
                 cell.value = value;
                 cell.numFmt = "#,##0";
                 cell.alignment = { horizontal: "right" };
-            } else if (i === 6) {
+            } else if (i === 8) {
                 // Status - with color coding
                 cell.value = value;
                 cell.alignment = { horizontal: "left" };
@@ -143,6 +165,8 @@ export const exportTypeTransactionExcel = async ({
             "",
             "",
             "",
+            "",
+            "",
             grandTotal,
             ""
         ];
@@ -154,7 +178,7 @@ export const exportTypeTransactionExcel = async ({
 
             if (i === 0) {
                 cell.alignment = { horizontal: "left" };
-            } else if (i === 7) {
+            } else if (i === 9) {
                 cell.numFmt = "#,##0";
                 cell.alignment = { horizontal: "right" };
             } else {
@@ -286,6 +310,8 @@ export const exportTypeTransactionExcel = async ({
         20,  // Outlet
         15,  // Tipe Order
         20,  // Pelanggan
+        12,  // No. Meja
+        18,  // No. HP
         20,  // Metode Pembayaran
         15,  // Status
         15,  // Total
@@ -296,7 +322,7 @@ export const exportTypeTransactionExcel = async ({
         let maxLength = columnWidths[i] || 12;
         column.eachCell({ includeEmpty: true }, cell => {
             const val = cell.value ? cell.value.toString() : "";
-            if (val.length > maxLength && (i === 0 || i === 2 || i === 4 || i === 8)) {
+            if (val.length > maxLength && (i === 0 || i === 2 || i === 4 || i === 6 || i === 10)) {
                 maxLength = Math.min(val.length, 40); // cap at 40
             }
         });

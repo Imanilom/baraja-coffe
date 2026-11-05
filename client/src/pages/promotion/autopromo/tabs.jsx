@@ -41,4 +41,3 @@ export default function PromoTabs({ activeTab, handleTabChange, totalAktif, tota
         </>
     );
 }
-

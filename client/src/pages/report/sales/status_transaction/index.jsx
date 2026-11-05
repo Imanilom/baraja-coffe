@@ -221,8 +221,20 @@ const TypeTransaction = () => {
         if (selectedStatus && Array.isArray(selectedStatus) && selectedStatus.length > 0) {
             filtered = filtered.filter(product => selectedStatus.includes(product.status));
         }
+        if (debouncedSearchTerm) {
+            const term = debouncedSearchTerm.toLowerCase();
+            filtered = filtered.filter(p => {
+                const orderId = (p.order_id || '').toLowerCase();
+                const user = (p.user || '').toLowerCase();
+                const table = (p.tableNumber ? String(p.tableNumber) : '').toLowerCase();
+                const phone = (p.customerPhone || p.customer_phone || p.contact?.phone || p.phoneNumber || p.user_id?.phone || p.recipientInfo?.phone || p.phone || '').toLowerCase();
+                const cashier = (p.cashierId?.username || '').toLowerCase();
+                const itemsMatch = Array.isArray(p.items) && p.items.some(i => (i.menuItemData?.name || i.menuItem?.name || '').toLowerCase().includes(term));
+                return orderId.includes(term) || user.includes(term) || table.includes(term) || phone.includes(term) || cashier.includes(term) || itemsMatch;
+            });
+        }
         return filtered;
-    }, [products, selectedStatus]);
+    }, [products, selectedStatus, debouncedSearchTerm]);
 
     // Paginate the filtered data
     const paginatedData = useMemo(() => {

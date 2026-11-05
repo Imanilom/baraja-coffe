@@ -52,12 +52,35 @@ export const handleDownloadPDF = async (transactionData, formatDateTime, formatC
 
         await new Promise((resolve, reject) => {
             logoImg.onload = () => {
+                // Resize image using Canvas to compress it
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 300;
+                let targetWidth = logoImg.width;
+                let targetHeight = logoImg.height;
+
+                if (targetWidth > MAX_WIDTH) {
+                    targetHeight = Math.round((MAX_WIDTH / targetWidth) * targetHeight);
+                    targetWidth = MAX_WIDTH;
+                }
+
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+                const ctx = canvas.getContext('2d');
+                
+                // Draw white background in case it's a transparent PNG
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, targetWidth, targetHeight);
+                ctx.drawImage(logoImg, 0, 0, targetWidth, targetHeight);
+                
+                // Export as compressed JPEG (70% quality)
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
                 // Add logo centered
                 const imgWidth = 25; // 25mm width
                 const imgHeight = (logoImg.height / logoImg.width) * imgWidth;
                 const xPos = (pageWidth - imgWidth) / 2;
 
-                pdf.addImage(logoImg, 'PNG', xPos, yPos, imgWidth, imgHeight);
+                pdf.addImage(compressedDataUrl, 'JPEG', xPos, yPos, imgWidth, imgHeight);
                 yPos += imgHeight + 3;
                 resolve();
             };

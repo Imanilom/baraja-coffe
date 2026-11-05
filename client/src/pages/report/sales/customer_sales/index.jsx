@@ -4,11 +4,11 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { Link, useSearchParams } from "react-router-dom";
-import { FaChevronRight, FaDownload } from "react-icons/fa";
+import { FaChevronRight, FaDownload, FaWhatsapp } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import { useSelector } from "react-redux";
 import Select from "react-select";
-import Paginated from "../../../../components/Paginated";
+import Paginated from "../../../../components/paginated";
 import CustomerSalesSkeleton from "./skeleton";
 import { exportCustomerSalesExcel } from '../../../../utils/exportCustomerSalesExcel';
 import useDebounce from "@/hooks/useDebounce";
@@ -362,7 +362,7 @@ const CustomerSales = () => {
                                 <tr className="text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50/50">
                                     <th className="px-5 py-3 font-bold">Pelanggan</th>
                                     <th className="px-5 py-3 font-bold text-right">Tipe</th>
-                                    <th className="px-5 py-3 font-bold text-right">Telepon</th>
+                                    <th className="px-5 py-3 font-bold text-right">No. Handphone</th>
                                     <th className="px-5 py-3 font-bold text-right">Jml Transaksi</th>
                                     <th className="px-5 py-3 font-bold text-right">Total</th>
                                     <th className="px-5 py-3 font-bold text-right">Rata-rata</th>
@@ -370,23 +370,48 @@ const CustomerSales = () => {
                         </thead>
                         <tbody className="text-sm">
                             {customerData.length > 0 ? (
-                                customerData.map((customer, index) => (
-                                    <tr key={index} className="hover:bg-gray-50/50 border-b border-gray-50 last:border-0 transition-colors duration-150">
-                                        <td className="px-5 py-2.5">
-                                            <div className="font-bold text-gray-800 text-xs">{customer.customerName || 'Walk-in Customer'}</div>
-                                            <div className="text-[10px] text-gray-400 font-medium">ID: {customer.customerId || '-'}</div>
-                                        </td>
-                                        <td className="px-5 py-2.5 text-right">
-                                            <span className="px-2 py-0.5 bg-gray-100 rounded text-[10px] font-bold text-gray-600 uppercase tracking-tight">
-                                                {customer.customerType || '-'}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-2.5 text-right text-gray-600 text-[11px]">{customer.customerPhone || '-'}</td>
-                                        <td className="px-5 py-2.5 text-right text-gray-700 font-medium text-[11px]">{customer.transactionCount?.toLocaleString('id-ID') || 0}</td>
-                                        <td className="px-5 py-2.5 text-right text-gray-900 font-black text-[11px]">{formatCurrency(customer.totalSales || 0)}</td>
-                                        <td className="px-5 py-2.5 text-right text-primary font-bold text-[11px]">{formatCurrency(customer.averagePerTransaction || 0)}</td>
-                                    </tr>
-                                ))
+                                customerData.map((customer, index) => {
+                                    const phone = customer.customerPhone || customer.phone || customer.contact?.phone || customer.phoneNumber || null;
+                                    const cleanPhone = phone ? phone.replace(/[^0-9]/g, '').replace(/^0/, '62') : null;
+
+                                    return (
+                                        <tr key={index} className="hover:bg-gray-50/50 border-b border-gray-50 last:border-0 transition-colors duration-150">
+                                            <td className="px-5 py-2.5">
+                                                <div className="font-bold text-gray-800 text-xs">{customer.customerName || 'Walk-in Customer'}</div>
+                                                <div className="text-[10px] text-gray-400 font-medium">ID: {customer.customerId || '-'}</div>
+                                            </td>
+                                            <td className="px-5 py-2.5 text-right">
+                                                <span className="px-2 py-0.5 bg-gray-100 rounded text-[10px] font-bold text-gray-600 uppercase tracking-tight">
+                                                    {customer.customerType || '-'}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-2.5 text-right text-gray-600 text-[11px]">
+                                                {phone ? (
+                                                    <div className="inline-flex items-center justify-end gap-1.5">
+                                                        <span className="font-mono text-gray-700">{phone}</span>
+                                                        {cleanPhone && (
+                                                            <a
+                                                                href={`https://wa.me/${cleanPhone}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-1.5 py-0.5 rounded border border-green-200 transition-colors"
+                                                                title="Chat WhatsApp"
+                                                            >
+                                                                <FaWhatsapp className="text-green-600 text-xs" />
+                                                                <span>WA</span>
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-2.5 text-right text-gray-700 font-medium text-[11px]">{customer.transactionCount?.toLocaleString('id-ID') || 0}</td>
+                                            <td className="px-5 py-2.5 text-right text-gray-900 font-black text-[11px]">{formatCurrency(customer.totalSales || 0)}</td>
+                                            <td className="px-5 py-2.5 text-right text-primary font-bold text-[11px]">{formatCurrency(customer.averagePerTransaction || 0)}</td>
+                                        </tr>
+                                    );
+                                })
                             ) : (
                                 <tr>
                                     <td colSpan={6} className="py-20 text-center text-gray-400">Tidak ada data ditemukan</td>

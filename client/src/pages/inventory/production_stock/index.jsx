@@ -10,7 +10,7 @@ import Select from "react-select";
 import { useSelector, useDispatch } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
 import { setReportData } from "@/redux/report/reportSlice";
-import Paginated from "@/components/Paginated";
+import Paginated from "@/components/paginated";
 import Header from "@/components/Header";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 
@@ -397,4 +397,3 @@ const ProductionStockManagement = () => {
 };
 
 export default ProductionStockManagement;
-

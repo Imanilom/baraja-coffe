@@ -3,7 +3,8 @@ import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaSync, FaFileExcel, FaChair, FaHistory, FaClock, FaUsers } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import Select from "react-select";
 import dayjs from "dayjs";
 import { useSelector, useDispatch } from "react-redux";
@@ -26,8 +27,8 @@ const TableManagement = () => {
         const start = searchParams.get('startDate');
         const end = searchParams.get('endDate');
         return {
-            startDate: start ? dayjs(start).toDate() : dayjs().toDate(),
-            endDate: end ? dayjs(end).toDate() : dayjs().toDate()
+            startDate: start ? start : dayjs().format('YYYY-MM-DD'),
+            endDate: end ? end : dayjs().format('YYYY-MM-DD')
         };
     });
     const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get('outletId') || "");
@@ -147,19 +148,45 @@ const TableManagement = () => {
         return Object.keys(map).map(name => ({ name, count: map[name] }));
     }, [cachedData]);
 
-    const exportToExcel = () => {
-        const exportData = filteredData.map(item => ({
-            "Waktu": dayjs(item.time).format('DD-MM-YYYY HH:mm'),
-            "Area": item.area,
-            "Meja": item.tableNo,
-            "Pelanggan": item.customers,
-            "Durasi": item.duration,
-            "Status": "Selesai"
-        }));
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        XLSX.utils.book_append_sheet(wb, ws, "Laporan Meja");
-        XLSX.writeFile(wb, `Laporan_Meja_${dayjs().format('YYYYMMDD')}.xlsx`);
+    const exportToExcel = async () => {
+        if (filteredData.length === 0) { alert('Tidak ada data untuk diekspor'); return; }
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Laporan Meja');
+        const hFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF005429' } };
+        const aFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+        const thin  = { style: 'thin', color: { argb: 'FFD1D5DB' } };
+        const bdr   = { top: thin, left: thin, bottom: thin, right: thin };
+        ws.columns = [{ width: 20 }, { width: 18 }, { width: 10 }, { width: 14 }, { width: 14 }, { width: 12 }];
+
+        ws.mergeCells('A1:F1');
+        Object.assign(ws.getCell('A1'), { value: 'LAPORAN MEJA',
+            font: { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF005429' } },
+            alignment: { horizontal: 'center' } });
+        ws.getRow(1).height = 26;
+        ws.addRow([]);
+
+        const headers = ['Waktu', 'Area', 'Meja', 'Pelanggan', 'Durasi', 'Status'];
+        const hRow = ws.addRow(headers);
+        hRow.eachCell(cell => { cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = hFill; cell.border = bdr; cell.alignment = { horizontal: 'center', vertical: 'middle' }; });
+        hRow.height = 20;
+
+        filteredData.forEach((item, idx) => {
+            const row = ws.addRow([
+                dayjs(item.time).format('DD-MM-YYYY HH:mm'), item.area, item.tableNo,
+                item.customers, item.duration, 'Selesai'
+            ]);
+            row.height = 18;
+            row.eachCell(cell => {
+                cell.border = bdr;
+                cell.alignment = { vertical: 'middle' };
+                if (idx % 2 === 1) cell.fill = aFill;
+            });
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+            `Laporan_Meja_${dayjs().format('YYYYMMDD')}.xlsx`);
     };
 
     return (

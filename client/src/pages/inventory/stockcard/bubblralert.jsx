@@ -54,4 +54,3 @@ const BubbleAlert = ({ paginatedData }) => {
 };
 
 export default BubbleAlert;
-

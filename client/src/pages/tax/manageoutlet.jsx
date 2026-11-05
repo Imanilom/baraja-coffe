@@ -219,4 +219,3 @@ const CreateManageOutlet = () => {
 };
 
 export default CreateManageOutlet;
-

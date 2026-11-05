@@ -68,7 +68,7 @@ export const exportCustomerSalesExcel = async ({
         const rowData = [
             item.customerName || "Walk-in Customer",
             item.customerType || "-",
-            item.customerPhone || "-",
+            item.customerPhone || item.phone || item.contact?.phone || item.phoneNumber || "-",
             item.transactionCount || 0,
             item.totalSales || 0,
             item.averagePerTransaction || 0

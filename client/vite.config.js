@@ -18,11 +18,14 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        // target: 'https://a00bc682df3b.ngrok-free.app',
-        // target: 'https://app.barajacoffee.site',
-        target: 'http://localhost:3000',
+        // target: 'https://equisetic-nonvendibly-benny.ngrok-free.dev',
+        target: 'https://app.barajacoffee.site',
+        // target: 'http://localhost:3000',
         changeOrigin: true, // Tambahkan ini untuk mengatasi masalah CORS
         secure: false, // Set ke false jika menggunakan HTTP
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
       },
     },
   },

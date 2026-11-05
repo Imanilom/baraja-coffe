@@ -177,17 +177,18 @@ const CreateEvent = () => {
 
             // Upload ke PHP backend
             // GANTI URL ini dengan URL PHP upload.php Anda
-            const response = await axios.post('https://img.barajacoffee.com/api.php', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+            const response = await fetch('https://img.barajacoffee.com/api.php', {
+                method: 'POST',
+                body: formData,
             });
 
+            const data = await response.json();
+
             // Response format: { success: true, imageURL: "http://..." }
-            if (response.data.success) {
-                return response.data.imageURL;
+            if (data.success) {
+                return data.imageURL;
             } else {
-                throw new Error(response.data.message || 'Upload gagal');
+                throw new Error(data.message || 'Upload gagal');
             }
 
         } catch (error) {

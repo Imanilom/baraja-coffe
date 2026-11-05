@@ -52,4 +52,3 @@ const outletSlice = createSlice({
 
 export const { clearOutlets } = outletSlice.actions;
 export default outletSlice.reducer;
-

@@ -272,7 +272,8 @@ const generateTicketOrderId = async (event_id) => {
     endOfDay.setHours(23, 59, 59, 999);
     
     const lastTicket = await TicketPurchase.findOne({
-        event: event_id,
+        // ✅ Cari sequence tiket terakhir hari ini secara global (lintas semua event)
+        order_id: new RegExp(`^${baseCode}-`),
         createdAt: {
             $gte: startOfDay,
             $lte: endOfDay

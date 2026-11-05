@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { FaPencilAlt, FaReceipt, FaTrashAlt } from "react-icons/fa";
+import { FaPencilAlt, FaReceipt, FaTrashAlt, FaCheck, FaTimes } from "react-icons/fa";
 import Select from "react-select";
 import CategoryTabs from "./categorytabs";
 import { Link, useLocation } from "react-router-dom";
 import MenuSkeleton from "./skeleton";
 import ConfirmationModalActive from "../dialog/confirmationModalAction";
 import axios from '@/lib/axios';
-import Paginated from "../../../../components/Paginated";
+import Paginated from "../../../../components/paginated";
 import ConfirmModal from "../../../../components/modal/confirmmodal";
 import ConfirmModalBulkDelete from "../../../../components/modal/confirmModalBulkDelete";
 
@@ -43,7 +43,8 @@ export default function MenuTable({
     recipes,
     hasRecipe,
     recipeFilter,
-    setRecipeFilter
+    setRecipeFilter,
+    handleBulkStatusUpdate
 }) {
 
     const location = useLocation();
@@ -268,12 +269,29 @@ export default function MenuTable({
                                     <th className="p-4 text-right">Harga</th>
                                     <th className="p-4 text-right">
                                         {checkedItems.length > 0 && (
-                                            <button
-                                                onClick={handleDeleteClickBulk}
-                                                className="bg-red-50 text-red-600 px-3 py-1 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2 ml-auto text-xs font-bold border border-red-100"
-                                            >
-                                                <span>{checkedItems.length}</span> <FaTrashAlt />
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleBulkStatusUpdate(true)}
+                                                    className="bg-green-50 text-green-700 px-2.5 py-1.5 rounded-lg hover:bg-green-100 transition-colors flex items-center gap-1 text-[11px] font-bold border border-green-100"
+                                                    title="Aktifkan Massal"
+                                                >
+                                                    <FaCheck size={11} /> Aktifkan
+                                                </button>
+                                                <button
+                                                    onClick={() => handleBulkStatusUpdate(false)}
+                                                    className="bg-orange-50 text-orange-600 px-2.5 py-1.5 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1 text-[11px] font-bold border border-orange-100"
+                                                    title="Nonaktifkan Massal"
+                                                >
+                                                    <FaTimes size={11} /> Nonaktifkan
+                                                </button>
+                                                <button
+                                                    onClick={handleDeleteClickBulk}
+                                                    className="bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1.5 border border-red-100 text-xs font-bold"
+                                                    title="Hapus Massal"
+                                                >
+                                                    <span>{checkedItems.length}</span> <FaTrashAlt size={11} />
+                                                </button>
+                                            </div>
                                         )}
                                         {checkedItems.length === 0 && "Aksi"}
                                     </th>

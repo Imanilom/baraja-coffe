@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from '@/lib/axios';
 import dayjs from "dayjs";
 import { Link } from 'react-router-dom';
-import { FaChevronRight, FaPoll, FaPercent, FaCut, FaGift } from "react-icons/fa";
+import { FaChevronRight, FaPoll, FaPercent, FaCut, FaGift, FaCalendarAlt } from "react-icons/fa";
 
 const ProfitMenu = () => {
     const [summary, setSummary] = useState({
@@ -151,6 +151,24 @@ const ProfitMenu = () => {
                                     {formatCurrency(summary.totalNetProfit)}
                                 </p>
                             )}
+                        </div>
+                    </Link>
+
+                    {/* Laba Bulanan */}
+                    <Link
+                        to="/admin/monthly-profit"
+                        className="group p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] transition-all border-green-900 border rounded flex flex-col justify-between min-h-[120px]"
+                    >
+                        <div className="flex items-center space-x-2 text-[#005429] group-hover:text-white mb-2">
+                            <FaCalendarAlt size={24} />
+                            <h2 className="font-semibold text-lg">Laba Bulanan</h2>
+                        </div>
+                        <div className="mt-auto">
+                            <p className="text-xs text-gray-500 group-hover:text-green-100 uppercase tracking-wider">Rekap Per Bulan (Jan - Des)</p>
+                            <p className="text-sm font-semibold text-[#005429] group-hover:text-white mt-1 flex items-center gap-1">
+                                <span>Lihat Laporan Bulanan</span>
+                                <span>&rarr;</span>
+                            </p>
                         </div>
                     </Link>
 

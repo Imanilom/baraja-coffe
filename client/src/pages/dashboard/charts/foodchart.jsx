@@ -58,4 +58,3 @@ export default function FoodChart({ data }) {
         </div>
     );
 }
-

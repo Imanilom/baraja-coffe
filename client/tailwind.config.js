@@ -10,9 +10,21 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#005429',
-        'primary-dark': '#003d1e',
-        'primary-light': '#ebf5ee',
+        primary: '#8baa8b',
+        'primary-dark': '#6d8c6d',
+        'primary-light': '#e3ebe3',
+        sage: {
+          50: '#f4f7f4',
+          100: '#e3ebe3',
+          200: '#c5d5c5',
+          300: '#a3bea3',
+          400: '#8baa8b',
+          500: '#729872',
+          600: '#587a58',
+          700: '#466146',
+          800: '#394e39',
+          900: '#304130',
+        }
       }
     },
   },

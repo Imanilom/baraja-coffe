@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import PageLoader from "./components/PageLoader";
 
@@ -12,11 +12,9 @@ const About = lazy(() => import("./pages/About"));
 const SignUp = lazy(() => import("./pages/SignUp"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Download = lazy(() => import("./components/download"));
+const PublicReceipt = lazy(() => import("./pages/public/PublicReceipt"));
 const AdminLayout = lazy(() => import("./pages/admin/index"));
 const Example = lazy(() => import("./pages/example"));
-const DewaadminOrders = lazy(() => import("./pages/dewaadmin_orders/index"));
-const CustomerInsights = lazy(() => import("./pages/customer_insights/index"));
-const CustomerDisplay = lazy(() => import("./pages/customer_display/index"));
 
 // Admin Pages
 const Dashboard = lazy(() => import("./pages/dashboard"));
@@ -76,7 +74,6 @@ const CreateExpenditureList = lazy(() => import("./pages/purchase/expenditurelis
 // Report
 const Summary = lazy(() => import("./pages/report/sales/summary"));
 const SalesTransaction = lazy(() => import("./pages/report/sales/sales_transaction"));
-const ReservationSales = lazy(() => import("./pages/report/sales/reservation_sales"));
 const SalesMenu = lazy(() => import("./pages/report/sales/index"));
 const OperationalMenu = lazy(() => import("./pages/report/operational"));
 const ProfitMenu = lazy(() => import("./pages/report/profit"));
@@ -85,12 +82,9 @@ const ProductSales = lazy(() => import("./pages/report/sales/product_sales"));
 const DeviceSales = lazy(() => import("./pages/report/sales/device_sales"));
 const DailySales = lazy(() => import("./pages/report/sales/daily_sales"));
 const HourlySales = lazy(() => import("./pages/report/sales/hourly_sales"));
+const MonthlySales = lazy(() => import("./pages/report/sales/monthly_sales"));
 const CustomerSales = lazy(() => import("./pages/report/sales/customer_sales"));
 const PaymentMethodSales = lazy(() => import("./pages/report/sales/payment_method_sales"));
-
-// PAYMENT METHOD MANAGEMENT
-const PaymentMethodList = lazy(() => import("./pages/admin/payment_method/index"));
-const CreatePaymentMethod = lazy(() => import("./pages/admin/payment_method/create"));
 const TypeSales = lazy(() => import("./pages/report/sales/type_sales"));
 const CategorySales = lazy(() => import("./pages/report/sales/category_sales"));
 const OutletSales = lazy(() => import("./pages/report/sales/outlet_sales"));
@@ -111,6 +105,7 @@ const StockReconciliation = lazy(() => import("./pages/stock_reconciliation"));
 const TaxRevenueManagement = lazy(() => import("./pages/report/profit/tax_revenue"));
 const DiscountManagement = lazy(() => import("./pages/report/profit/discount"));
 const DailyProfitManagement = lazy(() => import("./pages/report/profit/daily-profit"));
+const MonthlyProfitManagement = lazy(() => import("./pages/report/profit/monthly-profit"));
 const ProfitByProductManagement = lazy(() => import("./pages/report/profit/profit_by_product"));
 
 // Promotion & Voucher
@@ -140,6 +135,8 @@ const UpdateEvent = lazy(() => import("./pages/event/update"));
 const ReportEvent = lazy(() => import("./pages/event/report"));
 
 // Settings & Access
+const SettingsIntegrationPage = lazy(() => import("./pages/settings/index"));
+const PaymentMethodManagement = lazy(() => import("./pages/payment_method/index"));
 const AccessMenu = lazy(() => import("./pages/access"));
 const RoleManagement = lazy(() => import("./pages/access/role"));
 const CreateRole = lazy(() => import("./pages/access/role/create"));
@@ -196,17 +193,17 @@ export default function App() {
               <Route path="/about" element={<About />} />
               <Route path="/example" element={<Example />} />
               <Route path="/download" element={<Download />} />
-              <Route path="/customer-display/:deviceId" element={<CustomerDisplay />} />
+              <Route path="/receipt/:orderId" element={<PublicReceipt />} />
+              <Route path="/receipt" element={<PublicReceipt />} />
+              <Route path="/settings" element={<Navigate to="/admin/settings" replace />} />
 
               {/* Halaman Admin dengan Sidebar */}
-              <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "dewaadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan", "cashier senior", "super kasir"]} />}>
+              <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan", "cashier senior", "super kasir"]} />}>
                 <Route path="/admin" element={<AdminLayout />}>
                   {/* <Route index element={<AdminDashboard />} /> */}
                   <Route path="dashboard" element={<Dashboard />} />
                   <Route path="restaurant-analytics" element={<AnalyticsDashboard />} />
                   <Route path="example" element={<Example />} />
-                  <Route path="dewaadmin/orders" element={<DewaadminOrders />} />
-                  <Route path="customer-insights" element={<CustomerInsights />} />
                   <Route path="menu-receipt/:id" element={<ReceiptMenu />} />
                   <Route path="menu" element={<Menumanagement />} />
                   <Route path="menu-create" element={<Menucreate />} />
@@ -225,10 +222,6 @@ export default function App() {
                   <Route path="table-plan/create" element={<CreateTable />} />
                   <Route path="table-plan/update/:id" element={<UpdateTableForm />} />
                   <Route path="generate-qr" element={<QRCodeGenerator />} />
-                  
-                  {/* Payment Method Management */}
-                  <Route path="payment-method" element={<PaymentMethodList />} />
-                  <Route path="payment-method/create" element={<CreatePaymentMethod />} />
                   {/* Purchase */}
 
                   {/* supplier */}
@@ -256,11 +249,11 @@ export default function App() {
                   {/* Sales */}
                   <Route path="digital-payment" element={<DigitalPayment />} />
                   <Route path="transaction-sales" element={<SalesTransaction />} />
-                  <Route path="reservation-sales" element={<ReservationSales />} />
                   <Route path="type-transaction" element={<TypeTransaction />} />
                   <Route path="product-sales" element={<ProductSales />} />
                   <Route path="device-sales" element={<DeviceSales />} />
                   <Route path="daily-sales" element={<DailySales />} />
+                  <Route path="monthly-sales" element={<MonthlySales />} />
                   <Route path="hourly-sales" element={<HourlySales />} />
                   <Route path="customer-sales" element={<CustomerSales />} />
                   <Route path="payment-method-sales" element={<PaymentMethodSales />} />
@@ -286,6 +279,7 @@ export default function App() {
                   <Route path="tax-revenue" element={<TaxRevenueManagement />} />
                   <Route path="discount" element={<DiscountManagement />} />
                   <Route path="daily-profit" element={<DailyProfitManagement />} />
+                  <Route path="monthly-profit" element={<MonthlyProfitManagement />} />
                   <Route path="profit-by-product" element={<ProfitByProductManagement />} />
 
                   {/* Asset */}
@@ -412,6 +406,12 @@ export default function App() {
                   {/* Sidebar */}
                   <Route path="access-settings/bar-menu" element={<BarMenu />} />
                   <Route path="access-settings/bar-menu/create-bar-menu" element={<CreateSidebarMenu />} />
+
+                  {/* Settings & API Key Integration */}
+                  <Route path="settings" element={<SettingsIntegrationPage />} />
+                  <Route path="settings/integration" element={<SettingsIntegrationPage />} />
+                  <Route path="payment-methods" element={<PaymentMethodManagement />} />
+                  <Route path="settings/payment-methods" element={<PaymentMethodManagement />} />
                   <Route path="access-settings/bar-menu/update-bar-menu/:id" element={<UpdateSidebarMenu />} />
 
                   {/* Logs */}
@@ -430,4 +430,5 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
 

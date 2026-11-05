@@ -105,4 +105,3 @@ const AnalyticsDashboard = ({ dailyData = null, productData = null }) => {
 };
 
 export default AnalyticsDashboard;
-

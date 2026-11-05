@@ -160,7 +160,7 @@ const ReceiptDesign = () => {
     try {
       setLoading(prev => ({ ...prev, settings: true }));
       
-      const res = await axios.get(`/api/receipt-settings/${outletId}`);
+      const res = await axios.get(`/api/receipt-setting/${outletId}`);
       const data = res.data;
 
       const mergedData = {
@@ -285,7 +285,7 @@ const ReceiptDesign = () => {
         applyToAll,
       };
 
-      await axios.post("/api/receipt-settings", payload);
+      await axios.post(`/api/receipt-setting/${selectedOutlet}`, payload);
       toast.success("✅ Pengaturan struk berhasil disimpan!");
     } catch (err) {
       console.error("Save failed:", err);

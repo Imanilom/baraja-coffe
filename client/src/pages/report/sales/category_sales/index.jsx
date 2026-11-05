@@ -141,7 +141,6 @@ const CategorySales = () => {
             }
 
             if (dateRange?.startDate && dateRange?.endDate) {
-                params.append('excludeOrderType', 'Reservation');
                 params.append('startDate', formatDateForAPI(dateRange.startDate));
                 params.append('endDate', formatDateForAPI(dateRange.endDate));
             }

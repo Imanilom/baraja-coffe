@@ -4,19 +4,29 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html {
+    font-size: 14px; /* Makes elements slightly smaller for an elegant look */
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply text-slate-700 antialiased;
+  }
+}
+
 @layer components {
   .glass {
-    @apply bg-white/70 backdrop-blur-md border border-white/40 shadow-sm;
+    @apply bg-white/80 backdrop-blur-lg border border-white/50 shadow-sm transition-all duration-300;
   }
 
   .glass-sidebar {
-    @apply bg-white/80 backdrop-blur-2xl border-r border-slate-200/60;
-    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.03);
+    @apply bg-white/90 backdrop-blur-2xl border-r border-[#e3ebe3]/50 transition-all duration-300;
+    box-shadow: 2px 0 20px rgba(114, 152, 114, 0.05);
   }
 
   .glass-header {
-    @apply bg-white/70 backdrop-blur-xl border border-slate-200/60 sticky top-0 z-30;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
+    @apply bg-white/80 backdrop-blur-xl border-b border-[#e3ebe3]/50 sticky top-0 z-30 transition-all duration-300;
+    box-shadow: 0 4px 20px rgba(114, 152, 114, 0.05);
   }
 }
 
@@ -33,45 +43,45 @@
 } */
 
 #app-bg {
-  background: rgb(236, 236, 236);
-  background: linear-gradient(336deg, rgba(236, 236, 236, 1) 33%, rgba(241, 246, 227, 1) 71%);
+  background: #f4f7f4;
+  background: linear-gradient(336deg, #f4f7f4 33%, #e3ebe3 71%);
   transition-property: background-color;
   transition-duration: 700ms;
 }
 
 .dark #app-bg {
-  background: rgb(110, 112, 105);
-  background: radial-gradient(circle, rgba(110, 112, 105, 1) 29%, rgba(82, 82, 82, 1) 79%);
+  background: #304130;
+  background: radial-gradient(circle, #304130 29%, #394e39 79%);
   transition-property: background-color;
   transition-duration: 700ms;
 }
 
 #main-button:hover {
-  background-color: antiquewhite;
+  background-color: #e3ebe3;
 }
 
 #cart-circle {
-  background-color: #9CD175;
+  background-color: #8baa8b;
 }
 
 #footer-icon:hover {
-  color: #9CD175;
+  color: #8baa8b;
 }
 
 #lime-text {
-  color: #628949;
+  color: #729872;
 }
 
 .dark #lime-text {
-  color: #3b6e1c;
+  color: #a3bea3;
 }
 
 #name-text {
-  color: #628949;
+  color: #729872;
 }
 
 .dark #name-text {
-  color: #b0e390;
+  color: #c5d5c5;
 }
 
 #spin-logo {

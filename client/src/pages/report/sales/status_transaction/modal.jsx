@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import PdfButton from "../pdfButton";
-import { FaPen, FaCheck, FaTimes } from "react-icons/fa";
+import { FaPen, FaCheck, FaTimes, FaWhatsapp } from "react-icons/fa";
 
 const STATUS_OPTIONS = [
     { value: "Waiting", label: "Waiting", color: "bg-gray-100 text-gray-700" },
@@ -127,11 +127,35 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                         </div>
                         <div className="flex justify-between">
                             <span className="font-medium text-gray-600">Pelanggan</span>
-                            <p>{selectedTrx.user}</p>
+                            <p className="font-semibold text-gray-800">{selectedTrx.user || "-"}</p>
                         </div>
                         <div className="flex justify-between">
                             <span className="font-medium text-gray-600">No Meja</span>
-                            <p>{selectedTrx.tableNumber}</p>
+                            <p className="font-medium text-gray-800">{selectedTrx.tableNumber || "-"}</p>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="font-medium text-gray-600">No. Handphone</span>
+                            {(() => {
+                                const customerPhone = selectedTrx.customerPhone || selectedTrx.customer_phone || selectedTrx.contact?.phone || selectedTrx.phoneNumber || selectedTrx.user_id?.phone || selectedTrx.recipientInfo?.phone || selectedTrx.phone || "-";
+                                const cleanPhone = customerPhone !== "-" ? customerPhone.replace(/[^0-9]/g, '').replace(/^0/, '62') : null;
+                                return (
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-mono text-gray-800">{customerPhone}</p>
+                                        {cleanPhone && (
+                                            <a
+                                                href={`https://wa.me/${cleanPhone}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-2 py-0.5 rounded border border-green-200 transition-colors"
+                                                title="Chat via WhatsApp"
+                                            >
+                                                <FaWhatsapp className="text-green-600 text-xs" />
+                                                <span>WA</span>
+                                            </a>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
 
@@ -281,74 +305,15 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                     <div className="border rounded-lg p-3 bg-white">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-sm font-semibold text-gray-700">Status Transaksi</span>
-                            {!editStatusMode ? (
-                                <button
-                                    onClick={() => { setEditStatusMode(true); setNewStatus(selectedTrx.status); setUpdateMsg(null); }}
-                                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-900 text-white rounded hover:bg-green-800 transition-colors"
-                                >
-                                    <FaPen size={10} /> Ubah Status
-                                </button>
-                            ) : (
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setEditStatusMode(false)}
-                                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-100"
-                                    >
-                                        <FaTimes size={10} /> Batal
-                                    </button>
-                                    <button
-                                        onClick={handleSaveStatus}
-                                        disabled={isUpdatingStatus || newStatus === selectedTrx.status}
-                                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-green-900 text-white rounded hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {isUpdatingStatus ? (
-                                            <div className="animate-spin h-3 w-3 border border-white border-t-transparent rounded-full" />
-                                        ) : (
-                                            <FaCheck size={10} />
-                                        )}
-                                        Simpan
-                                    </button>
-                                </div>
-                            )}
+                            {/* 
+                              Tombol Ubah Status disembunyikan sementara (Opsi B)
+                              karena endpoint update status belum tersedia di backend.
+                            */}
                         </div>
 
-                        {!editStatusMode ? (
-                            <div className={`text-sm font-medium px-2 py-1 rounded w-fit ${currentStatusOption?.color || 'bg-gray-100 text-gray-600'}`}>
-                                {currentStatusOption?.label || selectedTrx.status || 'Tidak diketahui'}
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-1.5 mt-1">
-                                {STATUS_OPTIONS.map(opt => (
-                                    <label
-                                        key={opt.value}
-                                        className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer border transition-all ${newStatus === opt.value
-                                                ? 'border-green-700 bg-green-50'
-                                                : 'border-transparent hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <input
-                                            type="radio"
-                                            name="statusEdit"
-                                            value={opt.value}
-                                            checked={newStatus === opt.value}
-                                            onChange={() => setNewStatus(opt.value)}
-                                            className="accent-green-800"
-                                        />
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${opt.color}`}>
-                                            {opt.label}
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Feedback message */}
-                        {updateMsg && (
-                            <div className={`mt-2 text-xs px-3 py-2 rounded ${updateMsg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
-                                }`}>
-                                {updateMsg.text}
-                            </div>
-                        )}
+                        <div className={`text-sm font-medium px-2 py-1 rounded w-fit ${currentStatusOption?.color || 'bg-gray-100 text-gray-600'}`}>
+                            {currentStatusOption?.label || selectedTrx.status || 'Tidak diketahui'}
+                        </div>
                     </div>
 
                     <PdfButton
@@ -365,4 +330,3 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
 };
 
 export default TransactionModal;
-

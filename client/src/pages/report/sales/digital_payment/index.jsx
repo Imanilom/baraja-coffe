@@ -3,7 +3,8 @@ import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import { useSelector } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
 import dayjs from "dayjs";
@@ -38,11 +39,6 @@ const DigitalPayment = () => {
             dana: methods.includes('dana'),
             mandiriQris: methods.includes('mandiriQris'),
             briQris: methods.includes('briQris'),
-            bcaQris: methods.includes('bcaQris'),
-            bniQris: methods.includes('bniQris'),
-            bsiQris: methods.includes('bsiQris'),
-            btnQris: methods.includes('btnQris'),
-            bjbQris: methods.includes('bjbQris'),
         };
     });
 
@@ -150,13 +146,8 @@ const DigitalPayment = () => {
         if (payMethod.qris) activeMethods.push('QRIS');
         if (payMethod.dana) activeMethods.push('DANA');
         if (payMethod.linkAja) activeMethods.push('Link Aja');
-        if (payMethod.mandiriQris) activeMethods.push('Mandiri QRIS', 'QRIS Mandiri');
-        if (payMethod.briQris) activeMethods.push('BRI QRIS', 'QRIS BRI');
-        if (payMethod.bcaQris) activeMethods.push('BCA QRIS', 'QRIS BCA');
-        if (payMethod.bniQris) activeMethods.push('BNI QRIS', 'QRIS BNI');
-        if (payMethod.bsiQris) activeMethods.push('BSI QRIS', 'QRIS BSI');
-        if (payMethod.btnQris) activeMethods.push('BTN QRIS', 'QRIS BTN');
-        if (payMethod.bjbQris) activeMethods.push('BJB QRIS', 'QRIS BJB');
+        if (payMethod.mandiriQris) activeMethods.push('Mandiri QRIS');
+        if (payMethod.briQris) activeMethods.push('BRI QRIS');
 
         if (activeMethods.length > 0) {
             result = result.filter(p => activeMethods.includes(p.paymentMethod));
@@ -192,25 +183,53 @@ const DigitalPayment = () => {
         return dayjs(datetime).format('DD-MM-YYYY HH:mm:ss');
     };
 
-    const exportToExcel = () => {
-        if (filteredData.length === 0) return;
+    const exportToExcel = async () => {
+        if (filteredData.length === 0) { alert('Tidak ada data untuk diekspor'); return; }
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Digital Payment');
+        const hFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF005429' } };
+        const aFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+        const thin  = { style: 'thin', color: { argb: 'FFD1D5DB' } };
+        const bdr   = { top: thin, left: thin, bottom: thin, right: thin };
+        ws.columns = [{ width: 22 }, { width: 20 }, { width: 26 }, { width: 20 }, { width: 18 }, { width: 20 }];
 
-        const dataToExport = filteredData.map(p => {
+        ws.mergeCells('A1:F1');
+        Object.assign(ws.getCell('A1'), { value: 'LAPORAN DIGITAL PAYMENT',
+            font: { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF005429' } },
+            alignment: { horizontal: 'center' } });
+        ws.getRow(1).height = 26;
+        ws.addRow([]);
+
+        const headers = ['Waktu', 'Outlet', 'ID Struk', 'Kasir', 'Metode', 'Total (Rp)'];
+        const hRow = ws.addRow(headers);
+        hRow.eachCell(cell => {
+            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = hFill; cell.border = bdr; cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+        hRow.height = 20;
+
+        filteredData.forEach((p, idx) => {
             const subtotal = p.items?.reduce((s, i) => s + (Number(i.subtotal) || 0), 0) || 0;
-            return {
-                "Waktu": formatDateTime(p.createdAt),
-                "Outlet": p.cashier?.outlet?.[0]?.outletId?.name || "-",
-                "ID Struk": p._id,
-                "Kasir": p.cashier?.username || "-",
-                "Metode": p.paymentMethod || "-",
-                "Total (Rp)": subtotal + pb1,
-            };
+            const row = ws.addRow([
+                formatDateTime(p.createdAt),
+                p.cashier?.outlet?.[0]?.outletId?.name || "-",
+                p._id,
+                p.cashier?.username || "-",
+                p.paymentMethod || "-",
+                subtotal + pb1
+            ]);
+            row.height = 18;
+            row.eachCell((cell, col) => {
+                cell.border = bdr;
+                cell.alignment = { vertical: 'middle', horizontal: col === 6 ? 'right' : 'left' };
+                if (idx % 2 === 1) cell.fill = aFill;
+                if (col === 6) cell.numFmt = '"Rp"#,##0;"Rp"-#,##0';
+            });
         });
 
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Digital Payment");
-        XLSX.writeFile(wb, "Laporan_Digital_Payment.xlsx");
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+            "Laporan_Digital_Payment.xlsx");
     };
 
     if (loading && products.length === 0) {
@@ -342,13 +361,8 @@ const DigitalPayment = () => {
                             { id: 'qris', label: 'QRIS' },
                             { id: 'dana', label: 'DANA' },
                             { id: 'mandiriQris', label: 'Mandiri QRIS' },
-                            { id: 'briQris', label: 'BRI QRIS' },
-                            { id: 'bcaQris', label: 'BCA QRIS' },
-                            { id: 'bniQris', label: 'BNI QRIS' },
-                            { id: 'bsiQris', label: 'BSI QRIS' },
-                            { id: 'btnQris', label: 'BTN QRIS' },
-                            { id: 'bjbQris', label: 'BJB QRIS' }
-                        ].map((method) => (
+                            { id: 'briQris', label: 'BRI QRIS' }
+                        ].map(method => (
                             <label key={method.id} className="flex items-center cursor-pointer group">
                                 <div className="relative">
                                     <input

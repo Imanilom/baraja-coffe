@@ -42,4 +42,3 @@ const reportSlice = createSlice({
 
 export const { setReportData, clearReportCache } = reportSlice.actions;
 export default reportSlice.reducer;
-
