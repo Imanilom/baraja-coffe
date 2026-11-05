@@ -8,7 +8,7 @@ import { FaSearch } from "react-icons/fa";
 import Select from "react-select";
 import Datepicker from "react-tailwindcss-datepicker";
 import TransactionModal from "./modal";
-import Paginated from "../../../../components/paginated";
+import Paginated from "../../../../components/Paginated";
 
 const SalesTransactionTable = ({
     paginatedData,

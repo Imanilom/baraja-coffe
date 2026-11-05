@@ -9,7 +9,7 @@ import * as XLSX from "xlsx";
 
 import Header from "../../admin/header";
 import MessageAlert from "../messageAlert";
-import Paginated from "../../../components/paginated";
+import Paginated from "../../../components/Paginated";
 
 
 const ProductionListManagement = () => {

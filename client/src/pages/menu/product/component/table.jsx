@@ -6,7 +6,7 @@ import { Link, useLocation } from "react-router-dom";
 import MenuSkeleton from "./skeleton";
 import ConfirmationModalActive from "../dialog/confirmationModalAction";
 import axios from '@/lib/axios';
-import Paginated from "../../../../components/paginated";
+import Paginated from "../../../../components/Paginated";
 import ConfirmModal from "../../../../components/modal/confirmmodal";
 import ConfirmModalBulkDelete from "../../../../components/modal/confirmModalBulkDelete";
 

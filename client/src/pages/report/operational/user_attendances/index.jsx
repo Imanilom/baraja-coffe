@@ -10,7 +10,7 @@ import dayjs from "dayjs";
 import { useSelector, useDispatch } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";
 import { setReportData } from "@/redux/report/reportSlice";
-import Paginated from "@/components/paginated";
+import Paginated from "@/components/Paginated";
 
 const UserAttendancesManagement = () => {
     const [searchParams, setSearchParams] = useSearchParams();

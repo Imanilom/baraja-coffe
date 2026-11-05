@@ -15,7 +15,7 @@ import {
   FaMoneyBillWave,
   FaBuilding
 } from 'react-icons/fa';
-import MessageAlert from '../../components/messageAlert';
+import MessageAlert from '../../components/MessageAlert';
 
 const PaymentMethodManagement = () => {
   const [loading, setLoading] = useState(true);

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { FaPlus, FaTags, FaDownload, FaUpload } from 'react-icons/fa';
 import axios from '@/lib/axios';
 import { Link, useSearchParams } from "react-router-dom";
-import MessageAlert from "../../../components/messageAlert";
+import MessageAlert from "../../../components/MessageAlert";
 import MenuTable from "./component/table";
 import BulkPriceUpdateModal from "./dialog/bulkPriceUpdateModal";
 import BulkPriceImportModal from "./dialog/bulkPriceImportModal";

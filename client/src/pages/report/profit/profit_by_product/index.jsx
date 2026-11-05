@@ -6,7 +6,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import Select from "react-select";
-import Paginated from "../../../../components/paginated";
+import Paginated from "../../../../components/Paginated";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 import useDebounce from "@/hooks/useDebounce";

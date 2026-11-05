@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
-import { IconSelect } from "../../../components/iconSelect";
+import { IconSelect } from "../../../components/IconSelect";
 
 const SidebarMenuForm = ({ formData, setFormData, onSubmit, isSubmitting, parentOptions = [] }) => {
     const customSelectStyles = {

@@ -6,7 +6,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload, FaChevronL
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
-import Paginated from "../../../../components/paginated";
+import Paginated from "../../../../components/Paginated";
 import ProductSalesSkeleton from "./skeleton";
 import dayjs from "dayjs";
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';

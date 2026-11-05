@@ -14,7 +14,7 @@ import {
   FaCheck, 
   FaShieldAlt 
 } from 'react-icons/fa';
-import MessageAlert from '../../components/messageAlert';
+import MessageAlert from '../../components/MessageAlert';
 
 const SettingsIntegrationPage = () => {
   const [activeTab, setActiveTab] = useState('midtrans');
